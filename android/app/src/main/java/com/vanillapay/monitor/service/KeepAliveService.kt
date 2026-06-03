@@ -11,11 +11,19 @@ import androidx.core.app.NotificationCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.vanillapay.monitor.work.HeartbeatWorker
+import com.vanillapay.monitor.net.HeartbeatReporter
 import com.vanillapay.monitor.work.RetryWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class KeepAliveService : Service() {
+    private var heartbeatJob: Job? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -34,6 +42,7 @@ class KeepAliveService : Service() {
             .build()
         startForeground(1, notification)
         scheduleWorkers()
+        startHeartbeatLoop()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -41,14 +50,25 @@ class KeepAliveService : Service() {
     private fun scheduleWorkers() {
         val workManager = WorkManager.getInstance(this)
         workManager.enqueueUniquePeriodicWork(
-            "heartbeat",
-            ExistingPeriodicWorkPolicy.KEEP,
-            PeriodicWorkRequestBuilder<HeartbeatWorker>(15, TimeUnit.MINUTES).build(),
-        )
-        workManager.enqueueUniquePeriodicWork(
             "retry",
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<RetryWorker>(15, TimeUnit.MINUTES).build(),
         )
+    }
+
+    private fun startHeartbeatLoop() {
+        if (heartbeatJob?.isActive == true) return
+
+        heartbeatJob = CoroutineScope(Dispatchers.IO).launch {
+            while (isActive) {
+                HeartbeatReporter(applicationContext).send()
+                delay(30_000L)
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        heartbeatJob?.cancel()
+        super.onDestroy()
     }
 }
