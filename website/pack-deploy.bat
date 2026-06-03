@@ -21,7 +21,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$zip='%ZIP%';" ^
   "$dirs=@('app','config','database','extend','public','route','view');" ^
   "foreach($d in $dirs){$src=Join-Path $root $d; if(Test-Path -LiteralPath $src){Copy-Item -LiteralPath $src -Destination $stage -Recurse -Force}}" ^
-  "$files=@('think','composer.json','composer.lock','README.md','LICENSE.txt','.example.env');" ^
+  "$files=@('think','composer.json','composer.lock','README.md','LICENSE.txt','.example.env','deploy-server.sh');" ^
   "foreach($f in $files){$src=Join-Path $root $f; if(Test-Path -LiteralPath $src){Copy-Item -LiteralPath $src -Destination $stage -Force}}" ^
   "$remove=@('runtime','.phpunit.cache','tests','vendor','node_modules','.env','.git','.travis.yml','package.json','package-lock.json','tailwind.config.js','phpunit.xml','public\static\src');" ^
   "foreach($r in $remove){$p=Join-Path $stage $r; if(Test-Path -LiteralPath $p){Remove-Item -LiteralPath $p -Recurse -Force}}" ^
@@ -37,5 +37,5 @@ if errorlevel 1 (
 rd /s /q "%STAGE%"
 echo Created: %ZIP%
 echo.
-echo Upload this zip to the BT panel, unzip it, then run composer install and think migrate:run on the server.
+echo Upload this zip to the BT panel, unzip it, then run: bash deploy-server.sh
 exit /b 0

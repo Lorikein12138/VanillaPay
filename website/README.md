@@ -20,7 +20,7 @@ cd website
 pack-deploy.bat
 ```
 
-压缩包输出到 `website/deploy/vanillapay-website-YYYYMMDD-HHMMSS.zip`。压缩包会包含运行所需的 `app/config/database/public/route/view/think/composer.json/README.md` 等文件，不包含：
+压缩包输出到 `website/deploy/vanillapay-website-YYYYMMDD-HHMMSS.zip`。压缩包会包含运行所需的 `app/config/database/public/route/view/think/composer.json/deploy-server.sh/README.md` 等文件，不包含：
 
 ```text
 .env
@@ -48,14 +48,7 @@ deploy/
 ```
 
 3. 上传部署 zip 到站点目录并解压。
-4. 安装依赖：
-
-```bash
-cd /www/wwwroot/vanillapay.lorikein.cn
-/www/server/php/85/bin/php /usr/bin/composer install --no-dev --optimize-autoloader
-```
-
-5. 配置 `.env`：
+4. 首次部署时配置 `.env`：
 
 ```bash
 cp .example.env .env
@@ -79,8 +72,8 @@ DB_CHARSET = utf8mb4
 DB_PREFIX = vp_
 ```
 
-6. 设置网站运行目录为 `/public`，默认文档包含 `index.php`。
-7. Nginx 伪静态：
+5. 设置网站运行目录为 `/public`，默认文档包含 `index.php`。
+6. Nginx 伪静态：
 
 ```nginx
 location / {
@@ -95,29 +88,40 @@ location ~ ^/static/uploads/.*\.php$ {
 }
 ```
 
-8. 设置权限：
+7. 执行一键部署脚本：
 
 ```bash
+cd /www/wwwroot/vanillapay.lorikein.cn
+bash deploy-server.sh
+```
+
+脚本会自动执行：
+
+```bash
+/www/server/php/85/bin/php /usr/bin/composer install --no-dev --optimize-autoloader
+/www/server/php/85/bin/php think migrate:run
+/www/server/php/85/bin/php think clear
 chown -R www:www runtime public/static
 chmod -R 755 runtime public/static
 ```
 
-9. 执行迁移：
+迁移会创建 `vp_users`、`vp_admins`、`vp_channels`、`vp_merchant_qrcodes`、`vp_devices`、`vp_orders`、`vp_order_amount_lock`、`vp_risk_events`、`vp_callback_logs`、`vp_settings`、`vp_login_logs`、`vp_operation_logs` 等表。
+
+如果 PHP 或 Composer 路径和默认不同，可显式指定：
 
 ```bash
-/www/server/php/85/bin/php think migrate:run
-/www/server/php/85/bin/php think migrate:status
+PHP_BIN=/www/server/php/85/bin/php COMPOSER_BIN=/usr/bin/composer bash deploy-server.sh
 ```
 
-会创建 `vp_users`、`vp_admins`、`vp_channels`、`vp_merchant_qrcodes`、`vp_devices`、`vp_orders`、`vp_order_amount_lock`、`vp_risk_events`、`vp_callback_logs`、`vp_settings`、`vp_login_logs`、`vp_operation_logs` 等表。
-
-10. 创建超管：
+8. 创建超管：
 
 ```bash
 /www/server/php/85/bin/php think vanilla:admin-create root 强密码
 ```
 
-11. 宝塔计划任务，每分钟执行：
+超管只需要首次创建，后续覆盖更新不要重复执行。
+
+9. 宝塔计划任务，每分钟执行：
 
 ```bash
 /www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:order-expire
@@ -130,6 +134,21 @@ chmod -R 755 runtime public/static
 ```bash
 /www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:reconcile-daily
 ```
+
+## 后续覆盖更新
+
+后续每次更新只需要：
+
+1. 上传最新 `vanillapay-website-YYYYMMDD-HHMMSS.zip` 到站点目录。
+2. 在宝塔文件管理中解压并覆盖同名文件。
+3. 执行：
+
+```bash
+cd /www/wwwroot/vanillapay.lorikein.cn
+bash deploy-server.sh
+```
+
+不要删除服务器上的 `.env`、`runtime`、`public/static/uploads` 和数据库。部署包默认不包含 `vendor`、`node_modules`、`.env`，所以覆盖同名文件即可。
 
 ## 使用流程
 
