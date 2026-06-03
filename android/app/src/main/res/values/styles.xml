@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.VanillaPay" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="colorAccent">#0f766e</item>
+    </style>
+</resources>
