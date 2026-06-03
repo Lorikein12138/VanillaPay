@@ -1,2 +1,9 @@
 *
 !.gitignore
+!dist/
+!dist/app.css
+!src/
+!src/input.css
+!vendor/
+!vendor/poll.js
+uploads/

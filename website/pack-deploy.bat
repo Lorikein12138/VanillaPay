@@ -37,5 +37,5 @@ if errorlevel 1 (
 rd /s /q "%STAGE%"
 echo Created: %ZIP%
 echo.
-echo Upload this zip to the BT panel, unzip it, then run composer install on the server.
+echo Upload this zip to the BT panel, unzip it, then run composer install and think migrate:run on the server.
 exit /b 0

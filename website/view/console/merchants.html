@@ -1,0 +1,17 @@
+{extend name="layout"}
+{block name="title"}商户{/block}
+{block name="content"}
+<h1 class="mb-4 text-2xl font-semibold">商户管理</h1>
+<form class="mb-3 flex gap-2 text-sm"><input name="keyword" value="{$query.keyword|default=''}" placeholder="账号/邮箱/PID" class="rounded-md border border-zinc-300 px-3 py-2"><button class="rounded-md bg-zinc-800 px-4 py-2 text-white">搜索</button></form>
+<table class="w-full overflow-hidden rounded-lg border border-zinc-200 bg-white text-sm">
+  <thead class="bg-zinc-100 text-left"><tr><th class="p-3">ID</th><th>账号</th><th>PID</th><th>状态</th><th>浮动</th><th>操作</th></tr></thead>
+  <tbody>{volist name="data.items" id="m"}<tr class="border-t border-zinc-200 align-top">
+    <td class="p-3">{$m.id}</td><td>{$m.username}<div class="text-zinc-400">{$m.email}</div></td><td class="font-mono">{$m.pid}</td><td>{$m.status}</td><td>{$m.float_mode}/{$m.float_step}/{$m.float_max}</td>
+    <td class="space-y-1 py-2">
+      <form method="post" action="/console/merchants/setStatus"><input type="hidden" name="_csrf" value="{:csrf_token()}"><input type="hidden" name="id" value="{$m.id}">{eq name="m.status" value="2"}<input type="hidden" name="status" value="1"><button class="text-emerald-700">解封</button>{else/}<input type="hidden" name="status" value="2"><button class="text-rose-700">封禁</button>{/eq}</form>
+      <form method="post" action="/console/merchants/resetKey"><input type="hidden" name="_csrf" value="{:csrf_token()}"><input type="hidden" name="id" value="{$m.id}"><button class="text-teal-700">重置 KEY</button></form>
+    </td>
+  </tr>{/volist}</tbody>
+</table>
+<div class="mt-3 text-sm text-zinc-500">共 {$data.total} 个商户</div>
+{/block}

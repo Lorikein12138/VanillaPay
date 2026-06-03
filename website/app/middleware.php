@@ -1,6 +1,8 @@
 <?php
 // 全局中间件定义文件
 return [
+    \app\middleware\ForceHttps::class,
+    \app\middleware\SecurityHeaders::class,
     // 全局请求缓存
     // \think\middleware\CheckRequestCache::class,
     // 多语言加载

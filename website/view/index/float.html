@@ -1,0 +1,13 @@
+{extend name="merchant_layout"}
+{block name="title"}金额浮动{/block}
+{block name="content"}
+<h1 class="mb-4 text-2xl font-semibold">金额浮动</h1>
+<form method="post" action="/float" class="max-w-md space-y-3 rounded-lg border border-zinc-200 bg-white p-4 text-sm">
+  <input type="hidden" name="_csrf" value="{:csrf_token()}">
+  <label class="block">方向<select name="float_mode" class="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2"><option value="up" {eq name="user.float_mode" value="up"}selected{/eq}>向上</option><option value="down" {eq name="user.float_mode" value="down"}selected{/eq}>向下</option><option value="both" {eq name="user.float_mode" value="both"}selected{/eq}>双向</option></select></label>
+  <label class="block">步长<input name="float_step" value="{$user.float_step}" class="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2"></label>
+  <label class="block">上限<input name="float_max" value="{$user.float_max}" class="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2"></label>
+  <label class="block">订单有效期（秒）<input name="order_timeout" value="{$user.order_timeout}" class="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2"></label>
+  <button class="rounded-md bg-zinc-950 px-4 py-2 font-semibold text-white">保存</button>
+</form>
+{/block}

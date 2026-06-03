@@ -1,0 +1,10 @@
+{extend name="merchant_layout"}
+{block name="title"}回调测试{/block}
+{block name="content"}
+<h1 class="mb-4 text-2xl font-semibold">回调测试</h1>
+<form method="post" action="/callback-test" class="max-w-xl space-y-3 rounded-lg border border-zinc-200 bg-white p-4">
+  <input type="hidden" name="_csrf" value="{:csrf_token()}">
+  <input name="url" placeholder="https://merchant.example.com/notify" class="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
+  <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white">发送测试</button>
+</form>
+{/block}

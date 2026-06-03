@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>收银台 - VanillaPay</title>
+  <link rel="stylesheet" href="/static/dist/app.css">
+</head>
+<body class="min-h-screen bg-zinc-50 px-4 py-8 text-zinc-900">
+  <main class="mx-auto max-w-sm text-center">
+    <h1 class="text-xl font-semibold">请使用{$channelName}扫码支付</h1>
+    <div class="mt-4 text-4xl font-semibold text-rose-600">￥{$order.real_amount}</div>
+    <p class="mt-2 text-sm text-zinc-500">必须按此金额付款，金额不一致无法自动到账</p>
+    <div class="mt-5 rounded-lg border border-zinc-200 bg-white p-4">
+      <img src="{$qrImage}" alt="收款码" class="mx-auto h-64 w-64 object-contain">
+    </div>
+    <p id="status" class="mt-4 text-sm text-zinc-500">等待支付...</p>
+  </main>
+  <script src="/static/vendor/poll.js" data-order="{$order.order_no}" data-return="{$order.return_url}"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{extend name="layout"}
+{block name="title"}渠道{/block}
+{block name="content"}
+<h1 class="mb-4 text-2xl font-semibold">渠道/协议</h1>
+<form method="post" action="/console/channels/save" class="max-w-sm space-y-3 rounded-lg border border-zinc-200 bg-white p-4 text-sm">
+  <input type="hidden" name="_csrf" value="{:csrf_token()}">
+  <div class="font-medium">渠道</div>
+  {volist name="channels" id="c"}<label class="block"><input type="checkbox" name="{$c.code}" value="1" {eq name="c.enabled" value="1"}checked{/eq}> {$c.name}</label>{/volist}
+  <div class="pt-2 font-medium">协议</div>
+  <label class="block"><input type="checkbox" name="epay" value="1" {eq name="protocols.epay" value="1"}checked{/eq}> 易支付</label>
+  <label class="block"><input type="checkbox" name="codepay" value="1" {eq name="protocols.codepay" value="1"}checked{/eq}> 码支付</label>
+  <label class="block"><input type="checkbox" name="yuanpay" value="1" {eq name="protocols.yuanpay" value="1"}checked{/eq}> 源支付</label>
+  <button class="rounded-md bg-zinc-950 px-4 py-2 font-semibold text-white">保存</button>
+</form>
+{/block}

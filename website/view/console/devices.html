@@ -1,0 +1,9 @@
+{extend name="layout"}
+{block name="title"}设备{/block}
+{block name="content"}
+<h1 class="mb-4 text-2xl font-semibold">设备监控</h1>
+<table class="w-full overflow-hidden rounded-lg border border-zinc-200 bg-white text-sm">
+  <thead class="bg-zinc-100 text-left"><tr><th class="p-3">ID</th><th>商户</th><th>名称</th><th>状态</th><th>最后心跳</th><th>IP</th></tr></thead>
+  <tbody>{volist name="list" id="d"}<tr class="border-t border-zinc-200"><td class="p-3">{$d.id}</td><td>{$d.user_id}</td><td>{$d.device_name}</td><td>{$d.status}</td><td>{$d.last_heartbeat|default='-'}</td><td>{$d.last_ip|default='-'}</td></tr>{/volist}</tbody>
+</table>
+{/block}

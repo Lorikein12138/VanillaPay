@@ -34,6 +34,16 @@ final class InMemoryUserRepository implements UserRepositoryInterface
         return $this->rows[$id] ?? null;
     }
 
+    public function findByPid(string $pid): ?array
+    {
+        foreach ($this->rows as $row) {
+            if (($row['pid'] ?? null) === $pid) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
     public function existsUsername(string $username): bool
     {
         return $this->findByUsername($username) !== null;
@@ -54,5 +64,25 @@ final class InMemoryUserRepository implements UserRepositoryInterface
     public function update(int $id, array $data): void
     {
         $this->rows[$id] = array_merge($this->rows[$id] ?? ['id' => $id], $data);
+    }
+
+    public function paginate(array $filters, int $page, int $pageSize): array
+    {
+        return ['items' => array_values($this->rows), 'total' => count($this->rows), 'page' => $page, 'page_size' => $pageSize];
+    }
+
+    public function setStatus(int $id, int $status): void
+    {
+        $this->update($id, ['status' => $status]);
+    }
+
+    public function resetApiKey(int $id, string $apiKey): void
+    {
+        $this->update($id, ['api_key' => $apiKey]);
+    }
+
+    public function updateFloat(int $id, array $data): void
+    {
+        $this->update($id, $data);
     }
 }

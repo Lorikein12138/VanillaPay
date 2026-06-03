@@ -1,0 +1,12 @@
+{extend name="merchant_layout"}
+{block name="title"}接入文档{/block}
+{block name="content"}
+<h1 class="mb-4 text-2xl font-semibold">接入文档</h1>
+<div class="space-y-4 rounded-lg border border-zinc-200 bg-white p-4 text-sm">
+  <p>商户号：<code class="font-mono">{$user.pid}</code></p>
+  <p>下单地址：<code class="font-mono">{$baseUrl}/mapi.php</code></p>
+  <pre class="overflow-auto rounded-md bg-zinc-950 p-4 text-zinc-100">参数按 ASCII 排序，排除 sign/sign_type/空值，拼接 k=v&... 后追加 API KEY，MD5 小写。
+易支付字段：pid,type,out_trade_no,money,name,notify_url,return_url,param,sign
+查询：{$baseUrl}/api.php?act=order&pid={$user.pid}&key=API_KEY&out_trade_no=商户单号</pre>
+</div>
+{/block}

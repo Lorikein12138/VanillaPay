@@ -1,188 +1,86 @@
 # VanillaPay Website
 
-VanillaPay 网站端基于 ThinkPHP 8，当前阶段已实现商户注册、登录、退出、找回密码、MySQL 持久化仓储、数据库迁移和本地 Tailwind CSS 构建。
+VanillaPay 网站端基于 ThinkPHP 8 + MySQL，已实现商户账户、收款码上传、安卓监控设备接入、金额浮动核销、易支付/码支付/源支付网关、异步回调、商户中心、`/console` 超管后台、限流、防重放、审计日志和对账。
 
 ## 生产环境要求
 
-- 宝塔面板：Linux 面板，Web 服务建议 Nginx。
-- PHP：建议 PHP 8.4 或 8.5；本项目当前开发验证环境为 PHP 8.5.4。
-- MySQL：生产环境使用 MySQL 8.4.8。
-- Composer：用于安装 PHP 依赖。
-- Node.js：仅在服务器上需要重新构建 Tailwind CSS 时使用；如果直接部署已构建的 `public/static/dist/app.css`，生产环境可不安装 Node.js。
-
-PHP 必需扩展：
-
-- `pdo_mysql`
-- `mysqli`
-- `mbstring`
-- `openssl`
-- `curl`
-- `fileinfo`
-- `zip`
-- `opcache`，建议生产开启
-
-## 宝塔部署流程
-
-以下示例假设项目部署到：
-
-```bash
-/www/wwwroot/vanillapay/website
-```
-
-### 1. 宝塔安装运行环境
-
-在宝塔面板的软件商店安装：
-
-- Nginx
+- 宝塔面板 + Nginx
+- PHP 8.4/8.5，建议使用站点同版本命令，例如 `/www/server/php/85/bin/php`
 - MySQL 8.4.8
-- PHP 8.4 或 PHP 8.5
 - Composer
+- PHP 扩展：`pdo_mysql`、`mysqli`、`mbstring`、`openssl`、`curl`、`fileinfo`、`zip`、`opcache`
+- Node.js 仅用于重新构建 Tailwind；生产部署不需要上传 `node_modules`
 
-在 PHP 设置中安装并启用上面列出的扩展，然后重载 PHP 服务。
+## 本地打包
 
-### 2. 创建数据库
-
-宝塔面板进入 `数据库`，创建数据库：
-
-```text
-数据库名：vanillapay
-用户名：vanillapay
-密码：使用强密码
-编码：utf8mb4
-```
-
-记录数据库密码，稍后写入 `.env`。
-
-### 3. 上传代码
-
-方式一：Git 拉取。
-
-```bash
-cd /www/wwwroot
-git clone <your-repo-url> vanillapay
-cd /www/wwwroot/vanillapay/website
-```
-
-方式二：宝塔文件管理上传项目压缩包，解压后确保 `website` 目录下能看到：
-
-```text
-app/
-config/
-database/
-public/
-route/
-think
-composer.json
-package.json
-```
-
-方式三：使用本地打包脚本生成部署压缩包。
-
-Windows 本地双击或在终端执行：
+Windows 本地执行：
 
 ```bat
+cd website
 pack-deploy.bat
 ```
 
-压缩包会生成到：
-
-```text
-website/deploy/vanillapay-website-YYYYMMDD-HHMMSS.zip
-```
-
-该压缩包只包含部署运行需要的源码、配置模板、迁移、公共入口和已构建静态资源，不包含：
+压缩包输出到 `website/deploy/vanillapay-website-YYYYMMDD-HHMMSS.zip`。压缩包会包含运行所需的 `app/config/database/public/route/view/think/composer.json/README.md` 等文件，不包含：
 
 ```text
 .env
-node_modules/
 vendor/
+node_modules/
 runtime/
 tests/
-.phpunit.cache/
+deploy/
 ```
 
-上传到宝塔后解压，再继续执行下面的 Composer 安装和 `.env` 配置步骤。
+## 宝塔部署流程
 
-### 4. 安装 PHP 依赖
-
-进入项目目录：
+以下示例以你的站点目录为准：
 
 ```bash
-cd /www/wwwroot/vanillapay/website
-composer install --no-dev --optimize-autoloader
+/www/wwwroot/vanillapay.lorikein.cn
 ```
 
-如果宝塔终端里的 `composer` 命令不可用，可以在宝塔软件商店安装 Composer，或使用 PHP 执行 `composer.phar`。
+1. 宝塔安装 Nginx、MySQL 8.4.8、PHP 8.5、Composer。
+2. PHP 8.5 安装并启用上述扩展，确认命令行也是 8.5：
 
-### 5. 配置环境变量
+```bash
+/www/server/php/85/bin/php -v
+/www/server/php/85/bin/php -m | grep -E "pdo_mysql|mbstring|curl|fileinfo|zip"
+```
 
-复制示例配置：
+3. 上传部署 zip 到站点目录并解压。
+4. 安装依赖：
+
+```bash
+cd /www/wwwroot/vanillapay.lorikein.cn
+/www/server/php/85/bin/php /usr/bin/composer install --no-dev --optimize-autoloader
+```
+
+5. 配置 `.env`：
 
 ```bash
 cp .example.env .env
 ```
 
-编辑 `.env`：
+生产建议：
 
 ```ini
 APP_DEBUG = false
-APP_KEY = 换成至少32位的随机字符串
+APP_ENV = production
+APP_KEY = 换成至少32位随机字符串
 
 DB_DRIVER = mysql
 DB_TYPE = mysql
 DB_HOST = 127.0.0.1
 DB_NAME = vanillapay
 DB_USER = vanillapay
-DB_PASS = 你的数据库强密码
+DB_PASS = 数据库强密码
 DB_PORT = 3306
 DB_CHARSET = utf8mb4
 DB_PREFIX = vp_
-
-DEFAULT_LANG = zh-cn
 ```
 
-`APP_DEBUG` 生产必须为 `false`。`APP_KEY` 会用于密码重置令牌签名，不能使用示例值。
-
-### 6. 设置目录权限
-
-宝塔默认运行用户通常是 `www`：
-
-```bash
-cd /www/wwwroot/vanillapay/website
-chown -R www:www runtime public/static
-chmod -R 755 runtime public/static
-```
-
-如后续阶段启用上传目录，再给对应上传目录写权限。
-
-### 7. 创建宝塔网站
-
-宝塔面板进入 `网站` -> `添加站点`：
-
-```text
-域名：你的域名
-根目录：/www/wwwroot/vanillapay/website
-PHP版本：选择 PHP 8.4 或 PHP 8.5
-数据库：不在这里创建也可以，已在第2步创建
-```
-
-创建后进入站点设置：
-
-1. `网站目录` -> `运行目录` 选择 `/public`。
-2. `默认文档` 确认包含 `index.php`。
-3. `SSL` 配置证书并开启 HTTPS。
-
-如果无法设置运行目录为 `/public`，不要把整个项目目录暴露为 Web 根目录。可以把站点根目录直接设为：
-
-```text
-/www/wwwroot/vanillapay/website/public
-```
-
-此时需要确认宝塔的 `open_basedir` 允许访问上级项目目录，否则 ThinkPHP 无法读取 `app/`、`config/`、`vendor/`。
-
-### 8. 配置伪静态
-
-Nginx 站点设置中打开 `伪静态`，写入：
+6. 设置网站运行目录为 `/public`，默认文档包含 `index.php`。
+7. Nginx 伪静态：
 
 ```nginx
 location / {
@@ -191,84 +89,73 @@ location / {
         break;
     }
 }
-```
 
-如果你没有把运行目录设置为 `/public`，额外加上敏感目录保护：
-
-```nginx
-location ~ ^/(\.env|app|config|database|extend|runtime|tests|vendor|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|README\.md) {
+location ~ ^/static/uploads/.*\.php$ {
     deny all;
 }
 ```
 
-正常情况下，运行目录为 `/public` 后，上述敏感目录不会暴露到 Web。
-
-### 9. 执行数据库迁移
-
-确认 `.env` 数据库连接无误后执行：
+8. 设置权限：
 
 ```bash
-cd /www/wwwroot/vanillapay/website
-php think migrate:run
+chown -R www:www runtime public/static
+chmod -R 755 runtime public/static
 ```
 
-如果宝塔服务器安装了多个 PHP 版本，建议使用站点对应的 PHP 完整路径执行，例如：
+9. 执行迁移：
 
 ```bash
 /www/server/php/85/bin/php think migrate:run
+/www/server/php/85/bin/php think migrate:status
 ```
 
-本阶段会创建：
+会创建 `vp_users`、`vp_admins`、`vp_channels`、`vp_merchant_qrcodes`、`vp_devices`、`vp_orders`、`vp_order_amount_lock`、`vp_risk_events`、`vp_callback_logs`、`vp_settings`、`vp_login_logs`、`vp_operation_logs` 等表。
 
-```text
-vp_users
-vp_admins
-```
-
-检查迁移状态：
+10. 创建超管：
 
 ```bash
-php think migrate:status
+/www/server/php/85/bin/php think vanilla:admin-create root 强密码
 ```
 
-### 10. Tailwind CSS 构建
-
-仓库中应部署已构建的：
-
-```text
-public/static/dist/app.css
-```
-
-如果你修改了 `view/` 模板或 Tailwind 配置，需要重新构建 CSS：
+11. 宝塔计划任务，每分钟执行：
 
 ```bash
-cd /www/wwwroot/vanillapay/website
-npm install
-npm run build:css
+/www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:order-expire
+/www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:device-check
+/www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:callback-retry
 ```
 
-生产服务器不改前端样式时，不需要每次部署都执行 `npm install`。
-
-### 11. 验证站点
-
-命令行检查：
+每日对账可选：
 
 ```bash
-php think route:list
-curl -I https://你的域名/login
-curl -I https://你的域名/dashboard
-curl -I https://你的域名/static/dist/app.css
+/www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:reconcile-daily
 ```
 
-浏览器检查：
+## 使用流程
 
-1. 访问 `https://你的域名/register` 注册商户。
-2. 注册成功后跳转登录页。
-3. 使用新账号登录后进入 `/dashboard` 商户首页。
-4. 退出后访问 `/dashboard` 会跳转到 `/login`。
-5. 错误密码连续 5 次后账号会临时锁定。
+1. 访问 `/register` 注册商户，登录后进入 `/dashboard`。
+2. 在 `/qrcodes` 上传微信/支付宝收款码。
+3. 在 `/devices` 生成绑定串，格式为 `https://域名|device_id|device_key`，安卓 App 扫码或粘贴绑定。
+4. 安卓 App 授权通知读取后，会调用：
+   - `POST /app/heart`
+   - `POST /app/push`
+   - `GET /app/config`
+5. 下游商户可通过网关下单：
+   - 易支付：`/submit.php`、`/mapi.php`、`/api.php`
+   - 码支付：`/creat_order/`
+   - 源支付：`/yuanpay/submit`、`/yuanpay/mapi`
+6. 订单支付成功后系统按订单协议回调 `notify_url`，失败由 `vanilla:callback-retry` 重试。
+7. 超管访问 `/console/login`，管理商户、订单、设备、渠道、风控、设置和对账。
 
-## 本地开发命令
+## 验证命令
+
+```bash
+/www/server/php/85/bin/php think route:list
+curl -I https://vanillapay.lorikein.cn/login
+curl https://vanillapay.lorikein.cn/app/config
+```
+
+本地开发：
 
 ```bash
 composer install
@@ -277,96 +164,49 @@ npm run build:css
 php think run -p 8080
 ```
 
-访问：
-
-```text
-http://127.0.0.1:8080/login
-```
-
-运行测试：
+测试：
 
 ```bash
 vendor/bin/phpunit
 ```
 
-Windows 环境可使用：
-
-```powershell
-vendor\bin\phpunit
-```
+PHPUnit 需要 `mbstring`、`dom`、`xml`、`xmlwriter` 等扩展。
 
 ## 常见问题
 
-### 访问页面 404
+### composer 报 `putenv() has been disabled`
 
-优先检查：
-
-- 宝塔站点运行目录是否为 `/public`。
-- 宝塔 `默认文档` 是否包含 `index.php`，否则访问域名根路径 `/` 可能被 Nginx 当成目录返回 404。
-- Nginx 伪静态是否已配置。
-- `php think route:list` 是否能看到 `/login`、`/register`、`dashboard`。
-
-### 页面提示 Driver [Think] not supported
-
-说明模板驱动未安装或 Composer 依赖不完整，执行：
+宝塔服务器可能同时安装多个 PHP 版本，命令行默认调用了旧版本。使用站点 PHP 完整路径执行：
 
 ```bash
-composer install --no-dev --optimize-autoloader
+/www/server/php/85/bin/php /usr/bin/composer install --no-dev --optimize-autoloader
 ```
 
-确认 `composer.json` 中存在：
+### `zip.so` 加载失败
 
-```json
-"topthink/think-view": "^2.0"
-```
+PHP 配置里启用了 zip 扩展但文件不存在。到宝塔 PHP 8.5 扩展管理安装 zip，或删除错误的 `extension=zip.so` 后重启 PHP。
 
-### 数据库表不存在
+### `There are no commands defined in the migrate namespace`
 
-确认 `.env` 数据库配置正确后执行：
+通常是 Composer 依赖没装完整，确认 `topthink/think-migration` 已安装：
 
 ```bash
-php think migrate:run
+/www/server/php/85/bin/php /usr/bin/composer install --no-dev --optimize-autoloader
 ```
 
-项目使用 `DB_PREFIX = vp_`，所以实际表名是 `vp_users`、`vp_admins`。
+### `Duplicate migration`
 
-如果数据库中出现了 `vp_vp_users`、`vp_vp_admins`，说明使用过旧版迁移文件重复套用了表前缀。新站且表内没有有效数据时，可以清理后重新迁移：
+迁移文件版本号重复，检查 `database/migrations` 是否有同时间戳文件。保留唯一文件后重新执行。
+
+### 数据表出现 `vp_vp_`
+
+迁移文件不得手写 `vp_` 前缀。本项目新迁移都使用逻辑表名，由 `.env` 的 `DB_PREFIX=vp_` 自动处理。
+
+### 上传二维码后图片 404
+
+确认站点运行目录是 `/public`，并且 `public/static/uploads/qrcodes` 可读写：
 
 ```bash
-mysql -u vanillapay -p vanillapay -e "DROP TABLE IF EXISTS vp_vp_users, vp_vp_admins; DELETE FROM vp_migrations WHERE version IN ('20260603065432','20260603065433');"
-/www/server/php/85/bin/php think migrate:run
+chown -R www:www public/static/uploads
+chmod -R 755 public/static/uploads
 ```
-
-如果 `vp_vp_users` 中已经有需要保留的数据，不要删除，改为重命名：
-
-```bash
-mysql -u vanillapay -p vanillapay -e "RENAME TABLE vp_vp_users TO vp_users, vp_vp_admins TO vp_admins;"
-```
-
-### 样式不生效
-
-确认文件存在并可访问：
-
-```text
-public/static/dist/app.css
-```
-
-浏览器访问：
-
-```text
-https://你的域名/static/dist/app.css
-```
-
-如果返回 404，检查宝塔运行目录和文件权限。
-
-## 后续阶段提醒
-
-P2/P3/P4/P5 完成后会新增设备端口、网关回调、商户中心、后台和定时任务。届时需要在宝塔 `计划任务` 中增加对应命令，例如：
-
-```bash
-php /www/wwwroot/vanillapay/website/think vanilla:order-expire
-php /www/wwwroot/vanillapay/website/think vanilla:device-check
-php /www/wwwroot/vanillapay/website/think vanilla:callback-retry
-```
-
-当前 P1 阶段暂不需要计划任务。

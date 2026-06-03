@@ -3,7 +3,6 @@ namespace app\index\controller;
 
 use app\common\repository\UserRepositoryInterface;
 use think\facade\Session;
-use think\facade\View;
 
 class Index
 {
@@ -19,6 +18,6 @@ class Index
             return redirect('/login');
         }
 
-        return View::fetch('index/home', ['user' => $user]);
+        return redirect('/dashboard');
     }
 }

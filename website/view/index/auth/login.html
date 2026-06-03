@@ -34,6 +34,7 @@
         {/eq}
       {/if}
       <form method="post" action="/login" class="space-y-4">
+        <input type="hidden" name="_csrf" value="{:csrf_token()}">
         <label class="block">
           <span class="text-sm font-medium text-zinc-700">用户名</span>
           <input name="username" autocomplete="username" class="mt-1 h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">

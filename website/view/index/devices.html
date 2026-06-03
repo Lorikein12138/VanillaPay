@@ -1,0 +1,14 @@
+{extend name="merchant_layout"}
+{block name="title"}监控设备{/block}
+{block name="content"}
+<h1 class="mb-4 text-2xl font-semibold">监控设备</h1>
+<form method="post" action="/devices/create" class="mb-5 flex gap-3 rounded-lg border border-zinc-200 bg-white p-4">
+  <input type="hidden" name="_csrf" value="{:csrf_token()}">
+  <input name="name" placeholder="设备名称，例如 Redmi K70" class="min-w-0 flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm">
+  <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white">生成绑定串</button>
+</form>
+<table class="w-full overflow-hidden rounded-lg border border-zinc-200 bg-white text-sm">
+  <thead class="bg-zinc-100 text-left"><tr><th class="p-3">ID</th><th>名称</th><th>状态</th><th>最后心跳</th><th>版本</th><th>操作</th></tr></thead>
+  <tbody>{volist name="list" id="d"}<tr class="border-t border-zinc-200"><td class="p-3">{$d.id}</td><td>{$d.device_name}</td><td>{$d.status}</td><td>{$d.last_heartbeat|default='-'}</td><td>{$d.app_version|default='-'}</td><td><form method="post" action="/devices/delete"><input type="hidden" name="_csrf" value="{:csrf_token()}"><input type="hidden" name="id" value="{$d.id}"><button class="text-rose-700">删除</button></form></td></tr>{/volist}</tbody>
+</table>
+{/block}

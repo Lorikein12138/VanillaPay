@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{block name="title"}控制台{/block} - VanillaPay</title>
+  <link rel="stylesheet" href="/static/dist/app.css">
+</head>
+<body class="min-h-screen bg-zinc-100 text-zinc-900">
+  <div class="flex min-h-screen">
+    <aside class="w-56 bg-zinc-950 p-4 text-sm text-zinc-200">
+      <div class="mb-6 text-lg font-semibold text-white">Console</div>
+      <nav class="space-y-1">
+        <a class="block rounded-md px-3 py-2 hover:bg-zinc-800" href="/console/dashboard">看板</a>
+        <a class="block rounded-md px-3 py-2 hover:bg-zinc-800" href="/console/merchants">商户</a>
+        <a class="block rounded-md px-3 py-2 hover:bg-zinc-800" href="/console/orders">订单</a>
+        <a class="block rounded-md px-3 py-2 hover:bg-zinc-800" href="/console/devices">设备</a>
+        <a class="block rounded-md px-3 py-2 hover:bg-zinc-800" href="/console/channels">渠道/协议</a>
+        <a class="block rounded-md px-3 py-2 hover:bg-zinc-800" href="/console/risk">风控</a>
+        <a class="block rounded-md px-3 py-2 hover:bg-zinc-800" href="/console/reconcile">对账</a>
+        <a class="block rounded-md px-3 py-2 hover:bg-zinc-800" href="/console/settings">设置</a>
+        <a class="block rounded-md px-3 py-2 text-rose-300 hover:bg-zinc-800" href="/console/logout">退出</a>
+      </nav>
+    </aside>
+    <main class="flex-1 p-6">
+      {if condition="$Think.session.flash"}<div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{$Think.session.flash}</div>{/if}
+      {block name="content"}{/block}
+    </main>
+  </div>
+</body>
+</html>

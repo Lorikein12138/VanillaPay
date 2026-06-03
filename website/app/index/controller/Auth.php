@@ -5,6 +5,7 @@ use app\common\exception\AuthException;
 use app\common\exception\ValidationException;
 use app\common\repository\UserRepositoryInterface;
 use app\common\service\AuthService;
+use app\common\service\AuditLogger;
 use app\common\service\CredentialGenerator;
 use app\common\service\PasswordHasher;
 use app\common\service\PasswordResetService;
@@ -15,7 +16,7 @@ use think\facade\View;
 
 class Auth
 {
-    public function __construct(private UserRepositoryInterface $users)
+    public function __construct(private UserRepositoryInterface $users, private AuditLogger $audit)
     {
     }
 
@@ -58,8 +59,10 @@ class Auth
                 $request->ip()
             );
             Session::set('user_id', $user['id']);
+            $this->audit->login('user', (int) $user['id'], $request->ip(), (string) $request->header('user-agent'), 'ok');
             return redirect('/dashboard');
         } catch (AuthException $e) {
+            $this->audit->login('user', 0, $request->ip(), (string) $request->header('user-agent'), 'fail');
             Session::flash('flash', $e->getMessage());
             Session::flash('flash_tone', 'error');
             return redirect('/login');
