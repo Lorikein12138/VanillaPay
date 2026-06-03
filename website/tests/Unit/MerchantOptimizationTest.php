@@ -29,6 +29,22 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringContainsString('isset($latestByChannel[$channel])', $thinkRepository);
     }
 
+    public function testQrcodeUploadShowsRuntimeDiagnosticsAndVisibleErrors(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $template = file_get_contents($root . '/view/index/qrcodes.html') ?: '';
+        $layout = file_get_contents($root . '/view/index/merchant_layout.html') ?: '';
+        $controller = file_get_contents($root . '/app/index/controller/Qrcodes.php') ?: '';
+
+        foreach (['uploadDiagnostics', 'GD 扩展', '上传目录可写'] as $text) {
+            $this->assertStringContainsString($text, $template . $controller);
+        }
+        $this->assertStringContainsString("Session::flash('flash_tone', 'error')", $controller);
+        $this->assertStringContainsString('Log::error', $controller);
+        $this->assertStringContainsString('flash_tone', $layout);
+        $this->assertStringContainsString('border-rose-200', $layout);
+    }
+
     public function testDevicePageAndControllerAllowOnlyOneDevicePerMerchant(): void
     {
         $root = dirname(__DIR__, 2);

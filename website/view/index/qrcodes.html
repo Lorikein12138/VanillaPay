@@ -2,13 +2,23 @@
 {block name="title"}收款码{/block}
 {block name="content"}
 <h1 class="mb-4 text-2xl font-semibold">收款码</h1>
+{if condition="!$uploadDiagnostics.ready"}
+<section class="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+  <div class="font-semibold">二维码上传环境异常</div>
+  <div class="mt-2 grid gap-2 md:grid-cols-3">
+    <div>GD 扩展：{if condition="$uploadDiagnostics.gd"}已启用{else/}未启用{/if}</div>
+    <div>fileinfo 扩展：{if condition="$uploadDiagnostics.fileinfo"}已启用{else/}未启用{/if}</div>
+    <div>上传目录可写：{if condition="$uploadDiagnostics.upload_writable"}是{else/}否{/if}</div>
+  </div>
+</section>
+{/if}
 <form method="post" action="/qrcodes/upload" enctype="multipart/form-data" class="mb-5 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-[160px_1fr_auto]">
   <input type="hidden" name="_csrf" value="{:csrf_token()}">
   <select name="channel" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><option value="wxpay">微信</option><option value="alipay">支付宝</option></select>
   <input name="qrcode" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="rounded-md border border-zinc-300 px-3 py-2 text-sm">
   <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white">上传或替换</button>
 </form>
-<p class="mb-4 text-sm text-zinc-500">每个商户最多保留 2 张收款码：微信、支付宝各 1 张。图片会自动裁剪外部边框并清理中心头像区域。</p>
+<p class="mb-4 text-sm text-zinc-500">每个商户最多保留 2 张收款码：微信、支付宝各 1 张。图片会自动裁剪外部边框并清理中心头像区域。当前限制：单文件 {$uploadDiagnostics.upload_max_filesize}，POST {$uploadDiagnostics.post_max_size}。</p>
 <div class="grid gap-4 md:grid-cols-2">
   {volist name="list" id="q" empty="<div class='rounded-lg border border-dashed border-zinc-300 bg-white p-6 text-center text-sm text-zinc-500 md:col-span-2'>还没有收款码，请上传微信或支付宝收款码。</div>"}
   <article class="rounded-lg border border-zinc-200 bg-white p-4">

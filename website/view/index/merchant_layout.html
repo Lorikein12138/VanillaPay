@@ -23,7 +23,17 @@
       </nav>
     </aside>
     <main class="flex-1 p-4 sm:p-6">
-      {if condition="$Think.session.flash"}<div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{$Think.session.flash}</div>{/if}
+      {if condition="$Think.session.flash"}
+        {eq name="Think.session.flash_tone" value="error"}
+          <div class="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{$Think.session.flash}</div>
+        {else/}
+          {eq name="Think.session.flash_tone" value="success"}
+            <div class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{$Think.session.flash}</div>
+          {else/}
+            <div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{$Think.session.flash}</div>
+          {/eq}
+        {/eq}
+      {/if}
       {block name="content"}{/block}
     </main>
   </div>
