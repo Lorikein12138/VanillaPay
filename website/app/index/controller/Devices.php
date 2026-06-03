@@ -16,19 +16,24 @@ class Devices
     public function index(Request $request)
     {
         $serverUrl = $request->domain();
-        $list = array_map(function (array $device) use ($serverUrl): array {
-            $device['binding_payload'] = rtrim($serverUrl, '/') . '|' . $device['id'] . '|' . $device['device_key'];
+        $currentDevice = $this->devices->listByUser((int) Session::get('user_id'))[0] ?? null;
+        if ($currentDevice) {
+            $currentDevice['binding_payload'] = rtrim($serverUrl, '/') . '|' . $currentDevice['id'] . '|' . $currentDevice['device_key'];
+        }
 
-            return $device;
-        }, $this->devices->listByUser((int) Session::get('user_id')));
-
-        return View::fetch('/devices', ['list' => $list]);
+        return View::fetch('/devices', ['currentDevice' => $currentDevice]);
     }
 
     public function create(Request $request)
     {
+        $userId = (int) Session::get('user_id');
+        if ($this->devices->listByUser($userId) !== []) {
+            Session::flash('flash', '已有设备。每个商户只能绑定一个设备，重新绑定前请先删除当前设备。');
+            return redirect('/devices');
+        }
+
         $serverUrl = $request->domain();
-        $result = $this->provision->provision((int) Session::get('user_id'), (string) $request->post('name', ''), $serverUrl);
+        $result = $this->provision->provision($userId, (string) $request->post('name', ''), $serverUrl);
         Session::flash('flash', '设备已创建，绑定串：' . $result['binding_payload']);
         return redirect('/devices');
     }

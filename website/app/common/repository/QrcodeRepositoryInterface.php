@@ -8,4 +8,5 @@ interface QrcodeRepositoryInterface
     public function findEnabledByUserChannel(int $userId, string $channel): ?array;
     public function listByUser(int $userId): array;
     public function deleteForUser(int $id, int $userId): void;
+    public function deleteForUserChannel(int $userId, string $channel): void;
 }

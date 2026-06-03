@@ -11,8 +11,8 @@ final class DeviceBindingDisplayTest extends TestCase
         $template = file_get_contents($root . '/view/index/devices.html') ?: '';
 
         $this->assertStringContainsString('binding_payload', $controller);
-        $this->assertStringContainsString("rtrim(\$serverUrl, '/') . '|' . \$device['id'] . '|' . \$device['device_key']", $controller);
-        $this->assertStringContainsString('{$d.binding_payload}', $template);
+        $this->assertStringContainsString("rtrim(\$serverUrl, '/') . '|' . \$currentDevice['id'] . '|' . \$currentDevice['device_key']", $controller);
+        $this->assertStringContainsString('{$currentDevice.binding_payload}', $template);
         $this->assertStringContainsString('data-copy-payload', $template);
         $this->assertStringContainsString('绑定串', $template);
     }

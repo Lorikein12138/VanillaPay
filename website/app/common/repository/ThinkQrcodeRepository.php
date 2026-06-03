@@ -27,11 +27,30 @@ class ThinkQrcodeRepository implements QrcodeRepositoryInterface
 
     public function listByUser(int $userId): array
     {
-        return $this->table()->where('user_id', $userId)->order('id', 'desc')->select()->toArray();
+        $rows = $this->table()
+            ->where('user_id', $userId)
+            ->whereIn('channel', ['wxpay', 'alipay'])
+            ->order('id', 'desc')
+            ->select()
+            ->toArray();
+        $latestByChannel = [];
+        foreach ($rows as $row) {
+            $channel = (string) ($row['channel'] ?? '');
+            if ($channel !== '' && !isset($latestByChannel[$channel])) {
+                $latestByChannel[$channel] = $row;
+            }
+        }
+
+        return array_values($latestByChannel);
     }
 
     public function deleteForUser(int $id, int $userId): void
     {
         $this->table()->where('id', $id)->where('user_id', $userId)->delete();
+    }
+
+    public function deleteForUserChannel(int $userId, string $channel): void
+    {
+        $this->table()->where('user_id', $userId)->where('channel', $channel)->delete();
     }
 }

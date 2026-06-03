@@ -3,6 +3,7 @@ namespace app\index\controller;
 
 use app\common\exception\ValidationException;
 use app\common\repository\QrcodeRepositoryInterface;
+use app\common\service\QrcodeImageProcessor;
 use app\common\service\QrcodeUploadValidator;
 use think\Request;
 use think\facade\Session;
@@ -10,7 +11,11 @@ use think\facade\View;
 
 class Qrcodes
 {
-    public function __construct(private QrcodeRepositoryInterface $qrcodes, private QrcodeUploadValidator $validator)
+    public function __construct(
+        private QrcodeRepositoryInterface $qrcodes,
+        private QrcodeUploadValidator $validator,
+        private QrcodeImageProcessor $processor
+    )
     {
     }
 
@@ -37,10 +42,12 @@ class Qrcodes
             $ext = strtolower($file->extension() ?: 'png');
             $name = date('YmdHis') . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
             $file->move($saveDir, $name);
+            $this->processor->process($saveDir . DIRECTORY_SEPARATOR . $name, (string) $file->getMime());
+            $this->qrcodes->deleteForUserChannel($userId, $channel);
             $this->qrcodes->create([
                 'user_id' => $userId,
                 'channel' => $channel,
-                'name' => (string) $request->post('name', ''),
+                'name' => $channel,
                 'qr_image_path' => '/static/uploads/qrcodes/' . $name,
                 'qr_content' => '',
                 'status' => 1,

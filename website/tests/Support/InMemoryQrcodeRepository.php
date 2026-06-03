@@ -33,13 +33,36 @@ final class InMemoryQrcodeRepository implements QrcodeRepositoryInterface
 
     public function listByUser(int $userId): array
     {
-        return array_values(array_filter($this->rows, fn (array $row): bool => (int) $row['user_id'] === $userId));
+        $rows = array_values(array_filter(
+            $this->rows,
+            fn (array $row): bool => (int) $row['user_id'] === $userId && in_array((string) ($row['channel'] ?? ''), ['wxpay', 'alipay'], true)
+        ));
+        usort($rows, fn (array $a, array $b): int => (int) $b['id'] <=> (int) $a['id']);
+
+        $latestByChannel = [];
+        foreach ($rows as $row) {
+            $channel = (string) ($row['channel'] ?? '');
+            if ($channel !== '' && !isset($latestByChannel[$channel])) {
+                $latestByChannel[$channel] = $row;
+            }
+        }
+
+        return array_values($latestByChannel);
     }
 
     public function deleteForUser(int $id, int $userId): void
     {
         if ((int) ($this->rows[$id]['user_id'] ?? 0) === $userId) {
             unset($this->rows[$id]);
+        }
+    }
+
+    public function deleteForUserChannel(int $userId, string $channel): void
+    {
+        foreach ($this->rows as $id => $row) {
+            if ((int) ($row['user_id'] ?? 0) === $userId && ($row['channel'] ?? '') === $channel) {
+                unset($this->rows[$id]);
+            }
         }
     }
 }

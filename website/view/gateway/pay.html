@@ -7,15 +7,63 @@
   <link rel="stylesheet" href="/static/dist/app.css?v={:asset_version('/static/dist/app.css')}">
 </head>
 <body class="min-h-screen bg-zinc-50 px-4 py-8 text-zinc-900">
-  <main class="mx-auto max-w-sm text-center">
-    <h1 class="text-xl font-semibold">请使用{$channelName}扫码支付</h1>
-    <div class="mt-4 text-4xl font-semibold text-rose-600">￥{$order.real_amount}</div>
-    <p class="mt-2 text-sm text-zinc-500">必须按此金额付款，金额不一致无法自动到账</p>
-    <div class="mt-5 rounded-lg border border-zinc-200 bg-white p-4">
+  <main class="mx-auto max-w-md">
+    <section class="text-center">
+      <p class="text-sm font-medium text-zinc-500">{$channelName}收银台</p>
+      <h1 class="mt-2 text-xl font-semibold">请使用{$channelName}扫码支付</h1>
+      <div class="mt-4 text-4xl font-semibold text-rose-600">￥{$order.real_amount}</div>
+      <p class="mt-2 text-sm text-zinc-500">必须按此金额付款，金额不一致无法自动到账</p>
+    </section>
+
+    <section class="mt-5 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
       <img src="{$qrImage}" alt="收款码" class="mx-auto h-64 w-64 object-contain">
-    </div>
-    <p id="status" class="mt-4 text-sm text-zinc-500">等待支付...</p>
+    </section>
+
+    <section class="mt-4 rounded-lg border border-zinc-200 bg-white p-4 text-sm shadow-sm">
+      <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2">
+        <span class="text-zinc-500">剩余支付时间</span>
+        <span id="countdown" class="font-mono font-semibold text-rose-600" data-remaining="{$remainingSeconds}">--:--</span>
+      </div>
+      <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2">
+        <span class="text-zinc-500">下单时间</span>
+        <span class="font-medium text-zinc-900">{$order.create_time}</span>
+      </div>
+      <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2">
+        <span class="text-zinc-500">过期时间</span>
+        <span class="font-medium text-zinc-900">{$expireAt}</span>
+      </div>
+      <div class="py-2">
+        <div class="text-zinc-500">订单号</div>
+        <div class="mt-1 break-all font-mono text-xs text-zinc-900">{$order.order_no}</div>
+      </div>
+      <div class="border-t border-zinc-100 py-2">
+        <div class="text-zinc-500">商户单号</div>
+        <div class="mt-1 break-all font-mono text-xs text-zinc-900">{$order.out_trade_no}</div>
+      </div>
+    </section>
+
+    <p id="status" class="mt-4 text-center text-sm text-zinc-500">等待支付...</p>
   </main>
+  <script>
+    (function () {
+      var el = document.getElementById('countdown');
+      if (!el) return;
+      var remaining = parseInt(el.dataset.remaining || '0', 10);
+      function render() {
+        var safe = Math.max(0, remaining);
+        var minutes = Math.floor(safe / 60);
+        var seconds = safe % 60;
+        el.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        if (safe <= 0) {
+          document.getElementById('status').textContent = '订单已超时，请重新下单';
+          return;
+        }
+        remaining -= 1;
+        setTimeout(render, 1000);
+      }
+      render();
+    })();
+  </script>
   <script src="/static/vendor/poll.js" data-order="{$order.order_no}" data-return="{$order.return_url}"></script>
 </body>
 </html>

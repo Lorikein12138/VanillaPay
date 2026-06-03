@@ -18,10 +18,16 @@ class PayPage
             return '订单不存在';
         }
         $qr = $this->qrcodes->findById((int) $order['qrcode_id']);
+        $expireAt = (string) ($order['expire_at'] ?? '');
+        $expireTimestamp = $expireAt !== '' ? strtotime($expireAt) : false;
+        $remainingSeconds = $expireTimestamp ? max(0, $expireTimestamp - time()) : 0;
+
         return View::fetch(app()->getRootPath() . 'view/gateway/pay.html', [
             'order' => $order,
             'channelName' => $order['channel'] === 'wxpay' ? '微信' : '支付宝',
             'qrImage' => $qr['qr_image_path'] ?? '',
+            'expireAt' => $expireAt,
+            'remainingSeconds' => $remainingSeconds,
         ]);
     }
 

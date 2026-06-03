@@ -1,0 +1,55 @@
+<?php
+
+use PHPUnit\Framework\TestCase;
+
+final class MerchantOptimizationTest extends TestCase
+{
+    public function testDashboardShowsFloatStepInsteadOfFloatMax(): void
+    {
+        $dashboard = file_get_contents(dirname(__DIR__, 2) . '/view/index/dashboard.html') ?: '';
+
+        $this->assertStringContainsString('{$user.float_mode} / {$user.float_step}', $dashboard);
+        $this->assertStringNotContainsString('{$user.float_mode} / {$user.float_max}', $dashboard);
+    }
+
+    public function testQrcodePageUsesFixedChannelNamesAndSingleCodePerChannel(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $template = file_get_contents($root . '/view/index/qrcodes.html') ?: '';
+        $controller = file_get_contents($root . '/app/index/controller/Qrcodes.php') ?: '';
+        $repository = file_get_contents($root . '/app/common/repository/QrcodeRepositoryInterface.php') ?: '';
+        $thinkRepository = file_get_contents($root . '/app/common/repository/ThinkQrcodeRepository.php') ?: '';
+
+        $this->assertStringNotContainsString('name="name"', $template);
+        $this->assertStringContainsString("'name' => \$channel", $controller);
+        $this->assertStringContainsString('QrcodeImageProcessor', $controller);
+        $this->assertStringContainsString('deleteForUserChannel', $controller);
+        $this->assertStringContainsString('deleteForUserChannel', $repository);
+        $this->assertStringContainsString("whereIn('channel', ['wxpay', 'alipay'])", $thinkRepository);
+        $this->assertStringContainsString('isset($latestByChannel[$channel])', $thinkRepository);
+    }
+
+    public function testDevicePageAndControllerAllowOnlyOneDevicePerMerchant(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $template = file_get_contents($root . '/view/index/devices.html') ?: '';
+        $controller = file_get_contents($root . '/app/index/controller/Devices.php') ?: '';
+
+        $this->assertStringContainsString('currentDevice', $controller);
+        $this->assertStringContainsString('已有设备', $controller);
+        $this->assertStringContainsString('$currentDevice', $template);
+        $this->assertStringContainsString('重新绑定前请先删除当前设备', $template);
+        $this->assertStringNotContainsString('<table', $template);
+    }
+
+    public function testPaymentPageShowsOrderMetadataAndCountdown(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $template = file_get_contents($root . '/view/gateway/pay.html') ?: '';
+        $controller = file_get_contents($root . '/app/gateway/controller/PayPage.php') ?: '';
+
+        foreach (['下单时间', '订单号', '商户单号', '剩余支付时间', 'expireAt', 'remainingSeconds'] as $text) {
+            $this->assertStringContainsString($text, $template . $controller);
+        }
+    }
+}
