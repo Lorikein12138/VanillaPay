@@ -39,7 +39,8 @@ class Qrcodes
             if (!$file) {
                 throw new ValidationException('请选择二维码图片');
             }
-            $this->validator->validate((string) $file->getMime(), (int) $file->getSize());
+            $mime = (string) $file->getMime();
+            $this->validator->validate($mime, (int) $file->getSize());
             $saveDir = app()->getRootPath() . 'public/static/uploads/qrcodes';
             if (!is_dir($saveDir)) {
                 if (!mkdir($saveDir, 0755, true) && !is_dir($saveDir)) {
@@ -49,18 +50,17 @@ class Qrcodes
             if (!is_writable($saveDir)) {
                 throw new ValidationException('二维码上传目录不可写');
             }
-            $ext = strtolower($file->extension() ?: 'png');
-            $name = date('YmdHis') . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+            $name = date('YmdHis') . '_' . bin2hex(random_bytes(8)) . '.png';
             $movedPath = $saveDir . DIRECTORY_SEPARATOR . $name;
             $file->move($saveDir, $name);
-            $this->processor->process($movedPath, (string) $file->getMime());
+            $qrContent = $this->processor->process($movedPath, $mime);
             $this->qrcodes->deleteForUserChannel($userId, $channel);
             $this->qrcodes->create([
                 'user_id' => $userId,
                 'channel' => $channel,
                 'name' => $channel,
                 'qr_image_path' => '/static/uploads/qrcodes/' . $name,
-                'qr_content' => '',
+                'qr_content' => $qrContent,
                 'status' => 1,
                 'create_time' => date('Y-m-d H:i:s'),
             ]);
