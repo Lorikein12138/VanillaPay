@@ -58,7 +58,7 @@ class Auth
                 $request->ip()
             );
             Session::set('user_id', $user['id']);
-            return redirect('/');
+            return redirect('/dashboard');
         } catch (AuthException $e) {
             Session::flash('flash', $e->getMessage());
             Session::flash('flash_tone', 'error');

@@ -256,6 +256,7 @@ npm run build:css
 ```bash
 php think route:list
 curl -I https://你的域名/login
+curl -I https://你的域名/dashboard
 curl -I https://你的域名/static/dist/app.css
 ```
 
@@ -263,8 +264,8 @@ curl -I https://你的域名/static/dist/app.css
 
 1. 访问 `https://你的域名/register` 注册商户。
 2. 注册成功后跳转登录页。
-3. 使用新账号登录后进入商户首页。
-4. 退出后访问 `/` 会跳转到 `/login`。
+3. 使用新账号登录后进入 `/dashboard` 商户首页。
+4. 退出后访问 `/dashboard` 会跳转到 `/login`。
 5. 错误密码连续 5 次后账号会临时锁定。
 
 ## 本地开发命令
@@ -301,8 +302,9 @@ vendor\bin\phpunit
 优先检查：
 
 - 宝塔站点运行目录是否为 `/public`。
+- 宝塔 `默认文档` 是否包含 `index.php`，否则访问域名根路径 `/` 可能被 Nginx 当成目录返回 404。
 - Nginx 伪静态是否已配置。
-- `php think route:list` 是否能看到 `/login`、`/register`。
+- `php think route:list` 是否能看到 `/login`、`/register`、`dashboard`。
 
 ### 页面提示 Driver [Think] not supported
 
