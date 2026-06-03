@@ -1,15 +1,9 @@
 <?php
 
 use think\migration\Migrator;
-use think\migration\db\Column;
 
 class CreateUsersTable extends Migrator
 {
-    private function tableName(string $name): string
-    {
-        return env('DB_PREFIX', 'vp_') . $name;
-    }
-
     /**
      * Change Method.
      *
@@ -33,7 +27,7 @@ class CreateUsersTable extends Migrator
      */
     public function change()
     {
-        $table = $this->table($this->tableName('users'), [
+        $table = $this->table('users', [
             'engine' => 'InnoDB',
             'collation' => 'utf8mb4_general_ci',
             'comment' => '商户',

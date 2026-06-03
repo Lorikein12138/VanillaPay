@@ -212,6 +212,12 @@ cd /www/wwwroot/vanillapay/website
 php think migrate:run
 ```
 
+如果宝塔服务器安装了多个 PHP 版本，建议使用站点对应的 PHP 完整路径执行，例如：
+
+```bash
+/www/server/php/85/bin/php think migrate:run
+```
+
 本阶段会创建：
 
 ```text
@@ -321,6 +327,19 @@ php think migrate:run
 ```
 
 项目使用 `DB_PREFIX = vp_`，所以实际表名是 `vp_users`、`vp_admins`。
+
+如果数据库中出现了 `vp_vp_users`、`vp_vp_admins`，说明使用过旧版迁移文件重复套用了表前缀。新站且表内没有有效数据时，可以清理后重新迁移：
+
+```bash
+mysql -u vanillapay -p vanillapay -e "DROP TABLE IF EXISTS vp_vp_users, vp_vp_admins; DELETE FROM vp_migrations WHERE version IN ('20260603065432','20260603065433');"
+/www/server/php/85/bin/php think migrate:run
+```
+
+如果 `vp_vp_users` 中已经有需要保留的数据，不要删除，改为重命名：
+
+```bash
+mysql -u vanillapay -p vanillapay -e "RENAME TABLE vp_vp_users TO vp_users, vp_vp_admins TO vp_admins;"
+```
 
 ### 样式不生效
 
