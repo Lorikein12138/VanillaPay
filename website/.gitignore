@@ -1,0 +1,13 @@
+*.log
+.env
+composer.phar
+composer.lock
+.DS_Store
+Thumbs.db
+/.idea
+/.vscode
+/vendor
+/node_modules
+/.settings
+/.buildpath
+/.project

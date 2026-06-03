@@ -1,0 +1,57 @@
+{extend name="layout"}
+{block name="title"}商户首页 - VanillaPay{/block}
+{block name="body"}
+<div class="min-h-screen">
+  <header class="border-b border-zinc-200 bg-white">
+    <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <div class="font-semibold text-zinc-950">VanillaPay</div>
+      <nav class="flex items-center gap-3 text-sm">
+        <span class="hidden text-zinc-500 sm:inline">{$user.username}</span>
+        <a href="/logout" class="rounded-md border border-zinc-300 px-3 py-2 font-medium text-zinc-700 hover:bg-zinc-50">退出</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <section class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="text-sm font-medium uppercase text-teal-700">Merchant</p>
+        <h1 class="mt-2 text-3xl font-semibold text-zinc-950">{$user.username}</h1>
+      </div>
+      <div class="text-sm text-zinc-500">PID: <span class="font-mono text-zinc-900">{$user.pid}</span></div>
+    </section>
+
+    <section class="grid gap-4 md:grid-cols-3">
+      <div class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="text-sm text-zinc-500">账户状态</div>
+        <div class="mt-3 text-2xl font-semibold text-emerald-700">正常</div>
+      </div>
+      <div class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="text-sm text-zinc-500">浮动方向</div>
+        <div class="mt-3 text-2xl font-semibold text-zinc-950">{$user.float_mode}</div>
+      </div>
+      <div class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="text-sm text-zinc-500">订单有效期</div>
+        <div class="mt-3 text-2xl font-semibold text-zinc-950">{$user.order_timeout}s</div>
+      </div>
+    </section>
+
+    <section class="mt-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-zinc-950">API 凭证</h2>
+        <span class="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">P1</span>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div>
+          <div class="text-sm text-zinc-500">商户号</div>
+          <div class="mt-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-sm text-zinc-900">{$user.pid}</div>
+        </div>
+        <div>
+          <div class="text-sm text-zinc-500">API KEY</div>
+          <div class="mt-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-sm text-zinc-900">{$user.api_key}</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+{/block}
