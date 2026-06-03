@@ -12,3 +12,17 @@ if (!function_exists('csrf_token')) {
         return (string) Session::get('_csrf_token');
     }
 }
+
+if (!function_exists('asset_version')) {
+    function asset_version(string $path): string
+    {
+        $relativePath = ltrim($path, '/');
+        if (str_starts_with($relativePath, 'static/')) {
+            $relativePath = 'public/' . $relativePath;
+        }
+
+        $file = app()->getRootPath() . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+        return is_file($file) ? (string) filemtime($file) : '1';
+    }
+}

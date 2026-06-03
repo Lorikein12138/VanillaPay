@@ -13,9 +13,16 @@ class Devices
     {
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        return View::fetch('/devices', ['list' => $this->devices->listByUser((int) Session::get('user_id'))]);
+        $serverUrl = $request->domain();
+        $list = array_map(function (array $device) use ($serverUrl): array {
+            $device['binding_payload'] = rtrim($serverUrl, '/') . '|' . $device['id'] . '|' . $device['device_key'];
+
+            return $device;
+        }, $this->devices->listByUser((int) Session::get('user_id')));
+
+        return View::fetch('/devices', ['list' => $list]);
     }
 
     public function create(Request $request)
