@@ -76,6 +76,33 @@ composer.json
 package.json
 ```
 
+方式三：使用本地打包脚本生成部署压缩包。
+
+Windows 本地双击或在终端执行：
+
+```bat
+pack-deploy.bat
+```
+
+压缩包会生成到：
+
+```text
+website/deploy/vanillapay-website-YYYYMMDD-HHMMSS.zip
+```
+
+该压缩包只包含部署运行需要的源码、配置模板、迁移、公共入口和已构建静态资源，不包含：
+
+```text
+.env
+node_modules/
+vendor/
+runtime/
+tests/
+.phpunit.cache/
+```
+
+上传到宝塔后解压，再继续执行下面的 Composer 安装和 `.env` 配置步骤。
+
 ### 4. 安装 PHP 依赖
 
 进入项目目录：
