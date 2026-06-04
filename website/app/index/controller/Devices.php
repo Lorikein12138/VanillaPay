@@ -3,6 +3,9 @@ namespace app\index\controller;
 
 use app\common\repository\DeviceRepositoryInterface;
 use app\common\service\DeviceProvisionService;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
+use chillerlan\QRCode\Output\QRGdImagePNG;
 use think\Request;
 use think\facade\Session;
 use think\facade\View;
@@ -19,6 +22,7 @@ class Devices
         $currentDevice = $this->devices->listByUser((int) Session::get('user_id'))[0] ?? null;
         if ($currentDevice) {
             $currentDevice['binding_payload'] = rtrim($serverUrl, '/') . '|' . $currentDevice['id'] . '|' . $currentDevice['device_key'];
+            $currentDevice['binding_qr'] = $this->bindingQrDataUri($currentDevice['binding_payload']);
         }
 
         return View::fetch('/devices', ['currentDevice' => $currentDevice]);
@@ -43,5 +47,20 @@ class Devices
         $this->devices->deleteForUser((int) $request->post('id'), (int) Session::get('user_id'));
         Session::flash('flash', '设备已删除');
         return redirect('/devices');
+    }
+
+    private function bindingQrDataUri(string $payload): string
+    {
+        try {
+            return (string) (new QRCode(new QROptions([
+                'outputInterface' => QRGdImagePNG::class,
+                'outputBase64' => true,
+                'scale' => 8,
+                'quietzoneSize' => 2,
+                'eccLevel' => 'M',
+            ])))->render($payload);
+        } catch (\Throwable) {
+            return '';
+        }
     }
 }

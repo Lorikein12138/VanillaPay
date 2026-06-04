@@ -13,8 +13,8 @@ Route::post('devices/delete', '\app\index\controller\Devices@delete')->middlewar
 Route::get('orders', '\app\index\controller\Orders@index')->middleware(\app\index\middleware\AuthCheck::class);
 Route::get('float', '\app\index\controller\FloatSettings@index')->middleware(\app\index\middleware\AuthCheck::class);
 Route::post('float', '\app\index\controller\FloatSettings@save')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
-Route::get('callback-test', '\app\index\controller\CallbackTest@index')->middleware(\app\index\middleware\AuthCheck::class);
-Route::post('callback-test', '\app\index\controller\CallbackTest@send')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
+Route::get('order-test', '\app\index\controller\OrderTest@index')->middleware(\app\index\middleware\AuthCheck::class);
+Route::post('order-test', '\app\index\controller\OrderTest@create')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('docs', '\app\index\controller\Docs@index')->middleware(\app\index\middleware\AuthCheck::class);
 Route::get('register', '\app\index\controller\Auth@registerForm');
 Route::post('register', '\app\index\controller\Auth@register')->middleware(\app\middleware\RateLimit::class, 'auth', 20, 60)->middleware(\app\middleware\VerifyCsrf::class);

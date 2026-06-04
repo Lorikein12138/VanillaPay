@@ -1,14 +1,30 @@
 {extend name="merchant_layout"}
 {block name="title"}看板{/block}
 {block name="content"}
-<div class="mb-6">
-  <p class="text-sm text-teal-700">Merchant</p>
-  <h1 class="mt-1 text-2xl font-semibold text-zinc-950">{$user.username}</h1>
+<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <p class="text-sm font-medium text-teal-700">Merchant</p>
+    <h1 class="mt-1 text-2xl font-semibold text-zinc-950">{$user.username}</h1>
+  </div>
+  <a href="/order-test" class="w-fit rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800">创建测试订单</a>
 </div>
-<section class="grid gap-4 md:grid-cols-4">
-  <div class="rounded-lg border border-zinc-200 bg-white p-4"><div class="text-sm text-zinc-500">商户号</div><div class="mt-2 font-mono text-lg">{$user.pid}</div></div>
-  <div class="rounded-lg border border-zinc-200 bg-white p-4"><div class="text-sm text-zinc-500">订单总数</div><div class="mt-2 text-2xl font-semibold">{$allTotal}</div></div>
-  <div class="rounded-lg border border-zinc-200 bg-white p-4"><div class="text-sm text-zinc-500">成功订单</div><div class="mt-2 text-2xl font-semibold text-emerald-700">{$paidTotal}</div></div>
-  <div class="rounded-lg border border-zinc-200 bg-white p-4"><div class="text-sm text-zinc-500">浮动规则</div><div class="mt-2 text-lg">{$user.float_mode} / {$user.float_step}</div></div>
+
+<section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
+    <div class="text-sm text-zinc-500">商户号</div>
+    <div class="mt-2 break-all font-mono text-lg text-zinc-950">{$user.pid}</div>
+  </div>
+  <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
+    <div class="text-sm text-zinc-500">订单总数</div>
+    <div class="mt-2 text-2xl font-semibold text-zinc-950">{$allTotal}</div>
+  </div>
+  <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
+    <div class="text-sm text-zinc-500">成功订单</div>
+    <div class="mt-2 text-2xl font-semibold text-emerald-700">{$paidTotal}</div>
+  </div>
+  <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
+    <div class="text-sm text-zinc-500">浮动规则</div>
+    <div class="mt-2 text-lg text-zinc-950">{$user.float_mode} / {$user.float_step}</div>
+  </div>
 </section>
 {/block}

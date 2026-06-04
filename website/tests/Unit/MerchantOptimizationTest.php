@@ -29,6 +29,15 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringContainsString('isset($latestByChannel[$channel])', $thinkRepository);
     }
 
+    public function testQrcodePageDoesNotShowRemovedUploadHint(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/qrcodes.html') ?: '';
+
+        $this->assertStringNotContainsString('每个商户最多保留 2 张收款码', $template);
+        $this->assertStringNotContainsString('图片会自动裁剪外部边框并清理中心头像区域', $template);
+        $this->assertStringNotContainsString('当前限制：单文件', $template);
+    }
+
     public function testQrcodeUploadShowsRuntimeDiagnosticsAndVisibleErrors(): void
     {
         $root = dirname(__DIR__, 2);
@@ -68,6 +77,74 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringContainsString('$currentDevice', $template);
         $this->assertStringContainsString('重新绑定前请先删除当前设备', $template);
         $this->assertStringNotContainsString('<table', $template);
+    }
+
+    public function testDevicePageShowsScanBindingQrCode(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $template = file_get_contents($root . '/view/index/devices.html') ?: '';
+        $controller = file_get_contents($root . '/app/index/controller/Devices.php') ?: '';
+
+        $this->assertStringContainsString('binding_qr', $controller);
+        $this->assertStringContainsString('QRCode', $controller);
+        $this->assertStringContainsString('扫码绑定', $template);
+        $this->assertStringContainsString('{$currentDevice.binding_qr}', $template);
+    }
+
+    public function testCallbackTestIsReplacedByOrderTest(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $route = file_get_contents($root . '/route/index.php') ?: '';
+        $layout = file_get_contents($root . '/view/index/merchant_layout.html') ?: '';
+        $controllerPath = $root . '/app/index/controller/OrderTest.php';
+        $templatePath = $root . '/view/index/order_test.html';
+
+        $this->assertFileExists($controllerPath);
+        $this->assertFileExists($templatePath);
+        $this->assertStringContainsString("Route::get('order-test'", $route);
+        $this->assertStringContainsString("Route::post('order-test'", $route);
+        $this->assertStringNotContainsString('callback-test', $route . $layout);
+        $this->assertStringContainsString('/order-test', $layout);
+        $this->assertStringContainsString('订单测试', $layout);
+
+        $controller = file_get_contents($controllerPath) ?: '';
+        $template = file_get_contents($templatePath) ?: '';
+        $this->assertStringContainsString('OrderCreationService', $controller);
+        $this->assertStringContainsString('CreateOrderInput', $controller);
+        $this->assertStringContainsString("redirect('/pay/' . \$order['order_no'])", $controller);
+        $this->assertStringContainsString('name="money"', $template);
+        $this->assertStringContainsString('name="channel"', $template);
+        $this->assertStringContainsString('value="wxpay"', $template);
+        $this->assertStringContainsString('value="alipay"', $template);
+    }
+
+    public function testDocsAreCategorizedAndCoverRequiredOperations(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $template = file_get_contents($root . '/view/index/docs.html') ?: '';
+        $epay = file_get_contents($root . '/app/gateway/controller/Epay.php') ?: '';
+
+        foreach (['易支付', '码支付', '源支付', '创建订单', '查询订单信息', '查询订单状态', '关闭订单', '查询服务端状态', '回调参数说明'] as $text) {
+            $this->assertStringContainsString($text, $template);
+        }
+
+        foreach (['submit.php', 'mapi.php', 'creat_order/', 'yuanpay/submit', 'yuanpay/mapi'] as $endpoint) {
+            $this->assertStringContainsString($endpoint, $template);
+        }
+
+        foreach (["'order_status'", "'close'", "'server_status'", 'release('] as $implementationText) {
+            $this->assertStringContainsString($implementationText, $epay);
+        }
+    }
+
+    public function testMerchantShellUsesModernTailwindInteractionStyles(): void
+    {
+        $layout = file_get_contents(dirname(__DIR__, 2) . '/view/index/merchant_layout.html') ?: '';
+
+        $this->assertStringContainsString('shadow-soft', $layout);
+        $this->assertStringContainsString('transition', $layout);
+        $this->assertStringContainsString('md:hidden', $layout);
+        $this->assertStringContainsString('backdrop-blur', $layout);
     }
 
     public function testPaymentPageShowsOrderMetadataAndCountdown(): void
