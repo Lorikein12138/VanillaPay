@@ -6,15 +6,21 @@
     <p class="text-sm font-medium text-teal-700">Orders</p>
     <h1 class="mt-1 text-2xl font-semibold text-zinc-950">订单</h1>
   </div>
-  <a href="/order-test" class="w-fit rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800">订单测试</a>
+  <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+    <form method="post" action="/orders/expire">
+      <input type="hidden" name="_csrf" value="{:csrf_token()}">
+      <button class="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 sm:w-auto">删除过期订单</button>
+    </form>
+    <a href="/order-test" class="w-full rounded-md bg-zinc-950 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 sm:w-auto">订单测试</a>
+  </div>
 </div>
 
-<form class="mb-4 flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm sm:flex-row sm:items-center">
+<form method="get" class="mb-4 flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm sm:flex-row sm:items-center">
   <select name="status" class="h-10 rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
-    <option value="">全部</option>
-    <option value="pending">待支付</option>
-    <option value="paid">已支付</option>
-    <option value="expired">已过期</option>
+    <option value="" {eq name="query.status" value=""}selected{/eq}>全部</option>
+    <option value="pending" {eq name="query.status" value="pending"}selected{/eq}>待支付</option>
+    <option value="paid" {eq name="query.status" value="paid"}selected{/eq}>已支付</option>
+    <option value="expired" {eq name="query.status" value="expired"}selected{/eq}>已过期</option>
   </select>
   <button class="rounded-md bg-zinc-900 px-4 py-2 font-semibold text-white transition hover:bg-zinc-800">筛选</button>
 </form>
@@ -33,7 +39,7 @@
           <td class="px-3 py-3">{$o.channel}</td>
           <td class="px-3 py-3">{$o.money}</td>
           <td class="px-3 py-3 font-semibold text-zinc-950">{$o.real_amount}</td>
-          <td class="px-3 py-3"><span class="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-700">{$o.status}</span></td>
+          <td class="px-3 py-3"><span class="rounded-md px-2 py-1 text-xs ring-1 {$o.status_badge_class}">{$o.status_label}</span></td>
           <td class="px-3 py-3 text-zinc-500">{$o.create_time}</td>
         </tr>
         {/volist}

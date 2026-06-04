@@ -2,21 +2,31 @@
 namespace app\index\controller;
 
 use app\common\repository\OrderRepositoryInterface;
-use app\common\repository\UserRepositoryInterface;
 use think\facade\Session;
 use think\facade\View;
 
 class Dashboard
 {
-    public function __construct(private UserRepositoryInterface $users, private OrderRepositoryInterface $orders)
+    public function __construct(private OrderRepositoryInterface $orders)
     {
     }
 
     public function index()
     {
-        $user = $this->users->findById((int) Session::get('user_id'));
-        $paid = $this->orders->paginateByUser((int) $user['id'], ['status' => 'paid'], 1, 1);
-        $all = $this->orders->paginateByUser((int) $user['id'], [], 1, 1);
-        return View::fetch('/dashboard', ['user' => $user, 'paidTotal' => $paid['total'], 'allTotal' => $all['total']]);
+        $userId = (int) Session::get('user_id');
+        $all = $this->orders->paginateByUser($userId, [], 1, 1);
+        $paid = $this->orders->paginateByUser($userId, ['status' => 'paid'], 1, 1);
+        $pending = $this->orders->paginateByUser($userId, ['status' => 'pending'], 1, 1);
+        $expired = $this->orders->paginateByUser($userId, ['status' => 'expired'], 1, 1);
+
+        return View::fetch('/dashboard', [
+            'totalOrders' => $all['total'],
+            'paidOrders' => $paid['total'],
+            'pendingOrders' => $pending['total'],
+            'expiredOrders' => $expired['total'],
+            'paidAmount' => $this->orders->sumByUser($userId, ['status' => 'paid']),
+            'paidAlipayAmount' => $this->orders->sumByUser($userId, ['status' => 'paid', 'channel' => 'alipay']),
+            'paidWxpayAmount' => $this->orders->sumByUser($userId, ['status' => 'paid', 'channel' => 'wxpay']),
+        ]);
     }
 }

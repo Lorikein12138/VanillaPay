@@ -86,6 +86,18 @@ final class InMemoryOrderRepository implements OrderRepositoryInterface
         return $count;
     }
 
+    public function deleteExpiredByUser(int $userId): int
+    {
+        $count = 0;
+        foreach ($this->rows as $id => $row) {
+            if ((int) ($row['user_id'] ?? 0) === $userId && ($row['status'] ?? '') === 'expired') {
+                unset($this->rows[$id]);
+                $count++;
+            }
+        }
+        return $count;
+    }
+
     public function update(int $id, array $data): void
     {
         $this->rows[$id] = array_merge($this->rows[$id] ?? ['id' => $id], $data);
@@ -93,13 +105,35 @@ final class InMemoryOrderRepository implements OrderRepositoryInterface
 
     public function paginateByUser(int $userId, array $filters, int $page, int $pageSize): array
     {
-        $items = array_values(array_filter($this->rows, fn (array $row): bool => (int) $row['user_id'] === $userId));
+        $items = array_values(array_filter($this->rows, fn (array $row): bool => (int) $row['user_id'] === $userId && $this->matchesFilters($row, $filters)));
         return ['items' => $items, 'total' => count($items), 'page' => $page, 'page_size' => $pageSize];
+    }
+
+    public function sumByUser(int $userId, array $filters): string
+    {
+        $cents = 0;
+        foreach ($this->rows as $row) {
+            if ((int) ($row['user_id'] ?? 0) === $userId && $this->matchesFilters($row, $filters)) {
+                $cents += Money::toCents($row['real_amount'] ?? '0');
+            }
+        }
+        return Money::fromCents($cents);
     }
 
     public function paginateAll(array $filters, int $page, int $pageSize): array
     {
         return ['items' => array_values($this->rows), 'total' => count($this->rows), 'page' => $page, 'page_size' => $pageSize];
+    }
+
+    private function matchesFilters(array $row, array $filters): bool
+    {
+        if (($filters['status'] ?? '') !== '' && ($row['status'] ?? '') !== $filters['status']) {
+            return false;
+        }
+        if (($filters['channel'] ?? '') !== '' && ($row['channel'] ?? '') !== $filters['channel']) {
+            return false;
+        }
+        return true;
     }
 
     public function countByStatusBetween(string $status, string $start, string $end): int

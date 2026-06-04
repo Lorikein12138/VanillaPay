@@ -63,6 +63,14 @@ class ThinkOrderRepository implements OrderRepositoryInterface
             ->update(['status' => 'expired']);
     }
 
+    public function deleteExpiredByUser(int $userId): int
+    {
+        return (int) $this->table()
+            ->where('user_id', $userId)
+            ->where('status', 'expired')
+            ->delete();
+    }
+
     public function update(int $id, array $data): void
     {
         $this->table()->where('id', $id)->update($data);
@@ -75,6 +83,14 @@ class ThinkOrderRepository implements OrderRepositoryInterface
         $total = (int) (clone $query)->count();
         $items = $query->order('id', 'desc')->page($page, $pageSize)->select()->toArray();
         return ['items' => $items, 'total' => $total, 'page' => $page, 'page_size' => $pageSize];
+    }
+
+    public function sumByUser(int $userId, array $filters): string
+    {
+        $query = $this->table()->where('user_id', $userId);
+        $this->applyFilters($query, $filters);
+        $sum = $query->sum('real_amount');
+        return number_format((float) $sum, 2, '.', '');
     }
 
     public function paginateAll(array $filters, int $page, int $pageSize): array
@@ -90,6 +106,9 @@ class ThinkOrderRepository implements OrderRepositoryInterface
     {
         if (($filters['status'] ?? '') !== '') {
             $query->where('status', (string) $filters['status']);
+        }
+        if (($filters['channel'] ?? '') !== '') {
+            $query->where('channel', (string) $filters['channel']);
         }
         if (($filters['user_id'] ?? '') !== '') {
             $query->where('user_id', (int) $filters['user_id']);

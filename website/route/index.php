@@ -11,6 +11,7 @@ Route::get('devices', '\app\index\controller\Devices@index')->middleware(\app\in
 Route::post('devices/create', '\app\index\controller\Devices@create')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::post('devices/delete', '\app\index\controller\Devices@delete')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('orders', '\app\index\controller\Orders@index')->middleware(\app\index\middleware\AuthCheck::class);
+Route::post('orders/expire', '\app\index\controller\Orders@expire')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('float', '\app\index\controller\FloatSettings@index')->middleware(\app\index\middleware\AuthCheck::class);
 Route::post('float', '\app\index\controller\FloatSettings@save')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('order-test', '\app\index\controller\OrderTest@index')->middleware(\app\index\middleware\AuthCheck::class);

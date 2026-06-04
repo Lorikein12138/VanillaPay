@@ -8,8 +8,30 @@ final class MerchantOptimizationTest extends TestCase
     {
         $dashboard = file_get_contents(dirname(__DIR__, 2) . '/view/index/dashboard.html') ?: '';
 
-        $this->assertStringContainsString('{$user.float_mode} / {$user.float_step}', $dashboard);
+        $this->assertStringNotContainsString('{$user.float_mode} / {$user.float_step}', $dashboard);
         $this->assertStringNotContainsString('{$user.float_mode} / {$user.float_max}', $dashboard);
+    }
+
+    public function testDashboardIsRenamedAndShowsOrderAndAmountSummaryCards(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $dashboard = file_get_contents($root . '/view/index/dashboard.html') ?: '';
+        $layout = file_get_contents($root . '/view/index/merchant_layout.html') ?: '';
+        $controller = file_get_contents($root . '/app/index/controller/Dashboard.php') ?: '';
+
+        $this->assertStringContainsString('数据版', $dashboard . $layout);
+        $this->assertStringNotContainsString('>看板<', $layout);
+        foreach (['订单数', '总订单数', '已支付', '待支付', '过期订单数', '金额流水', '已支付订单金额数', '已支付支付宝订单', '已支付微信订单'] as $text) {
+            $this->assertStringContainsString($text, $dashboard);
+        }
+
+        foreach (['{$user.username}', '{$user.pid}', '商户号', '浮动规则', '{$user.float_mode}', '{$user.float_step}'] as $oldText) {
+            $this->assertStringNotContainsString($oldText, $dashboard);
+        }
+
+        foreach (['totalOrders', 'paidOrders', 'pendingOrders', 'expiredOrders', 'paidAmount', 'paidAlipayAmount', 'paidWxpayAmount', 'sumByUser'] as $text) {
+            $this->assertStringContainsString($text, $controller . $dashboard);
+        }
     }
 
     public function testQrcodePageUsesFixedChannelNamesAndSingleCodePerChannel(): void
@@ -145,6 +167,41 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringContainsString('transition', $layout);
         $this->assertStringContainsString('md:hidden', $layout);
         $this->assertStringContainsString('backdrop-blur', $layout);
+    }
+
+    public function testWebsiteUsesConfiguredBrandIcons(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $layout = file_get_contents($root . '/view/index/merchant_layout.html') ?: '';
+
+        $this->assertFileExists($root . '/public/favicon.ico');
+        $this->assertFileExists($root . '/public/static/brand/VanillaClub.png');
+        $this->assertSame(hash_file('sha256', $root . '/img/favicon.ico'), hash_file('sha256', $root . '/public/favicon.ico'));
+        $this->assertSame(hash_file('sha256', $root . '/img/VanillaClub.png'), hash_file('sha256', $root . '/public/static/brand/VanillaClub.png'));
+        $this->assertStringContainsString('<link rel="icon" href="/favicon.ico"', $layout);
+        $this->assertStringContainsString('/static/brand/VanillaClub.png', $layout);
+        $this->assertStringContainsString('alt="VanillaPay"', $layout);
+    }
+
+    public function testOrderPageSupportsExpiredStatusAndOneClickCleanup(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $route = file_get_contents($root . '/route/index.php') ?: '';
+        $template = file_get_contents($root . '/view/index/orders.html') ?: '';
+        $controller = file_get_contents($root . '/app/index/controller/Orders.php') ?: '';
+        $repository = file_get_contents($root . '/app/common/repository/OrderRepositoryInterface.php') ?: '';
+        $thinkRepository = file_get_contents($root . '/app/common/repository/ThinkOrderRepository.php') ?: '';
+
+        $this->assertStringContainsString('<option value="expired"', $template);
+        $this->assertStringContainsString('已过期', $template);
+        $this->assertStringContainsString('action="/orders/expire"', $template);
+        $this->assertStringContainsString('删除过期订单', $template);
+        $this->assertStringContainsString("Route::post('orders/expire'", $route);
+        $this->assertStringContainsString('AmountLockRepositoryInterface', $controller);
+        $this->assertStringContainsString('deleteExpiredByUser', $controller);
+        $this->assertStringContainsString('releaseExpired', $controller);
+        $this->assertStringContainsString('deleteExpiredByUser', $repository);
+        $this->assertStringContainsString('deleteExpiredByUser', $thinkRepository);
     }
 
     public function testPaymentPageShowsOrderMetadataAndCountdown(): void

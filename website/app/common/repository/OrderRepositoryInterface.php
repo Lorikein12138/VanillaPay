@@ -11,8 +11,10 @@ interface OrderRepositoryInterface
     public function findByDeviceTrade(int $userId, string $deviceTradeNo): ?array;
     public function markPaid(int $id, array $data): void;
     public function markExpiredBatch(string $now): int;
+    public function deleteExpiredByUser(int $userId): int;
     public function update(int $id, array $data): void;
     public function paginateByUser(int $userId, array $filters, int $page, int $pageSize): array;
+    public function sumByUser(int $userId, array $filters): string;
     public function paginateAll(array $filters, int $page, int $pageSize): array;
     public function countByStatusBetween(string $status, string $start, string $end): int;
     public function sumPaidBetween(string $start, string $end): string;
