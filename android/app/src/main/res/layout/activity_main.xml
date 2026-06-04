@@ -387,5 +387,15 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnHide"
+            style="@style/Widget.VanillaPay.Button.Tonal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/card_gap"
+            android:text="@string/hide_to_background"
+            app:icon="@drawable/ic_eye_off"
+            app:iconGravity="textStart" />
+
     </LinearLayout>
 </ScrollView>

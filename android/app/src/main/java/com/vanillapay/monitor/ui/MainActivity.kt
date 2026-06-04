@@ -11,6 +11,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         setContentView(R.layout.activity_main)
+        applySystemBarInsets()
         ContextCompat.startForegroundService(this, Intent(this, KeepAliveService::class.java))
 
         findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
@@ -53,6 +55,10 @@ class MainActivity : AppCompatActivity() {
                     Uri.parse("package:$packageName"),
                 ),
             )
+        }
+        findViewById<View>(R.id.btnHide).setOnClickListener {
+            Toast.makeText(this, R.string.hide_toast, Toast.LENGTH_SHORT).show()
+            finishAndRemoveTask()
         }
 
         findViewById<TextView>(R.id.tvDeviceBadge).text =

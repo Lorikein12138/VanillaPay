@@ -20,6 +20,8 @@
     <string name="recent_title">最近上报</string>
     <string name="recent_view_all">全部</string>
     <string name="recent_empty">暂无上报记录</string>
+    <string name="hide_to_background">隐藏到后台运行</string>
+    <string name="hide_toast">已隐藏到后台，监听继续运行</string>
 
     <!-- Bind -->
     <string name="bind_title">绑定设备</string>

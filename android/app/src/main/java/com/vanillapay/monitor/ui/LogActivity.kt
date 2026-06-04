@@ -15,6 +15,7 @@ class LogActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_log)
+        applySystemBarInsets()
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
 
         val container = findViewById<LinearLayout>(R.id.logContainer)

@@ -5,9 +5,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import com.vanillapay.monitor.R
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -37,7 +40,10 @@ class KeepAliveService : Service() {
         }
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("VanillaPay 监听运行中")
-            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setContentText("正在监听微信 / 支付宝到账通知")
+            .setSmallIcon(R.drawable.ic_stat_monitor)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.ic_notification_large))
+            .setColor(ContextCompat.getColor(this, R.color.brand_primary))
             .setOngoing(true)
             .build()
         startForeground(1, notification)

@@ -20,6 +20,7 @@ class BindActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_bind)
+        applySystemBarInsets()
         maybeRequestNotificationPermission()
         val payloadInput = findViewById<EditText>(R.id.etPayload)
         findViewById<Button>(R.id.btnBind).setOnClickListener {

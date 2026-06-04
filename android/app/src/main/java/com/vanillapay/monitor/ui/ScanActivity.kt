@@ -29,7 +29,16 @@ class ScanActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_scan)
-        findViewById<android.widget.ImageButton>(R.id.btnBack).setOnClickListener { finish() }
+        val back = findViewById<android.widget.ImageButton>(R.id.btnBack)
+        back.setOnClickListener { finish() }
+        val baseTopMargin = (back.layoutParams as android.widget.FrameLayout.LayoutParams).topMargin
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(back) { v, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            val lp = v.layoutParams as android.widget.FrameLayout.LayoutParams
+            lp.topMargin = baseTopMargin + bars.top
+            v.layoutParams = lp
+            insets
+        }
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)
         } else {
