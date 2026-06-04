@@ -36,6 +36,10 @@ final class OrderCreationService
             throw new ValidationException('商户订单号已存在');
         }
 
+        $now = $this->clock->now();
+        $this->orders->markExpiredBatch($now);
+        $this->locks->releaseExpired($now);
+
         $qrcode = $this->qrcodes->findEnabledByUserChannel($input->userId, $input->channel);
         if (!$qrcode) {
             throw new ValidationException('当前渠道未上传可用收款码');

@@ -49,11 +49,59 @@ final class OrderCreationServiceTest extends TestCase
         $qrcodes->create(['user_id' => 1, 'channel' => 'wxpay', 'status' => 1]);
         $clock = new FixedClock(1700000000);
         foreach ([1000, 1001] as $amount) {
-            $locks->tryAcquire(1, 'wxpay', $amount, '2023-11-14 22:18:20');
+            $locks->tryAcquire(1, 'wxpay', $amount, date('Y-m-d H:i:s', $clock->timestamp() + 300));
         }
         $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock);
 
         $this->expectException(ChannelBusyException::class);
         $service->create(new CreateOrderInput(1, 'T1', 'epay', 'wxpay', '10.00', 'test', '', '', '', '', 'up', '0.01', '0.01', 300));
+    }
+
+    public function test_expired_pending_order_does_not_force_next_order_to_float(): void
+    {
+        $orders = new InMemoryOrderRepository();
+        $locks = new InMemoryAmountLockRepository();
+        $qrcodes = new InMemoryQrcodeRepository();
+        $qrcodes->create(['user_id' => 1, 'channel' => 'wxpay', 'status' => 1]);
+        $clock = new FixedClock(1700000000);
+        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock);
+
+        $first = $service->create(new CreateOrderInput(
+            userId: 1,
+            outTradeNo: 'T1',
+            protocol: 'epay',
+            channel: 'wxpay',
+            money: '0.01',
+            productName: 'test',
+            notifyUrl: '',
+            returnUrl: '',
+            param: '',
+            clientIp: '127.0.0.1',
+            floatMode: 'up',
+            floatStep: '0.01',
+            floatMax: '0.10',
+            timeoutSec: 300,
+        ));
+
+        $clock->setTs(1700000601);
+        $second = $service->create(new CreateOrderInput(
+            userId: 1,
+            outTradeNo: 'T2',
+            protocol: 'epay',
+            channel: 'wxpay',
+            money: '0.01',
+            productName: 'test',
+            notifyUrl: '',
+            returnUrl: '',
+            param: '',
+            clientIp: '127.0.0.1',
+            floatMode: 'up',
+            floatStep: '0.01',
+            floatMax: '0.10',
+            timeoutSec: 300,
+        ));
+
+        $this->assertSame('expired', $orders->findById((int) $first['id'])['status']);
+        $this->assertSame('0.01', $second['real_amount']);
     }
 }
