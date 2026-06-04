@@ -5,7 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
-import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -42,7 +41,7 @@ class KeepAliveService : Service() {
             .setContentTitle("VanillaPay 监听运行中")
             .setContentText("正在监听微信 / 支付宝到账通知")
             .setSmallIcon(R.drawable.ic_stat_monitor)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.ic_notification_large))
+            .setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)
             .setColor(ContextCompat.getColor(this, R.color.brand_primary))
             .setOngoing(true)
             .build()

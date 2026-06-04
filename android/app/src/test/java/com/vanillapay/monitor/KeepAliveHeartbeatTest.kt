@@ -14,4 +14,13 @@ class KeepAliveHeartbeatTest {
         assertTrue(source.contains("delay(30_000L)"))
         assertFalse(source.contains("PeriodicWorkRequestBuilder<HeartbeatWorker>(15"))
     }
+
+    @Test
+    fun `foreground notification uses only the status icon without a large badge icon`() {
+        val source = File("src/main/java/com/vanillapay/monitor/service/KeepAliveService.kt").readText()
+
+        assertTrue(source.contains(".setSmallIcon(R.drawable.ic_stat_monitor)"))
+        assertTrue(source.contains(".setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)"))
+        assertFalse(source.contains(".setLargeIcon("))
+    }
 }

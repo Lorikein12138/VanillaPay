@@ -1,6 +1,7 @@
 /.gradle
 /build
 /local.properties
+/signing.properties
 /.idea
 *.iml
 *.keystore

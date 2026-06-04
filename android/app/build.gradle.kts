@@ -1,8 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
 }
+
+val releaseSigningProperties = Properties()
+val releaseSigningPropertiesFile = rootProject.file("signing.properties")
+if (releaseSigningPropertiesFile.isFile) {
+    releaseSigningPropertiesFile.inputStream().use(releaseSigningProperties::load)
+}
+
+fun releaseSigningValue(propertyName: String, envName: String): String? =
+    System.getenv(envName)?.takeIf { it.isNotBlank() }
+        ?: releaseSigningProperties.getProperty(propertyName)?.takeIf { it.isNotBlank() }
 
 android {
     namespace = "com.vanillapay.monitor"
@@ -24,10 +36,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("VP_KEYSTORE") ?: "release.keystore")
-            storePassword = System.getenv("VP_STORE_PWD") ?: ""
-            keyAlias = System.getenv("VP_KEY_ALIAS") ?: "vanillapay"
-            keyPassword = System.getenv("VP_KEY_PWD") ?: ""
+            storeFile = rootProject.file(releaseSigningValue("storeFile", "VP_KEYSTORE") ?: "release.keystore")
+            storePassword = releaseSigningValue("storePassword", "VP_STORE_PWD") ?: ""
+            keyAlias = releaseSigningValue("keyAlias", "VP_KEY_ALIAS") ?: "vanillapay"
+            keyPassword = releaseSigningValue("keyPassword", "VP_KEY_PWD") ?: ""
         }
     }
 

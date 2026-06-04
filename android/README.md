@@ -117,13 +117,29 @@ store.
 
 ## Release Build
 
-Release signing reads credentials from environment variables:
+Release signing reads credentials from `signing.properties` in the Android
+project root. This file is ignored by Git and should be kept with the release
+keystore.
+
+```properties
+storeFile=release.keystore
+storePassword=replace-with-store-password
+keyAlias=release-key-alias
+keyPassword=replace-with-key-password
+```
+
+Environment variables can override the local file when needed:
 
 ```powershell
 $env:VP_KEYSTORE="D:\path\to\release.keystore"
 $env:VP_STORE_PWD="store-password"
 $env:VP_KEY_ALIAS="release-key-alias"
 $env:VP_KEY_PWD="key-password"
+```
+
+Build the release APK:
+
+```powershell
 .\gradlew.bat :app:assembleRelease
 ```
 
