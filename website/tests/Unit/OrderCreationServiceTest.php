@@ -3,6 +3,7 @@ use app\common\dto\CreateOrderInput;
 use app\common\exception\ChannelBusyException;
 use app\common\service\FloatAmountAllocator;
 use app\common\service\OrderCreationService;
+use app\common\service\OrderExpirationService;
 use PHPUnit\Framework\TestCase;
 use tests\Support\FixedClock;
 use tests\Support\InMemoryAmountLockRepository;
@@ -17,7 +18,8 @@ final class OrderCreationServiceTest extends TestCase
         $locks = new InMemoryAmountLockRepository();
         $qrcodes = new InMemoryQrcodeRepository();
         $qrcodes->create(['user_id' => 1, 'channel' => 'wxpay', 'status' => 1, 'qr_image_path' => '/q.png']);
-        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), new FixedClock(1700000000));
+        $clock = new FixedClock(1700000000);
+        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock, new OrderExpirationService($orders, $locks, $clock));
 
         $order = $service->create(new CreateOrderInput(
             userId: 1,
@@ -51,7 +53,7 @@ final class OrderCreationServiceTest extends TestCase
         foreach ([1000, 1001] as $amount) {
             $locks->tryAcquire(1, 'wxpay', $amount, date('Y-m-d H:i:s', $clock->timestamp() + 300));
         }
-        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock);
+        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock, new OrderExpirationService($orders, $locks, $clock));
 
         $this->expectException(ChannelBusyException::class);
         $service->create(new CreateOrderInput(1, 'T1', 'epay', 'wxpay', '10.00', 'test', '', '', '', '', 'up', '0.01', '0.01', 300));
@@ -64,7 +66,7 @@ final class OrderCreationServiceTest extends TestCase
         $qrcodes = new InMemoryQrcodeRepository();
         $qrcodes->create(['user_id' => 1, 'channel' => 'wxpay', 'status' => 1]);
         $clock = new FixedClock(1700000000);
-        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock);
+        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock, new OrderExpirationService($orders, $locks, $clock));
 
         $first = $service->create(new CreateOrderInput(
             userId: 1,

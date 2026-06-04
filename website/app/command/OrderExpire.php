@@ -1,9 +1,7 @@
 <?php
 namespace app\command;
 
-use app\common\repository\AmountLockRepositoryInterface;
-use app\common\repository\OrderRepositoryInterface;
-use app\common\support\Clock;
+use app\common\service\OrderExpirationService;
 use think\console\Command;
 use think\console\Input;
 use think\console\Output;
@@ -17,10 +15,8 @@ class OrderExpire extends Command
 
     protected function execute(Input $input, Output $output): int
     {
-        $now = app(Clock::class)->now();
-        $orders = app(OrderRepositoryInterface::class)->markExpiredBatch($now);
-        $locks = app(AmountLockRepositoryInterface::class)->releaseExpired($now);
-        $output->writeln("expired orders: {$orders}, released locks: {$locks}");
+        $result = app(OrderExpirationService::class)->refresh();
+        $output->writeln("expired orders: {$result['orders']}, released locks: {$result['locks']}");
         return 0;
     }
 }

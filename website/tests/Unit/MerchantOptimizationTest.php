@@ -197,11 +197,23 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringContainsString('action="/orders/expire"', $template);
         $this->assertStringContainsString('删除过期订单', $template);
         $this->assertStringContainsString("Route::post('orders/expire'", $route);
-        $this->assertStringContainsString('AmountLockRepositoryInterface', $controller);
+        $this->assertStringContainsString('OrderExpirationService', $controller);
+        $this->assertStringContainsString('$this->expiration->refresh();', $controller);
         $this->assertStringContainsString('deleteExpiredByUser', $controller);
-        $this->assertStringContainsString('releaseExpired', $controller);
         $this->assertStringContainsString('deleteExpiredByUser', $repository);
         $this->assertStringContainsString('deleteExpiredByUser', $thinkRepository);
+    }
+
+    public function testOrderViewsRefreshExpiredOrdersBeforeRendering(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $orders = file_get_contents($root . '/app/index/controller/Orders.php') ?: '';
+        $dashboard = file_get_contents($root . '/app/index/controller/Dashboard.php') ?: '';
+
+        foreach (['OrderExpirationService', '$this->expiration->refresh();'] as $text) {
+            $this->assertStringContainsString($text, $orders);
+            $this->assertStringContainsString($text, $dashboard);
+        }
     }
 
     public function testPaymentPageShowsOrderMetadataAndCountdown(): void

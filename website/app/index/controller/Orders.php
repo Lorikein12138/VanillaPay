@@ -1,9 +1,8 @@
 <?php
 namespace app\index\controller;
 
-use app\common\repository\AmountLockRepositoryInterface;
 use app\common\repository\OrderRepositoryInterface;
-use app\common\support\Clock;
+use app\common\service\OrderExpirationService;
 use think\Request;
 use think\facade\Session;
 use think\facade\View;
@@ -12,14 +11,14 @@ class Orders
 {
     public function __construct(
         private OrderRepositoryInterface $orders,
-        private AmountLockRepositoryInterface $locks,
-        private Clock $clock,
+        private OrderExpirationService $expiration,
     )
     {
     }
 
     public function index(Request $request)
     {
+        $this->expiration->refresh();
         $page = max(1, (int) $request->get('page', 1));
         $query = $request->get();
         $query['status'] = (string) ($query['status'] ?? '');
@@ -42,12 +41,10 @@ class Orders
 
     public function expire()
     {
-        $now = $this->clock->now();
-        $expired = $this->orders->markExpiredBatch($now);
-        $locks = $this->locks->releaseExpired($now);
+        $refreshed = $this->expiration->refresh();
         $deleted = $this->orders->deleteExpiredByUser((int) Session::get('user_id'));
 
-        Session::flash('flash', "已删除过期订单：{$deleted} 笔，新标记过期 {$expired} 笔，释放金额锁 {$locks} 条。");
+        Session::flash('flash', "已删除过期订单：{$deleted} 笔，新标记过期 {$refreshed['orders']} 笔，释放金额锁 {$refreshed['locks']} 条。");
         Session::flash('flash_tone', 'success');
         return redirect('/orders');
     }
