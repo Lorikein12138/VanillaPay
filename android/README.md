@@ -1,87 +1,175 @@
 # VanillaPay Monitor Android
 
-VanillaPay 安卓监听端用于商户本人手机的微信/支付宝到账通知监听、金额解析、离线上报队列、心跳和设备绑定。
+VanillaPay Monitor Android is the mobile monitoring client for merchant-owned
+devices. It listens for WeChat Pay and Alipay payment notifications, extracts
+payment amounts, queues reports while offline, sends device heartbeats, and
+syncs parsing rules from the website.
 
-## 环境
+## Features
 
-- JDK 21
-- Android SDK Platform 35
-- Gradle 8.10 Wrapper
+- Device binding through a QR code or pasted binding string.
+- Notification listener for payment arrival messages.
+- Local offline queue with retry after network recovery.
+- Heartbeat reporting to keep the website device status online.
+- Server-side rule synchronization through `/app/config`.
+- Optional HTTPS certificate pinning through Gradle build configuration.
 
-首次构建前确认 `local.properties` 指向本机 SDK：
+## Requirements
 
-```properties
-sdk.dir=C:/Users/Lorikein/AppData/Local/Android/Sdk
+- JDK 21.
+- Android SDK Platform 35.
+- Android Gradle Plugin 8.7.
+- Gradle Wrapper 8.10.
+- Android device or emulator running API 24 or newer.
+
+## Project Structure
+
+```text
+app/src/main/     Application source code and Android resources
+app/src/test/     JVM unit tests
+gradle/           Version catalog and Gradle Wrapper metadata
 ```
 
-`local.properties` 已被 `.gitignore` 忽略，不需要提交。
+The app package name is defined in `app/build.gradle.kts`.
 
-## 常用命令
+## Configuration
+
+Create `local.properties` in the Android project directory and point it to the
+local Android SDK:
+
+```properties
+sdk.dir=/path/to/android/sdk
+```
+
+On Windows, a path can use escaped backslashes or forward slashes:
+
+```properties
+sdk.dir=D:/Android/Sdk
+```
+
+`local.properties` is intentionally ignored by Git.
+
+## Build Commands
+
+Run unit tests:
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest
+```
+
+Build a debug APK:
+
+```powershell
 .\gradlew.bat :app:assembleDebug
+```
+
+Install the debug APK on a connected device:
+
+```powershell
 .\gradlew.bat :app:installDebug
 ```
 
-Debug APK 输出：
+Debug APK output:
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## 绑定与运行
+## Device Binding
 
-1. 在网站端生成设备绑定串，格式为 `serverUrl|deviceId|deviceKey`。
-2. 打开 App，粘贴绑定串或扫码绑定。
-3. 点击 `开启通知使用权`，在系统设置中授予 VanillaPay 通知使用权。
-4. 在系统中允许前台通知、自启动、忽略电池优化。
-5. 回到主页确认显示 `监听运行中`。
+Generate a device binding string in the website merchant device page. The
+binding payload uses this format:
 
-## 联调检查
-
-```powershell
-.\gradlew.bat :app:testDebugUnitTest
-.\gradlew.bat :app:assembleDebug
+```text
+serverUrl|deviceId|deviceKey
 ```
 
-真机上需要验证：
+The app accepts either a scanned QR code or a pasted binding string. The server
+URL should be the public HTTPS address of the website deployment.
 
-- 收到微信/支付宝到账通知后，记录入队并上报 `/app/push`。
-- 断网后记录保留，恢复网络后补发。
-- `/app/heart` 心跳使网站端设备保持在线。
-- `/app/config` 规则下发后，无需发版即可更新解析规则。
+## Runtime Permissions
 
-## 网络安全与证书绑定
+After binding, configure the device:
 
-默认禁用明文 HTTP。生产环境请使用 HTTPS。
+1. Grant notification listener access to the app.
+2. Allow foreground notifications.
+3. Allow background execution or startup management where the device vendor
+   requires it.
+4. Disable battery optimization for the app when required for stable listening.
+5. Return to the app and confirm that the listener status is running.
 
-证书 pin 可通过 `BuildConfig.CERT_PIN_HOST`、`BuildConfig.CERT_PIN_SHA256` 配置。未配置 pin 时仅启用系统 HTTPS 校验。
+Vendor-specific battery and background restrictions should be tested on the
+actual production device model.
 
-## Release 打包
+## Network Security
 
-Release 签名从环境变量读取：
+Cleartext HTTP is disabled by default. Use HTTPS for production.
+
+Certificate pinning can be configured with these build fields:
+
+```text
+BuildConfig.CERT_PIN_HOST
+BuildConfig.CERT_PIN_SHA256
+```
+
+When no certificate pin is configured, the app uses the platform HTTPS trust
+store.
+
+## Release Build
+
+Release signing reads credentials from environment variables:
 
 ```powershell
-$env:VP_KEYSTORE="D:\path\vanillapay-release.keystore"
+$env:VP_KEYSTORE="D:\path\to\release.keystore"
 $env:VP_STORE_PWD="store-password"
-$env:VP_KEY_ALIAS="vanillapay"
+$env:VP_KEY_ALIAS="release-key-alias"
 $env:VP_KEY_PWD="key-password"
 .\gradlew.bat :app:assembleRelease
 ```
 
-Release APK 输出：
+Release APK output:
 
 ```text
 app/build/outputs/apk/release/app-release.apk
 ```
 
-## 实测清单
+Do not commit keystores, signing passwords, or generated release artifacts.
 
-- Pixel/原生 Android：息屏、清后台、断网恢复。
-- 小米/HyperOS：自启动、后台无限制、电池白名单。
-- 华为/鸿蒙：应用启动管理手动管理、允许后台。
-- OPPO/vivo：自启动、后台高耗电白名单。
-- 三星 OneUI：避免进入休眠应用。
+## Integration Checklist
 
-通过标准：网站设备状态持续在线；到账通知能上报；断网恢复后不丢单、不重复核销。
+Validate the app with the website before production use:
+
+- Binding succeeds by QR code and by pasted binding string.
+- `/app/heart` keeps the website device status online.
+- `/app/config` updates parsing rules without rebuilding the APK.
+- WeChat Pay and Alipay payment notifications are parsed and uploaded to
+  `/app/push`.
+- Offline reports remain queued and are sent after network recovery.
+- Repeated uploads do not cause duplicate order settlement.
+- Long-running monitoring works after screen-off, app backgrounding, and network
+  changes.
+
+## Testing
+
+Run the JVM unit test suite:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest
+```
+
+Run a debug build before shipping changes:
+
+```powershell
+.\gradlew.bat :app:assembleDebug
+```
+
+Real-device testing is required because notification listener behavior and
+background execution policies vary by Android vendor.
+
+## Operational Notes
+
+- Keep the device online and connected to a stable network.
+- Use one merchant-owned device per merchant account.
+- Keep website endpoint, device ID, and device key out of public logs.
+- Rotate device credentials from the website if a device is lost or replaced.
+- Keep the APK and website API versions aligned during deployment.

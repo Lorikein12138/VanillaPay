@@ -1,26 +1,139 @@
 # VanillaPay Website
 
-VanillaPay 网站端基于 ThinkPHP 8 + MySQL，已实现商户账户、收款码上传、安卓监控设备接入、金额浮动核销、易支付/码支付/源支付网关、异步回调、商户中心、`/console` 超管后台、限流、防重放、审计日志和对账。
+VanillaPay Website is the server-side application for merchant registration,
+payment QR code management, Android monitor device access, order matching,
+gateway-compatible order creation, asynchronous notifications, and operations
+management.
 
-## 生产环境要求
+The project is built on ThinkPHP 8, MySQL-compatible storage, Composer, and a
+Tailwind CSS asset pipeline.
 
-- 宝塔面板 + Nginx
-- PHP 8.4/8.5，建议使用站点同版本命令，例如 `/www/server/php/85/bin/php`
-- MySQL 8.4.8
-- Composer
-- PHP 扩展：`pdo_mysql`、`mysqli`、`mbstring`、`openssl`、`curl`、`fileinfo`、`gd`、`zip`、`opcache`
-- Node.js 仅用于重新构建 Tailwind；生产部署不需要上传 `node_modules`
+## Features
 
-## 本地打包
+- Merchant registration, login, dashboard, orders, QR codes, and device binding.
+- One monitor device per merchant, with heartbeat, configuration pull, and
+  payment notification upload APIs.
+- WeChat Pay and Alipay QR code management with server-side image processing.
+- Floating amount matching and amount-lock release for expired orders.
+- Gateway-compatible endpoints for EPay, CodePay, and YuanPay style clients.
+- Downstream `notify_url` callback retry and daily reconciliation commands.
+- `/console` operations console for merchants, devices, orders, channels, risk
+  events, settings, and reconciliation.
 
-Windows 本地执行：
+## Architecture
+
+```text
+app/        Application modules, controllers, services, commands, middleware
+config/     ThinkPHP and application configuration
+database/   Migrations and seed-related database files
+public/     Web document root and static assets
+route/      HTTP route definitions
+view/       Server-rendered templates
+```
+
+Important runtime paths:
+
+```text
+runtime/                 Framework cache, logs, and temporary files
+public/static/uploads/   Uploaded QR code images and generated assets
+```
+
+These runtime paths must be writable in production and should not be committed.
+
+## Requirements
+
+- PHP 8.1 or newer. Use the same PHP CLI version as the web runtime.
+- MySQL 8.x or another compatible MySQL database.
+- Composer 2.x.
+- Node.js 18 or newer, only required when rebuilding Tailwind CSS assets.
+- PHP extensions: `pdo_mysql`, `mysqli`, `mbstring`, `openssl`, `curl`,
+  `fileinfo`, `gd`, `zip`, and `opcache`.
+
+## Configuration
+
+Create the runtime environment file from the example:
+
+```bash
+cp .example.env .env
+```
+
+Use project-specific values in `.env`. Do not commit `.env`.
+
+```ini
+APP_DEBUG = false
+APP_ENV = production
+APP_KEY = replace-with-a-long-random-secret
+
+DB_DRIVER = mysql
+DB_TYPE = mysql
+DB_HOST = your_db_host
+DB_NAME = your_database
+DB_USER = your_db_user
+DB_PASS = your_secure_password
+DB_PORT = 3306
+DB_CHARSET = utf8mb4
+DB_PREFIX = vp_
+
+DEFAULT_LANG = zh-cn
+```
+
+`DB_PREFIX` is applied automatically by the framework. Migration files should
+use logical table names and should not manually add the prefix.
+
+## Local Development
+
+Install dependencies:
+
+```bash
+composer install
+npm install
+```
+
+Build Tailwind CSS:
+
+```bash
+npm run build:css
+```
+
+Run the development server:
+
+```bash
+php think run -p 8080
+```
+
+Run database migrations:
+
+```bash
+php think migrate:run
+```
+
+Run tests:
+
+```bash
+vendor/bin/phpunit
+```
+
+PHPUnit may require additional PHP extensions such as `dom`, `xml`, and
+`xmlwriter`.
+
+## Deployment Package
+
+On Windows, create a production deployment archive:
 
 ```bat
 cd website
 pack-deploy.bat
 ```
 
-压缩包输出到 `website/deploy/vanillapay-website-YYYYMMDD-HHMMSS.zip`。压缩包会包含运行所需的 `app/config/database/public/route/view/think/composer.json/deploy-server.sh/README.md` 等文件，不包含：
+The archive is written to:
+
+```text
+website/deploy/vanillapay-website-YYYYMMDD-HHMMSS.zip
+```
+
+The package includes the application code, routes, views, public assets,
+Composer lock file, environment example, and deployment scripts. It excludes
+local/runtime-only files such as:
 
 ```text
 .env
@@ -31,49 +144,32 @@ tests/
 deploy/
 ```
 
-## 宝塔部署流程
+## Production Deployment
 
-以下示例以你的站点目录为准：
-
-```bash
-/www/wwwroot/vanillapay.lorikein.cn
-```
-
-1. 宝塔安装 Nginx、MySQL 8.4.8、PHP 8.5、Composer。
-2. PHP 8.5 安装并启用上述扩展，确认命令行也是 8.5：
+1. Upload and extract the deployment archive to the target site directory.
+2. Set the web document root to the `public` directory.
+3. Create `.env` from `.example.env` and fill in production values.
+4. Ensure `runtime` and `public/static/uploads` are writable by the web server.
+5. Run the deployment script:
 
 ```bash
-/www/server/php/85/bin/php -v
-/www/server/php/85/bin/php -m | grep -E "pdo_mysql|mbstring|curl|fileinfo|gd|zip"
+cd /path/to/site
+bash deploy-server.sh
 ```
 
-3. 上传部署 zip 到站点目录并解压。
-4. 首次部署时配置 `.env`：
+If the server has multiple PHP or Composer installations, provide explicit
+paths:
 
 ```bash
-cp .example.env .env
+cd /path/to/site
+PHP_BIN=/path/to/php COMPOSER_BIN=/path/to/composer bash deploy-server.sh
 ```
 
-生产建议：
+The script installs Composer dependencies, runs database migrations, clears
+framework cache, validates route registration, and adjusts runtime permissions
+when a standard web-server user is available.
 
-```ini
-APP_DEBUG = false
-APP_ENV = production
-APP_KEY = 换成至少32位随机字符串
-
-DB_DRIVER = mysql
-DB_TYPE = mysql
-DB_HOST = 127.0.0.1
-DB_NAME = vanillapay
-DB_USER = vanillapay
-DB_PASS = 数据库强密码
-DB_PORT = 3306
-DB_CHARSET = utf8mb4
-DB_PREFIX = vp_
-```
-
-5. 设置网站运行目录为 `/public`，默认文档包含 `index.php`。
-6. Nginx 伪静态：
+Recommended Nginx rewrite rule:
 
 ```nginx
 location / {
@@ -88,176 +184,191 @@ location ~ ^/static/uploads/.*\.php$ {
 }
 ```
 
-7. 执行一键部署脚本：
+## Updating An Existing Deployment
+
+For routine updates:
+
+1. Create a new deployment archive.
+2. Upload and extract it over the existing site files.
+3. Keep the existing `.env`, `runtime`, `public/static/uploads`, and database.
+4. Run:
 
 ```bash
-cd /www/wwwroot/vanillapay.lorikein.cn
+cd /path/to/site
 bash deploy-server.sh
 ```
 
-脚本会自动执行：
+`vendor`, `node_modules`, and `.env` are intentionally not included in the
+deployment archive.
+
+## Console Admin
+
+Create the first operations-console administrator after the initial deployment:
 
 ```bash
-/www/server/php/85/bin/php /usr/bin/composer install --no-dev --optimize-autoloader
-/www/server/php/85/bin/php think migrate:run
-/www/server/php/85/bin/php think clear
-chown -R www:www runtime public/static
-chmod -R 755 runtime public/static
+php think vanilla:admin-create admin_user strong_password
 ```
 
-迁移会创建 `vp_users`、`vp_admins`、`vp_channels`、`vp_merchant_qrcodes`、`vp_devices`、`vp_orders`、`vp_order_amount_lock`、`vp_risk_events`、`vp_callback_logs`、`vp_settings`、`vp_login_logs`、`vp_operation_logs` 等表。
+After creation, sign in at:
 
-如果 PHP 或 Composer 路径和默认不同，可显式指定：
+```text
+/console/login
+```
+
+Only create the initial administrator once. Routine deployments do not require
+this command.
+
+## Scheduled Tasks
+
+Configure these commands to run once per minute:
 
 ```bash
-PHP_BIN=/www/server/php/85/bin/php COMPOSER_BIN=/usr/bin/composer bash deploy-server.sh
+/path/to/php /path/to/site/think vanilla:order-expire
+/path/to/php /path/to/site/think vanilla:device-check
+/path/to/php /path/to/site/think vanilla:callback-retry
 ```
 
-8. 创建超管：
+Optional daily reconciliation:
 
 ```bash
-/www/server/php/85/bin/php think vanilla:admin-create root 强密码
+/path/to/php /path/to/site/think vanilla:reconcile-daily
 ```
 
-超管只需要首次创建，后续覆盖更新不要重复执行。
+These tasks expire timed-out orders, release floating amount locks, mark stale
+devices offline, retry downstream callbacks, and print reconciliation summaries.
 
-9. 宝塔计划任务，每分钟执行：
+## Merchant Flow
+
+1. Register and sign in through `/register` and `/login`.
+2. Upload one WeChat Pay QR code and one Alipay QR code in `/qrcodes`.
+3. Bind the Android monitor device in `/devices`.
+4. Keep the Android app running with notification access enabled.
+5. Create orders through a supported gateway endpoint.
+6. The system matches payment notifications and sends downstream callbacks.
+
+The Android binding string uses this format:
+
+```text
+serverUrl|deviceId|deviceKey
+```
+
+## Gateway Endpoints
+
+Supported endpoint groups:
+
+```text
+EPay:    /submit.php, /mapi.php, /api.php
+CodePay: /creat_order/
+YuanPay: /yuanpay/submit, /yuanpay/mapi
+```
+
+Use the public domain configured for your deployment when integrating external
+clients, for example:
+
+```text
+https://your-domain.example/submit.php
+```
+
+## Device APIs
+
+The Android monitor communicates with:
+
+```text
+POST /app/heart
+POST /app/push
+GET  /app/config
+```
+
+These endpoints are rate-limited and expect the device credentials generated by
+the merchant device-binding page.
+
+## Verification
+
+After deployment, verify the application with placeholder-safe commands:
 
 ```bash
-/www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:order-expire
-/www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:device-check
-/www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:callback-retry
+php think route:list
+curl -I https://your-domain.example/login
+curl https://your-domain.example/app/config
 ```
 
-每日对账可选：
+Then validate the full flow with a small test order:
+
+1. Upload payment QR codes.
+2. Bind the Android monitor.
+3. Create an order through a gateway endpoint.
+4. Confirm that the order moves from pending to paid or expired correctly.
+5. Confirm that the downstream callback is delivered or queued for retry.
+
+## Troubleshooting
+
+### Composer reports `putenv() has been disabled`
+
+The PHP CLI used by Composer may not match the PHP runtime used by the site.
+Run Composer with the intended PHP binary and check the CLI `disable_functions`
+configuration.
 
 ```bash
-/www/server/php/85/bin/php /www/wwwroot/vanillapay.lorikein.cn/think vanilla:reconcile-daily
+/path/to/php /path/to/composer install --no-dev --optimize-autoloader
 ```
 
-## 后续覆盖更新
+### `zip.so` cannot be loaded
 
-后续每次更新只需要：
-
-1. 上传最新 `vanillapay-website-YYYYMMDD-HHMMSS.zip` 到站点目录。
-2. 在宝塔文件管理中解压并覆盖同名文件。
-3. 执行：
-
-```bash
-cd /www/wwwroot/vanillapay.lorikein.cn
-bash deploy-server.sh
-```
-
-不要删除服务器上的 `.env`、`runtime`、`public/static/uploads` 和数据库。部署包默认不包含 `vendor`、`node_modules`、`.env`，所以覆盖同名文件即可。
-
-## 使用流程
-
-1. 访问 `/register` 注册商户，登录后进入 `/dashboard`。
-2. 在 `/qrcodes` 上传微信/支付宝收款码。
-3. 在 `/devices` 生成绑定串，格式为 `https://域名|device_id|device_key`，安卓 App 扫码或粘贴绑定。
-4. 安卓 App 授权通知读取后，会调用：
-   - `POST /app/heart`
-   - `POST /app/push`
-   - `GET /app/config`
-5. 下游商户可通过网关下单：
-   - 易支付：`/submit.php`、`/mapi.php`、`/api.php`
-   - 码支付：`/creat_order/`
-   - 源支付：`/yuanpay/submit`、`/yuanpay/mapi`
-6. 订单支付成功后系统按订单协议回调 `notify_url`，失败由 `vanilla:callback-retry` 重试。
-7. 超管访问 `/console/login`，管理商户、订单、设备、渠道、风控、设置和对账。
-
-## 验证命令
-
-```bash
-/www/server/php/85/bin/php think route:list
-curl -I https://vanillapay.lorikein.cn/login
-curl https://vanillapay.lorikein.cn/app/config
-```
-
-本地开发：
-
-```bash
-composer install
-npm install
-npm run build:css
-php think run -p 8080
-```
-
-测试：
-
-```bash
-vendor/bin/phpunit
-```
-
-PHPUnit 需要 `mbstring`、`dom`、`xml`、`xmlwriter` 等扩展。
-
-## 常见问题
-
-### composer 报 `putenv() has been disabled`
-
-宝塔服务器可能同时安装多个 PHP 版本，命令行默认调用了旧版本。使用站点 PHP 完整路径执行：
-
-```bash
-/www/server/php/85/bin/php /usr/bin/composer install --no-dev --optimize-autoloader
-```
-
-### `zip.so` 加载失败
-
-PHP 配置里启用了 zip 扩展但文件不存在。到宝塔 PHP 8.5 扩展管理安装 zip，或删除错误的 `extension=zip.so` 后重启 PHP。
+The PHP configuration references the zip extension, but the extension file is
+missing or was installed for another PHP version. Install the zip extension for
+the active PHP runtime, or remove the invalid `extension=zip.so` entry and
+restart PHP-FPM.
 
 ### `There are no commands defined in the migrate namespace`
 
-通常是 Composer 依赖没装完整，确认 `topthink/think-migration` 已安装：
+Composer dependencies are usually incomplete. Reinstall dependencies and confirm
+that `topthink/think-migration` is present:
 
 ```bash
-/www/server/php/85/bin/php /usr/bin/composer install --no-dev --optimize-autoloader
+/path/to/php /path/to/composer install --no-dev --optimize-autoloader
 ```
 
 ### `Duplicate migration`
 
-迁移文件版本号重复，检查 `database/migrations` 是否有同时间戳文件。保留唯一文件后重新执行。
+Migration versions must be unique. Check `database/migrations` for files with
+the same timestamp version, keep a single valid migration for that version, then
+rerun migrations.
 
-### `Table 'vp_users' already exists` 或登录报缺少 `vp_login_logs`
+### Existing tables but missing migration records
 
-这是旧库里已经有部分业务表，但 `vp_migrations` 迁移记录为空或缺失导致的状态。不要删除数据库，也不要重建 `vp_users`。
-
-先用宝塔数据库备份当前库，或在服务器上备份：
-
-```bash
-mysqldump --single-transaction --quick --no-tablespaces -u数据库用户 -p vanillapay > /root/vanillapay.before-migrate.$(date +%Y%m%d%H%M%S).sql
-```
-
-然后执行一次性基线脚本，再跑常规部署：
+If a legacy database already contains some business tables but has no matching
+migration records, back up the database first. Then run the baseline helper once
+before the normal deployment script:
 
 ```bash
-cd /www/wwwroot/vanillapay.lorikein.cn
-PHP_BIN=/www/server/php/85/bin/php bash deploy-baseline-existing-db.sh
+cd /path/to/site
+PHP_BIN=/path/to/php bash deploy-baseline-existing-db.sh
 bash deploy-server.sh
 ```
 
-`deploy-baseline-existing-db.sh` 只会给从最早迁移开始、连续已经存在的旧表补迁移记录。后续缺失表仍由 `deploy-server.sh` 的 `migrate:run` 正常创建；如果脚本提示数据库不是连续基线状态，停止执行并先人工检查表结构。
+The baseline helper records migrations only for the continuous set of existing
+tables from the initial schema. It does not delete data.
 
-### 数据表出现 `vp_vp_`
+### Uploaded QR code image returns 404
 
-迁移文件不得手写 `vp_` 前缀。本项目新迁移都使用逻辑表名，由 `.env` 的 `DB_PREFIX=vp_` 自动处理。
-
-### 上传二维码后图片 404
-
-确认站点运行目录是 `/public`，并且 `public/static/uploads/qrcodes` 可读写：
+Confirm that the web document root is `public` and that uploads are readable:
 
 ```bash
-chown -R www:www public/static/uploads
 chmod -R 755 public/static/uploads
 ```
 
-### 上传二维码后没有变化
+### QR code upload does not change the page
 
-先确认 PHP 8.5 已启用图片处理所需扩展，并且上传目录可写：
+Check that `gd` and `fileinfo` are enabled, and that the upload directory is
+writable. Upload errors are written to the framework logs under `runtime/log`.
 
-```bash
-/www/server/php/85/bin/php -m | grep -E "gd|fileinfo"
-chown -R www:www public/static/uploads
-chmod -R 755 public/static/uploads
-```
+## Security Notes
 
-二维码页面会显示 `GD 扩展`、`fileinfo 扩展`、`上传目录可写` 的状态。上传失败的具体原因会写入 `runtime/log`。
+- Do not commit `.env`, database dumps, private keys, upload files, or runtime
+  logs.
+- Use HTTPS in production.
+- Keep PHP, Composer packages, and server packages updated.
+- Restrict write permissions to the minimum required runtime directories.
+- Block execution of uploaded PHP files under `public/static/uploads`.
+- Store gateway secrets and signing keys only in environment-specific
+  configuration.
