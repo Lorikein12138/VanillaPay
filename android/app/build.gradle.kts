@@ -12,8 +12,8 @@ android {
         applicationId = "com.vanillapay.monitor"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         buildConfigField("String", "CERT_PIN_HOST", "\"\"")
         buildConfigField("String", "CERT_PIN_SHA256", "\"\"")
     }
@@ -58,6 +58,7 @@ tasks.withType<Test> {
 dependencies {
     implementation(libs.core.ktx)
     implementation(libs.appcompat)
+    implementation(libs.material)
     implementation(libs.lifecycle.runtime.ktx)
     implementation(libs.okhttp)
     implementation(libs.room.runtime)

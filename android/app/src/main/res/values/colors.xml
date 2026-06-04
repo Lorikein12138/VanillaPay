@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand -->
+    <color name="brand_primary">#0F766E</color>
+    <color name="brand_on_primary">#FFFFFF</color>
+    <color name="brand_container">#CCFBF1</color>
+    <color name="brand_on_container">#134E4A</color>
+
+    <!-- Neutrals (zinc / slate) -->
+    <color name="background">#F8FAFC</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="muted">#F4F4F5</color>
+    <color name="border">#E4E4E7</color>
+
+    <!-- Text -->
+    <color name="text_primary">#09090B</color>
+    <color name="text_secondary">#52525B</color>
+    <color name="text_tertiary">#A1A1AA</color>
+
+    <!-- Status -->
+    <color name="success">#16A34A</color>
+    <color name="success_container">#DCFCE7</color>
+    <color name="warning">#D97706</color>
+    <color name="warning_container">#FEF3C7</color>
+    <color name="danger">#DC2626</color>
+    <color name="danger_container">#FEE2E2</color>
+
+    <!-- Channel accents -->
+    <color name="channel_wechat">#1AAD19</color>
+    <color name="channel_alipay">#1677FF</color>
+
+    <!-- Overlay -->
+    <color name="scrim">#99000000</color>
+    <color name="white">#FFFFFF</color>
+
+    <!-- Launcher adaptive-icon background (sampled from brand badge) -->
+    <color name="ic_launcher_background">#1E6F83</color>
+</resources>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.VanillaPay" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Brand -->
+        <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorOnPrimary">@color/brand_on_primary</item>
+        <item name="colorPrimaryContainer">@color/brand_container</item>
+        <item name="colorOnPrimaryContainer">@color/brand_on_container</item>
+
+        <!-- Secondary (tonal buttons / chips) kept on-brand -->
+        <item name="colorSecondary">@color/brand_primary</item>
+        <item name="colorOnSecondary">@color/brand_on_primary</item>
+        <item name="colorSecondaryContainer">@color/brand_container</item>
+        <item name="colorOnSecondaryContainer">@color/brand_on_container</item>
+
+        <!-- Surfaces -->
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorSurfaceVariant">@color/muted</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorOutline">@color/border</item>
+        <item name="colorOutlineVariant">@color/border</item>
+
+        <!-- Error -->
+        <item name="colorError">@color/danger</item>
+        <item name="colorErrorContainer">@color/danger_container</item>
+
+        <!-- System bars -->
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Shape -->
+        <item name="shapeAppearanceCornerSmall">@style/ShapeAppearance.VanillaPay.Small</item>
+        <item name="shapeAppearanceCornerMedium">@style/ShapeAppearance.VanillaPay.Medium</item>
+
+        <!-- Font -->
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <style name="ShapeAppearance.VanillaPay.Small" parent="ShapeAppearance.Material3.Corner.Small">
+        <item name="cornerSize">@dimen/button_radius</item>
+    </style>
+
+    <style name="ShapeAppearance.VanillaPay.Medium" parent="ShapeAppearance.Material3.Corner.Medium">
+        <item name="cornerSize">@dimen/card_radius</item>
+    </style>
+</resources>
