@@ -14,6 +14,7 @@ coroutines = "1.8.1"
 camera = "1.3.4"
 mlkitBarcode = "17.3.0"
 junit = "5.10.2"
+junitPlatform = "1.10.2"
 json = "20240303"
 
 [libraries]
@@ -33,6 +34,7 @@ camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = 
 camera-view = { module = "androidx.camera:camera-view", version.ref = "camera" }
 mlkit-barcode = { module = "com.google.mlkit:barcode-scanning", version.ref = "mlkitBarcode" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatform" }
 json = { module = "org.json:json", version.ref = "json" }
 
 [plugins]

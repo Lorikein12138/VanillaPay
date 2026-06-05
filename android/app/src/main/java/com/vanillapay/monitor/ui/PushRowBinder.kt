@@ -11,9 +11,13 @@ import androidx.core.graphics.ColorUtils
 import com.vanillapay.monitor.Money
 import com.vanillapay.monitor.R
 import com.vanillapay.monitor.data.PushRecord
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/** Inflates and binds a single [item_recent_push] row. Shared by dashboard and log. */
+/** Inflates and binds a single [item_recent_push] row for the report log (time / channel / amount). */
 object PushRowBinder {
+    private val timeFormat = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
 
     fun inflate(inflater: LayoutInflater, parent: ViewGroup, record: PushRecord): View {
         val view = inflater.inflate(R.layout.item_recent_push, parent, false)
@@ -35,20 +39,16 @@ object PushRowBinder {
         channelBg.backgroundTintList =
             ColorStateList.valueOf(ColorUtils.setAlphaComponent(channelColor, 30))
 
-        title.text = context.getString(R.string.log_row_title_fmt, record.id, Money.format(record.amountCents))
+        title.text = "¥" + Money.format(record.amountCents)
         val channelName = context.getString(
             if (isWechat) R.string.channel_wxpay else R.string.channel_alipay,
         )
-        subtitle.text = context.getString(R.string.log_row_sub_fmt, channelName, record.attempts)
-
-        val (labelRes, fgRes, bgRes) = when (record.status) {
-            "sent" -> Triple(R.string.status_sent, R.color.success, R.color.success_container)
-            "failed" -> Triple(R.string.status_failed, R.color.danger, R.color.danger_container)
-            else -> Triple(R.string.status_pending, R.color.warning, R.color.warning_container)
-        }
-        state.setText(labelRes)
-        state.setTextColor(ContextCompat.getColor(context, fgRes))
-        state.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, bgRes))
+        subtitle.text = context.getString(
+            R.string.log_row_sub_fmt,
+            channelName,
+            timeFormat.format(Date(record.createdAt)),
+        )
+        state.visibility = View.GONE
 
         return view
     }

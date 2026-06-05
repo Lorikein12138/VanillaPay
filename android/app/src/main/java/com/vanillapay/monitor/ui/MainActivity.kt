@@ -1,15 +1,12 @@
 package com.vanillapay.monitor.ui
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.res.ColorStateList
-import android.net.Uri
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
 import android.view.View
 import android.widget.ImageButton
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -19,13 +16,19 @@ import com.vanillapay.monitor.Money
 import com.vanillapay.monitor.R
 import com.vanillapay.monitor.config.AppConfig
 import com.vanillapay.monitor.data.AppDatabase
-import com.vanillapay.monitor.data.PushRecord
+import com.vanillapay.monitor.net.HeartbeatReporter
+import com.vanillapay.monitor.permission.PermissionManager
 import com.vanillapay.monitor.service.KeepAliveService
+import com.vanillapay.monitor.util.HeartbeatTime
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.Calendar
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
     private lateinit var config: AppConfig
+    private val heartbeatListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        updateHeartbeatLabel()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,119 +45,82 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
-        findViewById<LinearLayout>(R.id.recentHeader).setOnClickListener {
+        findViewById<ImageButton>(R.id.btnLog).setOnClickListener {
             startActivity(Intent(this, LogActivity::class.java))
         }
-        findViewById<LinearLayout>(R.id.healthNotif).setOnClickListener {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-        }
-        findViewById<LinearLayout>(R.id.healthBattery).setOnClickListener {
-            startActivity(
-                Intent(
-                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:$packageName"),
-                ),
-            )
-        }
-        findViewById<View>(R.id.btnHide).setOnClickListener {
-            Toast.makeText(this, R.string.hide_toast, Toast.LENGTH_SHORT).show()
-            finishAndRemoveTask()
-        }
-
-        findViewById<TextView>(R.id.tvDeviceBadge).text =
-            getString(R.string.status_device_fmt, config.deviceId)
+        findViewById<View>(R.id.btnTestHeartbeat).setOnClickListener { testHeartbeat() }
     }
 
     override fun onResume() {
         super.onResume()
+        if (!config.isBound) {
+            startActivity(Intent(this, BindActivity::class.java))
+            finish()
+            return
+        }
+        if (!PermissionManager.allGranted(this)) {
+            startActivity(Intent(this, PermissionActivity::class.java))
+            return
+        }
         renderStatus()
         loadStats()
+        updateHeartbeatLabel()
+        config.registerChangeListener(heartbeatListener)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        config.unregisterChangeListener(heartbeatListener)
+    }
+
+    private fun updateHeartbeatLabel() {
+        findViewById<TextView>(R.id.tvHeartbeat).text =
+            HeartbeatTime.format(config.lastHeartbeatAt)
+    }
+
+    private fun testHeartbeat() {
+        val button = findViewById<View>(R.id.btnTestHeartbeat)
+        button.isEnabled = false
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) { HeartbeatReporter(applicationContext).send() }
+            updateHeartbeatLabel()
+            button.isEnabled = true
+            Toast.makeText(
+                this@MainActivity,
+                if (ok) R.string.heartbeat_ok else R.string.heartbeat_fail,
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
     }
 
     private fun renderStatus() {
-        val notifOn = isNotificationListenerEnabled()
+        val notifOn = PermissionManager.isNotificationListenerEnabled(this)
         val statusIcon = findViewById<ImageView>(R.id.statusIcon)
         val statusIconBg = findViewById<View>(R.id.statusIconBg)
         val tvStatus = findViewById<TextView>(R.id.tvStatus)
-        val tvStatusDesc = findViewById<TextView>(R.id.tvStatusDesc)
         if (notifOn) {
             statusIcon.setImageResource(R.drawable.ic_check_circle)
             statusIcon.imageTintList = colorState(R.color.brand_primary)
             statusIconBg.backgroundTintList = colorState(R.color.brand_container)
             tvStatus.setText(R.string.status_running)
-            tvStatusDesc.setText(R.string.status_running_desc)
         } else {
             statusIcon.setImageResource(R.drawable.ic_bell)
             statusIcon.imageTintList = colorState(R.color.warning)
             statusIconBg.backgroundTintList = colorState(R.color.warning_container)
             tvStatus.setText(R.string.status_notif_off)
-            tvStatusDesc.setText(R.string.status_notif_off_desc)
-        }
-        bindStateBadge(findViewById(R.id.tvNotifState), notifOn)
-        bindStateBadge(findViewById(R.id.tvBatteryState), isIgnoringBatteryOptimizations())
-    }
-
-    private fun bindStateBadge(badge: TextView, on: Boolean) {
-        if (on) {
-            badge.setText(R.string.perm_on)
-            badge.setTextColor(ContextCompat.getColor(this, R.color.success))
-            badge.backgroundTintList = colorState(R.color.success_container)
-        } else {
-            badge.setText(R.string.perm_off)
-            badge.setTextColor(ContextCompat.getColor(this, R.color.warning))
-            badge.backgroundTintList = colorState(R.color.warning_container)
         }
     }
 
     private fun loadStats() {
-        val startOfDay = startOfToday()
         lifecycleScope.launch {
             val dao = AppDatabase.get(this@MainActivity).pushDao()
-            val count = dao.countSince(startOfDay)
-            val sum = dao.sumSentSince(startOfDay)
-            val recent = dao.recent(5)
-            findViewById<TextView>(R.id.tvTodayCount).text = count.toString()
-            findViewById<TextView>(R.id.tvTodayAmount).text = "¥" + Money.format(sum)
-            renderRecent(recent)
+            val count = dao.countSent()
+            val sum = dao.sumSentTotal()
+            findViewById<TextView>(R.id.tvTotalCount).text = count.toString()
+            findViewById<TextView>(R.id.tvTotalAmount).text = "¥" + Money.format(sum)
         }
-    }
-
-    private fun renderRecent(rows: List<PushRecord>) {
-        val container = findViewById<LinearLayout>(R.id.recentContainer)
-        val empty = findViewById<TextView>(R.id.tvRecentEmpty)
-        container.removeAllViews()
-        if (rows.isEmpty()) {
-            empty.visibility = View.VISIBLE
-            container.visibility = View.GONE
-            return
-        }
-        empty.visibility = View.GONE
-        container.visibility = View.VISIBLE
-        rows.forEachIndexed { index, record ->
-            if (index > 0) container.addView(PushRowBinder.divider(this))
-            container.addView(PushRowBinder.inflate(layoutInflater, container, record))
-        }
-    }
-
-    private fun isNotificationListenerEnabled(): Boolean {
-        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
-        return !flat.isNullOrEmpty() && flat.contains(packageName)
-    }
-
-    private fun isIgnoringBatteryOptimizations(): Boolean {
-        val pm = getSystemService(PowerManager::class.java) ?: return false
-        return pm.isIgnoringBatteryOptimizations(packageName)
     }
 
     private fun colorState(resId: Int) =
         ColorStateList.valueOf(ContextCompat.getColor(this, resId))
-
-    private fun startOfToday(): Long {
-        val c = Calendar.getInstance()
-        c.set(Calendar.HOUR_OF_DAY, 0)
-        c.set(Calendar.MINUTE, 0)
-        c.set(Calendar.SECOND, 0)
-        c.set(Calendar.MILLISECOND, 0)
-        return c.timeInMillis
-    }
 }

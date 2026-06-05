@@ -7,9 +7,10 @@ import com.vanillapay.monitor.config.RuleStore
 import com.vanillapay.monitor.util.ClockSync
 
 class HeartbeatReporter(private val context: Context) {
-    fun send() {
+    /** @return true when the heartbeat round-trip reached the server. */
+    fun send(): Boolean {
         val config = AppConfig(context)
-        if (!config.isBound) return
+        if (!config.isBound) return false
 
         val clock = ClockSync()
         val params = HeartbeatPayloadBuilder(DeviceSigner()).build(
@@ -19,11 +20,15 @@ class HeartbeatReporter(private val context: Context) {
             appVersion = BuildConfig.VERSION_NAME,
         )
         val result = runCatching { ApiClient(config.serverUrl).post("/app/heart", params) }.getOrNull()
-        if (result != null && result.serverTime > 0) {
+            ?: return false
+
+        if (result.serverTime > 0) {
             clock.sync(result.serverTime, System.currentTimeMillis() / 1000)
         }
-        if (result != null && result.parseRulesVersion > 0 && result.parseRulesVersion != RuleStore(context).version()) {
+        if (result.parseRulesVersion > 0 && result.parseRulesVersion != RuleStore(context).version()) {
             ConfigClient(context).refresh()
         }
+        config.lastHeartbeatAt = System.currentTimeMillis()
+        return true
     }
 }

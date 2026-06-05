@@ -1,6 +1,7 @@
 package com.vanillapay.monitor.config
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -34,6 +35,27 @@ class AppConfig(context: Context) {
             preferences.edit().putString("device_key", value).apply()
         }
 
+    var autostartConfirmed: Boolean
+        get() = preferences.getBoolean("autostart_confirmed", false)
+        set(value) {
+            preferences.edit().putBoolean("autostart_confirmed", value).apply()
+        }
+
+    var lastHeartbeatAt: Long
+        get() = preferences.getLong("last_heartbeat_at", 0L)
+        set(value) {
+            preferences.edit().putLong("last_heartbeat_at", value).apply()
+        }
+
     val isBound: Boolean
         get() = serverUrl.isNotEmpty() && deviceId > 0 && deviceKey.isNotEmpty()
+
+    /** Observe config changes (e.g. [lastHeartbeatAt] written by the background heartbeat). */
+    fun registerChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    fun unregisterChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        preferences.unregisterOnSharedPreferenceChangeListener(listener)
+    }
 }

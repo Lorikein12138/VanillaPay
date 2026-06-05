@@ -86,4 +86,5 @@ dependencies {
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.json)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }

@@ -26,6 +26,15 @@ interface PushDao {
     @Query("SELECT COALESCE(SUM(amountCents), 0) FROM push_record WHERE status = 'sent' AND createdAt >= :since")
     suspend fun sumSentSince(since: Long): Long
 
+    @Query("SELECT COUNT(*) FROM push_record WHERE status = 'sent'")
+    suspend fun countSent(): Int
+
+    @Query("SELECT COALESCE(SUM(amountCents), 0) FROM push_record WHERE status = 'sent'")
+    suspend fun sumSentTotal(): Long
+
+    @Query("SELECT * FROM push_record WHERE status = 'sent' ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun sentRecent(limit: Int): List<PushRecord>
+
     @Update
     suspend fun update(record: PushRecord)
 }

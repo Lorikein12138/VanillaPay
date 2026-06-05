@@ -21,7 +21,7 @@ class LogActivity : AppCompatActivity() {
         val container = findViewById<LinearLayout>(R.id.logContainer)
         val empty = findViewById<TextView>(R.id.tvLogEmpty)
         lifecycleScope.launch {
-            val rows = AppDatabase.get(this@LogActivity).pushDao().recent(200)
+            val rows = AppDatabase.get(this@LogActivity).pushDao().sentRecent(200)
             if (rows.isEmpty()) {
                 empty.visibility = View.VISIBLE
                 return@launch

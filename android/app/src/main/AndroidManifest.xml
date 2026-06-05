@@ -29,6 +29,10 @@
         <activity android:name=".ui.ScanActivity" android:exported="false" />
         <activity android:name=".ui.LogActivity" android:exported="false" />
         <activity android:name=".ui.SettingsActivity" android:exported="false" />
+        <activity
+            android:name=".ui.PermissionActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
 
         <service
             android:name=".service.PaymentListenerService"

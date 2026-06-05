@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.vanillapay.monitor.R
@@ -17,6 +18,16 @@ import com.vanillapay.monitor.bind.BindingPayload
 import com.vanillapay.monitor.config.AppConfig
 
 class BindActivity : AppCompatActivity() {
+    private val scanLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val payload = result.data?.getStringExtra(ScanActivity.EXTRA_PAYLOAD).orEmpty()
+            findViewById<EditText>(R.id.etPayload).setText(payload)
+            bind(payload)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_bind)
@@ -27,19 +38,10 @@ class BindActivity : AppCompatActivity() {
             bind(payloadInput.text.toString())
         }
         findViewById<Button>(R.id.btnScan).setOnClickListener {
-            startActivityForResult(Intent(this, ScanActivity::class.java), REQUEST_SCAN)
+            scanLauncher.launch(Intent(this, ScanActivity::class.java))
         }
         findViewById<Button>(R.id.btnNotifAccess).setOnClickListener {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_SCAN && resultCode == Activity.RESULT_OK) {
-            val payload = data?.getStringExtra(ScanActivity.EXTRA_PAYLOAD).orEmpty()
-            findViewById<EditText>(R.id.etPayload).setText(payload)
-            bind(payload)
         }
     }
 
@@ -64,9 +66,5 @@ class BindActivity : AppCompatActivity() {
         ) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
         }
-    }
-
-    companion object {
-        private const val REQUEST_SCAN = 200
     }
 }
