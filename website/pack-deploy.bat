@@ -26,7 +26,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$remove=@('runtime','.phpunit.cache','tests','vendor','node_modules','.env','.git','.travis.yml','package.json','package-lock.json','tailwind.config.js','phpunit.xml','public\static\src');" ^
   "foreach($r in $remove){$p=Join-Path $stage $r; if(Test-Path -LiteralPath $p){Remove-Item -LiteralPath $p -Recurse -Force}}" ^
   "Get-ChildItem -LiteralPath $stage -Filter '.gitignore' -Recurse -Force | Remove-Item -Force;" ^
-  "Get-ChildItem -LiteralPath $stage -Force | Compress-Archive -DestinationPath $zip -Force;"
+  "if(Test-Path -LiteralPath $zip){Remove-Item -LiteralPath $zip -Force};" ^
+  "Add-Type -AssemblyName System.IO.Compression;" ^
+  "Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
+  "$archive=[System.IO.Compression.ZipFile]::Open($zip,[System.IO.Compression.ZipArchiveMode]::Create);" ^
+  "try{Get-ChildItem -LiteralPath $stage -Recurse -File -Force | ForEach-Object {$relative=$_.FullName.Substring($stage.Length).TrimStart('\','/'); $entryName=$relative -replace '\\','/'; [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,$_.FullName,$entryName,[System.IO.Compression.CompressionLevel]::Optimal) | Out-Null}}finally{$archive.Dispose()};"
 
 if errorlevel 1 (
   echo Package failed.

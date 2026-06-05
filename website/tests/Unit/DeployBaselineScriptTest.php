@@ -39,4 +39,16 @@ final class DeployBaselineScriptTest extends TestCase
         $this->assertStringNotContainsString('20260603193000', $script);
         $this->assertStringNotContainsString('AddAuthColumnsToUsersTable', $script);
     }
+
+    public function testDeploymentPackageUsesLinuxCompatibleZipEntries(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $packageScript = file_get_contents($root . '/pack-deploy.bat') ?: '';
+
+        $this->assertStringContainsString('CreateEntryFromFile', $packageScript);
+        $this->assertStringContainsString('System.IO.Compression;', $packageScript);
+        $this->assertStringContainsString('System.IO.Compression.FileSystem;', $packageScript);
+        $this->assertStringContainsString('-replace', $packageScript);
+        $this->assertStringNotContainsString('Compress-Archive', $packageScript);
+    }
 }

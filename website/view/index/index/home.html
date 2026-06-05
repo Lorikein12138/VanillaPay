@@ -1,12 +1,15 @@
 {extend name="layout"}
 {block name="title"}VanillaPay - 商户收款监控{/block}
 {block name="body"}
-<div class="min-h-screen overflow-hidden bg-[#f7fbf9] text-zinc-950">
-  <header class="sticky top-0 z-30 border-b border-white/70 bg-white/80 backdrop-blur-xl">
+<div class="relative min-h-screen overflow-hidden bg-[#f5f8f7] text-zinc-950">
+  <div class="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(15,23,42,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.05)_1px,transparent_1px)] bg-[size:56px_56px]"></div>
+  <div class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[34rem] bg-gradient-to-br from-white via-teal-50/80 to-sky-50/70"></div>
+
+  <header class="sticky top-0 z-30 border-b border-white/70 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70">
     <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-      <a href="/" class="flex items-center gap-3">
-        <img src="/static/brand/VanillaClub.png" alt="VanillaPay" class="h-9 w-9 rounded-md object-cover shadow-sm">
-        <span class="text-base font-semibold tracking-normal text-zinc-950">VanillaPay</span>
+      <a href="/" class="flex min-w-0 items-center gap-3">
+        <img src="/static/brand/VanillaClub.png" alt="VanillaPay" class="h-10 w-10 rounded-lg object-cover shadow-sm ring-1 ring-white/80">
+        <span class="truncate text-base font-semibold tracking-normal text-zinc-950">VanillaPay</span>
       </a>
 
       <nav class="flex items-center gap-3">
@@ -24,104 +27,150 @@
             </div>
           </details>
         {else/}
-          <a href="/login" class="flex h-10 items-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-800">登录</a>
+          <a href="/login" class="inline-flex h-10 items-center rounded-md bg-zinc-950 px-5 text-sm font-semibold text-white shadow-sm shadow-zinc-900/20 transition hover:-translate-y-0.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">登录</a>
         {/if}
       </nav>
     </div>
   </header>
 
   <main>
-    <section class="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
-      <div class="relative z-10 max-w-3xl">
-        <div class="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1 text-sm font-medium text-teal-800 shadow-sm">
-          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-          Android 监听端 + 商户收款网关
+    <section class="mx-auto grid max-w-7xl items-center gap-12 px-4 py-14 sm:px-6 sm:py-16 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:py-20">
+      <div class="relative z-10">
+        <div class="inline-flex items-center gap-2 rounded-full border border-teal-200/80 bg-white/80 px-3 py-1 text-sm font-medium text-teal-800 shadow-sm backdrop-blur">
+          <span class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]"></span>
+          商户收款监控中枢
         </div>
+
         <h1 class="mt-6 max-w-3xl text-4xl font-semibold leading-tight text-zinc-950 sm:text-5xl lg:text-6xl">
           VanillaPay
         </h1>
         <p class="mt-5 max-w-2xl text-base leading-8 text-zinc-600 sm:text-lg">
-          面向个人商户的收款监控与订单核销系统。上传微信、支付宝收款码，绑定监听设备，通过兼容易支付的接口完成下单、匹配和回调。
+          面向个人商户的收款码网关与订单核销系统。用 Android 监听端连接微信、支付宝到账通知，用商户工作台管理收款码、设备、订单与回调。
         </p>
-        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-          {if condition="$user"}
-            <a href="/dashboard" class="inline-flex h-12 items-center justify-center rounded-md bg-zinc-950 px-6 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-800">进入数据版</a>
-          {else/}
-            <a href="/login" class="inline-flex h-12 items-center justify-center rounded-md bg-zinc-950 px-6 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-800">登录商户中心</a>
-          {/if}
-          <a href="/register" class="inline-flex h-12 items-center justify-center rounded-md border border-zinc-200 bg-white px-6 text-sm font-semibold text-zinc-800 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:bg-teal-50">注册商户</a>
-        </div>
 
-        <div class="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
-          <div class="rounded-lg border border-white bg-white/85 p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-soft">
-            <div class="text-sm font-medium text-zinc-500">订单匹配</div>
-            <div class="mt-2 text-2xl font-semibold text-zinc-950">秒级</div>
-          </div>
-          <div class="rounded-lg border border-white bg-white/85 p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-soft">
-            <div class="text-sm font-medium text-zinc-500">设备心跳</div>
-            <div class="mt-2 text-2xl font-semibold text-zinc-950">在线</div>
-          </div>
-          <div class="rounded-lg border border-white bg-white/85 p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-soft">
-            <div class="text-sm font-medium text-zinc-500">回调重试</div>
-            <div class="mt-2 text-2xl font-semibold text-zinc-950">自动</div>
-          </div>
+        <div class="mt-8 flex flex-wrap gap-2 text-sm">
+          <span class="rounded-full bg-white/80 px-3 py-1.5 text-zinc-700 shadow-sm ring-1 ring-zinc-200/70">微信 / 支付宝收款码</span>
+          <span class="rounded-full bg-white/80 px-3 py-1.5 text-zinc-700 shadow-sm ring-1 ring-zinc-200/70">Android 监听端</span>
+          <span class="rounded-full bg-white/80 px-3 py-1.5 text-zinc-700 shadow-sm ring-1 ring-zinc-200/70">兼容易支付接口</span>
+          <span class="rounded-full bg-white/80 px-3 py-1.5 text-zinc-700 shadow-sm ring-1 ring-zinc-200/70">自动回调治理</span>
         </div>
       </div>
 
       <div class="relative">
-        <div class="absolute inset-0 -z-10 rounded-[2rem] bg-teal-100/50 blur-3xl"></div>
-        <div class="rounded-2xl border border-white bg-white/80 p-5 shadow-soft backdrop-blur">
-          <div class="flex items-center justify-between border-b border-zinc-100 pb-4">
-            <div class="flex items-center gap-3">
-              <img src="/static/brand/VanillaClub.png" alt="" class="h-12 w-12 rounded-lg object-cover">
-              <div>
-                <div class="text-sm font-semibold text-zinc-950">实时订单流</div>
-                <div class="text-xs text-zinc-500">VanillaPay Gateway</div>
+        <div class="rounded-lg bg-zinc-950 p-3 shadow-2xl shadow-zinc-900/20 ring-1 ring-zinc-900/10">
+          <div class="overflow-hidden rounded-lg bg-white">
+            <div class="flex items-center justify-between border-b border-zinc-100 bg-white/95 px-5 py-4">
+              <div class="flex min-w-0 items-center gap-3">
+                <img src="/static/brand/VanillaClub.png" alt="" class="h-11 w-11 rounded-lg object-cover shadow-sm">
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-zinc-950">产品工作台</div>
+                  <div class="text-xs text-zinc-500">商户视图预览</div>
+                </div>
               </div>
+              <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">运行监控</span>
             </div>
-            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">LIVE</span>
-          </div>
 
-          <div class="space-y-3 py-5">
-            <div class="flex items-center justify-between rounded-lg bg-zinc-950 px-4 py-3 text-white shadow-sm">
-              <div>
-                <div class="text-xs text-zinc-400">支付宝订单</div>
-                <div class="mt-1 font-mono text-lg">¥ 128.03</div>
-              </div>
-              <div class="h-2 w-20 overflow-hidden rounded-full bg-white/20">
-                <div class="h-full w-3/4 animate-pulse rounded-full bg-teal-300"></div>
-              </div>
-            </div>
-            <div class="flex items-center justify-between rounded-lg border border-zinc-100 bg-white px-4 py-3 shadow-sm">
-              <div>
-                <div class="text-xs text-zinc-500">微信订单</div>
-                <div class="mt-1 font-mono text-lg font-semibold text-zinc-950">¥ 56.01</div>
-              </div>
-              <span class="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-700">待匹配</span>
-            </div>
-            <div class="flex items-center justify-between rounded-lg border border-zinc-100 bg-white px-4 py-3 shadow-sm">
-              <div>
-                <div class="text-xs text-zinc-500">回调队列</div>
-                <div class="mt-1 text-sm font-semibold text-zinc-950">notify_url 重试中</div>
-              </div>
-              <span class="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">2 次</span>
-            </div>
-          </div>
+            <div class="grid gap-4 p-5 lg:grid-cols-[1.05fr_0.95fr]">
+              <section class="rounded-lg bg-gradient-to-br from-zinc-950 via-zinc-900 to-teal-950 p-5 text-white shadow-xl shadow-zinc-900/20">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="text-xs font-medium text-teal-100/80">订单流转</div>
+                    <div class="mt-1 text-lg font-semibold">收款通知核销</div>
+                  </div>
+                  <span class="rounded-full bg-white/10 px-3 py-1 text-xs text-teal-50 ring-1 ring-white/10">自动编排</span>
+                </div>
 
-          <div class="grid grid-cols-3 gap-3 border-t border-zinc-100 pt-4 text-center">
-            <div>
-              <div class="text-xs text-zinc-500">收款码</div>
-              <div class="mt-1 text-sm font-semibold text-zinc-950">2/2</div>
-            </div>
-            <div>
-              <div class="text-xs text-zinc-500">监听设备</div>
-              <div class="mt-1 text-sm font-semibold text-emerald-700">在线</div>
-            </div>
-            <div>
-              <div class="text-xs text-zinc-500">风控</div>
-              <div class="mt-1 text-sm font-semibold text-zinc-950">正常</div>
+                <div class="mt-6 space-y-3">
+                  <div class="rounded-lg bg-white/10 p-4 ring-1 ring-white/10">
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-sm text-white">支付宝通道</span>
+                      <span class="rounded-md bg-teal-300/20 px-2 py-1 text-xs text-teal-100">待核销</span>
+                    </div>
+                    <div class="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div class="h-full w-2/3 animate-[pulse_2.8s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-teal-300 to-sky-300"></div>
+                    </div>
+                  </div>
+
+                  <div class="rounded-lg bg-white/10 p-4 ring-1 ring-white/10">
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-sm text-white">微信通道</span>
+                      <span class="rounded-md bg-white/10 px-2 py-1 text-xs text-zinc-100">队列同步</span>
+                    </div>
+                    <div class="mt-4 grid grid-cols-3 gap-2">
+                      <span class="h-2 rounded-full bg-white/20"></span>
+                      <span class="h-2 rounded-full bg-teal-300/70"></span>
+                      <span class="h-2 rounded-full bg-white/20"></span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="space-y-4">
+                <div class="rounded-lg border border-zinc-100 bg-zinc-50 p-4 shadow-sm">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div class="text-xs font-medium text-zinc-500">Android 监听端</div>
+                      <div class="mt-1 text-sm font-semibold text-zinc-950">通知采集与心跳</div>
+                    </div>
+                    <span class="h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_0_5px_rgba(16,185,129,0.12)]"></span>
+                  </div>
+                  <div class="mt-4 space-y-2">
+                    <div class="h-2 w-full rounded-full bg-zinc-200"></div>
+                    <div class="h-2 w-4/5 rounded-full bg-zinc-200"></div>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border border-zinc-100 bg-white p-4 shadow-sm">
+                  <div class="text-xs font-medium text-zinc-500">收款码管理</div>
+                  <div class="mt-3 grid grid-cols-2 gap-3">
+                    <div class="rounded-lg bg-emerald-50 p-3 ring-1 ring-emerald-100">
+                      <div class="aspect-square rounded-lg bg-[linear-gradient(135deg,#ffffff_25%,#d1fae5_25%,#d1fae5_50%,#ffffff_50%,#ffffff_75%,#d1fae5_75%)] bg-[size:16px_16px]"></div>
+                      <div class="mt-2 text-xs font-semibold text-emerald-800">微信收款码</div>
+                    </div>
+                    <div class="rounded-lg bg-sky-50 p-3 ring-1 ring-sky-100">
+                      <div class="aspect-square rounded-lg bg-[linear-gradient(135deg,#ffffff_25%,#dbeafe_25%,#dbeafe_50%,#ffffff_50%,#ffffff_75%,#dbeafe_75%)] bg-[size:16px_16px]"></div>
+                      <div class="mt-2 text-xs font-semibold text-sky-800">支付宝收款码</div>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+      <div class="grid gap-4 lg:grid-cols-[0.78fr_1.22fr]">
+        <div class="rounded-lg border border-white/80 bg-white/85 p-6 shadow-soft backdrop-blur">
+          <div class="text-sm font-semibold text-teal-700">接入流程</div>
+          <h2 class="mt-3 text-2xl font-semibold text-zinc-950">把个人收款码接成可管理的支付网关</h2>
+          <p class="mt-3 text-sm leading-7 text-zinc-600">
+            首页只展示项目样貌，不暴露真实流水、订单数或设备数。商户登录后再进入数据版处理业务数据。
+          </p>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-4">
+          <article class="group rounded-lg border border-white/80 bg-white/85 p-5 shadow-sm ring-1 ring-zinc-200/50 transition hover:-translate-y-1 hover:shadow-soft">
+            <div class="inline-flex h-9 items-center rounded-lg bg-zinc-950 px-3 text-xs font-semibold text-white">API</div>
+            <h3 class="mt-4 text-base font-semibold text-zinc-950">接口下单</h3>
+            <p class="mt-2 text-sm leading-6 text-zinc-600">兼容常见支付网关参数，统一进入订单编排。</p>
+          </article>
+          <article class="group rounded-lg border border-white/80 bg-white/85 p-5 shadow-sm ring-1 ring-zinc-200/50 transition hover:-translate-y-1 hover:shadow-soft">
+            <div class="inline-flex h-9 items-center rounded-lg bg-emerald-100 px-3 text-xs font-semibold text-emerald-800">QR</div>
+            <h3 class="mt-4 text-base font-semibold text-zinc-950">扫码收款</h3>
+            <p class="mt-2 text-sm leading-6 text-zinc-600">管理微信与支付宝收款码，保持商户通道清晰。</p>
+          </article>
+          <article class="group rounded-lg border border-white/80 bg-white/85 p-5 shadow-sm ring-1 ring-zinc-200/50 transition hover:-translate-y-1 hover:shadow-soft">
+            <div class="inline-flex h-9 items-center rounded-lg bg-sky-100 px-3 text-xs font-semibold text-sky-800">APP</div>
+            <h3 class="mt-4 text-base font-semibold text-zinc-950">通知监听</h3>
+            <p class="mt-2 text-sm leading-6 text-zinc-600">Android 监听端回传到账通知，后台完成匹配。</p>
+          </article>
+          <article class="group rounded-lg border border-white/80 bg-white/85 p-5 shadow-sm ring-1 ring-zinc-200/50 transition hover:-translate-y-1 hover:shadow-soft">
+            <div class="inline-flex h-9 items-center rounded-lg bg-amber-100 px-3 text-xs font-semibold text-amber-800">WEBHOOK</div>
+            <h3 class="mt-4 text-base font-semibold text-zinc-950">回调核销</h3>
+            <p class="mt-2 text-sm leading-6 text-zinc-600">回调状态、重试与风控提示在商户工作台集中处理。</p>
+          </article>
         </div>
       </div>
     </section>
