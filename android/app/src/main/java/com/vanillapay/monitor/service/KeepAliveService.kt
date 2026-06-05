@@ -40,7 +40,7 @@ class KeepAliveService : Service() {
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("VanillaPay 监听运行中")
             .setContentText("正在监听微信 / 支付宝到账通知")
-            .setSmallIcon(R.drawable.ic_stat_monitor)
+            .setSmallIcon(R.drawable.ic_notification_vanillapay)
             .setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)
             .setColor(ContextCompat.getColor(this, R.color.brand_primary))
             .setOngoing(true)

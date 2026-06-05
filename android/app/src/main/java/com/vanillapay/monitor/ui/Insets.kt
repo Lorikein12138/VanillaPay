@@ -7,7 +7,7 @@ import androidx.core.view.WindowInsetsCompat
 
 /**
  * Pads the view down by the system-bar insets so content no longer draws under the
- * status / navigation bars. targetSdk 35 is edge-to-edge by default, so each screen
+ * status / navigation bars. targetSdk 35+ is edge-to-edge by default, so each screen
  * must consume insets itself. Original padding is preserved and added to.
  */
 fun applySystemBarInsets(view: View, top: Boolean = true, bottom: Boolean = true) {

@@ -10,6 +10,80 @@ import kotlin.math.max
 
 class LauncherIconInsetTest {
     @Test
+    fun `manifest uses adaptive launcher icons for Android 16 themed notification surfaces`() {
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+
+        assertTrue(manifest.contains("""android:icon="@mipmap/ic_launcher""""))
+        assertTrue(manifest.contains("""android:roundIcon="@mipmap/ic_launcher_round""""))
+        assertTrue(File("src/main/res/mipmap-anydpi-v26/ic_launcher.xml").isFile)
+        assertTrue(File("src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml").isFile)
+    }
+
+    @Test
+    fun `adaptive launcher icons expose monochrome layer for themed and vendor notification surfaces`() {
+        val adaptiveIcons = listOf(
+            File("src/main/res/mipmap-anydpi-v26/ic_launcher.xml"),
+            File("src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"),
+        )
+
+        for (file in adaptiveIcons) {
+            val source = file.readText()
+            assertTrue(
+                source.contains("""<monochrome android:drawable="@drawable/ic_launcher_monochrome" />"""),
+                "${file.path} is missing the monochrome adaptive-icon layer",
+            )
+        }
+
+        val monochromeIcon = File("src/main/res/drawable/ic_launcher_monochrome.xml")
+        assertTrue(monochromeIcon.isFile, "${monochromeIcon.path} must exist")
+        val monochromeSource = monochromeIcon.readText()
+        assertTrue(monochromeSource.contains("<vector"), "${monochromeIcon.path} must be a vector drawable")
+        assertTrue(
+            monochromeSource.contains("""android:fillColor="#FFFFFFFF""""),
+            "${monochromeIcon.path} must use an opaque monochrome foreground",
+        )
+    }
+
+    @Test
+    fun `notification small icon is a monochrome vector drawable`() {
+        val icon = File("src/main/res/drawable/ic_notification_vanillapay.xml")
+        assertTrue(icon.isFile, "${icon.path} must exist")
+
+        val source = icon.readText()
+        assertTrue(source.contains("<vector"), "${icon.path} must be a vector drawable")
+        assertTrue(
+            source.contains("""android:fillColor="#FFFFFFFF""""),
+            "${icon.path} must use an opaque monochrome foreground",
+        )
+    }
+
+    @Test
+    fun `notification small icon has density png fallback for vendor system ui`() {
+        val files = File("src/main/res").walkTopDown()
+            .filter { it.isFile && it.name == "ic_notification_vanillapay.png" }
+            .toList()
+
+        assertTrue(files.size >= 5)
+
+        for (file in files) {
+            val png = PngAlpha.read(file)
+            val bounds = png.visibleBounds()
+
+            assertTrue(bounds.width > 0, "${file.path} has no visible pixels")
+            assertTrue(bounds.height > 0, "${file.path} has no visible pixels")
+        }
+    }
+
+    @Test
+    fun `unused static launcher icon experiment resources are absent`() {
+        val files = File("src/main/res").walkTopDown()
+            .filter { it.isFile && it.name.startsWith("ic_launcher_static") }
+            .toList()
+
+        assertTrue(files.isEmpty(), "static launcher resources should not be packaged: $files")
+    }
+
+    @Test
     fun `legacy launcher icons keep transparent inset for rounded system masks`() {
         val files = File("src/main/res").walkTopDown()
             .filter { it.isFile && it.name in setOf("ic_launcher.png", "ic_launcher_round.png") }

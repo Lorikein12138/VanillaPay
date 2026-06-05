@@ -18,14 +18,14 @@ fun releaseSigningValue(propertyName: String, envName: String): String? =
 
 android {
     namespace = "com.vanillapay.monitor"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.vanillapay.monitor"
         minSdk = 24
-        targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        targetSdk = 36
+        versionCode = 6
+        versionName = "1.1.4"
         buildConfigField("String", "CERT_PIN_HOST", "\"\"")
         buildConfigField("String", "CERT_PIN_SHA256", "\"\"")
     }

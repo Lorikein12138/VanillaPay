@@ -16,11 +16,12 @@ class KeepAliveHeartbeatTest {
     }
 
     @Test
-    fun `foreground notification uses only the status icon without a large badge icon`() {
+    fun `foreground notification uses a vector status icon without a large badge icon`() {
         val source = File("src/main/java/com/vanillapay/monitor/service/KeepAliveService.kt").readText()
 
-        assertTrue(source.contains(".setSmallIcon(R.drawable.ic_stat_monitor)"))
+        assertTrue(source.contains(".setSmallIcon(R.drawable.ic_notification_vanillapay)"))
         assertTrue(source.contains(".setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)"))
         assertFalse(source.contains(".setLargeIcon("))
+        assertFalse(source.contains("R.drawable.ic_stat_monitor"))
     }
 }
