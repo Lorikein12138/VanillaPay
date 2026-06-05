@@ -2,6 +2,7 @@
 namespace app\index\controller;
 
 use app\common\repository\UserRepositoryInterface;
+use think\facade\View;
 use think\facade\Session;
 
 class Index
@@ -15,9 +16,8 @@ class Index
         $user = $this->users->findById((int) Session::get('user_id'));
         if (!$user) {
             Session::delete('user_id');
-            return redirect('/login');
         }
 
-        return redirect('/dashboard');
+        return View::fetch('index/home', ['user' => $user ?: null]);
     }
 }

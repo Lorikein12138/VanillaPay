@@ -1,7 +1,9 @@
 <?php
 use think\facade\Route;
 
-Route::get('/', '\app\index\controller\Index@home')->middleware(\app\index\middleware\AuthCheck::class);
+Route::rule('', '\app\index\controller\Index@home', 'GET|HEAD');
+Route::rule('/', '\app\index\controller\Index@home', 'GET|HEAD');
+Route::rule('home', '\app\index\controller\Index@home', 'GET|HEAD');
 Route::get('dashboard', '\app\index\controller\Dashboard@index')->middleware(\app\index\middleware\AuthCheck::class);
 Route::get('credentials', '\app\index\controller\Credentials@index')->middleware(\app\index\middleware\AuthCheck::class);
 Route::get('qrcodes', '\app\index\controller\Qrcodes@index')->middleware(\app\index\middleware\AuthCheck::class);
