@@ -30,6 +30,14 @@ final class PublicHomePageTest extends TestCase
         $this->assertStringContainsString('<details', $template);
     }
 
+    public function testBrandHomePageNavigationUsesFullViewportWidth(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/index/home.html') ?: '';
+
+        $this->assertStringContainsString('flex h-16 w-full items-center justify-between', $template);
+        $this->assertStringNotContainsString('flex h-16 max-w-7xl items-center justify-between', $template);
+    }
+
     public function testBrandHomePageKeepsAuthActionsOnlyInNavigation(): void
     {
         $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/index/home.html') ?: '';
@@ -53,8 +61,53 @@ final class PublicHomePageTest extends TestCase
         $this->assertStringContainsString('Android 监听端', $template);
         $this->assertStringContainsString('接入流程', $template);
 
-        foreach (['bg-gradient-to-br', 'ring-1', 'backdrop-blur', 'shadow-2xl', 'animate-[', 'supports-[backdrop-filter]'] as $class) {
+        foreach (['bg-gradient-to-br', 'ring-1', 'backdrop-blur', 'shadow-2xl', 'supports-[backdrop-filter]'] as $class) {
             $this->assertStringContainsString($class, $template);
         }
+    }
+
+    public function testBrandHomePageFitsDesktopViewportWithoutTechMotion(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/index/home.html') ?: '';
+
+        $this->assertStringContainsString('h-[calc(100vh-4rem)]', $template);
+        $this->assertStringContainsString('overflow-hidden', $template);
+        $this->assertStringNotContainsString('pb-16', $template);
+        $this->assertStringNotContainsString('md:grid-cols-4', $template);
+        $this->assertStringContainsString('lg:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)]', $template);
+        $this->assertStringContainsString('max-w-[1500px]', $template);
+        $this->assertStringContainsString('lg:max-w-[640px]', $template);
+        $this->assertStringContainsString('lg:text-7xl', $template);
+
+        foreach ([
+            '交易链路',
+            '通知监听',
+            '回调治理',
+            '运行监控',
+        ] as $text) {
+            $this->assertStringContainsString($text, $template);
+        }
+
+        foreach ([
+            '科技动效',
+            '@keyframes',
+            'motion-safe-run',
+            'animate-[',
+            'bg-[radial-gradient',
+            'backdrop-blur-2xl',
+        ] as $text) {
+            $this->assertStringNotContainsString($text, $template);
+        }
+    }
+
+    public function testMobileHomePageDoesNotLockViewportHeight(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/index/home.html') ?: '';
+
+        $this->assertStringContainsString('min-h-screen overflow-x-hidden', $template);
+        $this->assertStringContainsString('lg:h-screen lg:overflow-hidden', $template);
+        $this->assertStringContainsString('lg:h-[calc(100vh-4rem)]', $template);
+        $this->assertStringNotContainsString('relative h-screen overflow-hidden bg', $template);
+        $this->assertStringNotContainsString('<main class="h-[calc(100vh-4rem)] overflow-hidden"', $template);
     }
 }
