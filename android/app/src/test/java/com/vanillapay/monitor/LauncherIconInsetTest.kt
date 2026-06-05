@@ -6,41 +6,64 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.InflaterInputStream
-import kotlin.math.max
 
 class LauncherIconInsetTest {
     @Test
-    fun `manifest uses adaptive launcher icons for Android 16 themed notification surfaces`() {
+    fun `manifest uses gkd style drawable launcher icon for vendor notification surfaces`() {
         val manifest = File("src/main/AndroidManifest.xml").readText()
 
-        assertTrue(manifest.contains("""android:icon="@mipmap/ic_launcher""""))
-        assertTrue(manifest.contains("""android:roundIcon="@mipmap/ic_launcher_round""""))
-        assertTrue(File("src/main/res/mipmap-anydpi-v26/ic_launcher.xml").isFile)
-        assertTrue(File("src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml").isFile)
+        assertTrue(manifest.contains("""android:icon="@drawable/ic_launcher""""))
+        assertTrue(manifest.contains("""android:roundIcon="@drawable/ic_launcher""""))
+        assertTrue(File("src/main/res/drawable/ic_launcher.xml").isFile)
+        assertTrue(File("src/main/res/drawable-v26/ic_launcher.xml").isFile)
+        assertTrue(!manifest.contains("@mipmap/ic_launcher"))
     }
 
     @Test
-    fun `adaptive launcher icons expose monochrome layer for themed and vendor notification surfaces`() {
-        val adaptiveIcons = listOf(
-            File("src/main/res/mipmap-anydpi-v26/ic_launcher.xml"),
-            File("src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"),
+    fun `adaptive launcher icon mirrors gkd vector resource layout`() {
+        val adaptiveIcon = File("src/main/res/drawable-v26/ic_launcher.xml")
+        val adaptiveSource = adaptiveIcon.readText()
+
+        assertTrue(
+            adaptiveSource.contains("""<background android:drawable="@drawable/ic_launcher_background" />"""),
+            "${adaptiveIcon.path} is missing the vector background layer",
+        )
+        assertTrue(
+            adaptiveSource.contains("""<foreground android:drawable="@drawable/ic_launcher_foreground" />"""),
+            "${adaptiveIcon.path} is missing the vector foreground layer",
+        )
+        assertTrue(
+            adaptiveSource.contains("""<monochrome android:drawable="@drawable/ic_launcher_foreground" />"""),
+            "${adaptiveIcon.path} must reuse the foreground vector as its monochrome layer",
         )
 
-        for (file in adaptiveIcons) {
-            val source = file.readText()
-            assertTrue(
-                source.contains("""<monochrome android:drawable="@drawable/ic_launcher_monochrome" />"""),
-                "${file.path} is missing the monochrome adaptive-icon layer",
-            )
-        }
-
-        val monochromeIcon = File("src/main/res/drawable/ic_launcher_monochrome.xml")
-        assertTrue(monochromeIcon.isFile, "${monochromeIcon.path} must exist")
-        val monochromeSource = monochromeIcon.readText()
-        assertTrue(monochromeSource.contains("<vector"), "${monochromeIcon.path} must be a vector drawable")
+        val foregroundIcon = File("src/main/res/drawable/ic_launcher_foreground.xml")
+        assertTrue(foregroundIcon.isFile, "${foregroundIcon.path} must exist")
+        val foregroundSource = foregroundIcon.readText()
+        assertTrue(foregroundSource.contains("<vector"), "${foregroundIcon.path} must be a vector drawable")
         assertTrue(
-            monochromeSource.contains("""android:fillColor="#FFFFFFFF""""),
-            "${monochromeIcon.path} must use an opaque monochrome foreground",
+            foregroundSource.contains("""android:fillColor="#FFFFFFFF""""),
+            "${foregroundIcon.path} must use an opaque monochrome foreground",
+        )
+
+        val backgroundIcon = File("src/main/res/drawable/ic_launcher_background.xml")
+        assertTrue(backgroundIcon.isFile, "${backgroundIcon.path} must exist")
+        assertTrue(backgroundIcon.readText().contains("<vector"), "${backgroundIcon.path} must be a vector drawable")
+    }
+
+    @Test
+    fun `legacy launcher drawable keeps the foreground safely inset`() {
+        val launcherIcon = File("src/main/res/drawable/ic_launcher.xml")
+        assertTrue(launcherIcon.isFile, "${launcherIcon.path} must exist")
+        val source = launcherIcon.readText()
+
+        assertTrue(source.contains("<vector"), "${launcherIcon.path} must be a vector fallback")
+        assertTrue(source.contains("""android:viewportWidth="108""""))
+        assertTrue(source.contains("""android:viewportHeight="108""""))
+        assertTrue(source.contains("""android:pathData="M24,30H43L54,63L65,30H84L63,78H45L24,30Z""""))
+        assertTrue(
+            source.contains("""android:pathData="M67,64C79,63 89,68 96,81C83,85 72,82 64,74C63,70 64,67 67,64Z""""),
+            "${launcherIcon.path} foreground must stay within the Android adaptive-icon safe area",
         )
     }
 
@@ -84,37 +107,18 @@ class LauncherIconInsetTest {
     }
 
     @Test
-    fun `legacy launcher icons keep transparent inset for rounded system masks`() {
-        val files = File("src/main/res").walkTopDown()
-            .filter { it.isFile && it.name in setOf("ic_launcher.png", "ic_launcher_round.png") }
+    fun `unused mipmap launcher and template status icons are absent`() {
+        val staleFiles = File("src/main/res").walkTopDown()
+            .filter { file ->
+                file.isFile && (
+                    file.name == "ic_stat_monitor.png" ||
+                        (file.extension == "png" && file.name.startsWith("ic_launcher")) ||
+                        file.path.contains("mipmap-anydpi-v26")
+                    )
+            }
             .toList()
 
-        assertTrue(files.isNotEmpty())
-
-        for (file in files) {
-            val png = PngAlpha.read(file)
-            val bounds = png.visibleBounds()
-            val maxRatio = max(bounds.width.toDouble() / png.width, bounds.height.toDouble() / png.height)
-
-            assertTrue(maxRatio <= 0.86, "${file.path} visible ratio is $maxRatio")
-        }
-    }
-
-    @Test
-    fun `adaptive launcher foreground stays inside the safe visual area`() {
-        val files = File("src/main/res").walkTopDown()
-            .filter { it.isFile && it.name == "ic_launcher_foreground.png" }
-            .toList()
-
-        assertTrue(files.isNotEmpty())
-
-        for (file in files) {
-            val png = PngAlpha.read(file)
-            val bounds = png.visibleBounds()
-            val maxRatio = max(bounds.width.toDouble() / png.width, bounds.height.toDouble() / png.height)
-
-            assertTrue(maxRatio <= 0.70, "${file.path} visible ratio is $maxRatio")
-        }
+        assertTrue(staleFiles.isEmpty(), "stale icon resources should not be packaged: $staleFiles")
     }
 
     private data class Bounds(val width: Int, val height: Int)

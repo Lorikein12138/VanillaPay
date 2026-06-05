@@ -24,8 +24,8 @@ android {
         applicationId = "com.vanillapay.monitor"
         minSdk = 24
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.1.4"
+        versionCode = 7
+        versionName = "1.1.5"
         buildConfigField("String", "CERT_PIN_HOST", "\"\"")
         buildConfigField("String", "CERT_PIN_SHA256", "\"\"")
     }

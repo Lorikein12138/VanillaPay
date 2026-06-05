@@ -24,4 +24,13 @@ class KeepAliveHeartbeatTest {
         assertFalse(source.contains(".setLargeIcon("))
         assertFalse(source.contains("R.drawable.ic_stat_monitor"))
     }
+
+    @Test
+    fun `foreground service start mirrors gkd service compat pattern`() {
+        val source = File("src/main/java/com/vanillapay/monitor/service/KeepAliveService.kt").readText()
+
+        assertTrue(source.contains("ServiceCompat.startForeground("))
+        assertTrue(source.contains("ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC"))
+        assertFalse(source.contains("startForeground(1, notification)"))
+    }
 }

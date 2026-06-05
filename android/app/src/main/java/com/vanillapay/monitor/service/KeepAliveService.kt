@@ -5,9 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.vanillapay.monitor.R
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -45,7 +47,16 @@ class KeepAliveService : Service() {
             .setColor(ContextCompat.getColor(this, R.color.brand_primary))
             .setOngoing(true)
             .build()
-        startForeground(1, notification)
+        ServiceCompat.startForeground(
+            this,
+            1,
+            notification,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else {
+                0
+            },
+        )
         scheduleWorkers()
         startHeartbeatLoop()
     }
