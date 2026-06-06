@@ -19,11 +19,7 @@ class Devices
     public function index(Request $request)
     {
         $serverUrl = $request->domain();
-        $currentDevice = $this->devices->listByUser((int) Session::get('user_id'))[0] ?? null;
-        if ($currentDevice) {
-            $currentDevice['binding_payload'] = rtrim($serverUrl, '/') . '|' . $currentDevice['id'] . '|' . $currentDevice['device_key'];
-            $currentDevice['binding_qr'] = $this->bindingQrDataUri($currentDevice['binding_payload']);
-        }
+        $currentDevice = $this->ensureDevice((int) Session::get('user_id'), $serverUrl);
 
         return View::fetch('/devices', ['currentDevice' => $currentDevice]);
     }
@@ -31,13 +27,14 @@ class Devices
     public function create(Request $request)
     {
         $userId = (int) Session::get('user_id');
-        if ($this->devices->listByUser($userId) !== []) {
-            Session::flash('flash', '已有设备。每个商户只能绑定一个设备，重新绑定前请先删除当前设备。');
+        $currentDevice = $this->devices->listByUser($userId)[0] ?? null;
+        if ($currentDevice) {
+            Session::flash('flash', '当前商户已有监控设备。');
             return redirect('/devices');
         }
 
         $serverUrl = $request->domain();
-        $result = $this->provision->provision($userId, (string) $request->post('name', ''), $serverUrl);
+        $result = $this->provision->provision($userId, '', $serverUrl);
         Session::flash('flash', '设备已创建，绑定串：' . $result['binding_payload']);
         return redirect('/devices');
     }
@@ -62,5 +59,26 @@ class Devices
         } catch (\Throwable) {
             return '';
         }
+    }
+
+    private function ensureDevice(int $userId, string $serverUrl): array
+    {
+        $currentDevice = $this->devices->listByUser($userId)[0] ?? null;
+        if (!$currentDevice) {
+            $result = $this->provision->provision($userId, '', $serverUrl);
+            $currentDevice = $this->devices->findById((int) $result['device_id']) ?? [
+                'id' => $result['device_id'],
+                'device_key' => $result['device_key'],
+                'status' => 'offline',
+                'last_heartbeat' => null,
+                'app_version' => null,
+            ];
+        }
+
+        $currentDevice['binding_payload'] = rtrim($serverUrl, '/') . '|' . $currentDevice['id'] . '|' . $currentDevice['device_key'];
+        $currentDevice['binding_qr'] = $this->bindingQrDataUri($currentDevice['binding_payload']);
+        $currentDevice['is_bound'] = !empty($currentDevice['last_heartbeat']);
+
+        return $currentDevice;
     }
 }

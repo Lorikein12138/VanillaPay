@@ -1,10 +1,10 @@
 {extend name="merchant_layout"}
-{block name="title"}订单{/block}
+{block name="title"}订单信息{/block}
 {block name="content"}
 <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <p class="text-sm font-medium text-teal-700">Orders</p>
-    <h1 class="mt-1 text-2xl font-semibold text-zinc-950">订单</h1>
+    <h1 class="mt-1 text-2xl font-semibold text-zinc-950">订单信息</h1>
   </div>
   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
     <form method="post" action="/orders/expire">
@@ -18,7 +18,7 @@
 <form method="get" class="mb-4 flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm sm:flex-row sm:items-center">
   <select name="status" class="h-10 rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
     <option value="" {eq name="query.status" value=""}selected{/eq}>全部</option>
-    <option value="pending" {eq name="query.status" value="pending"}selected{/eq}>待支付</option>
+    <option value="pending" {eq name="query.status" value="pending"}selected{/eq}>待付款</option>
     <option value="paid" {eq name="query.status" value="paid"}selected{/eq}>已支付</option>
     <option value="expired" {eq name="query.status" value="expired"}selected{/eq}>已过期</option>
   </select>
@@ -27,9 +27,9 @@
 
 <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
   <div class="overflow-x-auto">
-    <table class="w-full min-w-[900px] text-sm">
+    <table class="w-full min-w-[1040px] text-sm">
       <thead class="bg-zinc-100 text-left text-xs text-zinc-500">
-        <tr><th class="px-3 py-3">订单号</th><th class="px-3 py-3">商户单号</th><th class="px-3 py-3">渠道</th><th class="px-3 py-3">金额</th><th class="px-3 py-3">实付</th><th class="px-3 py-3">状态</th><th class="px-3 py-3">时间</th></tr>
+        <tr><th class="px-3 py-3">订单号</th><th class="px-3 py-3">商户单号</th><th class="px-3 py-3">渠道</th><th class="px-3 py-3">金额</th><th class="px-3 py-3">实付</th><th class="px-3 py-3">状态</th><th class="px-3 py-3">时间</th><th class="px-3 py-3">操作</th></tr>
       </thead>
       <tbody class="divide-y divide-zinc-200">
         {volist name="data.items" id="o"}
@@ -41,6 +41,17 @@
           <td class="px-3 py-3 font-semibold text-zinc-950">{$o.real_amount}</td>
           <td class="px-3 py-3"><span class="rounded-md px-2 py-1 text-xs ring-1 {$o.status_badge_class}">{$o.status_label}</span></td>
           <td class="px-3 py-3 text-zinc-500">{$o.create_time}</td>
+          <td class="px-3 py-3">
+            {if condition="$o.can_supplement"}
+            <form method="post" action="/orders/supplement" onsubmit="return confirm('确认将该订单补为已支付并触发下游通知？');">
+              <input type="hidden" name="_csrf" value="{:csrf_token()}">
+              <input type="hidden" name="id" value="{$o.id}">
+              <button class="rounded-md bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-zinc-800">补单</button>
+            </form>
+            {else/}
+            <button class="rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-400" disabled>补单</button>
+            {/if}
+          </td>
         </tr>
         {/volist}
       </tbody>

@@ -22,8 +22,11 @@ class Qrcodes
 
     public function index()
     {
+        $latest = $this->latestByChannel($this->qrcodes->listByUser((int) Session::get('user_id')));
+
         return View::fetch('/qrcodes', [
-            'list' => $this->qrcodes->listByUser((int) Session::get('user_id')),
+            'wxpayQr' => $latest['wxpay'],
+            'alipayQr' => $latest['alipay'],
             'uploadDiagnostics' => $this->uploadDiagnostics(),
         ]);
     }
@@ -101,5 +104,18 @@ class Qrcodes
             'upload_max_filesize' => (string) ini_get('upload_max_filesize'),
             'post_max_size' => (string) ini_get('post_max_size'),
         ];
+    }
+
+    private function latestByChannel(array $rows): array
+    {
+        $latest = ['wxpay' => null, 'alipay' => null];
+        foreach ($rows as $row) {
+            $channel = (string) ($row['channel'] ?? '');
+            if (array_key_exists($channel, $latest) && $latest[$channel] === null) {
+                $latest[$channel] = $row;
+            }
+        }
+
+        return $latest;
     }
 }

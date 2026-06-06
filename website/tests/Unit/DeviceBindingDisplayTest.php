@@ -13,7 +13,7 @@ final class DeviceBindingDisplayTest extends TestCase
         $this->assertStringContainsString('binding_payload', $controller);
         $this->assertStringContainsString("rtrim(\$serverUrl, '/') . '|' . \$currentDevice['id'] . '|' . \$currentDevice['device_key']", $controller);
         $this->assertStringContainsString('{$currentDevice.binding_payload}', $template);
-        $this->assertStringContainsString('data-copy-payload', $template);
+        $this->assertStringNotContainsString('data-copy-payload', $template);
         $this->assertStringContainsString('绑定串', $template);
     }
 }

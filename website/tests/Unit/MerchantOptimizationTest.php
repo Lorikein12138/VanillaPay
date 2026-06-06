@@ -19,11 +19,18 @@ final class MerchantOptimizationTest extends TestCase
         $layout = file_get_contents($root . '/view/index/merchant_layout.html') ?: '';
         $controller = file_get_contents($root . '/app/index/controller/Dashboard.php') ?: '';
 
-        $this->assertStringContainsString('数据版', $dashboard . $layout);
+        $this->assertStringContainsString('数据面板', $dashboard . $layout);
+        $this->assertStringContainsString('商户凭证', $layout);
+        $this->assertStringContainsString('收款信息', $layout);
+        $this->assertStringContainsString('订单信息', $layout);
         $this->assertStringNotContainsString('>看板<', $layout);
+        $this->assertStringNotContainsString('数据版', $dashboard . $layout);
+        $this->assertStringNotContainsString('API 凭证', $layout);
         foreach (['订单数', '总订单数', '已支付', '待支付', '过期订单数', '金额流水', '已支付订单金额数', '已支付支付宝订单', '已支付微信订单'] as $text) {
             $this->assertStringContainsString($text, $dashboard);
         }
+        $this->assertStringNotContainsString('创建测试订单', $dashboard);
+        $this->assertStringNotContainsString('href="/order-test"', $dashboard);
 
         foreach (['{$user.username}', '{$user.pid}', '商户号', '浮动规则', '{$user.float_mode}', '{$user.float_step}'] as $oldText) {
             $this->assertStringNotContainsString($oldText, $dashboard);
@@ -43,6 +50,13 @@ final class MerchantOptimizationTest extends TestCase
         $thinkRepository = file_get_contents($root . '/app/common/repository/ThinkQrcodeRepository.php') ?: '';
 
         $this->assertStringNotContainsString('name="name"', $template);
+        $this->assertStringContainsString('收款信息', $template);
+        $this->assertStringContainsString('wxpayQr', $template . $controller);
+        $this->assertStringContainsString('alipayQr', $template . $controller);
+        $this->assertStringContainsString('value="wxpay"', $template);
+        $this->assertStringContainsString('value="alipay"', $template);
+        $this->assertStringContainsString('微信收款', $template);
+        $this->assertStringContainsString('支付宝收款', $template);
         $this->assertStringContainsString("'name' => \$channel", $controller);
         $this->assertStringContainsString('QrcodeImageProcessor', $controller);
         $this->assertStringContainsString('deleteForUserChannel', $controller);
@@ -58,6 +72,8 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringNotContainsString('每个商户最多保留 2 张收款码', $template);
         $this->assertStringNotContainsString('图片会自动裁剪外部边框并清理中心头像区域', $template);
         $this->assertStringNotContainsString('当前限制：单文件', $template);
+        $this->assertStringNotContainsString('upload_max_filesize', $template);
+        $this->assertStringNotContainsString('post_max_size', $template);
     }
 
     public function testQrcodeUploadShowsRuntimeDiagnosticsAndVisibleErrors(): void
@@ -95,9 +111,12 @@ final class MerchantOptimizationTest extends TestCase
         $controller = file_get_contents($root . '/app/index/controller/Devices.php') ?: '';
 
         $this->assertStringContainsString('currentDevice', $controller);
-        $this->assertStringContainsString('已有设备', $controller);
+        $this->assertStringContainsString('ensureDevice', $controller);
         $this->assertStringContainsString('$currentDevice', $template);
-        $this->assertStringContainsString('重新绑定前请先删除当前设备', $template);
+        $this->assertStringNotContainsString('单商户单设备', $template);
+        $this->assertStringNotContainsString('设备名称', $template);
+        $this->assertStringNotContainsString('name="name"', $template);
+        $this->assertStringNotContainsString('重新绑定前请先删除当前设备', $template);
         $this->assertStringNotContainsString('<table', $template);
     }
 
@@ -109,8 +128,12 @@ final class MerchantOptimizationTest extends TestCase
 
         $this->assertStringContainsString('binding_qr', $controller);
         $this->assertStringContainsString('QRCode', $controller);
-        $this->assertStringContainsString('扫码绑定', $template);
+        $this->assertStringContainsString('绑定二维码', $template);
+        $this->assertStringContainsString('绑定串', $template);
         $this->assertStringContainsString('{$currentDevice.binding_qr}', $template);
+        foreach (['设备状态', '最新心跳时间', '版本'] as $text) {
+            $this->assertStringContainsString($text, $template);
+        }
     }
 
     public function testCallbackTestIsReplacedByOrderTest(): void
@@ -202,6 +225,22 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringContainsString('deleteExpiredByUser', $controller);
         $this->assertStringContainsString('deleteExpiredByUser', $repository);
         $this->assertStringContainsString('deleteExpiredByUser', $thinkRepository);
+    }
+
+    public function testOrderPageProvidesSupplementActionForUnpaidOrders(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $route = file_get_contents($root . '/route/index.php') ?: '';
+        $template = file_get_contents($root . '/view/index/orders.html') ?: '';
+        $controller = file_get_contents($root . '/app/index/controller/Orders.php') ?: '';
+
+        $this->assertStringContainsString('订单信息', $template);
+        $this->assertStringContainsString("Route::post('orders/supplement'", $route);
+        $this->assertStringContainsString('OrderSupplementService', $controller);
+        $this->assertStringContainsString('action="/orders/supplement"', $template);
+        $this->assertStringContainsString('补单', $template);
+        $this->assertStringContainsString('$order[\'can_supplement\']', $controller);
+        $this->assertStringContainsString('disabled', $template);
     }
 
     public function testOrderViewsRefreshExpiredOrdersBeforeRendering(): void
