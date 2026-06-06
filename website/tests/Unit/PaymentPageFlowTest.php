@@ -89,4 +89,32 @@ final class PaymentPageFlowTest extends TestCase
         $this->assertStringNotContainsString('mx-auto max-w-md', $template);
         $this->assertStringNotContainsString('bg-white/95 p-3', $template);
     }
+
+    public function testPaymentPageRedirectsAndRemovesQrWhenOrderExpires(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $route = file_get_contents($root . '/route/gateway.php') ?: '';
+        $controller = file_get_contents($root . '/app/gateway/controller/PayPage.php') ?: '';
+        $template = file_get_contents($root . '/view/gateway/pay.html') ?: '';
+        $poll = file_get_contents($root . '/public/static/vendor/poll.js') ?: '';
+        $expiredTemplatePath = $root . '/view/gateway/expired.html';
+
+        $this->assertStringContainsString("Route::get('pay/expired/<order_no>'", $route);
+        $this->assertStringContainsString('public function expired(string $order_no)', $controller);
+        $this->assertStringContainsString('OrderExpirationService', $controller);
+        $this->assertStringContainsString('$this->expiration->refresh();', $controller);
+        $this->assertStringContainsString("'expired' =>", $controller);
+        $this->assertStringContainsString("'expired_url' =>", $controller);
+        $this->assertStringContainsString('data-expired="/pay/expired/{$order.order_no}"', $template);
+        $this->assertStringContainsString('id="qr-panel"', $template);
+        $this->assertStringContainsString('expiredUrl', $poll);
+        $this->assertStringContainsString('data.expired', $poll);
+        $this->assertStringContainsString('window.location.replace(targetUrl)', $poll);
+        $this->assertFileExists($expiredTemplatePath);
+
+        $expiredTemplate = file_get_contents($expiredTemplatePath) ?: '';
+        foreach (['订单已超时', '付款二维码已失效', '{$order.order_no}', '{$order.out_trade_no}', '{$returnUrl}'] as $text) {
+            $this->assertStringContainsString($text, $expiredTemplate);
+        }
+    }
 }

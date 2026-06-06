@@ -27,7 +27,7 @@
           <p class="mt-2 text-sm text-white/80">必须按此金额付款，金额不一致无法自动到账</p>
         </div>
 
-        <div class="mt-8 flex justify-center lg:mt-0 lg:flex-1 lg:items-center lg:justify-center">
+        <div id="qr-panel" class="mt-8 flex justify-center lg:mt-0 lg:flex-1 lg:items-center lg:justify-center">
           <div class="inline-flex w-fit rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-white/30 lg:self-center">
             <img src="{$qrImage}" alt="收款码" class="h-56 w-56 object-contain sm:h-64 sm:w-64 lg:h-[min(32vh,220px)] lg:w-[min(32vh,220px)]">
           </div>
@@ -52,9 +52,9 @@
           <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2 lg:py-1.5">
             <span class="text-zinc-500">剩余支付时间</span>
             {eq name="theme.code" value="wxpay"}
-            <span id="countdown" class="font-mono font-semibold text-emerald-700" data-remaining="{$remainingSeconds}">--:--</span>
+            <span id="countdown" class="font-mono font-semibold text-emerald-700" data-remaining="{$remainingSeconds}" data-expired="{$expiredUrl}">--:--</span>
             {else/}
-            <span id="countdown" class="font-mono font-semibold text-sky-700" data-remaining="{$remainingSeconds}">--:--</span>
+            <span id="countdown" class="font-mono font-semibold text-sky-700" data-remaining="{$remainingSeconds}" data-expired="{$expiredUrl}">--:--</span>
             {/eq}
           </div>
           <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2 lg:py-1.5">
@@ -99,13 +99,28 @@
       var el = document.getElementById('countdown');
       if (!el) return;
       var remaining = parseInt(el.dataset.remaining || '0', 10);
+      var expiredUrl = el.dataset.expired || '';
+      var redirected = false;
+      function expireNow() {
+        if (redirected) return;
+        redirected = true;
+        var qrPanel = document.getElementById('qr-panel');
+        var status = document.getElementById('status');
+        if (qrPanel) qrPanel.classList.add('hidden');
+        if (status) status.textContent = '订单已超时，正在关闭付款二维码...';
+        if (expiredUrl) {
+          setTimeout(function () {
+            window.location.replace(expiredUrl);
+          }, 300);
+        }
+      }
       function render() {
         var safe = Math.max(0, remaining);
         var minutes = Math.floor(safe / 60);
         var seconds = safe % 60;
         el.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
         if (safe <= 0) {
-          document.getElementById('status').textContent = '订单已超时，请重新下单';
+          expireNow();
           return;
         }
         remaining -= 1;
@@ -114,6 +129,6 @@
       render();
     })();
   </script>
-  <script src="/static/vendor/poll.js?v={:asset_version('/static/vendor/poll.js')}" data-order="{$order.order_no}" data-return="{$order.return_url}" data-success="/pay/success/{$order.order_no}"></script>
+  <script src="/static/vendor/poll.js?v={:asset_version('/static/vendor/poll.js')}" data-order="{$order.order_no}" data-return="{$order.return_url}" data-success="/pay/success/{$order.order_no}" data-expired="/pay/expired/{$order.order_no}"></script>
 </body>
 </html>
