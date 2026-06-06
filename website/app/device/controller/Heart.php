@@ -2,13 +2,14 @@
 namespace app\device\controller;
 
 use app\common\repository\DeviceRepositoryInterface;
+use app\common\repository\UserRepositoryInterface;
 use app\common\service\DeviceSigner;
 use app\common\support\Clock;
 use think\Request;
 
 class Heart
 {
-    public function __construct(private DeviceRepositoryInterface $devices, private DeviceSigner $signer, private Clock $clock)
+    public function __construct(private DeviceRepositoryInterface $devices, private UserRepositoryInterface $users, private DeviceSigner $signer, private Clock $clock)
     {
     }
 
@@ -33,8 +34,11 @@ class Heart
             'app_version' => $params['app_version'] ?? null,
         ]);
 
+        $merchant = $this->users->findById((int) ($device['user_id'] ?? 0));
+
         return json([
             'code' => 1,
+            'pid' => (string) ($merchant['pid'] ?? ''),
             'server_time' => $this->clock->timestamp(),
             'config' => ['heartbeat_interval' => 30, 'parse_rules_version' => 1],
         ]);

@@ -3,6 +3,7 @@ package com.vanillapay.monitor.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -12,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.vanillapay.monitor.R
+import com.vanillapay.monitor.ui.MainActivity
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -39,12 +41,21 @@ class KeepAliveService : Service() {
                 NotificationChannel(channelId, "监听服务", NotificationManager.IMPORTANCE_LOW),
             )
         }
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE,
+        )
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("VanillaPay 监听运行中")
             .setContentText("正在监听微信 / 支付宝到账通知")
             .setSmallIcon(R.drawable.ic_notification_vanillapay)
             .setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)
             .setColor(ContextCompat.getColor(this, R.color.brand_primary))
+            .setContentIntent(contentIntent)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setOngoing(true)
             .build()
         ServiceCompat.startForeground(

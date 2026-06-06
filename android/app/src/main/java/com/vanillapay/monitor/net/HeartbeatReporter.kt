@@ -1,6 +1,7 @@
 package com.vanillapay.monitor.net
 
 import android.content.Context
+import android.content.Intent
 import com.vanillapay.monitor.BuildConfig
 import com.vanillapay.monitor.config.AppConfig
 import com.vanillapay.monitor.config.RuleStore
@@ -28,7 +29,15 @@ class HeartbeatReporter(private val context: Context) {
         if (result.parseRulesVersion > 0 && result.parseRulesVersion != RuleStore(context).version()) {
             ConfigClient(context).refresh()
         }
+        if (result.pid.isNotBlank()) {
+            config.merchantPid = result.pid
+        }
         config.lastHeartbeatAt = System.currentTimeMillis()
+        context.sendBroadcast(Intent(ACTION_HEARTBEAT).setPackage(context.packageName))
         return true
+    }
+
+    companion object {
+        const val ACTION_HEARTBEAT = "com.vanillapay.monitor.action.HEARTBEAT"
     }
 }

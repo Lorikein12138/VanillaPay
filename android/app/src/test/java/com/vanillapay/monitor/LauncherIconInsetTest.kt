@@ -14,21 +14,26 @@ class LauncherIconInsetTest {
 
         assertTrue(manifest.contains("""android:icon="@drawable/ic_launcher""""))
         assertTrue(manifest.contains("""android:roundIcon="@drawable/ic_launcher""""))
-        assertTrue(File("src/main/res/drawable-v26/ic_launcher.xml").isFile)
+        assertTrue(File("src/main/res/drawable-anydpi-v26/ic_launcher.xml").isFile)
         assertTrue(!manifest.contains("@mipmap/ic_launcher"))
     }
 
     @Test
-    fun `adaptive icon uses gradient background and bitmap foreground`() {
-        val adaptive = File("src/main/res/drawable-v26/ic_launcher.xml").readText()
-        assertTrue(adaptive.contains("""<background android:drawable="@drawable/ic_launcher_background" />"""))
-        assertTrue(adaptive.contains("""<foreground android:drawable="@drawable/ic_launcher_foreground" />"""))
+    fun `adaptive icon uses bitmap background art and transparent foreground`() {
+        val adaptive = File("src/main/res/drawable-anydpi-v26/ic_launcher.xml").readText()
+        assertTrue(
+            adaptive.contains("""<background android:drawable="@drawable/ic_launcher_bg" />"""),
+            "adaptive icon must use the full-bleed bitmap art as its background layer",
+        )
+        assertTrue(
+            adaptive.contains("""<foreground android:drawable="@android:color/transparent" />"""),
+            "adaptive icon foreground must be transparent so launchers can't shrink it into a seam",
+        )
 
-        val background = File("src/main/res/drawable/ic_launcher_background.xml")
-        assertTrue(background.isFile, "${background.path} must exist")
-        val backgroundSource = background.readText()
-        assertTrue(backgroundSource.contains("<vector"), "${background.path} must be a vector")
-        assertTrue(backgroundSource.contains("gradient"), "${background.path} must use a gradient")
+        val bg = File("src/main/res").walkTopDown()
+            .filter { it.isFile && it.name == "ic_launcher_bg.png" }
+            .toList()
+        assertTrue(bg.size >= 5, "expected per-density background art bitmaps, found $bg")
     }
 
     @Test
@@ -38,24 +43,21 @@ class LauncherIconInsetTest {
     }
 
     @Test
-    fun `adaptive foreground bitmaps keep the subject inset within the safe area`() {
+    fun `launcher background art bitmaps are full-bleed with no transparent corners`() {
         val files = File("src/main/res").walkTopDown()
-            .filter { it.isFile && it.name == "ic_launcher_foreground.png" }
+            .filter { it.isFile && it.name == "ic_launcher_bg.png" }
             .toList()
 
-        assertTrue(files.size >= 5, "expected per-density foreground bitmaps, found $files")
+        assertTrue(files.size >= 5, "expected per-density background art bitmaps, found $files")
 
         for (file in files) {
             val png = PngAlpha.read(file)
             val bounds = png.visibleBounds()
-            assertTrue(!bounds.empty, "${file.path} has no visible pixels")
-
-            val marginX = png.width * 0.12
-            val marginY = png.height * 0.12
-            assertTrue(bounds.left >= marginX, "${file.path} subject touches the left edge (${bounds.left})")
-            assertTrue(bounds.top >= marginY, "${file.path} subject touches the top edge (${bounds.top})")
-            assertTrue(bounds.right <= png.width - marginX, "${file.path} subject touches the right edge (${bounds.right})")
-            assertTrue(bounds.bottom <= png.height - marginY, "${file.path} subject touches the bottom edge (${bounds.bottom})")
+            assertTrue(
+                bounds.left == 0 && bounds.top == 0 &&
+                    bounds.right == png.width - 1 && bounds.bottom == png.height - 1,
+                "${file.path} must be full-bleed (art reaches every edge so launchers never fill the corners white), got $bounds",
+            )
         }
     }
 

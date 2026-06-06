@@ -1,8 +1,13 @@
 package com.vanillapay.monitor.ui
 
+import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
@@ -10,6 +15,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.vanillapay.monitor.Money
@@ -26,8 +32,13 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
     private lateinit var config: AppConfig
-    private val heartbeatListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-        updateHeartbeatLabel()
+
+    /** Fired by [HeartbeatReporter] on every successful heartbeat (manual or automatic). */
+    private val heartbeatReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            updateHeartbeatLabel()
+            updatePid()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,7 +52,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         applySystemBarInsets()
         ContextCompat.startForegroundService(this, Intent(this, KeepAliveService::class.java))
+        maybeRequestNotificationPermission()
 
+        updatePid()
         findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
@@ -65,17 +78,27 @@ class MainActivity : AppCompatActivity() {
         renderStatus()
         loadStats()
         updateHeartbeatLabel()
-        config.registerChangeListener(heartbeatListener)
+        updatePid()
+        ContextCompat.registerReceiver(
+            this,
+            heartbeatReceiver,
+            IntentFilter(HeartbeatReporter.ACTION_HEARTBEAT),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun onPause() {
         super.onPause()
-        config.unregisterChangeListener(heartbeatListener)
+        runCatching { unregisterReceiver(heartbeatReceiver) }
     }
 
     private fun updateHeartbeatLabel() {
         findViewById<TextView>(R.id.tvHeartbeat).text =
             HeartbeatTime.format(config.lastHeartbeatAt)
+    }
+
+    private fun updatePid() {
+        findViewById<TextView>(R.id.tvPid).text = config.merchantPid.ifEmpty { "—" }
     }
 
     private fun testHeartbeat() {
@@ -118,6 +141,14 @@ class MainActivity : AppCompatActivity() {
             val sum = dao.sumSentTotal()
             findViewById<TextView>(R.id.tvTotalCount).text = count.toString()
             findViewById<TextView>(R.id.tvTotalAmount).text = "¥" + Money.format(sum)
+        }
+    }
+
+    private fun maybeRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
         }
     }
 

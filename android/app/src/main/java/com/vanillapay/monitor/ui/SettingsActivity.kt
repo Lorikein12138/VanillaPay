@@ -1,5 +1,6 @@
 package com.vanillapay.monitor.ui
 
+import android.app.ActivityManager
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
@@ -13,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.vanillapay.monitor.BuildConfig
 import com.vanillapay.monitor.R
 import com.vanillapay.monitor.permission.PermissionManager
+import com.vanillapay.monitor.service.KeepAliveService
 
 class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,8 +35,11 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(Intent(this, BindActivity::class.java))
         }
         findViewById<View>(R.id.btnHide).setOnClickListener {
+            // Keep the foreground listening service (+ its persistent notification) alive,
+            // then remove the app from recents entirely so it is fully hidden (GKD style).
+            ContextCompat.startForegroundService(this, Intent(this, KeepAliveService::class.java))
             Toast.makeText(this, R.string.hide_toast, Toast.LENGTH_SHORT).show()
-            finishAndRemoveTask()
+            hideFromRecents()
         }
 
         findViewById<TextView>(R.id.tvVersion).text =
@@ -44,6 +49,13 @@ class SettingsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         renderSelfCheck()
+    }
+
+    /** Remove the app's task(s) from recents; the foreground service keeps running in the background. */
+    private fun hideFromRecents() {
+        getSystemService(ActivityManager::class.java)?.appTasks?.forEach {
+            runCatching { it.finishAndRemoveTask() }
+        }
     }
 
     private fun renderSelfCheck() {

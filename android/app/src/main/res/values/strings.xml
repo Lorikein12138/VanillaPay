@@ -21,7 +21,7 @@
     <string name="recent_view_all">全部</string>
     <string name="recent_empty">暂无上报记录</string>
     <string name="hide_to_background">隐藏到后台运行</string>
-    <string name="hide_toast">已隐藏到后台，监听继续运行</string>
+    <string name="hide_toast">已隐藏，监听服务在通知栏常驻运行</string>
 
     <!-- Bind -->
     <string name="bind_title">绑定设备</string>
@@ -74,6 +74,7 @@
     <string name="cd_log">上报日志</string>
 
     <!-- Dashboard additions -->
+    <string name="pid_label">PID</string>
     <string name="total_amount_label">总金额</string>
     <string name="total_count_label">总订单数</string>
     <string name="heartbeat_title">最新心跳</string>
@@ -96,6 +97,7 @@
     <string name="settings_selfcheck_bad">权限异常，点击检测</string>
     <string name="settings_selfcheck_ok_toast">权限正常</string>
     <string name="settings_check">检测</string>
+    <string name="settings_group_run">运行</string>
     <string name="settings_hide">隐藏到后台运行</string>
     <string name="settings_hide_desc">关闭界面但保持监听后台运行</string>
 </resources>

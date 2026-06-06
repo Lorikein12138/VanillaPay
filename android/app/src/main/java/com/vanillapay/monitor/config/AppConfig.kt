@@ -1,7 +1,6 @@
 package com.vanillapay.monitor.config
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -47,15 +46,12 @@ class AppConfig(context: Context) {
             preferences.edit().putLong("last_heartbeat_at", value).apply()
         }
 
+    var merchantPid: String
+        get() = preferences.getString("merchant_pid", "") ?: ""
+        set(value) {
+            preferences.edit().putString("merchant_pid", value).apply()
+        }
+
     val isBound: Boolean
         get() = serverUrl.isNotEmpty() && deviceId > 0 && deviceKey.isNotEmpty()
-
-    /** Observe config changes (e.g. [lastHeartbeatAt] written by the background heartbeat). */
-    fun registerChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
-        preferences.registerOnSharedPreferenceChangeListener(listener)
-    }
-
-    fun unregisterChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
-        preferences.unregisterOnSharedPreferenceChangeListener(listener)
-    }
 }

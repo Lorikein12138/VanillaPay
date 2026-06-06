@@ -24,7 +24,7 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:contentDescription="@string/app_name"
-                android:src="@drawable/ic_launcher" />
+                android:src="@drawable/ic_logo" />
 
             <TextView
                 android:layout_width="0dp"
@@ -53,12 +53,56 @@
                 android:src="@drawable/ic_settings" />
         </LinearLayout>
 
-        <!-- Status -->
+        <!-- Bound merchant PID -->
         <com.google.android.material.card.MaterialCardView
             style="@style/Widget.VanillaPay.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_xl">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="@dimen/card_padding">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/pid_label"
+                        android:textAppearance="@style/TextAppearance.VanillaPay.Label" />
+
+                    <TextView
+                        android:id="@+id/tvPid"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="—"
+                        android:textAppearance="@style/TextAppearance.VanillaPay.Title" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="@dimen/icon_lg"
+                    android:layout_height="@dimen/icon_lg"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_link"
+                    app:tint="@color/text_tertiary" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Status -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.VanillaPay.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/card_gap">
 
             <LinearLayout
                 android:layout_width="match_parent"

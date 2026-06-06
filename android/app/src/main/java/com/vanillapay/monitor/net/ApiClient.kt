@@ -12,6 +12,7 @@ data class ApiResult(
     val matched: Boolean,
     val serverTime: Long,
     val parseRulesVersion: Int,
+    val pid: String = "",
 )
 
 class ApiClient(private val baseUrl: String) {
@@ -43,6 +44,7 @@ class ApiClient(private val baseUrl: String) {
                 matched = json?.optBoolean("matched", false) ?: false,
                 serverTime = json?.optLong("server_time", 0L) ?: 0L,
                 parseRulesVersion = version,
+                pid = json?.optString("pid", "") ?: "",
             )
         }
     }
