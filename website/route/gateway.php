@@ -11,4 +11,5 @@ Route::group(function () {
 
 Route::any('api.php', '\app\gateway\controller\Epay@api');
 Route::get('pay/status/<order_no>', '\app\gateway\controller\PayPage@status');
+Route::get('pay/success/<order_no>', '\app\gateway\controller\PayPage@success');
 Route::get('pay/<order_no>', '\app\gateway\controller\PayPage@show');

@@ -14,6 +14,7 @@ final class CssAssetVersionTest extends TestCase
             'view/console/layout.html',
             'view/console/login.html',
             'view/gateway/pay.html',
+            'view/gateway/success.html',
         ] as $template) {
             $content = file_get_contents($root . '/' . $template) ?: '';
 
