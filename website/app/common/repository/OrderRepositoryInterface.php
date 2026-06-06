@@ -12,6 +12,7 @@ interface OrderRepositoryInterface
     public function markPaid(int $id, array $data): void;
     public function markExpiredBatch(string $now): int;
     public function deleteExpiredByUser(int $userId): int;
+    public function deleteForUser(int $id, int $userId): int;
     public function update(int $id, array $data): void;
     public function paginateByUser(int $userId, array $filters, int $page, int $pageSize): array;
     public function sumByUser(int $userId, array $filters): string;

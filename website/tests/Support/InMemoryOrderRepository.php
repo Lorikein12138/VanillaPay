@@ -98,6 +98,16 @@ final class InMemoryOrderRepository implements OrderRepositoryInterface
         return $count;
     }
 
+    public function deleteForUser(int $id, int $userId): int
+    {
+        if (!isset($this->rows[$id]) || (int) ($this->rows[$id]['user_id'] ?? 0) !== $userId) {
+            return 0;
+        }
+
+        unset($this->rows[$id]);
+        return 1;
+    }
+
     public function update(int $id, array $data): void
     {
         $this->rows[$id] = array_merge($this->rows[$id] ?? ['id' => $id], $data);
@@ -106,7 +116,13 @@ final class InMemoryOrderRepository implements OrderRepositoryInterface
     public function paginateByUser(int $userId, array $filters, int $page, int $pageSize): array
     {
         $items = array_values(array_filter($this->rows, fn (array $row): bool => (int) $row['user_id'] === $userId && $this->matchesFilters($row, $filters)));
-        return ['items' => $items, 'total' => count($items), 'page' => $page, 'page_size' => $pageSize];
+        $offset = max(0, ($page - 1) * $pageSize);
+        return [
+            'items' => array_slice($items, $offset, $pageSize),
+            'total' => count($items),
+            'page' => $page,
+            'page_size' => $pageSize,
+        ];
     }
 
     public function sumByUser(int $userId, array $filters): string
@@ -131,6 +147,12 @@ final class InMemoryOrderRepository implements OrderRepositoryInterface
             return false;
         }
         if (($filters['channel'] ?? '') !== '' && ($row['channel'] ?? '') !== $filters['channel']) {
+            return false;
+        }
+        if (($filters['order_no'] ?? '') !== '' && !str_contains((string) ($row['order_no'] ?? ''), (string) $filters['order_no'])) {
+            return false;
+        }
+        if (($filters['out_trade_no'] ?? '') !== '' && !str_contains((string) ($row['out_trade_no'] ?? ''), (string) $filters['out_trade_no'])) {
             return false;
         }
         return true;

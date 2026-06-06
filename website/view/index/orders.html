@@ -11,18 +11,36 @@
       <input type="hidden" name="_csrf" value="{:csrf_token()}">
       <button class="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 sm:w-auto">删除过期订单</button>
     </form>
-    <a href="/order-test" class="w-full rounded-md bg-zinc-950 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 sm:w-auto">订单测试</a>
   </div>
 </div>
 
-<form method="get" class="mb-4 flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm sm:flex-row sm:items-center">
-  <select name="status" class="h-10 rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
-    <option value="" {eq name="query.status" value=""}selected{/eq}>全部</option>
-    <option value="pending" {eq name="query.status" value="pending"}selected{/eq}>待付款</option>
-    <option value="paid" {eq name="query.status" value="paid"}selected{/eq}>已支付</option>
-    <option value="expired" {eq name="query.status" value="expired"}selected{/eq}>已过期</option>
-  </select>
-  <button class="rounded-md bg-zinc-900 px-4 py-2 font-semibold text-white transition hover:bg-zinc-800">筛选</button>
+<form method="get" class="mb-4 grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_160px_160px_auto] lg:items-end">
+  <label class="block">
+    <span class="mb-1 block text-xs font-medium text-zinc-500">订单号</span>
+    <input name="order_no" value="{$query.order_no}" class="h-10 w-full rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100" placeholder="输入订单号">
+  </label>
+  <label class="block">
+    <span class="mb-1 block text-xs font-medium text-zinc-500">商户单号</span>
+    <input name="out_trade_no" value="{$query.out_trade_no}" class="h-10 w-full rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100" placeholder="输入商户单号">
+  </label>
+  <label class="block">
+    <span class="mb-1 block text-xs font-medium text-zinc-500">渠道</span>
+    <select name="channel" class="h-10 w-full rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+      <option value="" {eq name="query.channel" value=""}selected{/eq}>全部渠道</option>
+      <option value="wxpay" {eq name="query.channel" value="wxpay"}selected{/eq}>微信</option>
+      <option value="alipay" {eq name="query.channel" value="alipay"}selected{/eq}>支付宝</option>
+    </select>
+  </label>
+  <label class="block">
+    <span class="mb-1 block text-xs font-medium text-zinc-500">订单状态</span>
+    <select name="status" class="h-10 w-full rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+      <option value="" {eq name="query.status" value=""}selected{/eq}>全部状态</option>
+      <option value="pending" {eq name="query.status" value="pending"}selected{/eq}>待付款</option>
+      <option value="paid" {eq name="query.status" value="paid"}selected{/eq}>已支付</option>
+      <option value="expired" {eq name="query.status" value="expired"}selected{/eq}>已过期</option>
+    </select>
+  </label>
+  <button class="h-10 rounded-md bg-zinc-900 px-5 font-semibold text-white shadow-sm transition hover:bg-zinc-800 lg:justify-self-end">筛选</button>
 </form>
 
 <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
@@ -42,15 +60,32 @@
           <td class="px-3 py-3"><span class="rounded-md px-2 py-1 text-xs ring-1 {$o.status_badge_class}">{$o.status_label}</span></td>
           <td class="px-3 py-3 text-zinc-500">{$o.create_time}</td>
           <td class="px-3 py-3">
+            <div class="flex items-center gap-2">
             {if condition="$o.can_supplement"}
             <form method="post" action="/orders/supplement" onsubmit="return confirm('确认将该订单补为已支付并触发下游通知？');">
               <input type="hidden" name="_csrf" value="{:csrf_token()}">
               <input type="hidden" name="id" value="{$o.id}">
+              <input type="hidden" name="order_no" value="{$query.order_no}">
+              <input type="hidden" name="out_trade_no" value="{$query.out_trade_no}">
+              <input type="hidden" name="channel" value="{$query.channel}">
+              <input type="hidden" name="status" value="{$query.status}">
+              <input type="hidden" name="page" value="{$data.page}">
               <button class="rounded-md bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-zinc-800">补单</button>
             </form>
             {else/}
             <button class="rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-400" disabled>补单</button>
             {/if}
+            <form method="post" action="/orders/delete" onsubmit="return confirm('确认删除该订单？');">
+              <input type="hidden" name="_csrf" value="{:csrf_token()}">
+              <input type="hidden" name="id" value="{$o.id}">
+              <input type="hidden" name="order_no" value="{$query.order_no}">
+              <input type="hidden" name="out_trade_no" value="{$query.out_trade_no}">
+              <input type="hidden" name="channel" value="{$query.channel}">
+              <input type="hidden" name="status" value="{$query.status}">
+              <input type="hidden" name="page" value="{$data.page}">
+              <button class="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100">删除</button>
+            </form>
+            </div>
           </td>
         </tr>
         {/volist}
@@ -58,5 +93,19 @@
     </table>
   </div>
 </div>
-<div class="mt-3 text-sm text-zinc-500">共 {$data.total} 条</div>
+<div class="mt-3 flex flex-col gap-3 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+  <div>共 {$data.total} 条，每页 {$data.page_size} 条，第 {$pagination.page} / {$pagination.total_pages} 页</div>
+  <div class="flex items-center gap-2">
+    {if condition="$pagination.has_prev"}
+    <a href="{$pagination.prev_url}" class="rounded-md border border-zinc-300 bg-white px-3 py-1.5 font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50">上一页</a>
+    {else/}
+    <span class="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 font-semibold text-zinc-400">上一页</span>
+    {/if}
+    {if condition="$pagination.has_next"}
+    <a href="{$pagination.next_url}" class="rounded-md border border-zinc-300 bg-white px-3 py-1.5 font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50">下一页</a>
+    {else/}
+    <span class="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 font-semibold text-zinc-400">下一页</span>
+    {/if}
+  </div>
+</div>
 {/block}

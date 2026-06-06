@@ -246,6 +246,40 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringContainsString('disabled', $template);
     }
 
+    public function testOrderPageSupportsFiltersDeleteActionAndPagination(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $route = file_get_contents($root . '/route/index.php') ?: '';
+        $template = file_get_contents($root . '/view/index/orders.html') ?: '';
+        $controller = file_get_contents($root . '/app/index/controller/Orders.php') ?: '';
+        $repository = file_get_contents($root . '/app/common/repository/OrderRepositoryInterface.php') ?: '';
+        $thinkRepository = file_get_contents($root . '/app/common/repository/ThinkOrderRepository.php') ?: '';
+
+        $this->assertStringNotContainsString('href="/order-test"', $template);
+        $this->assertStringNotContainsString('订单测试</a>', $template);
+        $this->assertStringContainsString("Route::post('orders/delete'", $route);
+        $this->assertStringContainsString('OrderDeleteService', $controller);
+        $this->assertStringContainsString('action="/orders/delete"', $template);
+        $this->assertStringContainsString('删除</button>', $template);
+        $this->assertStringContainsString('deleteForUser', $controller . $repository . $thinkRepository);
+        $this->assertStringContainsString('paginateByUser((int) Session::get(\'user_id\'), $filters, $page, 10)', $controller);
+        $this->assertStringContainsString('上一页', $template);
+        $this->assertStringContainsString('下一页', $template);
+        $this->assertStringContainsString('has_prev', $controller . $template);
+        $this->assertStringContainsString('has_next', $controller . $template);
+
+        $orderNo = strpos($template, 'name="order_no"');
+        $outTradeNo = strpos($template, 'name="out_trade_no"');
+        $channel = strpos($template, 'name="channel"');
+        $status = strpos($template, 'name="status"');
+        foreach ([$orderNo, $outTradeNo, $channel, $status] as $position) {
+            $this->assertNotFalse($position);
+        }
+        $this->assertLessThan($outTradeNo, $orderNo);
+        $this->assertLessThan($channel, $outTradeNo);
+        $this->assertLessThan($status, $channel);
+    }
+
     public function testOrderViewsRefreshExpiredOrdersBeforeRendering(): void
     {
         $root = dirname(__DIR__, 2);

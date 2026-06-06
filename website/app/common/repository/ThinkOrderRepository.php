@@ -71,6 +71,14 @@ class ThinkOrderRepository implements OrderRepositoryInterface
             ->delete();
     }
 
+    public function deleteForUser(int $id, int $userId): int
+    {
+        return (int) $this->table()
+            ->where('id', $id)
+            ->where('user_id', $userId)
+            ->delete();
+    }
+
     public function update(int $id, array $data): void
     {
         $this->table()->where('id', $id)->update($data);
@@ -109,6 +117,12 @@ class ThinkOrderRepository implements OrderRepositoryInterface
         }
         if (($filters['channel'] ?? '') !== '') {
             $query->where('channel', (string) $filters['channel']);
+        }
+        if (($filters['order_no'] ?? '') !== '') {
+            $query->whereLike('order_no', '%' . trim((string) $filters['order_no']) . '%');
+        }
+        if (($filters['out_trade_no'] ?? '') !== '') {
+            $query->whereLike('out_trade_no', '%' . trim((string) $filters['out_trade_no']) . '%');
         }
         if (($filters['user_id'] ?? '') !== '') {
             $query->where('user_id', (int) $filters['user_id']);
