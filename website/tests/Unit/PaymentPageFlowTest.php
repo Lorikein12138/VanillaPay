@@ -16,6 +16,10 @@ final class PaymentPageFlowTest extends TestCase
 
         $this->assertStringContainsString('data-success="/pay/success/{$order.order_no}"', $template);
         $this->assertStringContainsString('data-return="{$order.return_url}"', $template);
+        $this->assertStringContainsString('/static/vendor/poll.js?v={:asset_version(\'/static/vendor/poll.js\')}', $template);
+        $this->assertStringNotContainsString('rounded-full bg-white/15', $template);
+        $this->assertStringNotContainsString('rounded-md bg-emerald-50 px-2 py-1', $template);
+        $this->assertStringNotContainsString('rounded-md bg-sky-50 px-2 py-1', $template);
     }
 
     public function testPaymentPollShowsSuccessMessageBeforeSuccessPageRedirect(): void
@@ -58,5 +62,31 @@ final class PaymentPageFlowTest extends TestCase
         ] as $text) {
             $this->assertStringContainsString($text, $template);
         }
+    }
+
+    public function testPaymentPageFitsDesktopViewportWithCompactTwoColumnLayout(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 2) . '/view/gateway/pay.html') ?: '';
+
+        foreach ([
+            'lg:flex lg:items-center',
+            'lg:max-w-5xl',
+            'lg:h-[calc(100vh-3rem)]',
+            'lg:max-h-[680px]',
+            'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]',
+            'lg:h-[min(32vh,220px)]',
+            'lg:py-1.5',
+            'lg:self-center',
+            'lg:justify-between',
+            'lg:flex-1 lg:items-center lg:justify-center',
+            '订单详情',
+            'inline-flex w-fit',
+            'p-1.5',
+        ] as $text) {
+            $this->assertStringContainsString($text, $template);
+        }
+
+        $this->assertStringNotContainsString('mx-auto max-w-md', $template);
+        $this->assertStringNotContainsString('bg-white/95 p-3', $template);
     }
 }

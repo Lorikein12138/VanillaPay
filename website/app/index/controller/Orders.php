@@ -6,6 +6,7 @@ use app\common\repository\OrderRepositoryInterface;
 use app\common\service\OrderExpirationService;
 use app\common\service\OrderSupplementService;
 use think\Request;
+use think\facade\Log;
 use think\facade\Session;
 use think\facade\View;
 
@@ -47,11 +48,22 @@ class Orders
     {
         try {
             $this->expiration->refresh();
-            $this->supplements->supplement((int) Session::get('user_id'), (int) $request->post('id'));
+            $result = $this->supplements->supplement((int) Session::get('user_id'), (int) $request->post('id'));
+            if (!($result['callback_dispatched'] ?? true)) {
+                Log::error('order supplement callback dispatch failed: order_id=' . (int) $request->post('id') . ' error=' . ($result['callback_error'] ?? 'unknown'));
+                Session::flash('flash', '补单完成，但下游通知触发异常，系统已记录，请检查通知状态或等待重试。');
+                Session::flash('flash_tone', 'error');
+                return redirect('/orders');
+            }
+
             Session::flash('flash', '补单完成，已触发下游通知。');
             Session::flash('flash_tone', 'success');
         } catch (ValidationException $e) {
             Session::flash('flash', '补单失败：' . $e->getMessage());
+            Session::flash('flash_tone', 'error');
+        } catch (\Throwable $e) {
+            Log::error('order supplement failed: ' . $e->getMessage());
+            Session::flash('flash', '补单失败：系统异常，请稍后重试。');
             Session::flash('flash_tone', 'error');
         }
 

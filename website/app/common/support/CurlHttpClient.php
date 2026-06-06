@@ -24,7 +24,6 @@ final class CurlHttpClient implements HttpClient
         if ($body === false) {
             $body = curl_error($ch);
         }
-        curl_close($ch);
 
         return new HttpResponse($status, (string) $body);
     }

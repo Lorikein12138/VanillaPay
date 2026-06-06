@@ -35,8 +35,22 @@ final class OrderSupplementService
             'status' => 'paid',
             'paid_at' => $this->clock->now(),
         ]);
-        $this->paidHandler->onPaid($orderId);
 
-        return $this->orders->findById($orderId) ?? $order;
+        $callbackDispatched = true;
+        $callbackError = '';
+        try {
+            $this->paidHandler->onPaid($orderId);
+        } catch (\Throwable $e) {
+            $callbackDispatched = false;
+            $callbackError = $e->getMessage();
+        }
+
+        $updated = $this->orders->findById($orderId) ?? $order;
+        $updated['callback_dispatched'] = $callbackDispatched;
+        if (!$callbackDispatched) {
+            $updated['callback_error'] = $callbackError;
+        }
+
+        return $updated;
     }
 }

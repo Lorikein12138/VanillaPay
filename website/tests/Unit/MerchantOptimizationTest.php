@@ -240,6 +240,9 @@ final class MerchantOptimizationTest extends TestCase
         $this->assertStringContainsString('action="/orders/supplement"', $template);
         $this->assertStringContainsString('补单', $template);
         $this->assertStringContainsString('$order[\'can_supplement\']', $controller);
+        $this->assertStringContainsString('callback_dispatched', $controller);
+        $this->assertStringContainsString('catch (\\Throwable $e)', $controller);
+        $this->assertStringContainsString('Log::error', $controller);
         $this->assertStringContainsString('disabled', $template);
     }
 
