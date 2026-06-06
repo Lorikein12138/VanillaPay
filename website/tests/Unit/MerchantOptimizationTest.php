@@ -107,12 +107,18 @@ final class MerchantOptimizationTest extends TestCase
     public function testDevicePageAndControllerAllowOnlyOneDevicePerMerchant(): void
     {
         $root = dirname(__DIR__, 2);
+        $route = file_get_contents($root . '/route/index.php') ?: '';
         $template = file_get_contents($root . '/view/index/devices.html') ?: '';
         $controller = file_get_contents($root . '/app/index/controller/Devices.php') ?: '';
 
         $this->assertStringContainsString('currentDevice', $controller);
         $this->assertStringContainsString('ensureDevice', $controller);
         $this->assertStringContainsString('$currentDevice', $template);
+        $this->assertStringContainsString("Route::post('devices/delete'", $route);
+        $this->assertStringContainsString('action="/devices/delete"', $template);
+        $this->assertStringContainsString('换绑设备', $template);
+        $this->assertStringContainsString('{$currentDevice.id}', $template);
+        $this->assertStringContainsString('当前设备已解绑，请使用新的绑定二维码换绑。', $controller);
         $this->assertStringNotContainsString('单商户单设备', $template);
         $this->assertStringNotContainsString('设备名称', $template);
         $this->assertStringNotContainsString('name="name"', $template);

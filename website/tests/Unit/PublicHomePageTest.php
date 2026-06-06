@@ -19,15 +19,29 @@ final class PublicHomePageTest extends TestCase
         $this->assertStringNotContainsString("return redirect('/dashboard');", $controller);
     }
 
-    public function testBrandHomePageHasNavigationLoginAndSignedInMenu(): void
+    public function testBrandHomePageHasNavigationLoginAndSignedInDashboardLink(): void
     {
         $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/index/home.html') ?: '';
 
         $this->assertStringContainsString('/static/brand/VanillaClub.png', $template);
         $this->assertStringContainsString('href="/login"', $template);
         $this->assertStringContainsString('PID', $template);
-        $this->assertStringContainsString('href="/logout"', $template);
-        $this->assertStringContainsString('<details', $template);
+        $this->assertStringContainsString('href="/dashboard"', $template);
+        $this->assertStringNotContainsString('href="/logout"', $template);
+        $this->assertStringNotContainsString('<details', $template);
+    }
+
+    public function testSignedInHomeNavigationUsesCompactPidDashboardLinkWithoutDropdownArrow(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/index/home.html') ?: '';
+
+        $this->assertStringNotContainsString('sm:inline-flex">数据面板</a>', $template);
+        $this->assertStringContainsString('<a href="/dashboard" class="inline-flex h-10 max-w-[180px]', $template);
+        $this->assertStringContainsString('truncate text-right font-mono', $template);
+        $this->assertStringNotContainsString('<summary', $template);
+        $this->assertStringNotContainsString('进入数据面板', $template);
+        $this->assertStringNotContainsString('退出登录', $template);
+        $this->assertStringNotContainsString('⌄', $template);
     }
 
     public function testBrandHomePageNavigationUsesFullViewportWidth(): void

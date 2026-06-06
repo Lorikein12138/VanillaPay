@@ -24,6 +24,18 @@ class Devices
         return View::fetch('/devices', ['currentDevice' => $currentDevice]);
     }
 
+    public function status()
+    {
+        $currentDevice = $this->devices->listByUser((int) Session::get('user_id'))[0] ?? null;
+
+        return json([
+            'is_bound' => !empty($currentDevice['last_heartbeat'] ?? null),
+            'status' => (string) ($currentDevice['status'] ?? 'offline'),
+            'last_heartbeat' => (string) ($currentDevice['last_heartbeat'] ?? ''),
+            'app_version' => (string) ($currentDevice['app_version'] ?? ''),
+        ]);
+    }
+
     public function create(Request $request)
     {
         $userId = (int) Session::get('user_id');
@@ -42,7 +54,7 @@ class Devices
     public function delete(Request $request)
     {
         $this->devices->deleteForUser((int) $request->post('id'), (int) Session::get('user_id'));
-        Session::flash('flash', '设备已删除');
+        Session::flash('flash', '当前设备已解绑，请使用新的绑定二维码换绑。');
         return redirect('/devices');
     }
 

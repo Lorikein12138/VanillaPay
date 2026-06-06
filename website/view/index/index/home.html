@@ -15,18 +15,10 @@
 
       <nav class="flex items-center gap-3">
         {if condition="$user"}
-          <a href="/dashboard" class="hidden rounded-md px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 sm:inline-flex">数据面板</a>
-          <details class="group relative">
-            <summary class="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-950 shadow-sm transition hover:border-teal-200 hover:bg-teal-50 [&::-webkit-details-marker]:hidden">
-              <span class="text-zinc-500">PID</span>
-              <span class="font-mono">{$user.pid}</span>
-              <span class="text-xs text-zinc-400 transition group-open:rotate-180">⌄</span>
-            </summary>
-            <div class="absolute right-0 mt-2 w-44 overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 shadow-soft">
-              <a href="/dashboard" class="block rounded-md px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950">进入数据面板</a>
-              <a href="/logout" class="block rounded-md px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50">退出登录</a>
-            </div>
-          </details>
+          <a href="/dashboard" class="inline-flex h-10 max-w-[180px] items-center gap-3 rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-950 shadow-sm transition hover:border-teal-200 hover:bg-teal-50">
+            <span class="text-zinc-500">PID</span>
+            <span class="min-w-0 truncate text-right font-mono">{$user.pid}</span>
+          </a>
         {else/}
           <a href="/login" class="inline-flex h-10 items-center rounded-md bg-zinc-950 px-5 text-sm font-semibold text-white shadow-sm shadow-zinc-900/20 transition hover:-translate-y-0.5 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">登录</a>
         {/if}

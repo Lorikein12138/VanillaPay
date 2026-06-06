@@ -10,6 +10,7 @@ Route::get('qrcodes', '\app\index\controller\Qrcodes@index')->middleware(\app\in
 Route::post('qrcodes/upload', '\app\index\controller\Qrcodes@upload')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::post('qrcodes/delete', '\app\index\controller\Qrcodes@delete')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('devices', '\app\index\controller\Devices@index')->middleware(\app\index\middleware\AuthCheck::class);
+Route::get('devices/status', '\app\index\controller\Devices@status')->middleware(\app\index\middleware\AuthCheck::class);
 Route::post('devices/create', '\app\index\controller\Devices@create')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::post('devices/delete', '\app\index\controller\Devices@delete')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('orders', '\app\index\controller\Orders@index')->middleware(\app\index\middleware\AuthCheck::class);
