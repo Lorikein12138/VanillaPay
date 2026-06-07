@@ -16,13 +16,17 @@ use think\facade\View;
 
 class Auth
 {
+    private const CODE_COOLDOWN_SECONDS = 60;
+
     public function __construct(private UserRepositoryInterface $users, private AuditLogger $audit)
     {
     }
 
     public function registerForm()
     {
-        return View::fetch('auth/register');
+        return View::fetch('auth/register', [
+            'codeCooldownRemaining' => $this->emailCodeCooldownRemaining('register'),
+        ]);
     }
 
     public function sendRegisterCode(Request $request)
@@ -33,8 +37,10 @@ class Auth
                 throw new ValidationException('邮箱已被注册');
             }
 
+            $this->ensureEmailCodeCooldown('register');
             $verification = app(EmailVerificationService::class)->sendCode('注册', $email);
             Session::set('register_email_verification', $verification);
+            $this->markEmailCodeSent('register');
             Session::flash('flash', '验证码已发送，请查收邮箱');
             Session::flash('flash_tone', 'success');
         } catch (\Throwable $e) {
@@ -105,7 +111,10 @@ class Auth
 
     public function forgotForm(Request $request)
     {
-        return View::fetch('auth/forgot', ['email' => $request->get('email', '')]);
+        return View::fetch('auth/forgot', [
+            'email' => $request->get('email', ''),
+            'codeCooldownRemaining' => $this->emailCodeCooldownRemaining('reset'),
+        ]);
     }
 
     public function forgot(Request $request)
@@ -125,9 +134,11 @@ class Auth
         }
 
         try {
+            $this->ensureEmailCodeCooldown('reset');
             $verification = app(EmailVerificationService::class)->sendCode('重置密码', $email);
             $verification['user_id'] = (int) $user['id'];
             Session::set('reset_email_verification', $verification);
+            $this->markEmailCodeSent('reset');
             Session::flash('flash', '重置验证码已发送，请查收邮箱');
             Session::flash('flash_tone', 'success');
             return redirect('/forgot?email=' . urlencode($email));
@@ -173,5 +184,28 @@ class Auth
         Session::flash('flash', '密码已重置，请登录');
         Session::flash('flash_tone', 'success');
         return redirect('/login');
+    }
+
+    private function ensureEmailCodeCooldown(string $scene): void
+    {
+        $key = $scene === 'register' ? 'email_code_sent_at_register' : 'email_code_sent_at_reset';
+        $lastSentAt = (int) Session::get($key, 0);
+        $remaining = self::CODE_COOLDOWN_SECONDS - (time() - $lastSentAt);
+        if ($remaining > 0) {
+            throw new ValidationException('验证码发送过于频繁，请 ' . $remaining . ' 秒后重试');
+        }
+    }
+
+    private function markEmailCodeSent(string $scene): void
+    {
+        $key = $scene === 'register' ? 'email_code_sent_at_register' : 'email_code_sent_at_reset';
+        Session::set($key, time());
+    }
+
+    private function emailCodeCooldownRemaining(string $scene): int
+    {
+        $key = $scene === 'register' ? 'email_code_sent_at_register' : 'email_code_sent_at_reset';
+        $lastSentAt = (int) Session::get($key, 0);
+        return max(0, self::CODE_COOLDOWN_SECONDS - (time() - $lastSentAt));
     }
 }

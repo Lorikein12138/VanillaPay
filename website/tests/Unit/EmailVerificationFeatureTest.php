@@ -12,6 +12,12 @@ final class EmailVerificationFeatureTest extends TestCase
         $this->assertStringContainsString("Route::post('register/code'", $route);
         $this->assertStringContainsString('sendRegisterCode', $controller);
         $this->assertStringContainsString('EmailVerificationService', $controller);
+        $this->assertStringContainsString('private const CODE_COOLDOWN_SECONDS = 60', $controller);
+        $this->assertStringContainsString('ensureEmailCodeCooldown', $controller);
+        $this->assertStringContainsString('markEmailCodeSent', $controller);
+        $this->assertStringContainsString('emailCodeCooldownRemaining', $controller);
+        $this->assertStringContainsString("email_code_sent_at_register", $controller);
+        $this->assertStringContainsString("email_code_sent_at_reset", $controller);
         $this->assertStringContainsString("Session::get('register_email_verification'", $controller);
         $this->assertStringContainsString("Session::get('reset_email_verification'", $controller);
         $this->assertStringContainsString('email_code', $controller);

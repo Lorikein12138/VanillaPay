@@ -57,6 +57,12 @@ final class AuthPagesViewTest extends TestCase
         $this->assertStringContainsString('name="email_code"', $template);
         $this->assertStringContainsString('formaction="/register/code"', $template);
         $this->assertStringContainsString('发送验证码', $template);
+        $this->assertStringContainsString('data-code-send-button', $template);
+        $this->assertStringContainsString('data-code-cooldown="60"', $template);
+        $this->assertStringContainsString('data-code-cooldown-remaining', $template);
+        $this->assertStringContainsString('data-code-ready-text', $template);
+        $this->assertStringContainsString('{include file="auth/code_button_script"}', $template);
+        $this->assertCodeButtonScriptIncludesFeedback();
         $this->assertStringContainsString('name="password"', $template);
         $this->assertStringContainsString('href="/login"', $template);
 
@@ -79,6 +85,12 @@ final class AuthPagesViewTest extends TestCase
         $this->assertStringContainsString('name="email"', $forgot);
         $this->assertStringContainsString('name="email_code"', $forgot);
         $this->assertStringContainsString('name="password"', $forgot);
+        $this->assertStringContainsString('data-code-send-button', $forgot);
+        $this->assertStringContainsString('data-code-cooldown="60"', $forgot);
+        $this->assertStringContainsString('data-code-cooldown-remaining', $forgot);
+        $this->assertStringContainsString('data-code-ready-text', $forgot);
+        $this->assertStringContainsString('{include file="auth/code_button_script"}', $forgot);
+        $this->assertCodeButtonScriptIncludesFeedback();
         $this->assertStringNotContainsString('href="/reset"', $forgot);
         $this->assertStringNotContainsString('name="token"', $forgot);
         $this->assertStringNotContainsString('{$token}', $forgot);
@@ -87,6 +99,14 @@ final class AuthPagesViewTest extends TestCase
     private function template(string $page): string
     {
         return file_get_contents(dirname(__DIR__, 2) . "/view/index/auth/{$page}.html") ?: '';
+    }
+
+    private function assertCodeButtonScriptIncludesFeedback(): void
+    {
+        $script = file_get_contents(dirname(__DIR__, 2) . '/view/index/auth/code_button_script.html') ?: '';
+        $this->assertStringContainsString('发送中...', $script);
+        $this->assertStringContainsString('秒后重试', $script);
+        $this->assertStringContainsString('button.disabled = true', $script);
     }
 
     private function assertNoRuntimeDetails(string $template): void

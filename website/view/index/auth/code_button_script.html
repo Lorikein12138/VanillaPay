@@ -1,0 +1,37 @@
+<script>
+  (function () {
+    var buttons = document.querySelectorAll('[data-code-send-button]');
+    buttons.forEach(function (button) {
+      var readyText = button.dataset.codeReadyText || '发送验证码';
+      var timer = null;
+      function startCountdown(seconds) {
+        var remaining = seconds;
+        if (timer) window.clearTimeout(timer);
+        button.disabled = true;
+        button.textContent = remaining > 0 ? remaining + ' 秒后重试' : '发送中...';
+        function tick() {
+          remaining -= 1;
+          if (remaining <= 0) {
+            button.disabled = false;
+            button.textContent = readyText;
+            return;
+          }
+          button.textContent = remaining + ' 秒后重试';
+          timer = window.setTimeout(tick, 1000);
+        }
+        timer = window.setTimeout(tick, 1000);
+      }
+      var initialRemaining = parseInt(button.dataset.codeCooldownRemaining || '0', 10);
+      if (initialRemaining > 0) {
+        startCountdown(initialRemaining);
+      }
+      button.addEventListener('click', function () {
+        if (button.disabled) return;
+        var cooldown = parseInt(button.dataset.codeCooldown || '60', 10);
+        button.disabled = true;
+        button.textContent = '发送中...';
+        startCountdown(cooldown);
+      });
+    });
+  })();
+</script>
