@@ -28,8 +28,8 @@ final class EmailTemplateRenderer
           </tr>
           <tr>
             <td style="padding:12px 28px 8px;">
-              <div style="border-radius:14px;background:linear-gradient(135deg,#0f172a,#0f766e);padding:22px;text-align:center;">
-                <div style="font-size:34px;line-height:1;font-weight:800;letter-spacing:8px;color:#ffffff;">{$safeCode}</div>
+              <div style="border-radius:14px;background:#ecfdf5;border:1px solid #99f6e4;padding:22px;text-align:center;">
+                <div style="font-size:34px;line-height:1;font-weight:800;letter-spacing:8px;color:#0f172a;">{$safeCode}</div>
               </div>
             </td>
           </tr>

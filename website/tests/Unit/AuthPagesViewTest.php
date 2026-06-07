@@ -63,28 +63,25 @@ final class AuthPagesViewTest extends TestCase
         $this->assertNoRuntimeDetails($template);
     }
 
-    public function testPasswordResetPagesUseEmailVerificationCodeAndModernTailwindLayout(): void
+    public function testForgotPageCombinesCodeSendingAndPasswordReset(): void
     {
         $forgot = $this->template('forgot');
-        $reset = $this->template('reset');
 
-        foreach ([$forgot, $reset] as $template) {
-            $this->assertStringContainsString('/static/brand/VanillaClub.png', $template);
-            $this->assertStringContainsString('bg-gradient-to-br', $template);
-            $this->assertStringContainsString('backdrop-blur-xl', $template);
-            $this->assertStringContainsString('shadow-2xl', $template);
-        }
+        $this->assertStringContainsString('/static/brand/VanillaClub.png', $forgot);
+        $this->assertStringContainsString('bg-gradient-to-br', $forgot);
+        $this->assertStringContainsString('backdrop-blur-xl', $forgot);
+        $this->assertStringContainsString('shadow-2xl', $forgot);
 
-        $this->assertStringContainsString('发送重置验证码', $forgot);
-        $this->assertStringContainsString('method="post" action="/forgot"', $forgot);
+        $this->assertStringContainsString('发送验证码', $forgot);
+        $this->assertStringContainsString('重置密码', $forgot);
+        $this->assertStringContainsString('method="post" action="/reset"', $forgot);
+        $this->assertStringContainsString('formaction="/forgot"', $forgot);
         $this->assertStringContainsString('name="email"', $forgot);
-
-        $this->assertStringContainsString('method="post" action="/reset"', $reset);
-        $this->assertStringContainsString('name="email"', $reset);
-        $this->assertStringContainsString('name="email_code"', $reset);
-        $this->assertStringContainsString('name="password"', $reset);
-        $this->assertStringNotContainsString('name="token"', $reset);
-        $this->assertStringNotContainsString('{$token}', $reset);
+        $this->assertStringContainsString('name="email_code"', $forgot);
+        $this->assertStringContainsString('name="password"', $forgot);
+        $this->assertStringNotContainsString('href="/reset"', $forgot);
+        $this->assertStringNotContainsString('name="token"', $forgot);
+        $this->assertStringNotContainsString('{$token}', $forgot);
     }
 
     private function template(string $page): string

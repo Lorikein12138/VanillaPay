@@ -103,9 +103,9 @@ class Auth
         return redirect('/login');
     }
 
-    public function forgotForm()
+    public function forgotForm(Request $request)
     {
-        return View::fetch('auth/forgot');
+        return View::fetch('auth/forgot', ['email' => $request->get('email', '')]);
     }
 
     public function forgot(Request $request)
@@ -130,7 +130,7 @@ class Auth
             Session::set('reset_email_verification', $verification);
             Session::flash('flash', '重置验证码已发送，请查收邮箱');
             Session::flash('flash_tone', 'success');
-            return redirect('/reset?email=' . urlencode($email));
+            return redirect('/forgot?email=' . urlencode($email));
         } catch (\Throwable $e) {
             Session::flash('flash', $e instanceof ValidationException ? $e->getMessage() : '验证码发送失败，请检查 SMTP 设置');
             Session::flash('flash_tone', 'error');
@@ -140,7 +140,7 @@ class Auth
 
     public function resetForm(Request $request)
     {
-        return View::fetch('auth/reset', ['email' => $request->get('email', '')]);
+        return redirect('/forgot?email=' . urlencode((string) $request->get('email', '')));
     }
 
     public function reset(Request $request)
@@ -154,14 +154,14 @@ class Auth
         if (!$user || !$record || (int) ($record['user_id'] ?? 0) !== (int) $user['id'] || !app(EmailVerificationService::class)->verify($record, $email, $email_code)) {
             Session::flash('flash', '邮箱验证码不正确或已过期');
             Session::flash('flash_tone', 'error');
-            return redirect('/reset?email=' . urlencode($email));
+            return redirect('/forgot?email=' . urlencode($email));
         }
 
         $password = $request->post('password', '');
         if (strlen($password) < 8) {
             Session::flash('flash', '密码至少 8 位');
             Session::flash('flash_tone', 'error');
-            return redirect('/reset?email=' . urlencode($email));
+            return redirect('/forgot?email=' . urlencode($email));
         }
 
         $this->users->update((int) $user['id'], [

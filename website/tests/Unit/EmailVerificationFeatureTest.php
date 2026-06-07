@@ -15,6 +15,8 @@ final class EmailVerificationFeatureTest extends TestCase
         $this->assertStringContainsString("Session::get('register_email_verification'", $controller);
         $this->assertStringContainsString("Session::get('reset_email_verification'", $controller);
         $this->assertStringContainsString('email_code', $controller);
+        $this->assertStringContainsString("redirect('/forgot?email='", $controller);
+        $this->assertStringNotContainsString("View::fetch('auth/reset'", $controller);
         $this->assertStringNotContainsString('trace(\'reset link:', $controller);
         $this->assertStringNotContainsString('PasswordResetService', $controller);
         $this->assertStringNotContainsString('/reset?token=', $controller);
@@ -44,8 +46,12 @@ final class EmailVerificationFeatureTest extends TestCase
         $this->assertStringContainsString('EmailTemplateRenderer::verificationCode', $verification);
         $this->assertStringContainsString('background:#f3f7f6', $template);
         $this->assertStringContainsString('border-radius:18px', $template);
+        $this->assertStringContainsString('background:#ecfdf5', $template);
+        $this->assertStringContainsString('color:#0f172a', $template);
         $this->assertStringContainsString('VanillaPay', $template);
         $this->assertStringContainsString('验证码', $template);
+        $this->assertStringNotContainsString('linear-gradient(135deg,#0f172a,#0f766e)', $template);
+        $this->assertStringNotContainsString('color:#ffffff;">{$safeCode}', $template);
         $this->assertStringContainsString('MailerInterface::class', $provider);
         $this->assertStringContainsString('SmtpMailer::class', $provider);
     }
