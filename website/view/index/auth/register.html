@@ -10,59 +10,13 @@
       <img src="/static/brand/VanillaClub.png" alt="VanillaPay" class="h-10 w-10 rounded-lg object-cover shadow-sm ring-1 ring-white/80">
       <span class="truncate text-base font-semibold tracking-normal text-zinc-950">VanillaPay</span>
     </a>
-    <a href="/login" class="inline-flex h-10 items-center rounded-md border border-zinc-200 bg-white/85 px-4 text-sm font-semibold text-zinc-800 shadow-sm backdrop-blur transition hover:border-teal-200 hover:bg-teal-50">登录</a>
+    <a href="/login" class="inline-flex h-10 items-center rounded-md border border-zinc-200 bg-white/85 px-4 text-sm font-semibold text-zinc-800 shadow-sm backdrop-blur transition hover:border-zinc-300 hover:bg-white">登录</a>
   </header>
 
-  <section class="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(440px,0.62fr)] lg:px-8">
-    <aside class="hidden lg:block">
-      <div class="rounded-lg border border-white/80 bg-white/75 p-6 shadow-soft ring-1 ring-zinc-200/60 backdrop-blur-xl">
-        <div class="inline-flex items-center gap-2 rounded-full border border-teal-200/80 bg-white/90 px-3 py-1 text-xs font-medium text-teal-800 shadow-sm">
-          <span class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]"></span>
-          创建商户账户
-        </div>
-        <h1 class="mt-5 max-w-xl text-5xl font-semibold leading-tight text-zinc-950">把个人收款接入工作台</h1>
-        <p class="mt-4 max-w-2xl text-base leading-8 text-zinc-600">
-          注册后可上传收款码、绑定监听设备、接入支付网关，并在商户中心统一查看订单状态。
-        </p>
-
-        <div class="mt-6 grid grid-cols-3 gap-3 text-sm">
-          <div class="rounded-lg border border-zinc-200/80 bg-white/80 p-4 shadow-sm">
-            <div class="font-semibold text-zinc-950">账户</div>
-            <div class="mt-1 text-xs leading-5 text-zinc-500">创建商户身份</div>
-          </div>
-          <div class="rounded-lg border border-zinc-200/80 bg-white/80 p-4 shadow-sm">
-            <div class="font-semibold text-zinc-950">收款码</div>
-            <div class="mt-1 text-xs leading-5 text-zinc-500">配置微信和支付宝</div>
-          </div>
-          <div class="rounded-lg border border-zinc-200/80 bg-white/80 p-4 shadow-sm">
-            <div class="font-semibold text-zinc-950">监听端</div>
-            <div class="mt-1 text-xs leading-5 text-zinc-500">绑定移动设备</div>
-          </div>
-        </div>
-
-        <div class="mt-6 overflow-hidden rounded-lg bg-zinc-950 p-4 text-white shadow-2xl shadow-zinc-900/15">
-          <div class="flex items-center justify-between border-b border-white/10 pb-3">
-            <div>
-              <div class="text-sm font-semibold">收款工作台</div>
-              <div class="text-xs text-zinc-400">Onboarding Flow</div>
-            </div>
-            <span class="rounded-md bg-emerald-300/15 px-2.5 py-1 text-xs font-semibold text-emerald-100 ring-1 ring-emerald-300/20">Ready</span>
-          </div>
-          <div class="mt-4 grid grid-cols-4 gap-2 text-xs text-zinc-300">
-            <span class="rounded-md bg-white/10 px-2 py-2 text-center ring-1 ring-white/10">账户</span>
-            <span class="rounded-md bg-white/10 px-2 py-2 text-center ring-1 ring-white/10">收款码</span>
-            <span class="rounded-md bg-white/10 px-2 py-2 text-center ring-1 ring-white/10">设备</span>
-            <span class="rounded-md bg-white/10 px-2 py-2 text-center ring-1 ring-white/10">回调</span>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <section class="rounded-lg border border-white/80 bg-white/85 p-6 shadow-2xl shadow-zinc-900/10 ring-1 ring-zinc-200/70 backdrop-blur-xl sm:p-8">
+  <section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center px-4 py-8 sm:px-6">
+    <section class="w-full rounded-lg border border-white/80 bg-white/88 p-6 shadow-2xl shadow-zinc-900/10 ring-1 ring-zinc-200/70 backdrop-blur-xl sm:p-8">
       <div class="mb-6">
-        <div class="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800 ring-1 ring-teal-100">收款工作台</div>
-        <h2 class="mt-4 text-3xl font-semibold text-zinc-950">创建商户账户</h2>
-        <p class="mt-2 text-sm leading-6 text-zinc-500">填写基础账号信息，注册后进入商户中心继续配置。</p>
+        <h2 class="text-3xl font-semibold text-zinc-950">创建商户</h2>
       </div>
 
       {if condition="$Think.session.flash"}
@@ -84,15 +38,21 @@
           <input name="email" type="email" autocomplete="email" class="mt-1 h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
         </label>
         <label class="block">
+          <span class="text-sm font-medium text-zinc-700">邮箱验证码</span>
+          <div class="mt-1 grid gap-2 sm:grid-cols-[1fr_auto]">
+            <input name="email_code" inputmode="numeric" autocomplete="one-time-code" class="h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            <button type="submit" formaction="/register/code" formmethod="post" formnovalidate class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50">发送验证码</button>
+          </div>
+        </label>
+        <label class="block">
           <span class="text-sm font-medium text-zinc-700">密码</span>
           <input name="password" type="password" autocomplete="new-password" class="mt-1 h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
         </label>
         <button class="flex h-11 w-full items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white shadow-sm shadow-zinc-900/20 transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">注册商户</button>
       </form>
 
-      <div class="mt-5 flex items-center justify-between text-sm">
-        <a href="/" class="font-medium text-zinc-600 hover:text-zinc-950">返回首页</a>
-        <a href="/login" class="font-medium text-teal-700 hover:text-teal-900">已有账号，登录</a>
+      <div class="mt-5 flex justify-end text-sm">
+        <a href="/login" class="font-medium text-zinc-600 hover:text-zinc-950">登录</a>
       </div>
     </section>
   </section>

@@ -24,6 +24,7 @@ Route::get('order-test', '\app\index\controller\OrderTest@index')->middleware(\a
 Route::post('order-test', '\app\index\controller\OrderTest@create')->middleware(\app\index\middleware\AuthCheck::class)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('docs', '\app\index\controller\Docs@index')->middleware(\app\index\middleware\AuthCheck::class);
 Route::get('register', '\app\index\controller\Auth@registerForm');
+Route::post('register/code', '\app\index\controller\Auth@sendRegisterCode')->middleware(\app\middleware\RateLimit::class, 'auth', 20, 60)->middleware(\app\middleware\VerifyCsrf::class);
 Route::post('register', '\app\index\controller\Auth@register')->middleware(\app\middleware\RateLimit::class, 'auth', 20, 60)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('login', '\app\index\controller\Auth@loginForm');
 Route::post('login', '\app\index\controller\Auth@login')->middleware(\app\middleware\RateLimit::class, 'auth', 20, 60)->middleware(\app\middleware\VerifyCsrf::class);

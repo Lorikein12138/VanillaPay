@@ -20,5 +20,6 @@ return [
     \app\common\support\Clock::class => \app\common\support\SystemClock::class,
     \app\common\support\HttpClient::class => \app\common\support\CurlHttpClient::class,
     \app\common\support\CacheStore::class => \app\common\support\ThinkCacheStore::class,
+    \app\common\service\MailerInterface::class => \app\common\service\SmtpMailer::class,
     \app\common\contract\OrderPaidHandler::class => \app\common\contract\CallbackDispatcher::class,
 ];

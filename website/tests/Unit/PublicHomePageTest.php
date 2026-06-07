@@ -70,13 +70,61 @@ final class PublicHomePageTest extends TestCase
             $this->assertStringNotContainsString($text, $template);
         }
 
-        $this->assertStringContainsString('产品工作台', $template);
-        $this->assertStringContainsString('商户视图预览', $template);
-        $this->assertStringContainsString('Android 监听端', $template);
-        $this->assertStringContainsString('接入流程', $template);
+        $this->assertStringContainsString('个人免签支付网关', $template);
+        $this->assertStringContainsString('个人商户', $template);
+        $this->assertStringContainsString('Android 监听应用', $template);
+        $this->assertStringContainsString('开源项目', $template);
+        $this->assertStringContainsString('三种协议', $template);
 
         foreach (['bg-gradient-to-br', 'ring-1', 'backdrop-blur', 'shadow-2xl', 'supports-[backdrop-filter]'] as $class) {
             $this->assertStringContainsString($class, $template);
+        }
+    }
+
+    public function testBrandHomePageHighlightsPaymentGatewayAdvantages(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/index/home.html') ?: '';
+
+        foreach ([
+            '易支付',
+            '码支付',
+            '源支付',
+            'D0到账',
+            '0手续费',
+            'Android 监听应用',
+            '免签收款',
+            '订单核销',
+            '回调通知',
+        ] as $text) {
+            $this->assertStringContainsString($text, $template);
+        }
+    }
+
+    public function testBrandHomePageDoesNotDuplicateCoreClaimsAcrossHeroAndVisual(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 2) . '/view/index/index/home.html') ?: '';
+
+        foreach ([
+            'D0到账',
+            '0手续费',
+            'Android 监听应用',
+            '开源项目',
+            '易支付',
+            '码支付',
+            '源支付',
+        ] as $text) {
+            $this->assertSame(1, substr_count($template, $text), $text . ' should appear once on the public home page.');
+        }
+
+        foreach ([
+            'Gateway Console',
+            '网关亮点',
+            '三协议订单统一核销',
+            'submit.php / api.php',
+            'creat_order',
+            'yuanpay/mapi',
+        ] as $text) {
+            $this->assertStringNotContainsString($text, $template);
         }
     }
 
@@ -88,16 +136,15 @@ final class PublicHomePageTest extends TestCase
         $this->assertStringContainsString('overflow-hidden', $template);
         $this->assertStringNotContainsString('pb-16', $template);
         $this->assertStringNotContainsString('md:grid-cols-4', $template);
-        $this->assertStringContainsString('lg:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)]', $template);
+        $this->assertStringContainsString('lg:grid-cols-[minmax(0,1.04fr)_minmax(0,0.96fr)]', $template);
         $this->assertStringContainsString('max-w-[1500px]', $template);
-        $this->assertStringContainsString('lg:max-w-[640px]', $template);
-        $this->assertStringContainsString('lg:text-7xl', $template);
+        $this->assertStringContainsString('lg:text-[4.6rem]', $template);
 
         foreach ([
             '交易链路',
-            '通知监听',
-            '回调治理',
-            '运行监控',
+            '订单创建',
+            '金额匹配',
+            '回调完成',
         ] as $text) {
             $this->assertStringContainsString($text, $template);
         }

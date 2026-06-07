@@ -1,9 +1,33 @@
 {extend name="layout"}
-{block name="title"}设备{/block}
+{block name="title"}设备信息{/block}
 {block name="content"}
-<h1 class="mb-4 text-2xl font-semibold">设备监控</h1>
-<table class="w-full overflow-hidden rounded-lg border border-zinc-200 bg-white text-sm">
-  <thead class="bg-zinc-100 text-left"><tr><th class="p-3">ID</th><th>商户</th><th>名称</th><th>状态</th><th>最后心跳</th><th>IP</th></tr></thead>
-  <tbody>{volist name="list" id="d"}<tr class="border-t border-zinc-200"><td class="p-3">{$d.id}</td><td>{$d.user_id}</td><td>{$d.device_name}</td><td>{$d.status}</td><td>{$d.last_heartbeat|default='-'}</td><td>{$d.last_ip|default='-'}</td></tr>{/volist}</tbody>
-</table>
+<div class="mb-5">
+  <p class="text-sm font-medium text-teal-700">Devices</p>
+  <h1 class="mt-1 text-2xl font-semibold text-zinc-950">设备信息</h1>
+</div>
+
+<div class="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+  <table class="w-full text-left text-sm">
+    <thead class="bg-zinc-50 text-xs font-semibold uppercase text-zinc-500">
+      <tr>
+        <th class="px-4 py-3">ID</th>
+        <th class="px-4 py-3">商户</th>
+        <th class="px-4 py-3">状态</th>
+        <th class="px-4 py-3">最后心跳</th>
+        <th class="px-4 py-3">IP</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-zinc-100">
+      {volist name="list" id="d"}
+      <tr class="align-middle transition hover:bg-zinc-50/80">
+        <td class="px-4 py-4 align-middle font-mono text-zinc-700">{$d.id}</td>
+        <td class="px-4 py-4 align-middle">{$d.user_id}</td>
+        <td class="px-4 py-4 align-middle">{$d.status}</td>
+        <td class="px-4 py-4 align-middle whitespace-nowrap text-zinc-600">{$d.last_heartbeat|default='-'}</td>
+        <td class="px-4 py-4 align-middle font-mono text-xs text-zinc-600">{$d.last_ip|default='-'}</td>
+      </tr>
+      {/volist}
+    </tbody>
+  </table>
+</div>
 {/block}

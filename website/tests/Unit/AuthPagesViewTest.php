@@ -9,12 +9,17 @@ final class AuthPagesViewTest extends TestCase
         $template = $this->template('login');
 
         $this->assertStringContainsString('/static/brand/VanillaClub.png', $template);
-        $this->assertStringContainsString('lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.62fr)]', $template);
+        $this->assertStringContainsString('max-w-md', $template);
         $this->assertStringContainsString('bg-gradient-to-br', $template);
         $this->assertStringContainsString('backdrop-blur-xl', $template);
         $this->assertStringContainsString('shadow-2xl', $template);
-        $this->assertStringContainsString('商户身份验证', $template);
-        $this->assertStringContainsString('收款工作台', $template);
+        $this->assertStringContainsString('登录商户', $template);
+        $this->assertStringContainsString('创建商户', $template);
+        $this->assertStringNotContainsString('<aside', $template);
+        $this->assertStringNotContainsString('商户身份验证', $template);
+        $this->assertStringNotContainsString('登录收款工作台', $template);
+        $this->assertStringNotContainsString('使用商户账号登录，继续处理订单、设备和回调。', $template);
+        $this->assertStringNotContainsString('创建商户账户', $template);
 
         $this->assertStringContainsString('method="post" action="/login"', $template);
         $this->assertStringContainsString('name="_csrf"', $template);
@@ -31,21 +36,55 @@ final class AuthPagesViewTest extends TestCase
         $template = $this->template('register');
 
         $this->assertStringContainsString('/static/brand/VanillaClub.png', $template);
-        $this->assertStringContainsString('lg:grid-cols-[minmax(0,0.95fr)_minmax(440px,0.62fr)]', $template);
+        $this->assertStringContainsString('max-w-md', $template);
         $this->assertStringContainsString('bg-gradient-to-br', $template);
         $this->assertStringContainsString('backdrop-blur-xl', $template);
         $this->assertStringContainsString('shadow-2xl', $template);
-        $this->assertStringContainsString('创建商户账户', $template);
-        $this->assertStringContainsString('收款工作台', $template);
+        $this->assertStringContainsString('创建商户', $template);
+        $this->assertStringContainsString('>登录</a>', $template);
+        $this->assertStringNotContainsString('<aside', $template);
+        $this->assertStringNotContainsString('收款工作台', $template);
+        $this->assertStringNotContainsString('创建商户账户', $template);
+        $this->assertStringNotContainsString('填写基础账号信息，注册后进入商户中心继续配置。', $template);
+        $this->assertStringNotContainsString('返回首页', $template);
+        $this->assertStringNotContainsString('已有账号，登录', $template);
+        $this->assertStringNotContainsString('text-teal-700 hover:text-teal-900">登录</a>', $template);
 
         $this->assertStringContainsString('method="post" action="/register"', $template);
         $this->assertStringContainsString('name="_csrf"', $template);
         $this->assertStringContainsString('name="username"', $template);
         $this->assertStringContainsString('name="email"', $template);
+        $this->assertStringContainsString('name="email_code"', $template);
+        $this->assertStringContainsString('formaction="/register/code"', $template);
+        $this->assertStringContainsString('发送验证码', $template);
         $this->assertStringContainsString('name="password"', $template);
         $this->assertStringContainsString('href="/login"', $template);
 
         $this->assertNoRuntimeDetails($template);
+    }
+
+    public function testPasswordResetPagesUseEmailVerificationCodeAndModernTailwindLayout(): void
+    {
+        $forgot = $this->template('forgot');
+        $reset = $this->template('reset');
+
+        foreach ([$forgot, $reset] as $template) {
+            $this->assertStringContainsString('/static/brand/VanillaClub.png', $template);
+            $this->assertStringContainsString('bg-gradient-to-br', $template);
+            $this->assertStringContainsString('backdrop-blur-xl', $template);
+            $this->assertStringContainsString('shadow-2xl', $template);
+        }
+
+        $this->assertStringContainsString('发送重置验证码', $forgot);
+        $this->assertStringContainsString('method="post" action="/forgot"', $forgot);
+        $this->assertStringContainsString('name="email"', $forgot);
+
+        $this->assertStringContainsString('method="post" action="/reset"', $reset);
+        $this->assertStringContainsString('name="email"', $reset);
+        $this->assertStringContainsString('name="email_code"', $reset);
+        $this->assertStringContainsString('name="password"', $reset);
+        $this->assertStringNotContainsString('name="token"', $reset);
+        $this->assertStringNotContainsString('{$token}', $reset);
     }
 
     private function template(string $page): string
