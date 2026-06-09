@@ -17,4 +17,14 @@ final class EpayPublicEntrypointTest extends TestCase
             $this->assertStringContainsString("require __DIR__ . '/index.php';", file_get_contents($path) ?: '');
         }
     }
+
+    public function testApiEntrypointUsesGatewayRateLimit(): void
+    {
+        $route = file_get_contents(dirname(__DIR__, 2) . '/route/gateway.php') ?: '';
+
+        $this->assertStringContainsString(
+            "Route::any('api.php', '\\app\\gateway\\controller\\Epay@api')->middleware(\\app\\middleware\\RateLimit::class, 'gateway', 120, 60);",
+            $route
+        );
+    }
 }

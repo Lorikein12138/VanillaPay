@@ -22,4 +22,11 @@ class BindingPayloadTest {
         assertNull(BindingPayload.parse("https://x|notanumber|key"))
         assertNull(BindingPayload.parse("https://x|5"))
     }
+
+    @Test
+    fun rejectsUnsafeServerUrls() {
+        assertNull(BindingPayload.parse("httpx://pay.example.com|5|key"))
+        assertNull(BindingPayload.parse("http://pay.example.com|5|key"))
+        assertNull(BindingPayload.parse("https:///missing-host|5|key"))
+    }
 }

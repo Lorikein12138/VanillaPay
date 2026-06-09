@@ -40,4 +40,11 @@ class ReleaseSigningConfigTest {
         assertTrue(source.contains("VP_KEY_ALIAS"))
         assertTrue(source.contains("VP_KEY_PWD"))
     }
+
+    @Test
+    fun `encrypted preferences dependency uses stable security crypto release`() {
+        val versions = File("../gradle/libs.versions.toml").readText()
+
+        assertTrue(versions.contains("""securityCrypto = "1.1.0""""))
+    }
 }

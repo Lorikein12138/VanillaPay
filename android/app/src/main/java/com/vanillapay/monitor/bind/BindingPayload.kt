@@ -1,5 +1,7 @@
 package com.vanillapay.monitor.bind
 
+import java.net.URI
+
 data class BindingPayload(
     val serverUrl: String,
     val deviceId: Long,
@@ -12,7 +14,8 @@ data class BindingPayload(
             val serverUrl = parts[0].trim().trimEnd('/')
             val deviceId = parts[1].toLongOrNull() ?: return null
             val deviceKey = parts[2].trim()
-            if (!serverUrl.startsWith("http") || deviceId <= 0 || deviceKey.isEmpty()) return null
+            val uri = runCatching { URI(serverUrl) }.getOrNull() ?: return null
+            if (uri.scheme != "https" || uri.host.isNullOrBlank() || deviceId <= 0 || deviceKey.isEmpty()) return null
             return BindingPayload(serverUrl, deviceId, deviceKey)
         }
     }

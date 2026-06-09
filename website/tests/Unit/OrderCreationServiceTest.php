@@ -59,6 +59,45 @@ final class OrderCreationServiceTest extends TestCase
         $service->create(new CreateOrderInput(1, 'T1', 'epay', 'wxpay', '10.00', 'test', '', '', '', '', 'up', '0.01', '0.01', 300));
     }
 
+    public function test_rejects_notify_url_with_unsupported_scheme(): void
+    {
+        $orders = new InMemoryOrderRepository();
+        $locks = new InMemoryAmountLockRepository();
+        $qrcodes = new InMemoryQrcodeRepository();
+        $qrcodes->create(['user_id' => 1, 'channel' => 'wxpay', 'status' => 1]);
+        $clock = new FixedClock(1700000000);
+        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock, new OrderExpirationService($orders, $locks, $clock));
+
+        $this->expectExceptionMessage('回调地址不合法');
+        $service->create(new CreateOrderInput(1, 'T1', 'epay', 'wxpay', '10.00', 'test', 'file:///etc/passwd', '', '', '', 'up', '0.01', '0.01', 300));
+    }
+
+    public function test_rejects_notify_url_with_private_or_reserved_host(): void
+    {
+        $orders = new InMemoryOrderRepository();
+        $locks = new InMemoryAmountLockRepository();
+        $qrcodes = new InMemoryQrcodeRepository();
+        $qrcodes->create(['user_id' => 1, 'channel' => 'wxpay', 'status' => 1]);
+        $clock = new FixedClock(1700000000);
+        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock, new OrderExpirationService($orders, $locks, $clock));
+
+        $this->expectExceptionMessage('回调地址不允许使用内网地址');
+        $service->create(new CreateOrderInput(1, 'T1', 'epay', 'wxpay', '10.00', 'test', 'http://127.0.0.1/callback', '', '', '', 'up', '0.01', '0.01', 300));
+    }
+
+    public function test_rejects_return_url_with_unsafe_scheme(): void
+    {
+        $orders = new InMemoryOrderRepository();
+        $locks = new InMemoryAmountLockRepository();
+        $qrcodes = new InMemoryQrcodeRepository();
+        $qrcodes->create(['user_id' => 1, 'channel' => 'wxpay', 'status' => 1]);
+        $clock = new FixedClock(1700000000);
+        $service = new OrderCreationService($orders, $locks, $qrcodes, new FloatAmountAllocator(), $clock, new OrderExpirationService($orders, $locks, $clock));
+
+        $this->expectExceptionMessage('返回地址不合法');
+        $service->create(new CreateOrderInput(1, 'T1', 'epay', 'wxpay', '10.00', 'test', '', 'javascript:alert(1)', '', '', 'up', '0.01', '0.01', 300));
+    }
+
     public function test_expired_pending_order_does_not_force_next_order_to_float(): void
     {
         $orders = new InMemoryOrderRepository();

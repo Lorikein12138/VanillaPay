@@ -52,9 +52,9 @@ final class ConsoleManagementViewTest extends TestCase
         }
 
         foreach (['totalOrders', 'paidOrders', 'pendingOrders', 'expiredOrders', 'paidAmount', 'paidAlipayAmount', 'paidWxpayAmount'] as $key) {
-            $this->assertStringContainsString($key, $controller);
             $this->assertStringContainsString('$' . $key, $template);
         }
+        $this->assertStringContainsString('dashboardMetricsAll()', $controller);
     }
 
     public function testConsoleMerchantsTableIsVerticallyAlignedAndRenamed(): void

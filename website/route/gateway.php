@@ -9,7 +9,7 @@ Route::group(function () {
     Route::any('yuanpay/mapi', '\app\gateway\controller\Yuanpay@mapi');
 })->middleware(\app\middleware\RateLimit::class, 'gateway', 120, 60);
 
-Route::any('api.php', '\app\gateway\controller\Epay@api');
+Route::any('api.php', '\app\gateway\controller\Epay@api')->middleware(\app\middleware\RateLimit::class, 'gateway', 120, 60);
 Route::get('pay/status/<order_no>', '\app\gateway\controller\PayPage@status');
 Route::get('pay/success/<order_no>', '\app\gateway\controller\PayPage@success');
 Route::get('pay/expired/<order_no>', '\app\gateway\controller\PayPage@expired');

@@ -36,6 +36,8 @@ final class OrderCreationService
         if ($this->orders->findByUserOutTradeNo($input->userId, $input->outTradeNo)) {
             throw new ValidationException('商户订单号已存在');
         }
+        $this->assertSafeNotifyUrl($input->notifyUrl);
+        $this->assertSafeReturnUrl($input->returnUrl);
 
         $this->expiration->refresh();
 
@@ -100,5 +102,40 @@ final class OrderCreationService
     private function makeOrderNo(): string
     {
         return date('YmdHis') . random_int(100000, 999999);
+    }
+
+    private function assertSafeNotifyUrl(string $url): void
+    {
+        if ($url === '') {
+            return;
+        }
+
+        $parts = parse_url($url);
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower(trim((string) ($parts['host'] ?? ''), '[]'));
+        if (!$parts || !in_array($scheme, ['http', 'https'], true) || $host === '') {
+            throw new ValidationException('回调地址不合法');
+        }
+        if ($host === 'localhost' || str_ends_with($host, '.localhost') || str_ends_with($host, '.local')) {
+            throw new ValidationException('回调地址不允许使用内网地址');
+        }
+        if (filter_var($host, FILTER_VALIDATE_IP)
+            && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            throw new ValidationException('回调地址不允许使用内网地址');
+        }
+    }
+
+    private function assertSafeReturnUrl(string $url): void
+    {
+        if ($url === '') {
+            return;
+        }
+
+        $parts = parse_url($url);
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = (string) ($parts['host'] ?? '');
+        if (!$parts || !in_array($scheme, ['http', 'https'], true) || $host === '') {
+            throw new ValidationException('返回地址不合法');
+        }
     }
 }

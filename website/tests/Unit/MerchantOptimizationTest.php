@@ -36,9 +36,11 @@ final class MerchantOptimizationTest extends TestCase
             $this->assertStringNotContainsString($oldText, $dashboard);
         }
 
-        foreach (['totalOrders', 'paidOrders', 'pendingOrders', 'expiredOrders', 'paidAmount', 'paidAlipayAmount', 'paidWxpayAmount', 'sumByUser'] as $text) {
+        foreach (['totalOrders', 'paidOrders', 'pendingOrders', 'expiredOrders', 'paidAmount', 'paidAlipayAmount', 'paidWxpayAmount', 'dashboardMetricsByUser'] as $text) {
             $this->assertStringContainsString($text, $controller . $dashboard);
         }
+        $this->assertStringNotContainsString('paginateByUser($userId, [], 1, 1)', $controller);
+        $this->assertStringNotContainsString('sumByUser($userId', $controller);
     }
 
     public function testQrcodePageUsesFixedChannelNamesAndSingleCodePerChannel(): void

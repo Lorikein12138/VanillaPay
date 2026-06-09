@@ -136,9 +136,55 @@ final class InMemoryOrderRepository implements OrderRepositoryInterface
         return Money::fromCents($cents);
     }
 
+    public function dashboardMetricsByUser(int $userId): array
+    {
+        return $this->dashboardMetrics(fn (array $row): bool => (int) ($row['user_id'] ?? 0) === $userId);
+    }
+
+    public function dashboardMetricsAll(): array
+    {
+        return $this->dashboardMetrics(fn (array $row): bool => true);
+    }
+
     public function paginateAll(array $filters, int $page, int $pageSize): array
     {
         return ['items' => array_values($this->rows), 'total' => count($this->rows), 'page' => $page, 'page_size' => $pageSize];
+    }
+
+    private function dashboardMetrics(callable $scope): array
+    {
+        $counts = ['paid' => 0, 'pending' => 0, 'expired' => 0];
+        $paidCents = ['alipay' => 0, 'wxpay' => 0, 'total' => 0];
+        $total = 0;
+
+        foreach ($this->rows as $row) {
+            if (!$scope($row)) {
+                continue;
+            }
+            $total++;
+            $status = (string) ($row['status'] ?? '');
+            if (array_key_exists($status, $counts)) {
+                $counts[$status]++;
+            }
+            if ($status === 'paid') {
+                $cents = Money::toCents($row['real_amount'] ?? '0');
+                $paidCents['total'] += $cents;
+                $channel = (string) ($row['channel'] ?? '');
+                if (array_key_exists($channel, $paidCents)) {
+                    $paidCents[$channel] += $cents;
+                }
+            }
+        }
+
+        return [
+            'totalOrders' => $total,
+            'paidOrders' => $counts['paid'],
+            'pendingOrders' => $counts['pending'],
+            'expiredOrders' => $counts['expired'],
+            'paidAmount' => Money::fromCents($paidCents['total']),
+            'paidAlipayAmount' => Money::fromCents($paidCents['alipay']),
+            'paidWxpayAmount' => Money::fromCents($paidCents['wxpay']),
+        ];
     }
 
     private function matchesFilters(array $row, array $filters): bool

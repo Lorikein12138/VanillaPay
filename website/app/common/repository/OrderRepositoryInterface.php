@@ -16,6 +16,8 @@ interface OrderRepositoryInterface
     public function update(int $id, array $data): void;
     public function paginateByUser(int $userId, array $filters, int $page, int $pageSize): array;
     public function sumByUser(int $userId, array $filters): string;
+    public function dashboardMetricsByUser(int $userId): array;
+    public function dashboardMetricsAll(): array;
     public function paginateAll(array $filters, int $page, int $pageSize): array;
     public function countByStatusBetween(string $status, string $start, string $end): int;
     public function sumPaidBetween(string $start, string $end): string;

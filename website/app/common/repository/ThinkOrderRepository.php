@@ -101,6 +101,16 @@ class ThinkOrderRepository implements OrderRepositoryInterface
         return number_format((float) $sum, 2, '.', '');
     }
 
+    public function dashboardMetricsByUser(int $userId): array
+    {
+        return $this->dashboardMetrics(fn ($query) => $query->where('user_id', $userId));
+    }
+
+    public function dashboardMetricsAll(): array
+    {
+        return $this->dashboardMetrics();
+    }
+
     public function paginateAll(array $filters, int $page, int $pageSize): array
     {
         $query = $this->table();
@@ -108,6 +118,53 @@ class ThinkOrderRepository implements OrderRepositoryInterface
         $total = (int) (clone $query)->count();
         $items = $query->order('id', 'desc')->page($page, $pageSize)->select()->toArray();
         return ['items' => $items, 'total' => $total, 'page' => $page, 'page_size' => $pageSize];
+    }
+
+    private function dashboardMetrics(?callable $scope = null): array
+    {
+        $countsQuery = $this->table()->field('status, COUNT(*) AS total')->group('status');
+        if ($scope !== null) {
+            $scope($countsQuery);
+        }
+
+        $counts = ['paid' => 0, 'pending' => 0, 'expired' => 0];
+        $total = 0;
+        foreach ($countsQuery->select()->toArray() as $row) {
+            $status = (string) ($row['status'] ?? '');
+            $count = (int) ($row['total'] ?? 0);
+            $total += $count;
+            if (array_key_exists($status, $counts)) {
+                $counts[$status] = $count;
+            }
+        }
+
+        $amountQuery = $this->table()
+            ->field('channel, SUM(real_amount) AS amount')
+            ->where('status', 'paid')
+            ->group('channel');
+        if ($scope !== null) {
+            $scope($amountQuery);
+        }
+
+        $paidCents = ['alipay' => 0, 'wxpay' => 0, 'total' => 0];
+        foreach ($amountQuery->select()->toArray() as $row) {
+            $cents = Money::toCents((string) ($row['amount'] ?? '0'));
+            $paidCents['total'] += $cents;
+            $channel = (string) ($row['channel'] ?? '');
+            if (array_key_exists($channel, $paidCents)) {
+                $paidCents[$channel] += $cents;
+            }
+        }
+
+        return [
+            'totalOrders' => $total,
+            'paidOrders' => $counts['paid'],
+            'pendingOrders' => $counts['pending'],
+            'expiredOrders' => $counts['expired'],
+            'paidAmount' => Money::fromCents($paidCents['total']),
+            'paidAlipayAmount' => Money::fromCents($paidCents['alipay']),
+            'paidWxpayAmount' => Money::fromCents($paidCents['wxpay']),
+        ];
     }
 
     private function applyFilters($query, array $filters): void
