@@ -17,9 +17,9 @@ syncs parsing rules from the website.
 ## Requirements
 
 - JDK 21.
-- Android SDK Platform 35.
-- Android Gradle Plugin 8.7.
-- Gradle Wrapper 8.10.
+- Android SDK Platform 36.
+- Android Gradle Plugin 8.10.0.
+- Gradle Wrapper 8.11.1.
 - Android device or emulator running API 24 or newer.
 
 ## Project Structure

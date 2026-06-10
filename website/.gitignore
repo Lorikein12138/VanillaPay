@@ -1,13 +1,5 @@
-*.log
 .env
-composer.phar
-.DS_Store
-Thumbs.db
-/.idea
-/.vscode
+/.phpunit.cache
 /vendor
 /node_modules
 /deploy
-/.settings
-/.buildpath
-/.project

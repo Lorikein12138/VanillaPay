@@ -1,9 +1,7 @@
 /.gradle
+/.kotlin
 /build
 /local.properties
 /signing.properties
-/.idea
-*.iml
 *.keystore
-*.jks
-app/build
+/app/build
