@@ -13,6 +13,7 @@ class KeepAliveHeartbeatTest {
         assertTrue(source.contains("HeartbeatReporter(applicationContext).send()"))
         assertTrue(source.contains("delay(30_000L)"))
         assertFalse(source.contains("PeriodicWorkRequestBuilder<HeartbeatWorker>(15"))
+        assertFalse(File("src/main/java/com/vanillapay/monitor/work/HeartbeatWorker.kt").exists())
     }
 
     @Test

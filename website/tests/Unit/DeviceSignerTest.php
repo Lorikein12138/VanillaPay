@@ -11,7 +11,8 @@ final class DeviceSignerTest extends TestCase
         $b = $signer->sign(['t' => '100', 'price' => '10.00', 'device_id' => '5', 'channel' => 'wxpay'], 'KEY');
 
         $this->assertSame($a, $b);
-        $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $a);
+        $this->assertSame(hash_hmac('sha256', 'channel=wxpay&device_id=5&price=10.00&t=100', 'KEY'), $a);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $a);
     }
 
     public function test_verify_accepts_valid_and_rejects_tampered(): void

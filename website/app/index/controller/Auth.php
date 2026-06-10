@@ -92,6 +92,7 @@ class Auth
                 $request->post('password', ''),
                 $request->ip()
             );
+            $this->rotateSessionId();
             Session::set('user_id', $user['id']);
             $this->audit->login('user', (int) $user['id'], $request->ip(), (string) $request->header('user-agent'), 'ok');
             return redirect('/dashboard');
@@ -106,6 +107,7 @@ class Auth
     public function logout()
     {
         Session::delete('user_id');
+        $this->rotateSessionId();
         return redirect('/login');
     }
 
@@ -207,5 +209,12 @@ class Auth
         $key = $scene === 'register' ? 'email_code_sent_at_register' : 'email_code_sent_at_reset';
         $lastSentAt = (int) Session::get($key, 0);
         return max(0, self::CODE_COOLDOWN_SECONDS - (time() - $lastSentAt));
+    }
+
+    private function rotateSessionId(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
     }
 }

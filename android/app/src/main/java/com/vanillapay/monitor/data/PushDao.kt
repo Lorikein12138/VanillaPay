@@ -35,6 +35,12 @@ interface PushDao {
     @Query("SELECT * FROM push_record WHERE status = 'sent' ORDER BY createdAt DESC LIMIT :limit")
     suspend fun sentRecent(limit: Int): List<PushRecord>
 
+    @Query("DELETE FROM push_record WHERE status = 'sent' AND createdAt < :olderThan")
+    suspend fun deleteSentOlderThan(olderThan: Long): Int
+
+    @Query("DELETE FROM push_record WHERE status != 'sent' AND attempts >= :maxAttempts AND createdAt < :olderThan")
+    suspend fun deleteExhaustedOlderThan(maxAttempts: Int, olderThan: Long): Int
+
     @Update
     suspend fun update(record: PushRecord)
 }

@@ -12,6 +12,12 @@ import com.vanillapay.monitor.util.ClockSync
 import com.vanillapay.monitor.util.RawHash
 
 class Reporter(context: Context, private val clock: ClockSync) {
+    private companion object {
+        const val SENT_RETENTION_MS = 7L * 24 * 60 * 60 * 1000
+        const val FAILED_RETENTION_MS = 24L * 60 * 60 * 1000
+        const val MAX_FAILED_ATTEMPTS = 10
+    }
+
     private val appContext = context.applicationContext
     private val config = AppConfig(appContext)
     private val dao = AppDatabase.get(appContext).pushDao()
@@ -69,5 +75,11 @@ class Reporter(context: Context, private val clock: ClockSync) {
                 )
             }
         }
+        cleanup(nowMillis)
+    }
+
+    private suspend fun cleanup(nowMillis: Long) {
+        dao.deleteSentOlderThan(nowMillis - SENT_RETENTION_MS)
+        dao.deleteExhaustedOlderThan(MAX_FAILED_ATTEMPTS, nowMillis - FAILED_RETENTION_MS)
     }
 }

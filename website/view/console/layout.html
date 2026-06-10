@@ -20,7 +20,10 @@
         <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/devices">设备信息</a>
         <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/channels">支付管理</a>
         <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/settings">系统设置</a>
-        <a class="block rounded-md px-3 py-2 text-rose-300 transition hover:bg-zinc-800 hover:text-rose-100" href="/console/logout">退出</a>
+        <form method="post" action="/console/logout">
+          <input type="hidden" name="_csrf" value="{:csrf_token()}">
+          <button class="block w-full rounded-md px-3 py-2 text-left text-rose-300 transition hover:bg-zinc-800 hover:text-rose-100" type="submit">退出</button>
+        </form>
       </nav>
     </aside>
     <main class="min-w-0 flex-1 p-6">

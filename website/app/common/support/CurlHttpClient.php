@@ -5,6 +5,12 @@ final class CurlHttpClient implements HttpClient
 {
     public function postForm(string $url, array $params, int $timeout = 10): HttpResponse
     {
+        try {
+            UrlSafety::assertPublicHttpTarget($url);
+        } catch (\InvalidArgumentException $e) {
+            return new HttpResponse(0, $e->getMessage());
+        }
+
         if (!function_exists('curl_init')) {
             return new HttpResponse(0, 'PHP curl extension is not installed');
         }

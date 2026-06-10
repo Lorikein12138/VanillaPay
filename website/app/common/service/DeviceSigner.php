@@ -14,7 +14,7 @@ final class DeviceSigner
             $pairs[] = $name . '=' . $value;
         }
 
-        return md5(implode('&', $pairs) . $key);
+        return hash_hmac('sha256', implode('&', $pairs), $key);
     }
 
     public function verify(array $params, string $key): bool

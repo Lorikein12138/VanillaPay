@@ -28,7 +28,7 @@ Route::post('register/code', '\app\index\controller\Auth@sendRegisterCode')->mid
 Route::post('register', '\app\index\controller\Auth@register')->middleware(\app\middleware\RateLimit::class, 'auth', 20, 60)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('login', '\app\index\controller\Auth@loginForm');
 Route::post('login', '\app\index\controller\Auth@login')->middleware(\app\middleware\RateLimit::class, 'auth', 20, 60)->middleware(\app\middleware\VerifyCsrf::class);
-Route::get('logout', '\app\index\controller\Auth@logout');
+Route::post('logout', '\app\index\controller\Auth@logout')->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('forgot', '\app\index\controller\Auth@forgotForm');
 Route::post('forgot', '\app\index\controller\Auth@forgot')->middleware(\app\middleware\RateLimit::class, 'auth', 20, 60)->middleware(\app\middleware\VerifyCsrf::class);
 Route::get('reset', '\app\index\controller\Auth@resetForm');

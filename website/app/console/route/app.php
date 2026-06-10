@@ -5,7 +5,7 @@ use think\facade\Route;
 Route::get('', '\app\console\controller\Index@index');
 Route::get('login', '\app\console\controller\Auth@loginForm');
 Route::post('login', '\app\console\controller\Auth@login')->middleware(\app\middleware\RateLimit::class, 'console_login', 10, 60)->middleware(\app\middleware\VerifyCsrf::class);
-Route::get('logout', '\app\console\controller\Auth@logout');
+Route::post('logout', '\app\console\controller\Auth@logout')->middleware(\app\middleware\VerifyCsrf::class);
 
 Route::group(function () {
     Route::get('dashboard', '\app\console\controller\Dashboard@index');

@@ -1,9 +1,17 @@
 package com.vanillapay.monitor.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "push_record")
+@Entity(
+    tableName = "push_record",
+    indices = [
+        Index(value = ["rawHash"]),
+        Index(value = ["status", "nextRetryAt"]),
+        Index(value = ["createdAt"]),
+    ],
+)
 data class PushRecord(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val rawHash: String,

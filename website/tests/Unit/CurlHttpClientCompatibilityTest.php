@@ -19,5 +19,6 @@ final class CurlHttpClientCompatibilityTest extends TestCase
         $this->assertStringContainsString('CURLOPT_PROTOCOLS', $client);
         $this->assertStringContainsString('CURLPROTO_HTTP | CURLPROTO_HTTPS', $client);
         $this->assertStringContainsString('CURLOPT_FOLLOWLOCATION => false', $client);
+        $this->assertStringContainsString('UrlSafety::assertPublicHttpTarget($url)', $client);
     }
 }

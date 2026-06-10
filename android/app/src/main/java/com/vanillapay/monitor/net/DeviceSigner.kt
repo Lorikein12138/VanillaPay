@@ -1,6 +1,7 @@
 package com.vanillapay.monitor.net
 
-import java.security.MessageDigest
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 class DeviceSigner {
     fun sign(params: Map<String, String>, key: String): String {
@@ -10,11 +11,13 @@ class DeviceSigner {
             .toSortedMap()
             .entries
             .joinToString("&") { "${it.key}=${it.value}" }
-        return md5(base + key)
+        return hmacSha256(base, key)
     }
 
-    private fun md5(value: String): String =
-        MessageDigest.getInstance("MD5")
-            .digest(value.toByteArray(Charsets.UTF_8))
+    private fun hmacSha256(value: String, key: String): String =
+        Mac.getInstance("HmacSHA256").apply {
+            init(SecretKeySpec(key.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        }
+            .doFinal(value.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
 }

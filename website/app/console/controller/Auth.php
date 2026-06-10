@@ -23,6 +23,7 @@ class Auth
     {
         try {
             $admin = $this->auth->login((string) $request->post('username', ''), (string) $request->post('password', ''), $request->ip());
+            $this->rotateSessionId();
             Session::set('admin_id', $admin['id']);
             $this->audit->login('admin', (int) $admin['id'], $request->ip(), (string) $request->header('user-agent'), 'ok');
             return redirect('/console/dashboard');
@@ -36,6 +37,14 @@ class Auth
     public function logout()
     {
         Session::delete('admin_id');
+        $this->rotateSessionId();
         return redirect('/console/login');
+    }
+
+    private function rotateSessionId(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
     }
 }
