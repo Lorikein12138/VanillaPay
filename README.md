@@ -1,62 +1,53 @@
 # VanillaPay
 
-VanillaPay is a self-hosted payment order and notification matching system for
-merchant-owned deployments. It combines a ThinkPHP website with an Android
-monitoring client to manage payment QR codes, create gateway-compatible orders,
-match incoming payment notifications, and deliver downstream callbacks.
+VanillaPay 是一个面向商户自有部署的自托管支付订单与通知匹配系统。它结合 ThinkPHP 网站与 Android 监控客户端，用于管理收款二维码、创建兼容网关的订单、匹配到账通知，并向下游发送回调。
 
-## Repository Layout
+## 仓库结构
 
 ```text
-website/   ThinkPHP 8 web application, merchant console, device APIs, gateways
-android/   Android monitoring client for WeChat Pay and Alipay notifications
+website/   ThinkPHP 8 Web 应用、商户控制台、设备 API、支付网关
+android/   用于监听微信支付和支付宝通知的 Android 监控客户端
 ```
 
-## Components
+## 组件
 
-### Website
+### 网站端
 
-The website provides merchant registration, QR code management, order creation,
-floating amount matching, device binding, callback retry, reconciliation tasks,
-and an operations console.
+网站端提供商户注册、二维码管理、订单创建、浮动金额匹配、设备绑定、回调重试、对账任务和运营控制台。
 
-Main stack:
+主要技术栈：
 
-- PHP 8.1 or newer with ThinkPHP 8
-- MySQL-compatible database
+- PHP 8.1 或更高版本，基于 ThinkPHP 8
+- MySQL 兼容数据库
 - Composer
-- Tailwind CSS asset pipeline
+- Tailwind CSS 资源构建流程
 
-See [website/README.md](website/README.md) for configuration, deployment,
-scheduled tasks, gateway endpoints, and troubleshooting.
+配置、部署、计划任务、网关接口和故障排查请参见 [website/README.md](website/README.md)。
 
-### Android Monitor
+### Android 监控端
 
-The Android client runs on a merchant-owned device, listens for payment arrival
-notifications, queues reports while offline, sends heartbeats, and syncs parsing
-rules from the website.
+Android 客户端运行在商户自有设备上，用于监听支付到账通知，在离线时缓存上报，发送设备心跳，并从网站端同步解析规则。
 
-Main stack:
+主要技术栈：
 
 - JDK 21
 - Android SDK Platform 36
 - Android Gradle Plugin 8.10.0
 - Gradle Wrapper 8.11.1
-- Android API 24 or newer device/emulator
+- Android API 24 或更高版本的设备/模拟器
 
-See [android/README.md](android/README.md) for build, binding, permission,
-release signing, and integration details.
+构建、绑定、权限、发布签名和集成细节请参见 [android/README.md](android/README.md)。
 
-## Development
+## 开发
 
-Clone the repository and work inside the component you need:
+克隆仓库后进入需要开发的组件目录：
 
 ```bash
 git clone <repository-url>
 cd VanillaPay
 ```
 
-Website:
+网站端：
 
 ```bash
 cd website
@@ -68,7 +59,7 @@ php think migrate:run
 php think run -p 8080
 ```
 
-Android:
+Android 端：
 
 ```powershell
 cd android
@@ -76,26 +67,16 @@ cd android
 .\gradlew.bat :app:assembleDebug
 ```
 
-## Production Notes
+## 生产环境说明
 
-- Deploy the website with the document root set to `website/public`.
-- Keep `website/.env`, runtime logs, uploads, database dumps, keystores, and
-  signing files out of Git.
-- Use HTTPS in production. The Android client disables cleartext HTTP by
-  default.
-- Configure scheduled website tasks for order expiry, device checks, callback
-  retry, and optional daily reconciliation.
-- Test the complete flow before production: merchant registration, QR upload,
-  Android binding, order creation, notification matching, and downstream
-  callback delivery.
+- 部署网站端时，将 Web 文档根目录设置为 `website/public`。
+- 不要将 `website/.env`、运行日志、上传文件、数据库转储、密钥库和签名文件提交到 Git。
+- 生产环境使用 HTTPS。Android 客户端默认禁用明文 HTTP。
+- 配置网站端计划任务，用于订单过期、设备检查、回调重试，以及可选的每日对账。
+- 上线前测试完整流程：商户注册、二维码上传、Android 绑定、订单创建、通知匹配和下游回调投递。
 
-## Security
+## 安全
 
-VanillaPay handles payment-related credentials, device credentials, uploaded QR
-codes, and callback secrets. Use strong environment-specific secrets, restrict
-server write permissions, block execution from upload directories, rotate device
-credentials when devices are replaced, and keep dependencies updated.
+VanillaPay 会处理支付相关凭据、设备凭据、上传的二维码和回调密钥。请使用强度足够且按环境区分的密钥，限制服务器写权限，禁止上传目录中的脚本执行，在更换设备时轮换设备凭据，并保持依赖及时更新。
 
-Operate the system only with accounts, devices, and payment channels you are
-authorized to use, and follow the requirements of your payment providers and
-local regulations.
+仅在你有权使用的账号、设备和支付通道上运行本系统，并遵守支付服务提供方要求及当地法规。
