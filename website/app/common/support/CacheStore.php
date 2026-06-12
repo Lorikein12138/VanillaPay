@@ -6,4 +6,5 @@ interface CacheStore
     public function increment(string $key, int $ttlSeconds): int;
     public function has(string $key): bool;
     public function put(string $key, string $value, int $ttlSeconds): void;
+    public function putIfAbsent(string $key, string $value, int $ttlSeconds): bool;
 }

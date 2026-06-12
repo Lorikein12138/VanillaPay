@@ -17,8 +17,6 @@ import java.util.Locale
 
 /** Inflates and binds a single [item_recent_push] row for the report log (time / channel / amount). */
 object PushRowBinder {
-    private val timeFormat = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
-
     fun inflate(inflater: LayoutInflater, parent: ViewGroup, record: PushRecord): View {
         val view = inflater.inflate(R.layout.item_recent_push, parent, false)
         val context = parent.context
@@ -39,14 +37,14 @@ object PushRowBinder {
         channelBg.backgroundTintList =
             ColorStateList.valueOf(ColorUtils.setAlphaComponent(channelColor, 30))
 
-        title.text = "¥" + Money.format(record.amountCents)
+        title.text = context.getString(R.string.money_amount_fmt, Money.format(record.amountCents))
         val channelName = context.getString(
             if (isWechat) R.string.channel_wxpay else R.string.channel_alipay,
         )
         subtitle.text = context.getString(
             R.string.log_row_sub_fmt,
             channelName,
-            timeFormat.format(Date(record.createdAt)),
+            SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault()).format(Date(record.createdAt)),
         )
         state.visibility = View.GONE
 

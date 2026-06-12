@@ -11,11 +11,6 @@ final class ReplayGuard
 
     public function firstUse(string $key, int $ttlSeconds): bool
     {
-        $cacheKey = 'replay:' . $key;
-        if ($this->cache->has($cacheKey)) {
-            return false;
-        }
-        $this->cache->put($cacheKey, '1', $ttlSeconds);
-        return true;
+        return $this->cache->putIfAbsent('replay:' . $key, '1', $ttlSeconds);
     }
 }

@@ -2,13 +2,14 @@ package com.vanillapay.monitor.ui
 
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.widget.TextView
+import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.vanillapay.monitor.R
@@ -25,6 +26,9 @@ class PermissionActivity : AppCompatActivity() {
         config = AppConfig(this)
         setContentView(R.layout.activity_permission)
         applySystemBarInsets()
+        onBackPressedDispatcher.addCallback(this) {
+            moveTaskToBack(true)
+        }
 
         findViewById<View>(R.id.rowNotif).setOnClickListener {
             runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
@@ -34,7 +38,7 @@ class PermissionActivity : AppCompatActivity() {
                 startActivity(
                     Intent(
                         Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                        Uri.parse("package:$packageName"),
+                        "package:$packageName".toUri(),
                     ),
                 )
             }
@@ -54,11 +58,6 @@ class PermissionActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         render()
-    }
-
-    @Deprecated("Forced gate: back must not bypass into the dashboard")
-    override fun onBackPressed() {
-        moveTaskToBack(true)
     }
 
     private fun render() {

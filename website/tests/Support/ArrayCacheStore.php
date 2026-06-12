@@ -21,4 +21,14 @@ final class ArrayCacheStore implements CacheStore
     {
         $this->data[$key] = $value;
     }
+
+    public function putIfAbsent(string $key, string $value, int $ttlSeconds): bool
+    {
+        if ($this->has($key)) {
+            return false;
+        }
+
+        $this->put($key, $value, $ttlSeconds);
+        return true;
+    }
 }

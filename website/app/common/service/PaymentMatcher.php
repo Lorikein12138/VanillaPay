@@ -32,12 +32,16 @@ final class PaymentMatcher
             return MatchResult::unmatched();
         }
 
-        $this->orders->markPaid((int) $order['id'], [
+        $marked = $this->orders->markPendingPaid((int) $order['id'], [
             'status' => 'paid',
             'paid_at' => $this->clock->now(),
             'device_id' => $push->deviceId,
             'device_trade_no' => $push->tradeNoDevice,
         ]);
+        if (!$marked) {
+            return MatchResult::unmatched();
+        }
+
         $this->locks->release($push->userId, $push->channel, $push->amountCents);
         $this->paidHandler->onPaid((int) $order['id']);
 

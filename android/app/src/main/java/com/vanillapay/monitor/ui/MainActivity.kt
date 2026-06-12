@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updatePid() {
-        findViewById<TextView>(R.id.tvPid).text = config.merchantPid.ifEmpty { "—" }
+        findViewById<TextView>(R.id.tvPid).text = config.merchantPid.ifEmpty { getString(R.string.value_empty) }
     }
 
     private fun testHeartbeat() {
@@ -139,8 +139,8 @@ class MainActivity : AppCompatActivity() {
             val dao = AppDatabase.get(this@MainActivity).pushDao()
             val count = dao.countSent()
             val sum = dao.sumSentTotal()
-            findViewById<TextView>(R.id.tvTotalCount).text = count.toString()
-            findViewById<TextView>(R.id.tvTotalAmount).text = "¥" + Money.format(sum)
+            findViewById<TextView>(R.id.tvTotalCount).text = getString(R.string.count_fmt, count)
+            findViewById<TextView>(R.id.tvTotalAmount).text = getString(R.string.money_amount_fmt, Money.format(sum))
         }
     }
 

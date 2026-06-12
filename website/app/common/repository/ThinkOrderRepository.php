@@ -55,6 +55,14 @@ class ThinkOrderRepository implements OrderRepositoryInterface
         $this->table()->where('id', $id)->update($data);
     }
 
+    public function markPendingPaid(int $id, array $data): bool
+    {
+        return (int) $this->table()
+            ->where('id', $id)
+            ->where('status', 'pending')
+            ->update($data) === 1;
+    }
+
     public function markExpiredBatch(string $now): int
     {
         return (int) $this->table()

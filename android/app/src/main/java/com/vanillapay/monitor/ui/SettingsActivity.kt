@@ -43,7 +43,11 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         findViewById<TextView>(R.id.tvVersion).text =
-            "${getString(R.string.app_name)} · ${getString(R.string.settings_version_fmt, BuildConfig.VERSION_NAME)}"
+            getString(
+                R.string.settings_about_version_fmt,
+                getString(R.string.app_name),
+                getString(R.string.settings_version_fmt, BuildConfig.VERSION_NAME),
+            )
     }
 
     override fun onResume() {

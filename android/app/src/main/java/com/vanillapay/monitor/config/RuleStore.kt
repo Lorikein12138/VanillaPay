@@ -1,6 +1,7 @@
 package com.vanillapay.monitor.config
 
 import android.content.Context
+import androidx.core.content.edit
 import com.vanillapay.monitor.parse.NotificationParser
 import com.vanillapay.monitor.parse.RuleParser
 import com.vanillapay.monitor.parse.RuleSet
@@ -9,7 +10,7 @@ class RuleStore(context: Context) {
     private val preferences = context.getSharedPreferences("vanillapay_rules", Context.MODE_PRIVATE)
 
     fun save(json: String) {
-        preferences.edit().putString("rules_json", json).apply()
+        preferences.edit { putString("rules_json", json) }
     }
 
     fun version(): Int = current().version

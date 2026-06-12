@@ -6,11 +6,11 @@ import java.io.File
 
 class ReleaseSigningConfigTest {
     @Test
-    fun `release package version is bumped for vivo android 16 icon fixes`() {
+    fun `release package version is bumped for audit fixes`() {
         val source = File("build.gradle.kts").readText()
 
-        assertTrue(source.contains("versionCode = 8"))
-        assertTrue(source.contains("""versionName = "1.1.6""""))
+        assertTrue(source.contains("versionCode = 9"))
+        assertTrue(source.contains("""versionName = "1.1.7""""))
     }
 
     @Test

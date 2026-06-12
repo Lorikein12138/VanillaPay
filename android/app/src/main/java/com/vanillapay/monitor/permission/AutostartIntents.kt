@@ -3,7 +3,7 @@ package com.vanillapay.monitor.permission
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.Settings
 
 /**
@@ -45,7 +45,7 @@ object AutostartIntents {
         runCatching {
             context.startActivity(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                    .setData(Uri.parse("package:${context.packageName}"))
+                    .setData("package:${context.packageName}".toUri())
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }

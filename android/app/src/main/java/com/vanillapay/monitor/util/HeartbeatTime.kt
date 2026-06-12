@@ -10,8 +10,6 @@ import java.util.Locale
  * automatic), so the UI updates on those events rather than ticking continuously.
  */
 object HeartbeatTime {
-    private val formatter = SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
-
     fun format(lastAtMillis: Long): String =
-        if (lastAtMillis <= 0L) "尚无心跳" else formatter.format(Date(lastAtMillis))
+        if (lastAtMillis <= 0L) "尚无心跳" else SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault()).format(Date(lastAtMillis))
 }

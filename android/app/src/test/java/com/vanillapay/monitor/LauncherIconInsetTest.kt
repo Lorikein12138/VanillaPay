@@ -104,6 +104,7 @@ class LauncherIconInsetTest {
             .filter { file ->
                 file.isFile && (
                     file.name == "ic_stat_monitor.png" ||
+                        file.name == "ic_notification_large.png" ||
                         file.path.replace('\\', '/').contains("mipmap-anydpi-v26")
                     )
             }

@@ -32,7 +32,4 @@
     <!-- Overlay -->
     <color name="scrim">#99000000</color>
     <color name="white">#FFFFFF</color>
-
-    <!-- Launcher adaptive-icon background (sampled from brand badge) -->
-    <color name="ic_launcher_background">#1E6F83</color>
 </resources>

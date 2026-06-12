@@ -1,26 +1,14 @@
 <resources>
     <string name="app_name">VanillaPay</string>
 
-    <!-- Main / dashboard -->
-    <string name="main_tagline">收款监听</string>
     <string name="status_running">监听运行中</string>
     <string name="status_notif_off">通知权限未开启</string>
-    <string name="status_device_fmt">设备 #%1$d</string>
-    <string name="status_running_desc">正在监听微信 / 支付宝到账通知</string>
-    <string name="status_notif_off_desc">点击开启通知使用权后即可开始监听</string>
-    <string name="today_count_label">今日笔数</string>
-    <string name="today_amount_label">今日金额</string>
-    <string name="health_title">权限与保活</string>
     <string name="perm_notif">通知使用权</string>
     <string name="perm_notif_desc">读取到账通知用于核销</string>
     <string name="perm_battery">电池优化白名单</string>
     <string name="perm_battery_desc">允许后台常驻，避免被系统杀死</string>
     <string name="perm_on">已开启</string>
     <string name="perm_off">去开启</string>
-    <string name="recent_title">最近上报</string>
-    <string name="recent_view_all">全部</string>
-    <string name="recent_empty">暂无上报记录</string>
-    <string name="hide_to_background">隐藏到后台运行</string>
     <string name="hide_toast">已隐藏，监听服务在通知栏常驻运行</string>
 
     <!-- Bind -->
@@ -29,39 +17,23 @@
     <string name="bind_hint">绑定串 serverUrl|id|key</string>
     <string name="bind_action">绑定</string>
     <string name="bind_scan">扫码绑定</string>
-    <string name="bind_notif_card_title">通知使用权未开启</string>
-    <string name="bind_notif_card_desc">需授予通知使用权，App 才能读取到账通知。</string>
-    <string name="bind_open_notif">开启通知使用权</string>
-    <string name="bind_fail">绑定串格式错误</string>
-    <string name="bind_success">绑定成功</string>
 
     <!-- Settings -->
     <string name="settings_title">设置</string>
-    <string name="settings_group_keepalive">保活与权限</string>
-    <string name="settings_battery">忽略电池优化</string>
-    <string name="settings_battery_desc">允许后台常驻，避免被系统杀死</string>
-    <string name="settings_notif">通知使用权</string>
-    <string name="settings_notif_desc">读取到账通知用于核销</string>
     <string name="settings_group_device">设备</string>
     <string name="settings_rebind">重新绑定</string>
     <string name="settings_rebind_desc">更换服务器或设备绑定</string>
-    <string name="settings_about">关于</string>
     <string name="settings_version_fmt">版本 %1$s</string>
+    <string name="settings_about_version_fmt">%1$s · %2$s</string>
 
     <!-- Log -->
     <string name="log_title">上报日志</string>
     <string name="log_empty">暂无上报记录</string>
-    <string name="log_row_title_fmt">#%1$d　¥%2$s</string>
+    <string name="money_amount_fmt">¥%1$s</string>
     <string name="log_row_sub_fmt">%1$s · %2$s</string>
 
     <!-- Scan -->
     <string name="scan_hint">将二维码放入框内</string>
-    <string name="scan_need_camera">需要相机权限</string>
-
-    <!-- Status -->
-    <string name="status_pending">待上报</string>
-    <string name="status_sent">已上报</string>
-    <string name="status_failed">失败</string>
 
     <!-- Channels -->
     <string name="channel_wxpay">微信</string>
@@ -77,6 +49,10 @@
     <string name="pid_label">PID</string>
     <string name="total_amount_label">总金额</string>
     <string name="total_count_label">总订单数</string>
+    <string name="value_empty">—</string>
+    <string name="amount_zero">¥0.00</string>
+    <string name="count_zero">0</string>
+    <string name="count_fmt">%1$d</string>
     <string name="heartbeat_title">最新心跳</string>
     <string name="heartbeat_test">测试心跳</string>
     <string name="heartbeat_ok">心跳成功</string>

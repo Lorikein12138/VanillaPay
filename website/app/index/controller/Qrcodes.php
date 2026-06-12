@@ -43,7 +43,7 @@ class Qrcodes
                 throw new ValidationException('请选择二维码图片');
             }
             $mime = (string) $file->getMime();
-            $this->validator->validate($mime, (int) $file->getSize());
+            $this->validator->validate($mime, (int) $file->getSize(), @getimagesize($file->getPathname()));
             $saveDir = app()->getRootPath() . 'public/static/uploads/qrcodes';
             if (!is_dir($saveDir)) {
                 if (!mkdir($saveDir, 0755, true) && !is_dir($saveDir)) {

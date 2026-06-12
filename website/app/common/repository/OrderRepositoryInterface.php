@@ -10,6 +10,7 @@ interface OrderRepositoryInterface
     public function findActivePendingByAmount(int $userId, string $channel, int $amountCents, string $now): ?array;
     public function findByDeviceTrade(int $userId, string $deviceTradeNo): ?array;
     public function markPaid(int $id, array $data): void;
+    public function markPendingPaid(int $id, array $data): bool;
     public function markExpiredBatch(string $now): int;
     public function deleteExpiredByUser(int $userId): int;
     public function deleteForUser(int $id, int $userId): int;

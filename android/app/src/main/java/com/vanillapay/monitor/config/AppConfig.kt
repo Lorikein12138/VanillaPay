@@ -1,6 +1,7 @@
 package com.vanillapay.monitor.config
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -19,37 +20,37 @@ class AppConfig(context: Context) {
     var serverUrl: String
         get() = preferences.getString("server_url", "") ?: ""
         set(value) {
-            preferences.edit().putString("server_url", value.trimEnd('/')).apply()
+            preferences.edit { putString("server_url", value.trimEnd('/')) }
         }
 
     var deviceId: Long
         get() = preferences.getLong("device_id", 0)
         set(value) {
-            preferences.edit().putLong("device_id", value).apply()
+            preferences.edit { putLong("device_id", value) }
         }
 
     var deviceKey: String
         get() = preferences.getString("device_key", "") ?: ""
         set(value) {
-            preferences.edit().putString("device_key", value).apply()
+            preferences.edit { putString("device_key", value) }
         }
 
     var autostartConfirmed: Boolean
         get() = preferences.getBoolean("autostart_confirmed", false)
         set(value) {
-            preferences.edit().putBoolean("autostart_confirmed", value).apply()
+            preferences.edit { putBoolean("autostart_confirmed", value) }
         }
 
     var lastHeartbeatAt: Long
         get() = preferences.getLong("last_heartbeat_at", 0L)
         set(value) {
-            preferences.edit().putLong("last_heartbeat_at", value).apply()
+            preferences.edit { putLong("last_heartbeat_at", value) }
         }
 
     var merchantPid: String
         get() = preferences.getString("merchant_pid", "") ?: ""
         set(value) {
-            preferences.edit().putString("merchant_pid", value).apply()
+            preferences.edit { putString("merchant_pid", value) }
         }
 
     val isBound: Boolean

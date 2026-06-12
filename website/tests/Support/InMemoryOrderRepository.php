@@ -8,6 +8,7 @@ final class InMemoryOrderRepository implements OrderRepositoryInterface
 {
     /** @var array<int,array> */
     public array $rows = [];
+    public bool $rejectPendingPaid = false;
     private int $auto = 0;
 
     public function create(array $data): int
@@ -72,6 +73,19 @@ final class InMemoryOrderRepository implements OrderRepositoryInterface
     public function markPaid(int $id, array $data): void
     {
         $this->rows[$id] = array_merge($this->rows[$id], $data);
+    }
+
+    public function markPendingPaid(int $id, array $data): bool
+    {
+        if ($this->rejectPendingPaid) {
+            return false;
+        }
+        if (($this->rows[$id]['status'] ?? '') !== 'pending') {
+            return false;
+        }
+
+        $this->markPaid($id, $data);
+        return true;
     }
 
     public function markExpiredBatch(string $now): int
