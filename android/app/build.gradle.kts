@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
 }
 
@@ -18,12 +17,12 @@ fun releaseSigningValue(propertyName: String, envName: String): String? =
 
 android {
     namespace = "com.vanillapay.monitor"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.vanillapay.monitor"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 9
         versionName = "1.1.7"
         buildConfigField("String", "CERT_PIN_HOST", "\"\"")

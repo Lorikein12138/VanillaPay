@@ -29,6 +29,10 @@ class LauncherIconInsetTest {
             adaptive.contains("""<foreground android:drawable="@android:color/transparent" />"""),
             "adaptive icon foreground must be transparent so launchers can't shrink it into a seam",
         )
+        assertTrue(
+            adaptive.contains("""<monochrome android:drawable="@drawable/ic_notification_vanillapay" />"""),
+            "adaptive icon must provide monochrome art for themed launcher icons",
+        )
 
         val bg = File("src/main/res").walkTopDown()
             .filter { it.isFile && it.name == "ic_launcher_bg.png" }
@@ -111,6 +115,24 @@ class LauncherIconInsetTest {
             .toList()
 
         assertTrue(staleFiles.isEmpty(), "stale icon resources should not be packaged: $staleFiles")
+    }
+
+    @Test
+    fun `legacy launcher and notification bitmap compatibility suppressions are scoped`() {
+        val lint = File("lint.xml").readText()
+
+        assertTrue(
+            lint.contains("""path="src/main/res/drawable-*/ic_launcher.png"""") &&
+                lint.contains("""path="src/main/res/drawable-*/ic_launcher_bg.png"""") &&
+                lint.contains("""<issue id="IconLauncherShape">"""),
+            "launcher icon shape suppression must be limited to the intentional full-bleed legacy bitmaps",
+        )
+        assertTrue(
+            lint.contains("""path="src/main/res/drawable/ic_notification_vanillapay.xml"""") &&
+                lint.contains("""path="src/main/res/drawable-*/ic_notification_vanillapay.png"""") &&
+                lint.contains("""<issue id="IconXmlAndPng">"""),
+            "notification icon xml/png suppression must be limited to the vendor System UI fallback resources",
+        )
     }
 
     private data class Bounds(val left: Int, val top: Int, val right: Int, val bottom: Int) {

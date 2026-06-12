@@ -4,4 +4,5 @@
          foreground (MIUI/HyperOS) can't create an inner-square seam. -->
     <background android:drawable="@drawable/ic_launcher_bg" />
     <foreground android:drawable="@android:color/transparent" />
+    <monochrome android:drawable="@drawable/ic_notification_vanillapay" />
 </adaptive-icon>

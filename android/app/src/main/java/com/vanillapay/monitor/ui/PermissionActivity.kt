@@ -1,5 +1,6 @@
 package com.vanillapay.monitor.ui
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
@@ -37,7 +38,7 @@ class PermissionActivity : AppCompatActivity() {
             runCatching {
                 startActivity(
                     Intent(
-                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        ignoreBatteryOptimizationsAction(),
                         "package:$packageName".toUri(),
                     ),
                 )
@@ -82,4 +83,8 @@ class PermissionActivity : AppCompatActivity() {
             badge.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.warning_container))
         }
     }
+
+    @SuppressLint("BatteryLife")
+    private fun ignoreBatteryOptimizationsAction(): String =
+        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
 }

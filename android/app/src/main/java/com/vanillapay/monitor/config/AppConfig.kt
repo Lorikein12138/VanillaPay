@@ -2,20 +2,9 @@ package com.vanillapay.monitor.config
 
 import android.content.Context
 import androidx.core.content.edit
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 
 class AppConfig(context: Context) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-    private val preferences = EncryptedSharedPreferences.create(
-        context,
-        "vanillapay_cfg",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val preferences = encryptedPreferences(context)
 
     var serverUrl: String
         get() = preferences.getString("server_url", "") ?: ""
@@ -55,4 +44,16 @@ class AppConfig(context: Context) {
 
     val isBound: Boolean
         get() = serverUrl.isNotEmpty() && deviceId > 0 && deviceKey.isNotEmpty()
+
+    @Suppress("DEPRECATION")
+    private fun encryptedPreferences(context: Context) =
+        androidx.security.crypto.EncryptedSharedPreferences.create(
+            context,
+            "vanillapay_cfg",
+            androidx.security.crypto.MasterKey.Builder(context)
+                .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
+                .build(),
+            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
 }
