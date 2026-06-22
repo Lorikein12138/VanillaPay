@@ -1,0 +1,154 @@
+{extend name="merchant_layout"}
+{block name="title"}接入文档{/block}
+{block name="content"}
+<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <p class="text-sm font-medium text-teal-700">Integration</p>
+    <h1 class="mt-1 text-2xl font-semibold text-zinc-950">接入文档</h1>
+  </div>
+  <div class="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500 shadow-sm">
+    PID <span class="ml-1 font-mono text-zinc-900">{$user.pid}</span>
+  </div>
+</div>
+
+<div class="grid gap-5 lg:grid-cols-[220px_1fr]">
+  <aside class="hidden h-fit rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm lg:sticky lg:top-8 lg:block">
+    <a class="block rounded-md px-3 py-2 text-zinc-700 transition hover:bg-zinc-100" href="#common">统一能力</a>
+    <a class="block rounded-md px-3 py-2 text-zinc-700 transition hover:bg-zinc-100" href="#epay">易支付</a>
+    <a class="block rounded-md px-3 py-2 text-zinc-700 transition hover:bg-zinc-100" href="#codepay">码支付</a>
+    <a class="block rounded-md px-3 py-2 text-zinc-700 transition hover:bg-zinc-100" href="#yuanpay">源支付</a>
+    <a class="block rounded-md px-3 py-2 text-zinc-700 transition hover:bg-zinc-100" href="#callback">回调参数说明</a>
+  </aside>
+
+  <div class="space-y-5">
+    <section id="common" class="scroll-mt-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+      <h2 class="text-lg font-semibold text-zinc-950">统一能力</h2>
+      <div class="mt-4 grid gap-3 text-sm md:grid-cols-2">
+        <div class="rounded-md bg-zinc-50 p-3"><div class="text-xs text-zinc-500">商户号</div><code class="mt-1 block break-all font-mono text-zinc-900">{$user.pid}</code></div>
+        <div class="rounded-md bg-zinc-50 p-3"><div class="text-xs text-zinc-500">接口地址</div><code class="mt-1 block break-all font-mono text-zinc-900">{$baseUrl}</code></div>
+      </div>
+      <div class="mt-4 overflow-hidden rounded-md border border-zinc-200">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-zinc-100 text-xs text-zinc-500"><tr><th class="px-3 py-2">能力</th><th class="px-3 py-2">地址</th><th class="px-3 py-2">说明</th></tr></thead>
+          <tbody class="divide-y divide-zinc-200">
+            <tr><td class="px-3 py-2">查询订单信息</td><td class="px-3 py-2 font-mono">/api.php?act=order</td><td class="px-3 py-2">返回订单金额、实付金额、时间、状态等完整信息。</td></tr>
+            <tr><td class="px-3 py-2">查询订单状态</td><td class="px-3 py-2 font-mono">/api.php?act=order_status</td><td class="px-3 py-2">只返回支付状态和状态文本。</td></tr>
+            <tr><td class="px-3 py-2">关闭订单</td><td class="px-3 py-2 font-mono">/api.php?act=close</td><td class="px-3 py-2">仅待支付订单可关闭，关闭后释放金额占用。</td></tr>
+            <tr><td class="px-3 py-2">查询服务端状态</td><td class="px-3 py-2 font-mono">/api.php?act=server_status</td><td class="px-3 py-2">返回服务名称和服务器时间。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre class="mt-4 overflow-auto rounded-md bg-zinc-950 p-4 text-xs leading-6 text-zinc-100">查询订单信息：
+{$baseUrl}/api.php?act=order&pid={$user.pid}&key=API_KEY&out_trade_no=商户单号
+
+查询订单状态：
+{$baseUrl}/api.php?act=order_status&pid={$user.pid}&key=API_KEY&out_trade_no=商户单号
+
+关闭订单：
+{$baseUrl}/api.php?act=close&pid={$user.pid}&key=API_KEY&out_trade_no=商户单号
+
+查询服务端状态：
+{$baseUrl}/api.php?act=server_status</pre>
+    </section>
+
+    <section id="epay" class="scroll-mt-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+      <h2 class="text-lg font-semibold text-zinc-950">易支付</h2>
+      <div class="mt-4 grid gap-3 text-sm md:grid-cols-2">
+        <div class="rounded-md bg-zinc-50 p-3"><div class="text-xs text-zinc-500">创建订单</div><code class="mt-1 block break-all font-mono text-zinc-900">{$baseUrl}/submit.php</code></div>
+        <div class="rounded-md bg-zinc-50 p-3"><div class="text-xs text-zinc-500">移动端创建订单</div><code class="mt-1 block break-all font-mono text-zinc-900">{$baseUrl}/mapi.php</code></div>
+      </div>
+      <pre class="mt-4 overflow-auto rounded-md bg-zinc-950 p-4 text-xs leading-6 text-zinc-100">创建订单字段：
+pid={$user.pid}
+type=wxpay 或 alipay
+out_trade_no=商户单号
+money=订单金额
+name=商品名称
+notify_url=异步通知地址
+return_url=同步跳转地址
+param=透传参数
+sign=MD5签名
+sign_type=MD5
+
+签名规则：
+参数按 ASCII 排序，排除 sign、sign_type、空值，拼接 k=v&... 后追加 API KEY，MD5 小写。</pre>
+    </section>
+
+    <section id="codepay" class="scroll-mt-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+      <h2 class="text-lg font-semibold text-zinc-950">码支付</h2>
+      <div class="mt-4 rounded-md bg-zinc-50 p-3 text-sm">
+        <div class="text-xs text-zinc-500">创建订单</div>
+        <code class="mt-1 block break-all font-mono text-zinc-900">{$baseUrl}/creat_order/</code>
+      </div>
+      <pre class="mt-4 overflow-auto rounded-md bg-zinc-950 p-4 text-xs leading-6 text-zinc-100">创建订单字段：
+id={$user.pid}
+type=1 或 2
+pay_id=商户单号
+price=订单金额
+name=商品名称
+notify_url=异步通知地址
+return_url=同步跳转地址
+param=透传参数
+sign=MD5签名
+
+渠道映射：
+type=1 微信支付
+type=2 支付宝
+
+签名规则：
+md5(pay_id + param + type + price + API_KEY)</pre>
+    </section>
+
+    <section id="yuanpay" class="scroll-mt-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+      <h2 class="text-lg font-semibold text-zinc-950">源支付</h2>
+      <div class="mt-4 grid gap-3 text-sm md:grid-cols-2">
+        <div class="rounded-md bg-zinc-50 p-3"><div class="text-xs text-zinc-500">创建订单</div><code class="mt-1 block break-all font-mono text-zinc-900">{$baseUrl}/yuanpay/submit</code></div>
+        <div class="rounded-md bg-zinc-50 p-3"><div class="text-xs text-zinc-500">移动端创建订单</div><code class="mt-1 block break-all font-mono text-zinc-900">{$baseUrl}/yuanpay/mapi</code></div>
+      </div>
+      <pre class="mt-4 overflow-auto rounded-md bg-zinc-950 p-4 text-xs leading-6 text-zinc-100">创建订单字段：
+pid={$user.pid}
+type=wxpay 或 alipay
+out_trade_no=商户单号
+money=订单金额
+name=商品名称
+notify_url=异步通知地址
+return_url=同步跳转地址
+param=透传参数
+sign=MD5签名
+sign_type=MD5
+
+签名规则：
+与易支付一致，参数按 ASCII 排序后追加 API KEY，MD5 小写。</pre>
+    </section>
+
+    <section id="callback" class="scroll-mt-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+      <h2 class="text-lg font-semibold text-zinc-950">回调参数说明</h2>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <pre class="overflow-auto rounded-md bg-zinc-950 p-4 text-xs leading-6 text-zinc-100">易支付 / 源支付回调：
+pid=商户号
+trade_no=平台订单号
+out_trade_no=商户单号
+type=wxpay 或 alipay
+name=商品名称
+money=实付金额
+trade_status=TRADE_SUCCESS
+sign=MD5签名
+sign_type=MD5
+
+成功响应：
+success</pre>
+        <pre class="overflow-auto rounded-md bg-zinc-950 p-4 text-xs leading-6 text-zinc-100">码支付回调：
+id=商户号
+pay_id=商户单号
+param=透传参数
+type=1 或 2
+price=订单金额
+reallyprice=实付金额
+sign=MD5签名
+
+成功响应：
+success</pre>
+      </div>
+    </section>
+  </div>
+</div>
+{/block}

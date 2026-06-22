@@ -1,0 +1,10 @@
+docs
+AGENTS.md
+CLAUDE.md
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/

@@ -1,0 +1,55 @@
+{extend name="merchant_layout"}
+{block name="title"}订单测试{/block}
+{block name="content"}
+<div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <p class="text-sm font-medium text-teal-700">Order Test</p>
+    <h1 class="mt-1 text-2xl font-semibold text-zinc-950">订单测试</h1>
+  </div>
+  <div class="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500 shadow-sm">
+    PID <span class="ml-1 font-mono text-zinc-900">{$user.pid}</span>
+  </div>
+</div>
+
+<section class="grid gap-5 lg:grid-cols-[minmax(0,520px)_1fr]">
+  <form method="post" action="/order-test" class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+    <input type="hidden" name="_csrf" value="{:csrf_token()}">
+    <div class="grid gap-4">
+      <label class="block">
+        <span class="text-sm font-medium text-zinc-700">测试金额</span>
+        <input name="money" value="{$defaultAmount}" inputmode="decimal" class="mt-1 h-11 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium text-zinc-700">付款渠道</span>
+        <select name="channel" class="mt-1 h-11 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+          <option value="wxpay">微信支付</option>
+          <option value="alipay">支付宝</option>
+        </select>
+      </label>
+    </div>
+    <button class="mt-5 w-full rounded-md bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800">创建测试订单</button>
+  </form>
+
+  <div class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+    <div class="text-sm font-semibold text-zinc-950">下单配置</div>
+    <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+      <div class="rounded-md bg-zinc-50 p-3">
+        <dt class="text-xs text-zinc-500">协议</dt>
+        <dd class="mt-1 font-mono text-zinc-900">epay</dd>
+      </div>
+      <div class="rounded-md bg-zinc-50 p-3">
+        <dt class="text-xs text-zinc-500">订单有效期</dt>
+        <dd class="mt-1 font-mono text-zinc-900">{$user.order_timeout} 秒</dd>
+      </div>
+      <div class="rounded-md bg-zinc-50 p-3">
+        <dt class="text-xs text-zinc-500">浮动方向</dt>
+        <dd class="mt-1 font-mono text-zinc-900">{$user.float_mode}</dd>
+      </div>
+      <div class="rounded-md bg-zinc-50 p-3">
+        <dt class="text-xs text-zinc-500">每次上浮单位</dt>
+        <dd class="mt-1 font-mono text-zinc-900">{$user.float_step}</dd>
+      </div>
+    </dl>
+  </div>
+</section>
+{/block}

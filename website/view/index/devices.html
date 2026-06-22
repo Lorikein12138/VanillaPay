@@ -1,0 +1,80 @@
+{extend name="merchant_layout"}
+{block name="title"}监控设备{/block}
+{block name="content"}
+<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <p class="text-sm font-medium text-teal-700">Devices</p>
+    <h1 class="mt-1 text-2xl font-semibold text-zinc-950">监控设备</h1>
+  </div>
+  <div class="flex flex-wrap items-center gap-3">
+    <a href="/download/app-release.apk" download class="whitespace-nowrap rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800">下载应用</a>
+    {if condition="$currentDevice.is_bound"}
+    <form method="post" action="/devices/delete" onsubmit="return confirm('换绑会解绑当前设备并生成新的绑定二维码，确认继续？');">
+      <input type="hidden" name="_csrf" value="{:csrf_token()}">
+      <input type="hidden" name="id" value="{$currentDevice.id}">
+      <button class="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50">换绑设备</button>
+    </form>
+    {/if}
+  </div>
+</div>
+
+{if condition="$currentDevice.is_bound"}
+<section class="grid gap-4 md:grid-cols-3">
+  <article class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+    <div class="text-sm text-zinc-500">设备状态</div>
+    {eq name="currentDevice.status" value="online"}
+    <div class="mt-3 text-2xl font-semibold text-emerald-700">在线</div>
+    {else/}
+    <div class="mt-3 text-2xl font-semibold text-zinc-700">离线</div>
+    {/eq}
+  </article>
+
+  <article class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+    <div class="text-sm text-zinc-500">最新心跳时间</div>
+    <div class="mt-3 break-all font-mono text-lg font-semibold text-zinc-950">{$currentDevice.last_heartbeat|default='-'}</div>
+  </article>
+
+  <article class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+    <div class="text-sm text-zinc-500">版本</div>
+    <div class="mt-3 break-all font-mono text-lg font-semibold text-zinc-950">{$currentDevice.app_version|default='-'}</div>
+  </article>
+</section>
+{else/}
+<section class="grid gap-5 lg:grid-cols-[360px_1fr]">
+  <article class="rounded-lg border border-zinc-200 bg-white p-5 text-center shadow-sm transition hover:shadow-soft">
+    <div class="mx-auto flex h-64 w-64 max-w-full items-center justify-center rounded-lg bg-zinc-50 p-4 ring-1 ring-zinc-100">
+      {if condition="$currentDevice.binding_qr"}
+      <img src="{$currentDevice.binding_qr}" class="h-full w-full object-contain" alt="绑定二维码">
+      {else/}
+      <span class="text-sm text-zinc-500">二维码生成失败</span>
+      {/if}
+    </div>
+    <div class="mt-4 text-sm font-semibold text-zinc-950">绑定二维码</div>
+  </article>
+
+  <article class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+    <div class="text-sm font-medium text-zinc-700">绑定串</div>
+    <code class="mt-3 block break-all rounded-md bg-zinc-50 p-4 font-mono text-xs leading-6 text-zinc-700 ring-1 ring-zinc-100">{$currentDevice.binding_payload}</code>
+    <div class="mt-4 rounded-md bg-teal-50 px-3 py-2 text-sm text-teal-800 ring-1 ring-teal-100">等待 App 绑定，完成后页面会自动刷新。</div>
+  </article>
+</section>
+<script>
+  (function () {
+    var refreshed = false;
+    function pollDeviceBinding() {
+      if (refreshed) return;
+      fetch('/devices/status', {headers: {'Accept': 'application/json'}})
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          if (!data || !data.is_bound) return;
+          refreshed = true;
+          window.location.reload();
+        })
+        .catch(function () {});
+    }
+    pollDeviceBinding();
+    setInterval(pollDeviceBinding, 3000);
+  })();
+</script>
+{/if}
+{/block}
