@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Full-bleed legacy launcher bitmaps are intentional: they prevent OEM launchers
+         from adding visible corner fills around the adaptive icon background art. -->
+    <issue id="IconLauncherShape">
+        <ignore path="src/main/res/drawable-*/ic_launcher.png" />
+        <ignore path="src/main/res/drawable-*/ic_launcher_bg.png" />
+    </issue>
+
+    <!-- Vendor System UI implementations still prefer density PNG notification icons
+         on some devices; the vector remains the canonical Android small icon. -->
+    <issue id="IconXmlAndPng">
+        <ignore path="src/main/res/drawable/ic_notification_vanillapay.xml" />
+        <ignore path="src/main/res/drawable-*/ic_notification_vanillapay.png" />
+    </issue>
+</lint>

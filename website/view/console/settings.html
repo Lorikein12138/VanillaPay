@@ -1,0 +1,60 @@
+{extend name="layout"}
+{block name="title"}系统设置{/block}
+{block name="content"}
+<div class="mb-5">
+  <p class="text-sm font-medium text-teal-700">System Settings</p>
+  <h1 class="mt-1 text-2xl font-semibold text-zinc-950">系统设置</h1>
+</div>
+
+<form method="post" action="/console/settings/save" class="max-w-4xl rounded-lg border border-zinc-200 bg-white p-5 text-sm shadow-sm">
+  <input type="hidden" name="_csrf" value="{:csrf_token()}">
+
+  <div class="mb-5 border-b border-zinc-100 pb-4">
+    <h2 class="text-lg font-semibold text-zinc-950">SMTP 邮件服务</h2>
+    <p class="mt-1 text-sm text-zinc-500">用于注册邮箱验证码、密码重置验证码等系统邮件。</p>
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-2">
+    <label class="block">
+      <span class="font-semibold text-zinc-800">SMTP 服务器</span>
+      <input name="smtp_host" value="{$s.smtp_host|default=''}" placeholder="smtp.example.com" class="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+    </label>
+
+    <label class="block">
+      <span class="font-semibold text-zinc-800">SMTP 端口</span>
+      <input name="smtp_port" value="{$s.smtp_port|default='587'}" inputmode="numeric" placeholder="587" class="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+    </label>
+
+    <label class="block">
+      <span class="font-semibold text-zinc-800">加密方式</span>
+      <select name="smtp_secure" class="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+        <option value="tls" {if condition="!isset($s['smtp_secure']) || $s['smtp_secure']=='tls'"}selected{/if}>TLS</option>
+        <option value="ssl" {if condition="isset($s['smtp_secure']) && $s['smtp_secure']=='ssl'"}selected{/if}>SSL</option>
+        <option value="" {if condition="isset($s['smtp_secure']) && $s['smtp_secure']==''"}selected{/if}>不加密</option>
+      </select>
+    </label>
+
+    <label class="block">
+      <span class="font-semibold text-zinc-800">SMTP 用户名</span>
+      <input name="smtp_username" value="{$s.smtp_username|default=''}" autocomplete="off" class="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+    </label>
+
+    <label class="block">
+      <span class="font-semibold text-zinc-800">SMTP 密码</span>
+      <input name="smtp_password" type="password" autocomplete="new-password" placeholder="留空则不修改" class="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+    </label>
+
+    <label class="block">
+      <span class="font-semibold text-zinc-800">发件邮箱</span>
+      <input name="smtp_from_email" value="{$s.smtp_from_email|default=''}" type="email" placeholder="noreply@example.com" class="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+    </label>
+
+    <label class="block md:col-span-2">
+      <span class="font-semibold text-zinc-800">发件名称</span>
+      <input name="smtp_from_name" value="{$s.smtp_from_name|default='VanillaPay'}" class="mt-2 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+    </label>
+  </div>
+
+  <button class="mt-6 rounded-md bg-zinc-950 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-zinc-800">保存设置</button>
+</form>
+{/block}

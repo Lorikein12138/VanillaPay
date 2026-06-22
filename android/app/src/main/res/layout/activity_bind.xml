@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/screen_padding">
+
+        <FrameLayout
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginTop="@dimen/space_lg">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_circle"
+                android:backgroundTint="@color/brand_container" />
+
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_link"
+                app:tint="@color/brand_primary" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_lg"
+            android:text="@string/bind_title"
+            android:textAppearance="@style/TextAppearance.VanillaPay.Title" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_xs"
+            android:text="@string/bind_subtitle"
+            android:textAppearance="@style/TextAppearance.VanillaPay.Body" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilPayload"
+            style="@style/Widget.VanillaPay.TextInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_2xl"
+            android:hint="@string/bind_hint">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etPayload"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textUri" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBind"
+            style="@style/Widget.VanillaPay.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_lg"
+            android:text="@string/bind_action" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnScan"
+            style="@style/Widget.VanillaPay.Button.Tonal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_md"
+            android:text="@string/bind_scan"
+            app:icon="@drawable/ic_qr"
+            app:iconGravity="textStart" />
+
+    </LinearLayout>
+</ScrollView>

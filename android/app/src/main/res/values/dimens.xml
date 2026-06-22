@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Spacing scale -->
+    <dimen name="space_xs">4dp</dimen>
+    <dimen name="space_sm">8dp</dimen>
+    <dimen name="space_md">12dp</dimen>
+    <dimen name="space_lg">16dp</dimen>
+    <dimen name="space_xl">20dp</dimen>
+    <dimen name="space_2xl">24dp</dimen>
+
+    <!-- Layout -->
+    <dimen name="screen_padding">20dp</dimen>
+    <dimen name="card_padding">16dp</dimen>
+    <dimen name="card_gap">12dp</dimen>
+    <dimen name="card_radius">16dp</dimen>
+    <dimen name="button_radius">12dp</dimen>
+    <dimen name="button_height">52dp</dimen>
+    <dimen name="card_stroke">1dp</dimen>
+    <dimen name="card_elevation">1dp</dimen>
+
+    <!-- Type scale -->
+    <dimen name="text_amount">30sp</dimen>
+    <dimen name="text_title">20sp</dimen>
+    <dimen name="text_card_title">16sp</dimen>
+    <dimen name="text_body">14sp</dimen>
+    <dimen name="text_label">12sp</dimen>
+
+    <!-- Components -->
+    <dimen name="icon_md">24dp</dimen>
+    <dimen name="icon_lg">40dp</dimen>
+</resources>

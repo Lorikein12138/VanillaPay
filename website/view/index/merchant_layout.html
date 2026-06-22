@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{block name="title"}商户中心{/block} - VanillaPay</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/static/dist/app.css?v={:asset_version('/static/dist/app.css')}">
+</head>
+<body class="min-h-screen bg-zinc-100 text-zinc-900">
+  <div class="flex min-h-screen">
+    <aside class="hidden w-64 border-r border-zinc-200/80 bg-white/95 p-5 shadow-soft backdrop-blur md:block">
+      <div class="mb-8">
+        <div class="flex items-center gap-2 text-lg font-semibold tracking-normal text-zinc-950">
+          <img src="/static/brand/VanillaClub.png" class="h-8 w-8 rounded-md object-cover" alt="VanillaPay">
+          <span>VanillaPay</span>
+        </div>
+        <div class="mt-1 text-xs text-zinc-500">Merchant Console</div>
+      </div>
+      <nav class="space-y-1 text-sm">
+        <a class="block rounded-md px-3 py-2.5 text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950" href="/dashboard">数据面板</a>
+        <a class="block rounded-md px-3 py-2.5 text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950" href="/credentials">商户凭证</a>
+        <a class="block rounded-md px-3 py-2.5 text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950" href="/qrcodes">收款信息</a>
+        <a class="block rounded-md px-3 py-2.5 text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950" href="/devices">监控设备</a>
+        <a class="block rounded-md px-3 py-2.5 text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950" href="/orders">订单信息</a>
+        <a class="block rounded-md px-3 py-2.5 text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950" href="/float">金额浮动</a>
+        <a class="block rounded-md px-3 py-2.5 text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950" href="/order-test">订单测试</a>
+        <a class="block rounded-md px-3 py-2.5 text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950" href="/docs">接入文档</a>
+        <form method="post" action="/logout">
+          <input type="hidden" name="_csrf" value="{:csrf_token()}">
+          <button class="block w-full rounded-md px-3 py-2.5 text-left text-rose-700 transition hover:bg-rose-50" type="submit">退出</button>
+        </form>
+      </nav>
+    </aside>
+    <main class="min-w-0 flex-1">
+      <header class="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/85 px-4 py-3 backdrop-blur md:hidden">
+        <div class="flex items-center justify-between gap-3">
+          <a href="/dashboard" class="flex items-center gap-2 text-base font-semibold text-zinc-950">
+            <img src="/static/brand/VanillaClub.png" class="h-7 w-7 rounded-md object-cover" alt="VanillaPay">
+            <span>VanillaPay</span>
+          </a>
+          <form method="post" action="/logout">
+            <input type="hidden" name="_csrf" value="{:csrf_token()}">
+            <button type="submit" class="rounded-md border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700">退出</button>
+          </form>
+        </div>
+        <nav class="mt-3 flex gap-2 overflow-x-auto pb-1 text-xs">
+          <a class="shrink-0 rounded-md bg-zinc-900 px-3 py-1.5 text-white" href="/dashboard">数据面板</a>
+          <a class="shrink-0 rounded-md bg-white px-3 py-1.5 text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50" href="/qrcodes">收款信息</a>
+          <a class="shrink-0 rounded-md bg-white px-3 py-1.5 text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50" href="/devices">监控设备</a>
+          <a class="shrink-0 rounded-md bg-white px-3 py-1.5 text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50" href="/orders">订单信息</a>
+          <a class="shrink-0 rounded-md bg-white px-3 py-1.5 text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50" href="/order-test">测试</a>
+          <a class="shrink-0 rounded-md bg-white px-3 py-1.5 text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50" href="/docs">文档</a>
+        </nav>
+      </header>
+      <div class="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+        {if condition="$Think.session.flash"}
+          {eq name="Think.session.flash_tone" value="error"}
+            <div class="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 shadow-sm">{$Think.session.flash}</div>
+          {else/}
+            {eq name="Think.session.flash_tone" value="success"}
+              <div class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 shadow-sm">{$Think.session.flash}</div>
+            {else/}
+              <div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 shadow-sm">{$Think.session.flash}</div>
+            {/eq}
+          {/eq}
+        {/if}
+        {block name="content"}{/block}
+      </div>
+    </main>
+  </div>
+</body>
+</html>

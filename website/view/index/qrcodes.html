@@ -1,0 +1,83 @@
+{extend name="merchant_layout"}
+{block name="title"}收款信息{/block}
+{block name="content"}
+<div class="mb-6">
+  <p class="text-sm font-medium text-teal-700">Payment Codes</p>
+  <h1 class="mt-1 text-2xl font-semibold text-zinc-950">收款信息</h1>
+</div>
+
+{if condition="!$uploadDiagnostics.ready"}
+<section class="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 shadow-sm">
+  <div class="font-semibold">二维码上传环境异常</div>
+  <div class="mt-2 grid gap-2 md:grid-cols-3">
+    <div>GD 扩展：{if condition="$uploadDiagnostics.gd"}已启用{else/}未启用{/if}</div>
+    <div>fileinfo 扩展：{if condition="$uploadDiagnostics.fileinfo"}已启用{else/}未启用{/if}</div>
+    <div>上传目录可写：{if condition="$uploadDiagnostics.upload_writable"}是{else/}否{/if}</div>
+  </div>
+</section>
+{/if}
+
+<section class="grid gap-5 lg:grid-cols-2">
+  <article class="flex min-h-[520px] flex-col rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <p class="text-sm text-zinc-500">WeChat Pay</p>
+        <h2 class="mt-1 text-xl font-semibold text-zinc-950">微信收款</h2>
+      </div>
+      <span class="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">wxpay</span>
+    </div>
+
+    <div class="mt-5 flex flex-1 items-center justify-center rounded-lg bg-zinc-50 p-5 ring-1 ring-zinc-100">
+      {if condition="$wxpayQr"}
+      <img src="{$wxpayQr.qr_image_path}" class="max-h-80 w-full max-w-80 object-contain" alt="微信收款二维码">
+      {else/}
+      <div class="flex h-80 w-full max-w-80 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white text-sm text-zinc-500">未上传微信收款码</div>
+      {/if}
+    </div>
+
+    <div class="mt-5 border-t border-zinc-100 pt-4">
+      <div class="mb-3 flex items-center justify-between text-sm">
+        <span class="font-medium text-zinc-700">付款渠道</span>
+        <span class="font-mono text-xs text-zinc-500">wxpay</span>
+      </div>
+      <form method="post" action="/qrcodes/upload" enctype="multipart/form-data" class="grid gap-3 sm:grid-cols-[1fr_auto]">
+        <input type="hidden" name="_csrf" value="{:csrf_token()}">
+        <input type="hidden" name="channel" value="wxpay">
+        <input name="qrcode" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="h-11 rounded-md border border-zinc-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white">
+        <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800">上传或替换</button>
+      </form>
+    </div>
+  </article>
+
+  <article class="flex min-h-[520px] flex-col rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-soft">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <p class="text-sm text-zinc-500">Alipay</p>
+        <h2 class="mt-1 text-xl font-semibold text-zinc-950">支付宝收款</h2>
+      </div>
+      <span class="rounded-md bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">alipay</span>
+    </div>
+
+    <div class="mt-5 flex flex-1 items-center justify-center rounded-lg bg-zinc-50 p-5 ring-1 ring-zinc-100">
+      {if condition="$alipayQr"}
+      <img src="{$alipayQr.qr_image_path}" class="max-h-80 w-full max-w-80 object-contain" alt="支付宝收款二维码">
+      {else/}
+      <div class="flex h-80 w-full max-w-80 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white text-sm text-zinc-500">未上传支付宝收款码</div>
+      {/if}
+    </div>
+
+    <div class="mt-5 border-t border-zinc-100 pt-4">
+      <div class="mb-3 flex items-center justify-between text-sm">
+        <span class="font-medium text-zinc-700">付款渠道</span>
+        <span class="font-mono text-xs text-zinc-500">alipay</span>
+      </div>
+      <form method="post" action="/qrcodes/upload" enctype="multipart/form-data" class="grid gap-3 sm:grid-cols-[1fr_auto]">
+        <input type="hidden" name="_csrf" value="{:csrf_token()}">
+        <input type="hidden" name="channel" value="alipay">
+        <input name="qrcode" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="h-11 rounded-md border border-zinc-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white">
+        <button class="rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800">上传或替换</button>
+      </form>
+    </div>
+  </article>
+</section>
+{/block}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{block name="title"}控制台{/block} - VanillaPay</title>
+  <link rel="stylesheet" href="/static/dist/app.css?v={:asset_version('/static/dist/app.css')}">
+</head>
+<body class="min-h-screen bg-zinc-100 text-zinc-900">
+  <div class="flex min-h-screen">
+    <aside class="w-60 shrink-0 border-r border-zinc-900 bg-zinc-950 p-4 text-sm text-zinc-300">
+      <div class="mb-7">
+        <div class="text-lg font-semibold text-white">VanillaPay</div>
+        <div class="mt-1 text-xs text-zinc-500">Console Admin</div>
+      </div>
+      <nav class="space-y-1">
+        <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/dashboard">数据面板</a>
+        <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/merchants">商户管理</a>
+        <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/orders">订单信息</a>
+        <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/devices">设备信息</a>
+        <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/channels">支付管理</a>
+        <a class="block rounded-md px-3 py-2 transition hover:bg-zinc-800 hover:text-white" href="/console/settings">系统设置</a>
+        <form method="post" action="/console/logout">
+          <input type="hidden" name="_csrf" value="{:csrf_token()}">
+          <button class="block w-full rounded-md px-3 py-2 text-left text-rose-300 transition hover:bg-zinc-800 hover:text-rose-100" type="submit">退出</button>
+        </form>
+      </nav>
+    </aside>
+    <main class="min-w-0 flex-1 p-6">
+      {if condition="$Think.session.flash"}<div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{$Think.session.flash}</div>{/if}
+      {block name="content"}{/block}
+    </main>
+  </div>
+</body>
+</html>

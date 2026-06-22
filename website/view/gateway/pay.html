@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{$channelName}收银台 - VanillaPay</title>
+  <link rel="stylesheet" href="/static/dist/app.css?v={:asset_version('/static/dist/app.css')}">
+</head>
+{eq name="theme.code" value="wxpay"}
+<body class="min-h-screen bg-emerald-50 px-4 py-6 text-zinc-900 lg:flex lg:items-center lg:py-6">
+{else/}
+<body class="min-h-screen bg-sky-50 px-4 py-6 text-zinc-900 lg:flex lg:items-center lg:py-6">
+{/eq}
+  <main class="mx-auto w-full max-w-md lg:max-w-5xl">
+    <section class="overflow-hidden rounded-2xl border border-white/80 bg-white shadow-soft lg:grid lg:h-[calc(100vh-3rem)] lg:max-h-[680px] lg:min-h-[520px] lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+      {eq name="theme.code" value="wxpay"}
+      <div class="bg-gradient-to-br from-emerald-500 to-teal-600 px-5 py-6 text-white lg:flex lg:flex-col lg:p-7">
+      {else/}
+      <div class="bg-gradient-to-br from-sky-500 to-blue-600 px-5 py-6 text-white lg:flex lg:flex-col lg:p-7">
+      {/eq}
+        <div>
+          <div>
+            <p class="text-sm font-medium text-white/80">{$channelName}收银台</p>
+            <h1 class="mt-2 text-xl font-semibold">请使用{$channelName}扫码支付</h1>
+          </div>
+          <div class="mt-5 text-4xl font-semibold tracking-normal lg:mt-7 lg:text-5xl">￥{$order.real_amount}</div>
+          <p class="mt-2 text-sm text-white/80">必须按此金额付款，金额不一致无法自动到账</p>
+        </div>
+
+        <div id="qr-panel" class="mt-8 flex justify-center lg:mt-0 lg:flex-1 lg:items-center lg:justify-center">
+          <div class="inline-flex w-fit rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-white/30 lg:self-center">
+            <img src="{$qrImage}" alt="收款码" class="h-56 w-56 object-contain sm:h-64 sm:w-64 lg:h-[min(32vh,220px)] lg:w-[min(32vh,220px)]">
+          </div>
+        </div>
+      </div>
+
+      <div class="p-5 lg:flex lg:flex-col lg:justify-between lg:bg-zinc-50/70 lg:p-7">
+        <div>
+          <p class="text-sm font-medium text-zinc-500">订单详情</p>
+          <h2 class="mt-1 text-xl font-semibold text-zinc-950">核对付款信息</h2>
+        </div>
+
+        <section class="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 text-sm shadow-sm lg:mt-0">
+          <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2 lg:py-1.5">
+            <span class="text-zinc-500">商品名</span>
+            <span class="max-w-[220px] truncate font-medium text-zinc-900">{$order.product_name}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2 lg:py-1.5">
+            <span class="text-zinc-500">付款渠道</span>
+            <span class="font-medium text-zinc-900">{$channelName}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2 lg:py-1.5">
+            <span class="text-zinc-500">剩余支付时间</span>
+            {eq name="theme.code" value="wxpay"}
+            <span id="countdown" class="font-mono font-semibold text-emerald-700" data-remaining="{$remainingSeconds}" data-expired="{$expiredUrl}">--:--</span>
+            {else/}
+            <span id="countdown" class="font-mono font-semibold text-sky-700" data-remaining="{$remainingSeconds}" data-expired="{$expiredUrl}">--:--</span>
+            {/eq}
+          </div>
+          <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2 lg:py-1.5">
+            <span class="text-zinc-500">下单时间</span>
+            <span class="font-medium text-zinc-900">{$order.create_time}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-b border-zinc-100 py-2 lg:py-1.5">
+            <span class="text-zinc-500">过期时间</span>
+            <span class="font-medium text-zinc-900">{$expireAt}</span>
+          </div>
+          <div class="py-2 lg:py-1.5">
+            <div class="text-zinc-500">订单号</div>
+            <div class="mt-1 break-all font-mono text-xs text-zinc-900">{$order.order_no}</div>
+          </div>
+          <div class="border-t border-zinc-100 py-2 lg:py-1.5">
+            <div class="text-zinc-500">商户单号</div>
+            <div class="mt-1 break-all font-mono text-xs text-zinc-900">{$order.out_trade_no}</div>
+          </div>
+        </section>
+
+        <div class="mt-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-center shadow-sm lg:mt-0">
+          <p id="status" class="text-sm text-zinc-500">等待支付...</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="success-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/45 px-4">
+    <div class="w-full max-w-xs rounded-2xl bg-white p-6 text-center shadow-2xl">
+      {eq name="theme.code" value="wxpay"}
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl font-semibold text-emerald-700">✓</div>
+      {else/}
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-2xl font-semibold text-sky-700">✓</div>
+      {/eq}
+      <div class="mt-4 text-lg font-semibold text-zinc-950">支付成功</div>
+      <p class="mt-2 text-sm text-zinc-500">正在进入支付结果页...</p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var el = document.getElementById('countdown');
+      if (!el) return;
+      var remaining = parseInt(el.dataset.remaining || '0', 10);
+      var expiredUrl = el.dataset.expired || '';
+      var redirected = false;
+      function expireNow() {
+        if (redirected) return;
+        redirected = true;
+        var qrPanel = document.getElementById('qr-panel');
+        var status = document.getElementById('status');
+        if (qrPanel) qrPanel.classList.add('hidden');
+        if (status) status.textContent = '订单已超时，正在关闭付款二维码...';
+        if (expiredUrl) {
+          setTimeout(function () {
+            window.location.replace(expiredUrl);
+          }, 300);
+        }
+      }
+      function render() {
+        var safe = Math.max(0, remaining);
+        var minutes = Math.floor(safe / 60);
+        var seconds = safe % 60;
+        el.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        if (safe <= 0) {
+          expireNow();
+          return;
+        }
+        remaining -= 1;
+        setTimeout(render, 1000);
+      }
+      render();
+    })();
+  </script>
+  <script src="/static/vendor/poll.js?v={:asset_version('/static/vendor/poll.js')}" data-order="{$order.order_no}" data-return="{$order.return_url}" data-success="/pay/success/{$order.order_no}" data-expired="/pay/expired/{$order.order_no}"></script>
+</body>
+</html>

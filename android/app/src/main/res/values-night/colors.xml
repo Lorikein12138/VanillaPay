@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand -->
+    <color name="brand_primary">#2DD4BF</color>
+    <color name="brand_on_primary">#042F2E</color>
+    <color name="brand_container">#134E4A</color>
+    <color name="brand_on_container">#CCFBF1</color>
+
+    <!-- Neutrals -->
+    <color name="background">#09090B</color>
+    <color name="surface">#18181B</color>
+    <color name="muted">#27272A</color>
+    <color name="border">#27272A</color>
+
+    <!-- Text -->
+    <color name="text_primary">#FAFAFA</color>
+    <color name="text_secondary">#A1A1AA</color>
+    <color name="text_tertiary">#71717A</color>
+
+    <!-- Status -->
+    <color name="success">#4ADE80</color>
+    <color name="success_container">#14532D</color>
+    <color name="warning">#FBBF24</color>
+    <color name="warning_container">#451A03</color>
+    <color name="danger">#F87171</color>
+    <color name="danger_container">#450A0A</color>
+
+    <!-- Channel accents -->
+    <color name="channel_wechat">#4ADE80</color>
+    <color name="channel_alipay">#60A5FA</color>
+
+    <!-- Overlay -->
+    <color name="scrim">#CC000000</color>
+</resources>

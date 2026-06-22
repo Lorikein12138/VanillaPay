@@ -1,0 +1,45 @@
+{extend name="merchant_layout"}
+{block name="title"}金额浮动{/block}
+{block name="content"}
+<div class="mb-6">
+  <p class="text-sm font-medium text-teal-700">Amount Float</p>
+  <h1 class="mt-1 text-2xl font-semibold text-zinc-950">金额浮动</h1>
+</div>
+
+<section class="grid gap-5 lg:grid-cols-[minmax(0,520px)_1fr]">
+  <form method="post" action="/float" class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5 text-sm shadow-sm transition hover:shadow-soft">
+    <input type="hidden" name="_csrf" value="{:csrf_token()}">
+    <label class="block">
+      <span class="font-medium text-zinc-700">方向</span>
+      <select name="float_mode" class="mt-1 h-11 w-full rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+        <option value="up" {eq name="user.float_mode" value="up"}selected{/eq}>向上</option>
+        <option value="down" {eq name="user.float_mode" value="down"}selected{/eq}>向下</option>
+        <option value="both" {eq name="user.float_mode" value="both"}selected{/eq}>双向</option>
+      </select>
+    </label>
+    <label class="block">
+      <span class="font-medium text-zinc-700">步长</span>
+      <input name="float_step" value="{$user.float_step}" class="mt-1 h-11 w-full rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+    </label>
+    <label class="block">
+      <span class="font-medium text-zinc-700">上限</span>
+      <input name="float_max" value="{$user.float_max}" class="mt-1 h-11 w-full rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+    </label>
+    <label class="block">
+      <span class="font-medium text-zinc-700">订单有效期（秒）</span>
+      <input name="order_timeout" value="{$user.order_timeout}" class="mt-1 h-11 w-full rounded-md border border-zinc-300 px-3 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+    </label>
+    <button class="w-full rounded-md bg-zinc-950 px-4 py-2.5 font-semibold text-white shadow-sm transition hover:bg-zinc-800">保存</button>
+  </form>
+
+  <div class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+    <div class="text-sm font-semibold text-zinc-950">当前规则</div>
+    <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+      <div class="rounded-md bg-zinc-50 p-3"><dt class="text-xs text-zinc-500">方向</dt><dd class="mt-1 font-mono text-zinc-900">{$user.float_mode}</dd></div>
+      <div class="rounded-md bg-zinc-50 p-3"><dt class="text-xs text-zinc-500">每次上浮单位</dt><dd class="mt-1 font-mono text-zinc-900">{$user.float_step}</dd></div>
+      <div class="rounded-md bg-zinc-50 p-3"><dt class="text-xs text-zinc-500">最大浮动</dt><dd class="mt-1 font-mono text-zinc-900">{$user.float_max}</dd></div>
+      <div class="rounded-md bg-zinc-50 p-3"><dt class="text-xs text-zinc-500">有效期</dt><dd class="mt-1 font-mono text-zinc-900">{$user.order_timeout}s</dd></div>
+    </dl>
+  </div>
+</section>
+{/block}

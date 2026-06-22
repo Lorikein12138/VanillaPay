@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>订单已超时 - VanillaPay</title>
+  <link rel="stylesheet" href="/static/dist/app.css?v={:asset_version('/static/dist/app.css')}">
+</head>
+{eq name="theme.code" value="wxpay"}
+<body class="min-h-screen bg-emerald-50 px-4 py-6 text-zinc-900 lg:flex lg:items-center">
+{else/}
+<body class="min-h-screen bg-sky-50 px-4 py-6 text-zinc-900 lg:flex lg:items-center">
+{/eq}
+  <main class="mx-auto w-full max-w-xl">
+    <section class="rounded-2xl border border-white/80 bg-white p-6 text-center shadow-soft sm:p-8">
+      {eq name="theme.code" value="wxpay"}
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl font-semibold text-emerald-700">!</div>
+      {else/}
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-2xl font-semibold text-sky-700">!</div>
+      {/eq}
+      <h1 class="mt-4 text-2xl font-semibold text-zinc-950">订单已超时</h1>
+      <p class="mt-2 text-sm text-zinc-500">付款二维码已失效，请返回重新下单。</p>
+
+      <div class="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-left text-sm">
+        <div class="flex items-center justify-between gap-3 border-b border-zinc-200 py-2">
+          <span class="text-zinc-500">付款渠道</span>
+          <span class="font-medium text-zinc-900">{$channelName}</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 border-b border-zinc-200 py-2">
+          <span class="text-zinc-500">付款金额</span>
+          <span class="font-medium text-zinc-900">￥{$order.real_amount}</span>
+        </div>
+        <div class="border-b border-zinc-200 py-2">
+          <div class="text-zinc-500">订单号</div>
+          <div class="mt-1 break-all font-mono text-xs text-zinc-900">{$order.order_no}</div>
+        </div>
+        <div class="py-2">
+          <div class="text-zinc-500">商户单号</div>
+          <div class="mt-1 break-all font-mono text-xs text-zinc-900">{$order.out_trade_no}</div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <a href="{$returnUrl}" class="rounded-md bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800">返回商户页面</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

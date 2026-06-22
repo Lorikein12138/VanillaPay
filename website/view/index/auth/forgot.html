@@ -1,0 +1,57 @@
+{extend name="layout"}
+{block name="title"}找回密码 - VanillaPay{/block}
+{block name="body"}
+<main class="relative min-h-screen overflow-x-hidden bg-[#f6f9f8] text-zinc-950">
+  <div class="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:48px_48px]"></div>
+  <div class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-gradient-to-br from-white via-teal-50/80 to-sky-50/60"></div>
+
+  <header class="flex h-16 w-full items-center justify-between px-4 sm:px-6 lg:px-10 xl:px-14">
+    <a href="/" class="flex min-w-0 items-center gap-3">
+      <img src="/static/brand/VanillaClub.png" alt="VanillaPay" class="h-10 w-10 rounded-lg object-cover shadow-sm ring-1 ring-white/80">
+      <span class="truncate text-base font-semibold tracking-normal text-zinc-950">VanillaPay</span>
+    </a>
+    <a href="/login" class="inline-flex h-10 items-center rounded-md border border-zinc-200 bg-white/85 px-4 text-sm font-semibold text-zinc-800 shadow-sm backdrop-blur transition hover:border-zinc-300 hover:bg-white">登录</a>
+  </header>
+
+  <section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center px-4 py-8 sm:px-6">
+    <section class="w-full rounded-lg border border-white/80 bg-white/88 p-6 shadow-2xl shadow-zinc-900/10 ring-1 ring-zinc-200/70 backdrop-blur-xl sm:p-8">
+      <div class="mb-6">
+        <h1 class="text-3xl font-semibold text-zinc-950">找回密码</h1>
+      </div>
+
+      {if condition="$Think.session.flash"}
+        {eq name="Think.session.flash_tone" value="success"}
+          <div class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{$Think.session.flash}</div>
+        {else/}
+          <div class="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{$Think.session.flash}</div>
+        {/eq}
+      {/if}
+
+      <form method="post" action="/reset" class="space-y-4">
+        <input type="hidden" name="_csrf" value="{:csrf_token()}">
+        <label class="block">
+          <span class="text-sm font-medium text-zinc-700">邮箱</span>
+          <input name="email" type="email" autocomplete="email" value="{$email|default=''}" class="mt-1 h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-zinc-700">邮箱验证码</span>
+          <div class="mt-1 grid gap-2 sm:grid-cols-[1fr_auto]">
+            <input name="email_code" inputmode="numeric" autocomplete="one-time-code" class="h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            <button type="submit" formaction="/forgot" formmethod="post" formnovalidate data-code-send-button data-code-ready-text="发送验证码" data-code-cooldown="60" data-code-cooldown-remaining="{$codeCooldownRemaining|default=0}" class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-800 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400">发送验证码</button>
+          </div>
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-zinc-700">新密码</span>
+          <input name="password" type="password" autocomplete="new-password" class="mt-1 h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+        </label>
+        <button class="flex h-11 w-full items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white shadow-sm shadow-zinc-900/20 transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">重置密码</button>
+      </form>
+
+      <div class="mt-5 flex justify-end text-sm">
+        <a href="/login" class="font-medium text-zinc-600 hover:text-zinc-950">返回登录</a>
+      </div>
+    </section>
+  </section>
+  {include file="auth/code_button_script"}
+</main>
+{/block}

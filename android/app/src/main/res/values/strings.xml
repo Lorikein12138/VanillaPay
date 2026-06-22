@@ -1,0 +1,80 @@
+<resources>
+    <string name="app_name">VanillaPay</string>
+
+    <string name="status_running">监听运行中</string>
+    <string name="status_notif_off">通知权限未开启</string>
+    <string name="perm_notif">通知使用权</string>
+    <string name="perm_notif_desc">读取到账通知用于核销</string>
+    <string name="perm_battery">电池优化白名单</string>
+    <string name="perm_battery_desc">允许后台常驻，避免被系统杀死</string>
+    <string name="perm_on">已开启</string>
+    <string name="perm_off">去开启</string>
+    <string name="hide_toast">已隐藏，监听服务在通知栏常驻运行</string>
+    <string name="keepalive_start_failed">启动监听服务失败：%1$s</string>
+
+    <!-- Bind -->
+    <string name="bind_title">绑定设备</string>
+    <string name="bind_subtitle">扫描或粘贴商户后台的绑定串，完成设备绑定。</string>
+    <string name="bind_hint">绑定串 serverUrl|id|key</string>
+    <string name="bind_action">绑定</string>
+    <string name="bind_scan">扫码绑定</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_group_device">设备</string>
+    <string name="settings_rebind">重新绑定</string>
+    <string name="settings_rebind_desc">更换服务器或设备绑定</string>
+    <string name="settings_version_fmt">版本 %1$s</string>
+    <string name="settings_about_version_fmt">%1$s · %2$s</string>
+
+    <!-- Log -->
+    <string name="log_title">上报日志</string>
+    <string name="log_empty">暂无上报记录</string>
+    <string name="money_amount_fmt">¥%1$s</string>
+    <string name="log_row_sub_fmt">%1$s · %2$s</string>
+
+    <!-- Scan -->
+    <string name="scan_hint">将二维码放入框内</string>
+
+    <!-- Channels -->
+    <string name="channel_wxpay">微信</string>
+    <string name="channel_alipay">支付宝</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_back">返回</string>
+    <string name="cd_settings">设置</string>
+    <string name="cd_channel">收款渠道</string>
+    <string name="cd_log">上报日志</string>
+
+    <!-- Dashboard additions -->
+    <string name="pid_label">PID</string>
+    <string name="total_amount_label">总金额</string>
+    <string name="total_count_label">总订单数</string>
+    <string name="value_empty">—</string>
+    <string name="amount_zero">¥0.00</string>
+    <string name="count_zero">0</string>
+    <string name="count_fmt">%1$d</string>
+    <string name="heartbeat_title">最新心跳</string>
+    <string name="heartbeat_test">测试心跳</string>
+    <string name="heartbeat_ok">心跳成功</string>
+    <string name="heartbeat_fail">心跳失败，请检查网络</string>
+
+    <!-- Permission gate -->
+    <string name="perm_gate_title">开启必要权限</string>
+    <string name="perm_gate_subtitle">为保证收款监听稳定运行，请开启以下全部权限后进入主页。</string>
+    <string name="perm_autostart">自启动</string>
+    <string name="perm_autostart_desc">允许被系统/重启后自动拉起，避免误杀</string>
+    <string name="perm_autostart_confirm">我已开启自启动</string>
+    <string name="perm_gate_enter">进入主页</string>
+
+    <!-- Settings additions -->
+    <string name="settings_group_permission">权限</string>
+    <string name="settings_selfcheck">权限自检</string>
+    <string name="settings_selfcheck_ok">权限正常</string>
+    <string name="settings_selfcheck_bad">权限异常，点击检测</string>
+    <string name="settings_selfcheck_ok_toast">权限正常</string>
+    <string name="settings_check">检测</string>
+    <string name="settings_group_run">运行</string>
+    <string name="settings_hide">隐藏到后台运行</string>
+    <string name="settings_hide_desc">关闭界面但保持监听后台运行</string>
+</resources>

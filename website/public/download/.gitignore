@@ -1,0 +1,3 @@
+# Web-accessible APK is uploaded to the server separately, not committed or deployed via zip.
+*.apk
+!.gitignore
