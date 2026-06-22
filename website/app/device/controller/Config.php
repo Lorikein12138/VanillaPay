@@ -26,21 +26,27 @@ class Config
             return json(['code' => -1, 'msg' => '签名错误']);
         }
 
+        // Incoming-money keywords only (收款/到账/入账/收钱); excludes 付款/退款 so outgoing
+        // or refunded payments are never matched. Amount sits right after a keyword, tolerating
+        // a few separators (¥ : 「金额」), thousands separators and up to two decimals.
+        $keyword = '收款|到账|入账|收钱';
+        $amountRegex = '(?:收款|到账|入账|收钱)[^0-9]{0,4}([0-9][0-9,]*(?:\\.[0-9]{1,2})?)';
+
         return json([
             'code' => 1,
-            'version' => 1,
+            'version' => 2,
             'rules' => [
                 [
                     'channel' => 'wxpay',
                     'package' => 'com.tencent.mm',
-                    'keyword' => '收款',
-                    'amountRegex' => '收款([0-9]+(?:\\.[0-9]{1,2})?)元',
+                    'keyword' => $keyword,
+                    'amountRegex' => $amountRegex,
                 ],
                 [
                     'channel' => 'alipay',
                     'package' => 'com.eg.android.AlipayGphone',
-                    'keyword' => '收款',
-                    'amountRegex' => '收款([0-9]+(?:\\.[0-9]{1,2})?)元',
+                    'keyword' => $keyword,
+                    'amountRegex' => $amountRegex,
                 ],
             ],
         ]);
