@@ -21,5 +21,5 @@ class RuleStore(context: Context) {
         return if (parsed.rules.isEmpty()) defaults() else parsed
     }
 
-    private fun defaults(): RuleSet = RuleSet(1, NotificationParser.defaultRules())
+    private fun defaults(): RuleSet = RuleSet(2, NotificationParser.defaultRules())
 }
