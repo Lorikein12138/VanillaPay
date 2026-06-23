@@ -34,6 +34,9 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnRebind).setOnClickListener {
             startActivity(Intent(this, BindActivity::class.java))
         }
+        findViewById<View>(R.id.btnDiagnostics).setOnClickListener {
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
+        }
         findViewById<View>(R.id.btnHide).setOnClickListener {
             // Keep the foreground listening service (+ its persistent notification) alive,
             // then remove the app from recents entirely so it is fully hidden (GKD style).

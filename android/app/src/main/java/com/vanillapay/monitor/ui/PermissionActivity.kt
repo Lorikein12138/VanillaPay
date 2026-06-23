@@ -54,6 +54,9 @@ class PermissionActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnEnter).setOnClickListener {
             if (PermissionManager.allGranted(this)) finish()
         }
+        findViewById<View>(R.id.tvLogEntry).setOnClickListener {
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
+        }
     }
 
     override fun onResume() {

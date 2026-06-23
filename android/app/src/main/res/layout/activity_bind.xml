@@ -79,5 +79,17 @@
             app:icon="@drawable/ic_qr"
             app:iconGravity="textStart" />
 
+        <TextView
+            android:id="@+id/tvLogEntry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/space_xl"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="@dimen/space_sm"
+            android:text="@string/log_entry_link"
+            android:textColor="@color/text_tertiary"
+            android:textSize="@dimen/text_label" />
+
     </LinearLayout>
 </ScrollView>
