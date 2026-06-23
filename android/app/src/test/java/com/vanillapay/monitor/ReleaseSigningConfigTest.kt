@@ -9,8 +9,8 @@ class ReleaseSigningConfigTest {
     fun `release package version matches the current release baseline`() {
         val source = File("build.gradle.kts").readText()
 
-        assertTrue(source.contains("versionCode = 2"))
-        assertTrue(source.contains("""versionName = "1.0.1""""))
+        assertTrue(source.contains("versionCode = 3"))
+        assertTrue(source.contains("""versionName = "1.0.2""""))
     }
 
     @Test
