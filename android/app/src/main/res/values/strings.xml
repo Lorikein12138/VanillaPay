@@ -35,6 +35,19 @@
 
     <!-- Scan -->
     <string name="scan_hint">将二维码放入框内</string>
+    <string name="scan_camera_error">相机启动失败：%1$s（详情见设置-应用日志）</string>
+
+    <!-- Diagnostics / app log -->
+    <string name="diag_title">日志</string>
+    <string name="diag_copy">复制</string>
+    <string name="diag_share">导出</string>
+    <string name="diag_refresh">刷新</string>
+    <string name="diag_clear">清空</string>
+    <string name="diag_empty">暂无日志</string>
+    <string name="diag_copied">日志已复制到剪贴板</string>
+    <string name="diag_cleared">日志已清空</string>
+    <string name="diag_share_subject">VanillaPay 运行日志</string>
+    <string name="log_entry_link">查看运行日志</string>
 
     <!-- Channels -->
     <string name="channel_wxpay">微信</string>
@@ -77,4 +90,7 @@
     <string name="settings_group_run">运行</string>
     <string name="settings_hide">隐藏到后台运行</string>
     <string name="settings_hide_desc">关闭界面但保持监听后台运行</string>
+    <string name="settings_group_diagnostics">诊断</string>
+    <string name="settings_diagnostics">日志</string>
+    <string name="settings_diagnostics_desc">通过运行日志排查问题</string>
 </resources>

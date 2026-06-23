@@ -6,11 +6,11 @@ import java.io.File
 
 class ReleaseSigningConfigTest {
     @Test
-    fun `release package version is reset to initial release`() {
+    fun `release package version matches the current release baseline`() {
         val source = File("build.gradle.kts").readText()
 
-        assertTrue(source.contains("versionCode = 1"))
-        assertTrue(source.contains("""versionName = "1.0.0""""))
+        assertTrue(source.contains("versionCode = 2"))
+        assertTrue(source.contains("""versionName = "1.0.1""""))
     }
 
     @Test

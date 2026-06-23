@@ -3,6 +3,7 @@ package com.vanillapay.monitor.ui
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
@@ -11,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.vanillapay.monitor.R
 import com.vanillapay.monitor.bind.BindingPayload
 import com.vanillapay.monitor.config.AppConfig
+import com.vanillapay.monitor.util.AppLog
 
 class BindActivity : AppCompatActivity() {
     private val scanLauncher = registerForActivityResult(
@@ -32,7 +34,11 @@ class BindActivity : AppCompatActivity() {
             bind(payloadInput.text.toString())
         }
         findViewById<Button>(R.id.btnScan).setOnClickListener {
+            AppLog.i("Bind", "launching scanner")
             scanLauncher.launch(Intent(this, ScanActivity::class.java))
+        }
+        findViewById<View>(R.id.tvLogEntry).setOnClickListener {
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
         }
     }
 
