@@ -40,7 +40,7 @@ class Heart
             'code' => 1,
             'pid' => (string) ($merchant['pid'] ?? ''),
             'server_time' => $this->clock->timestamp(),
-            'config' => ['heartbeat_interval' => 30, 'parse_rules_version' => 1],
+            'config' => ['heartbeat_interval' => 30, 'parse_rules_version' => 2],
         ]);
     }
 }
