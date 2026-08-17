@@ -32,6 +32,18 @@ class NotificationParserTest {
     }
 
     @Test
+    fun parsesAlipayIncomeFromScreenshotTitle() {
+        val result = ali(
+            text = "已转入余额 签到领积分，商城好物随心兑>>",
+            title = "你已成功收款97.00元（新顾客消费）",
+        )
+
+        assertNotNull(result)
+        assertEquals("alipay", result!!.channel)
+        assertEquals(9700L, result.amountCents)
+    }
+
+    @Test
     fun ignoresNonPaymentNotification() {
         assertNull(parser.parse("com.tencent.mm", "微信", "你有一条新消息"))
     }

@@ -34,7 +34,7 @@ class PaymentListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val notification = sbn.notification ?: return
         val extras = notification.extras ?: return
-        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+        val title = collectTitle(extras)
         val text = collectText(notification, extras)
         if (title.isBlank() && text.isBlank()) return
         val parser = NotificationParser(RuleStore(applicationContext).current().rules)
@@ -69,6 +69,18 @@ class PaymentListenerService : NotificationListenerService() {
     }
 
     /**
+     * Expanded notifications may move the visible heading from EXTRA_TITLE to
+     * EXTRA_TITLE_BIG. Keep both because payment apps and vendor System UIs do not
+     * consistently populate the same field.
+     */
+    private fun collectTitle(extras: Bundle): String = joinDistinctText(
+        listOf(
+            extras.getCharSequence(Notification.EXTRA_TITLE),
+            extras.getCharSequence(Notification.EXTRA_TITLE_BIG),
+        ),
+    )
+
+    /**
      * Gather every text-bearing field of a notification, not just title/text. Some phone
      * vendors (and WeChat's grouped notifications) put the amount in big-text, sub/info/summary
      * text, the inbox-style text lines, or the legacy ticker — reading only EXTRA_TEXT misses them.
@@ -82,13 +94,16 @@ class PaymentListenerService : NotificationListenerService() {
         parts.add(extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT))
         extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach { parts.add(it) }
         parts.add(notification.tickerText)
-        return parts.asSequence()
+        return joinDistinctText(parts)
+    }
+
+    private fun joinDistinctText(parts: Iterable<CharSequence?>): String =
+        parts.asSequence()
             .filterNotNull()
             .map { it.toString().trim() }
             .filter { it.isNotEmpty() }
             .distinct()
             .joinToString(" ")
-    }
 
     private fun isPaymentPackage(packageName: String): Boolean =
         packageName == "com.tencent.mm" || packageName == "com.eg.android.AlipayGphone"
