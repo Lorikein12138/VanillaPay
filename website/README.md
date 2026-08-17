@@ -1,56 +1,152 @@
 # VanillaPay 网站端
 
-VanillaPay 网站端是服务端应用，负责商户注册、收款二维码管理、Android 监控设备接入、订单匹配、兼容网关的订单创建、异步通知和运营管理。
+VanillaPay 网站端是基于 ThinkPHP 的服务端应用，负责商户与运营管理、收款二维码、兼容支付网关、订单生命周期、Android 设备接入、到账匹配和下游回调。
 
-项目基于 ThinkPHP 8、MySQL 兼容存储、Composer 和 Tailwind CSS 资源构建流程。
+- 项目总览：[../README.md](../README.md)
+- Android 监控端：[../android/README.md](../android/README.md)
 
-## 功能
+## 职责范围
 
-- 商户注册、登录、仪表盘、订单、二维码和设备绑定。
-- 每个商户对应一台监控设备，提供心跳、配置拉取和支付通知上传 API。
-- 微信支付和支付宝二维码管理，并在服务端进行图片处理。
-- 浮动金额匹配，以及过期订单的金额锁释放。
-- 面向 EPay、CodePay 和 YuanPay 风格客户端的兼容网关接口。
-- 下游 `notify_url` 回调重试和每日对账命令。
-- `/console` 运营控制台，用于管理商户、设备、订单、通道、风险事件、设置和对账。
+网站端提供以下能力：
 
-## 架构
+- 商户注册、登录、邮件验证、密码重置和凭据管理。
+- 微信支付、支付宝收款二维码上传、处理和启停。
+- 商户设备创建、换绑、状态查询和 APK 下载入口。
+- EPay、CodePay、YuanPay 风格的订单创建与查询接口。
+- 订单实际金额分配、金额锁、超时释放和手工补单。
+- Android 心跳、通知上报和解析规则下发接口。
+- 按商户、渠道、金额和有效期匹配支付通知。
+- 按协议生成签名回调、记录响应并进行退避重试。
+- 商户仪表盘、订单列表和 `/console` 运营控制台。
+- 风险事件、操作日志、登录日志和每日对账摘要。
 
-```text
-app/        应用模块、控制器、服务、命令、中间件
-config/     ThinkPHP 和应用配置
-database/   迁移和种子相关数据库文件
-public/     Web 文档根目录和静态资源
-route/      HTTP 路由定义
-view/       服务端渲染模板
+## 请求链路
+
+```mermaid
+flowchart TD
+    gateway["外部网关请求"] --> adapter["协议适配器"]
+    adapter --> creator["订单创建服务"]
+    creator --> lock["浮动金额锁"]
+    creator --> order["待支付订单"]
+    device["Android /app/push"] --> matcher["支付匹配服务"]
+    matcher --> order
+    matcher --> callback["下游回调"]
+    retry["回调重试任务"] --> callback
+    expire["订单过期任务"] --> lock
+    expire --> order
 ```
 
-重要运行时路径：
+## 技术基线
 
-```text
-runtime/                 框架缓存、日志和临时文件
-public/static/uploads/   上传的二维码图片和生成的资源
+- PHP、ThinkPHP、Composer 依赖和 PHPUnit 约束以 `composer.json` 与 `composer.lock` 为准。
+- 数据库使用 MySQL 或行为兼容的数据库，并采用 `utf8mb4` 字符集。
+- Node.js 仅用于 Tailwind CSS 构建，依赖约束以 `package.json` 与锁文件为准。
+- CI 运行时以 `.github/workflows/ci.yml` 为准。
+
+安装依赖后可运行以下命令检查当前环境是否满足 PHP 及扩展要求：
+
+```bash
+composer check-platform-reqs
 ```
 
-这些运行时路径在生产环境必须可写，且不应提交到仓库。
+建议启用的 PHP 扩展：
 
-## 环境要求
+```text
+pdo_mysql
+mbstring
+openssl
+curl
+fileinfo
+gd
+zip
+opcache
+```
 
-- PHP 8.1 或更高版本。PHP CLI 版本应与 Web 运行时保持一致。
-- MySQL 8.x 或其他兼容 MySQL 的数据库。
-- Composer 2.x。
-- Node.js 18 或更高版本，仅在重新构建 Tailwind CSS 资源时需要。
-- PHP 扩展：`pdo_mysql`、`mysqli`、`mbstring`、`openssl`、`curl`、`fileinfo`、`gd`、`zip` 和 `opcache`。
+运行 PHPUnit 还可能需要 `dom`、`xml` 和 `xmlwriter`。
 
-## 配置
+## 目录结构
 
-从示例文件创建运行时环境文件：
+```text
+website/
+├── app/
+│   ├── command/      计划任务和管理员命令
+│   ├── common/       领域服务、协议、仓储接口、DTO 和支持类
+│   ├── console/      运营控制台
+│   ├── device/       Android 设备 API
+│   ├── gateway/      兼容支付网关
+│   ├── index/        商户端页面与控制器
+│   ├── middleware/   HTTPS、安全头、限流和 CSRF 中间件
+│   └── provider.php  接口与实现的容器绑定
+├── config/           ThinkPHP 与应用配置
+├── database/         数据库迁移
+├── public/           Web 文档根目录、静态资源、上传和 APK 下载
+├── route/            路由定义
+├── tests/            PHPUnit 测试
+├── view/             服务端渲染模板
+├── deploy-server.sh  服务器端更新脚本
+└── pack-deploy.bat   Windows 部署包生成脚本
+```
+
+运行时目录：
+
+```text
+runtime/                  框架缓存、日志和临时文件
+public/static/uploads/    商户上传的二维码及处理结果
+public/download/          Android Release APK 下载目录
+```
+
+`runtime` 和 `public/static/uploads` 需要由 Web 进程写入。环境文件、上传内容、运行日志和 APK 构建产物均不进入 Git。
+
+## 架构约定
+
+### 领域服务
+
+核心业务位于 `app/common/service/`：
+
+- `GatewayOrderCreator`：将不同网关参数转换为统一订单输入。
+- `OrderCreationService`：校验订单、分配实际金额并建立金额锁。
+- `FloatAmountAllocator`：按商户策略生成可用金额候选。
+- `PaymentMatcher`：将设备通知原子匹配到有效待支付订单。
+- `CallbackSender`：构建协议回调、发送请求并记录结果。
+- `OrderExpirationService`：过期订单并释放金额锁。
+- `OrderSupplementService`：处理商户手工补单。
+- `DeviceProvisionService`：签发设备 ID、设备密钥和绑定数据。
+- `ReconciliationService`：生成按日订单与风险汇总。
+
+控制器只负责 HTTP 输入输出和权限边界。已有仓储接口时，业务代码通过 `app/common/repository/*Interface.php` 访问持久化层；实现绑定集中在 `app/provider.php`。
+
+### 金额
+
+业务金额统一经过 `app/common/support/Money.php`，领域逻辑以整数分处理。订单表中的展示金额由支持类在字符串金额与整数分之间转换，避免控制器或服务直接进行浮点金额运算。
+
+### 网关协议
+
+协议适配器实现 `PayProtocolAdapter`，并由 `AdapterRegistry` 注册。新增协议时应完成：
+
+1. 实现请求解析、签名校验、回调参数和成功响应文本。
+2. 在注册表中注册适配器。
+3. 添加显式路由。
+4. 覆盖创建、查询、回调和异常场景测试。
+
+### 数据库
+
+迁移位于 `database/migrations/`。ThinkPHP 会自动应用 `DB_PREFIX`，迁移和查询使用逻辑表名。每个迁移时间戳保持唯一，并同时验证全新数据库与已有数据库升级路径。
+
+## 环境配置
+
+复制示例文件：
 
 ```bash
 cp .example.env .env
 ```
 
-在 `.env` 中填写项目专用值。不要提交 `.env`。
+Windows PowerShell：
+
+```powershell
+Copy-Item .example.env .env
+```
+
+基础配置：
 
 ```ini
 APP_DEBUG = false
@@ -59,10 +155,10 @@ APP_KEY = replace-with-a-long-random-secret
 
 DB_DRIVER = mysql
 DB_TYPE = mysql
-DB_HOST = your_db_host
-DB_NAME = your_database
-DB_USER = your_db_user
-DB_PASS = your_secure_password
+DB_HOST = 127.0.0.1
+DB_NAME = vanillapay
+DB_USER = vanillapay
+DB_PASS = replace-with-a-strong-password
 DB_PORT = 3306
 DB_CHARSET = utf8mb4
 DB_PREFIX = vp_
@@ -70,18 +166,30 @@ DB_PREFIX = vp_
 DEFAULT_LANG = zh-cn
 ```
 
-`DB_PREFIX` 会由框架自动应用。迁移文件应使用逻辑表名，不要手动添加表前缀。
+配置原则：
+
+- 本地开发可启用 `APP_DEBUG`，生产环境保持关闭。
+- 每个环境使用独立 `APP_KEY`、数据库账号和密码。
+- 数据库账号只授予目标数据库所需权限。
+- `.env` 仅保存在运行环境，不随部署包覆盖。
+- SMTP 参数由运营控制台写入设置表，不放入仓库。
 
 ## 本地开发
 
-安装依赖：
+安装 PHP 与前端依赖：
 
 ```bash
 composer install
 npm install
 ```
 
-构建 Tailwind CSS：
+创建数据库并配置 `.env` 后运行迁移：
+
+```bash
+php think migrate:run
+```
+
+构建 CSS：
 
 ```bash
 npm run build:css
@@ -93,36 +201,189 @@ npm run build:css
 php think run -p 8080
 ```
 
-运行数据库迁移：
+查看显式路由：
 
 ```bash
-php think migrate:run
+php think route:list
 ```
 
-运行测试：
+默认访问地址：
+
+```text
+http://127.0.0.1:8080
+```
+
+## 路由与入口
+
+项目启用了 `url_route_must`，所有公开入口应在 `route/` 中显式声明。
+
+| 路由文件 | 职责 | 典型入口 |
+| --- | --- | --- |
+| `route/index.php` | 商户注册、登录、仪表盘、订单、二维码和设备 | `/login`、`/dashboard`、`/orders`、`/devices` |
+| `route/gateway.php` | 兼容网关、支付页和订单状态 | `/submit.php`、`/mapi.php`、`/pay/<order_no>` |
+| `route/app.php` | 聚合商户、网关和设备路由 | `/app/heart`、`/app/push`、`/app/config` |
+| `route/console.php` | 运营控制台 | `/console/login`、`/console/dashboard` |
+
+`route/app.php` 会引入 `index.php` 和 `gateway.php`。调整聚合入口前，应运行 `php think route:list` 检查重复路由与遗漏。
+
+## 商户与运营配置
+
+### 首个运营管理员
+
+部署完成后创建首个管理员：
+
+```bash
+php think vanilla:admin-create admin_user strong_password
+```
+
+登录入口：
+
+```text
+/console/login
+```
+
+该命令用于初始化。后续商户、通道和系统设置通过运营控制台维护。
+
+### SMTP
+
+注册和密码重置依赖邮件验证码。开放注册前，在 `/console/settings` 配置：
+
+- SMTP 主机与端口。
+- 加密方式（TLS、SSL 或关闭传输加密）。
+- SMTP 用户名和密码。
+- 发件邮箱与显示名称。
+
+完成后使用可接收邮件的测试地址验证注册与密码重置流程。
+
+### 商户接入流程
+
+1. 访问 `/register` 完成邮件验证和注册。
+2. 登录后在凭据页面获取 PID 与 API Key。
+3. 在 `/qrcodes` 分别上传微信支付和支付宝收款二维码。
+4. 在浮动金额页面配置方向、步长、上限和订单超时。
+5. 在 `/devices` 创建设备并下载 Android 应用。
+6. 用绑定二维码或绑定字符串连接监控端。
+7. 使用订单测试页或外部网关客户端验证支付流程。
+
+## 网关接口
+
+兼容入口：
+
+```text
+EPay:    /submit.php, /mapi.php, /api.php
+CodePay: /creat_order/
+YuanPay: /yuanpay/submit, /yuanpay/mapi
+```
+
+协议适配器负责各方言的字段映射和签名规则，领域层统一处理订单。外部客户端应使用部署后的 HTTPS 域名，例如：
+
+```text
+https://pay.example.com/submit.php
+```
+
+回调和返回地址要求：
+
+- `notify_url` 必须是可公开访问的 HTTP 或 HTTPS 地址，并通过内网地址校验。
+- `return_url` 使用 HTTPS。
+- 下游只有返回协议规定的成功文本才视为回调成功。
+- 回调失败会记录 HTTP 状态、响应正文、次数和下次重试时间。
+
+接口参数与示例以商户登录后的 `/docs` 页面为准，避免在公开文档中复制环境凭据。
+
+## Android 设备 API
+
+```text
+POST /app/heart    上报设备心跳、应用版本并获取规则版本
+POST /app/push     上报已解析的支付通知
+GET  /app/config   获取通知解析规则
+```
+
+绑定字符串格式：
+
+```text
+serverUrl|deviceId|deviceKey
+```
+
+设备签名算法：
+
+1. 去除 `sign` 和空值字段。
+2. 按字段名升序排序。
+3. 以 `name=value` 形式使用 `&` 连接。
+4. 使用设备密钥计算 HMAC-SHA256。
+
+设备请求带 Unix 时间戳，服务端默认校验 300 秒时间窗口。设备路由按设备维度限流；`trade_no_device` 用于幂等识别重复通知。
+
+修改字段、签名、状态码或解析规则版本时，需要同步 Android 客户端并增加两端契约测试。
+
+## 计划任务
+
+建议每分钟运行：
+
+```bash
+/path/to/php /path/to/site/think vanilla:order-expire
+/path/to/php /path/to/site/think vanilla:device-check
+/path/to/php /path/to/site/think vanilla:callback-retry
+```
+
+建议每天运行一次：
+
+```bash
+/path/to/php /path/to/site/think vanilla:reconcile-daily
+```
+
+| 命令 | 作用 |
+| --- | --- |
+| `vanilla:order-expire` | 将超时待支付订单设为过期并释放金额锁 |
+| `vanilla:device-check` | 将心跳超时设备标记为离线并记录风险事件 |
+| `vanilla:callback-retry` | 重试满足条件的失败下游回调 |
+| `vanilla:reconcile-daily` | 输出前一日支付、待支付、过期和风险摘要 |
+
+计划任务应使用与 Web 运行时一致的 PHP 版本，并将标准输出和错误输出接入服务器日志。
+
+## 测试
+
+运行完整 PHPUnit 套件：
 
 ```bash
 vendor/bin/phpunit
 ```
 
-PHPUnit 可能需要额外的 PHP 扩展，例如 `dom`、`xml` 和 `xmlwriter`。
+Windows：
 
-## 部署包
+```powershell
+vendor\bin\phpunit
+```
 
-在 Windows 上创建生产部署压缩包：
+运行单个文件：
+
+```bash
+vendor/bin/phpunit tests/Unit/PaymentMatcherTest.php
+```
+
+运行单个测试：
+
+```bash
+vendor/bin/phpunit --filter testMethodName tests/Unit/PaymentMatcherTest.php
+```
+
+测试覆盖领域服务、协议入口、签名与防重放、限流、迁移前缀、安全默认值、页面模板和部署脚本。涉及数据库或框架集成的改动，还应在临时数据库上执行迁移和端到端验证。
+
+## 构建部署包
+
+Windows 上执行：
 
 ```bat
 cd website
 pack-deploy.bat
 ```
 
-压缩包会写入：
+输出文件：
 
 ```text
 website/deploy/vanillapay-website-YYYYMMDD-HHMMSS.zip
 ```
 
-部署包包含应用代码、路由、视图、公共资源、Composer 锁文件、环境示例和部署脚本。它会排除本地或仅运行时使用的文件，例如：
+部署包包含应用代码、配置、迁移、公共资源、路由、视图、Composer 锁文件和部署脚本，并排除：
 
 ```text
 .env
@@ -131,31 +392,42 @@ node_modules/
 runtime/
 tests/
 deploy/
+public/static/src/
 ```
+
+`public/download/app-release.apk` 会随 `public/` 进入部署包，但该 APK 受 Git 忽略。打包前应确认它与当前 Android Release 构建一致。
 
 ## 生产部署
 
-1. 上传部署压缩包并解压到目标站点目录。
-2. 将 Web 文档根目录设置为 `public` 目录。
-3. 从 `.example.env` 创建 `.env`，并填写生产环境值。
-4. 确保 `runtime` 和 `public/static/uploads` 可由 Web 服务器写入。
-5. 运行部署脚本：
+### 首次部署
+
+1. 上传并解压部署包到站点目录。
+2. 将 Web 文档根目录设置为站点的 `public`。
+3. 从 `.example.env` 创建 `.env` 并填写生产配置。
+4. 创建数据库并确认数据库账号权限。
+5. 运行：
 
 ```bash
 cd /path/to/site
 bash deploy-server.sh
 ```
 
-如果服务器上有多个 PHP 或 Composer 安装，请显式指定路径：
+指定 PHP 或 Composer：
 
 ```bash
-cd /path/to/site
 PHP_BIN=/path/to/php COMPOSER_BIN=/path/to/composer bash deploy-server.sh
 ```
 
-该脚本会安装 Composer 依赖、运行数据库迁移、清理框架缓存、验证路由注册，并在存在标准 Web 服务器用户时调整运行时权限。
+脚本会执行：
 
-推荐的 Nginx 重写规则：
+- 创建运行时与上传目录。
+- 安装生产 Composer 依赖。
+- 运行数据库迁移。
+- 清理 ThinkPHP 缓存。
+- 验证路由加载。
+- 在存在 `www` 用户时调整目录所有者。
+
+### Nginx 示例
 
 ```nginx
 location / {
@@ -170,134 +442,62 @@ location ~ ^/static/uploads/.*\.php$ {
 }
 ```
 
-## 更新已有部署
+同时建议限制 `.env`、日志、备份和隐藏文件访问，并由 HTTPS 站点统一处理外部请求。
 
-常规更新流程：
+### 更新已有部署
 
-1. 创建新的部署压缩包。
-2. 上传并解压覆盖现有站点文件。
-3. 保留现有的 `.env`、`runtime`、`public/static/uploads` 和数据库。
-4. 运行：
+1. 备份数据库、`.env` 和上传目录。
+2. 运行测试并生成新的部署包。
+3. 解压覆盖应用文件，保留环境文件和运行时数据。
+4. 再次执行 `deploy-server.sh`。
+5. 检查迁移、路由、首页、登录、计划任务和错误日志。
+
+如果旧数据库已有业务表但缺少迁移记录，备份后执行一次：
 
 ```bash
-cd /path/to/site
+PHP_BIN=/path/to/php bash deploy-baseline-existing-db.sh
 bash deploy-server.sh
 ```
 
-`vendor`、`node_modules` 和 `.env` 会被有意排除在部署压缩包之外。
+基线脚本只为连续存在的初始表写入迁移记录，用于把早期数据库纳入迁移管理。
 
-## 控制台管理员
+## 部署后验证
 
-首次部署后，创建第一个运营控制台管理员：
-
-```bash
-php think vanilla:admin-create admin_user strong_password
-```
-
-创建后访问以下地址登录：
-
-```text
-/console/login
-```
-
-初始管理员只需创建一次。常规部署不需要执行此命令。
-
-## 计划任务
-
-配置以下命令每分钟运行一次：
-
-```bash
-/path/to/php /path/to/site/think vanilla:order-expire
-/path/to/php /path/to/site/think vanilla:device-check
-/path/to/php /path/to/site/think vanilla:callback-retry
-```
-
-可选的每日对账：
-
-```bash
-/path/to/php /path/to/site/think vanilla:reconcile-daily
-```
-
-这些任务会处理超时订单过期、释放浮动金额锁、将长时间无心跳设备标记为离线、重试下游回调，并输出对账摘要。
-
-## 商户流程
-
-1. 通过 `/register` 和 `/login` 注册并登录。
-2. 在 `/qrcodes` 上传一个微信支付二维码和一个支付宝二维码。
-3. 在 `/devices` 绑定 Android 监控设备。
-4. 保持 Android 应用运行，并启用通知访问权限。
-5. 通过受支持的网关接口创建订单。
-6. 系统匹配支付通知并发送下游回调。
-
-Android 绑定字符串格式如下：
-
-```text
-serverUrl|deviceId|deviceKey
-```
-
-## 网关接口
-
-支持的接口组：
-
-```text
-EPay:    /submit.php, /mapi.php, /api.php
-CodePay: /creat_order/
-YuanPay: /yuanpay/submit, /yuanpay/mapi
-```
-
-集成外部客户端时，请使用部署配置的公网域名，例如：
-
-```text
-https://your-domain.example/submit.php
-```
-
-## 设备 API
-
-Android 监控端与以下接口通信：
-
-```text
-POST /app/heart
-POST /app/push
-GET  /app/config?device_id=...&t=...&sign=...
-```
-
-这些接口带有频率限制，并要求使用商户设备绑定页面生成的设备凭据。
-
-## 验证
-
-部署后，使用不含真实敏感值的命令验证应用：
+基础验证：
 
 ```bash
 php think route:list
-curl -I https://your-domain.example/login
-curl https://your-domain.example/app/config
+curl -I https://pay.example.com/login
+curl -I https://pay.example.com/download/app-release.apk
 ```
 
-然后使用小额测试订单验证完整流程：
+业务验证：
 
-1. 上传收款二维码。
-2. 绑定 Android 监控端。
-3. 通过网关接口创建订单。
-4. 确认订单能正确从待支付变为已支付或已过期。
-5. 确认下游回调已投递，或已进入重试队列。
+1. 创建测试商户并确认邮件送达。
+2. 上传两个渠道的测试二维码。
+3. 绑定 Android 设备并确认心跳变为在线。
+4. 创建小额测试订单并检查实际金额。
+5. 触发到账通知并确认订单状态变为已支付。
+6. 检查回调请求、响应和重试状态。
+7. 创建短超时订单并确认计划任务释放金额锁。
 
 ## 故障排查
 
-### Composer reports `putenv() has been disabled`
+### Composer 报告 `putenv() has been disabled`
 
-Composer 使用的 PHP CLI 可能与站点运行时使用的 PHP 不一致。请使用目标 PHP 二进制运行 Composer，并检查 CLI 的 `disable_functions` 配置。
+确认 CLI 与 Web 使用同一 PHP 安装，并检查 CLI 的 `disable_functions`：
 
 ```bash
 /path/to/php /path/to/composer install --no-dev --optimize-autoloader
 ```
 
-### `zip.so` cannot be loaded
+### `zip.so` 加载失败
 
-PHP 配置引用了 zip 扩展，但扩展文件缺失，或安装给了另一个 PHP 版本。请为当前 PHP 运行时安装 zip 扩展，或移除无效的 `extension=zip.so` 配置并重启 PHP-FPM。
+为当前 PHP 版本安装 zip 扩展，或移除指向不存在扩展文件的配置，再重启 PHP-FPM。
 
-### `There are no commands defined in the migrate namespace`
+### 缺少 `migrate` 命令
 
-通常是 Composer 依赖不完整。请重新安装依赖，并确认 `topthink/think-migration` 已存在：
+重新安装 Composer 依赖，并确认 `topthink/think-migration` 存在：
 
 ```bash
 /path/to/php /path/to/composer install --no-dev --optimize-autoloader
@@ -305,37 +505,40 @@ PHP 配置引用了 zip 扩展，但扩展文件缺失，或安装给了另一�
 
 ### `Duplicate migration`
 
-迁移版本必须唯一。检查 `database/migrations` 中是否存在相同时间戳版本的文件，为该版本保留一个有效迁移文件，然后重新运行迁移。
+检查 `database/migrations` 中的时间戳。每个版本只保留一个迁移，并在修正后重新运行迁移。
 
-### 已有数据表但缺少迁移记录
+### 二维码上传后返回 404
 
-如果旧数据库已经包含部分业务表，但没有对应迁移记录，请先备份数据库。然后在正常部署脚本之前运行一次基线辅助脚本：
-
-```bash
-cd /path/to/site
-PHP_BIN=/path/to/php bash deploy-baseline-existing-db.sh
-bash deploy-server.sh
-```
-
-基线辅助脚本只会为初始架构中连续存在的数据表记录迁移，不会删除数据。
-
-### 上传的二维码图片返回 404
-
-确认 Web 文档根目录为 `public`，并且上传文件可读：
+确认 Web 文档根目录是 `public`，文件真实存在且 Web 用户可读：
 
 ```bash
 chmod -R 755 public/static/uploads
 ```
 
-### 上传二维码后页面没有变化
+### 二维码页面没有更新
 
-检查是否已启用 `gd` 和 `fileinfo`，并确认上传目录可写。上传错误会写入 `runtime/log` 下的框架日志。
+检查 `gd`、`fileinfo` 和上传目录写权限，并查看 `runtime/log`。
 
-## 安全说明
+### Android 心跳正常但订单未匹配
 
-- 不要提交 `.env`、数据库转储、私钥、上传文件或运行时日志。
-- 生产环境使用 HTTPS。
-- 保持 PHP、Composer 包和服务器软件包及时更新。
-- 将写权限限制在最低必要的运行时目录。
-- 禁止执行 `public/static/uploads` 下上传的 PHP 文件。
-- 网关密钥和签名密钥只应存储在按环境区分的配置中。
+依次检查：
+
+1. 设备所属商户与订单所属商户是否一致。
+2. 通知渠道和金额是否与订单实际金额一致。
+3. 订单是否仍在有效期内。
+4. `/app/push` 响应中的 `matched` 和状态码。
+5. Android 日志中是否存在解析或网络错误。
+
+### 回调持续失败
+
+检查目标 URL 的公网可达性、HTTPS 证书、响应状态和响应文本。目标系统需要返回对应协议规定的成功文本。
+
+## 安全清单
+
+- 生产环境关闭调试模式并使用独立强 `APP_KEY`。
+- 数据库、SMTP、网关和设备密钥按环境隔离并定期轮换。
+- Web 根目录只暴露 `public`，限制上传目录脚本执行。
+- 对外入口启用 HTTPS、安全响应头、限流和日志监控。
+- 保留数据库与上传目录备份，并定期验证恢复流程。
+- 更新依赖前审查锁文件变化并运行完整测试。
+- 日志中隐藏密码、API Key、设备密钥和完整签名参数。
