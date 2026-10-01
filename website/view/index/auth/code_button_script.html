@@ -28,9 +28,8 @@
       button.addEventListener('click', function () {
         if (button.disabled) return;
         var cooldown = parseInt(button.dataset.codeCooldown || '60', 10);
-        button.disabled = true;
-        button.textContent = '发送中...';
-        startCountdown(cooldown);
+        // Let the submit button's default action run before disabling it.
+        window.setTimeout(function () { startCountdown(cooldown); }, 0);
       });
     });
   })();
