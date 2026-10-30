@@ -1,0 +1,24 @@
+# 仓库只收影响项目运行的文件；以下内容只留本地。
+# 技术栈确定后由首轮设计补充对应的测试 / 日志 / 文档路径。
+
+# 工作流过程文件（设计文档、报告、日志）
+.workflow/
+
+# 文档
+*.md
+docs/
+
+# 日志
+*.log
+logs/
+
+# 测试
+tests/
+test/
+__tests__/
+src/test/
+src/androidTest/
+*.test.*
+*.spec.*
+*_test.*
+coverage/
