@@ -58,7 +58,7 @@ func (v Siteverify) Verify(ctx context.Context, secret, token, action, hostname 
 	if err != nil {
 		return false, errors.New("turnstile verification unavailable")
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }() // Cleanup must not replace the operation result.
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return false, errors.New("turnstile verification unavailable")
 	}
@@ -386,7 +386,7 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 	}
 	var targetHash [32]byte
 	copy(targetHash[:], target)
-	var subjectID any = subject
+	var subjectID = subject
 	var rowID int64
 	err = sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `INSERT INTO email_codes(purpose,subject_role,subject_id,email_normalized,target_digest,code_hash,sent_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, req.Purpose, role, subjectID, email, targetHash[:], HashOpaque(code), s.clock.Now(), s.clock.Now().Add(10*time.Minute)).Scan(&rowID); err != nil {
@@ -682,7 +682,7 @@ func (s *Service) ResetPassword(ctx context.Context, req ResetPasswordRequest) e
 	return sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var id int64
 		if err := tx.QueryRow(ctx, `SELECT id FROM merchants WHERE email_normalized=$1 FOR UPDATE`, email).Scan(&id); err != nil {
-			return nil
+			return nil //nolint:nilerr // Keep reset responses uniform to avoid account enumeration.
 		}
 		if err := s.consumeCode(ctx, tx, "reset_password", "public", nil, email, targetDigestValue("reset_password", "", "", email), req.EmailCode, s.clock.Now()); err != nil {
 			return err

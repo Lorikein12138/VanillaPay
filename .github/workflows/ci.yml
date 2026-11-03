@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17.6-alpine3.22
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: vanillapay_ci
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vanillapay_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgres://postgres@localhost:5432/vanillapay_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '1.27.3'
+          cache: true
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@25e2cdc5eb1d7a04fdc45ff538f1a00e960ae128 # v8.0.0
+        with:
+          version: v2.14.0
+          args: ./...
+      # NewDatabase creates an isolated schema and applies goose + River migrations.
+      - run: go test -p 1 ./...
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.22.0'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.6-alpine3.22
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: vanillapay_e2e
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vanillapay_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      APP_ENV: development
+      DATABASE_URL: postgres://postgres@localhost:5432/vanillapay_e2e?sslmode=disable
+      PUBLIC_BASE_URL: http://localhost:8080
+      LISTEN_ADDR: localhost:8080
+      DATA_DIR: ${{ runner.temp }}/vanillapay
+      TRUSTED_PROXY_CIDRS: ''
+      E2E_BASE_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '1.27.3'
+          cache: true
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.22.0'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npx --no-install playwright install --with-deps chromium
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - name: Build and start backend
+        shell: bash
+        run: |
+          mkdir -p .local "$DATA_DIR"
+          encryption_key="$(openssl rand -base64 32)"
+          echo "::add-mask::$encryption_key"
+          export APP_ENCRYPTION_KEY="$encryption_key"
+          go build -o .local/server ./cmd/server
+          .local/server migrate up
+          .local/server serve > .local/server.log 2>&1 &
+          echo "$!" > .local/server.pid
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8080/health/ready > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat .local/server.pid)" 2>/dev/null; then
+              echo 'Backend exited before readiness'
+              exit 1
+            fi
+            sleep 1
+          done
+          echo 'Backend readiness timed out'
+          exit 1
+      - run: npm run e2e
+        working-directory: web
+      - name: Stop backend
+        if: always()
+        shell: bash
+        run: |
+          if [ -f .local/server.pid ]; then
+            kill "$(cat .local/server.pid)" 2>/dev/null || true
+          fi

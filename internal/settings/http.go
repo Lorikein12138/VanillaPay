@@ -97,7 +97,7 @@ func (h *Handler) UploadQR(w http.ResponseWriter, r *http.Request) {
 		settingsResult(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, http.StatusOK)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // Cleanup must not replace the operation result.
 	actor, _ := platform.ActorFromContext(r.Context())
 	result, err := h.Service.UploadQR(r.Context(), actor, chi.URLParam(r, "channel"), file)
 	settingsResult(w, r, result, err, http.StatusCreated)
@@ -109,7 +109,7 @@ func (h *Handler) UploadLogo(w http.ResponseWriter, r *http.Request) {
 		settingsResult(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, http.StatusOK)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // Cleanup must not replace the operation result.
 	actor, _ := platform.ActorFromContext(r.Context())
 	data, err := h.Service.UploadLogo(r.Context(), actor, file)
 	settingsResult(w, r, data, err, http.StatusCreated)
@@ -151,7 +151,7 @@ func (h *Handler) OpenAsset(w http.ResponseWriter, r *http.Request) {
 		settingsResult(w, r, nil, err, http.StatusOK)
 		return
 	}
-	defer asset.Reader.Close()
+	defer func() { _ = asset.Reader.Close() }() // Cleanup must not replace the operation result.
 	w.Header().Set("Content-Type", asset.MIME)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, no-store")

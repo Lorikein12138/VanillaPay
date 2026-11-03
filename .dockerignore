@@ -7,6 +7,13 @@ docs/
 *.md
 tests/
 test/
+**/tests/
+**/test/
+**/__tests__/
+**/__snapshots__/
+**/*_test.*
+**/*.test.*
+**/*.spec.*
 *_test.go
 *.test.*
 *.spec.*

@@ -13,19 +13,7 @@ docs/
 logs/
 **/logs/
 
-# 测试
-tests/
-**/tests/
-test/
-__tests__/
-src/test/
-src/androidTest/
-*.test.*
-*.spec.*
-*_test.*
-*_test.go
-web/src/**/__tests__/
-web/src/**/__snapshots__/
+# 测试源码入库，覆盖率输出只留本地。
 coverage/
 
 # 本地构建、配置与工具输出
@@ -37,7 +25,8 @@ internal/webassets/dist/
 .tanstack/
 .env
 .env.*
-!.env.example
+**/.env
+**/.env.*
 *.tsbuildinfo
 playwright-report/
 test-results/
