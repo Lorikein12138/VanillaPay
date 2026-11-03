@@ -123,7 +123,7 @@ func TestDB_PaymentAmountTTLAndOrderSnapshots(t *testing.T) {
 	if err := db.Pool.QueryRow(t.Context(), `SELECT pid FROM merchants WHERE id=$1`, merchantID).Scan(&pid); err != nil {
 		t.Fatal("read protocol merchant PID")
 	}
-	router := paymentProtocolRouter(application.Services.Payment)
+	router := paymentProtocolRouter(t, application.Services.Payment)
 	submit := func(outTradeNo, money, productID, name string, ttl string) *httptest.ResponseRecorder {
 		t.Helper()
 		values := url.Values{

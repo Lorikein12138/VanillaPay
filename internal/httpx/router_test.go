@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,11 +15,36 @@ import (
 
 	"vanillapay/internal/app"
 	"vanillapay/internal/config"
+	"vanillapay/internal/platform"
 	"vanillapay/internal/webassets"
 )
 
 type testDatabase struct {
 	pingErr error
+}
+
+func TestUnit_WrappedPlatformErrorPreservesBusinessStatus(t *testing.T) {
+	for name, write := range map[string]func(http.ResponseWriter, *http.Request, error){
+		"middleware": writePlatformError,
+		"response":   func(w http.ResponseWriter, r *http.Request, err error) { writeAPIResult(w, r, nil, err, 200) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", &platform.Error{Code: "VERSION_CONFLICT", HTTPStatus: http.StatusConflict}))
+			response := httptest.NewRecorder()
+			write(response, httptest.NewRequest(http.MethodPost, "/api/v1/example", nil), err)
+			var body struct {
+				Error struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			if decodeErr := json.Unmarshal(response.Body.Bytes(), &body); decodeErr != nil {
+				t.Fatal(decodeErr)
+			}
+			if response.Code != http.StatusConflict || body.Error.Code != "VERSION_CONFLICT" {
+				t.Fatalf("wrapped error status=%d code=%q", response.Code, body.Error.Code)
+			}
+		})
+	}
 }
 
 func (d *testDatabase) Ping(context.Context) error { return d.pingErr }

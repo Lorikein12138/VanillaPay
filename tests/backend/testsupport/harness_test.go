@@ -65,10 +65,11 @@ func TestUnit_HTTPFixtureHeaderlessRequestIsSafe(t *testing.T) {
 		if r.Header.Get("Accept") != "application/json" || r.Header.Get("Origin") != "https://pay.example.test" {
 			t.Errorf("headerless request defaults = %#v", r.Header)
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":null,"error":null,"request_id":"headerless-fixture"}`))
 	})}
-	response := fixture.RequestWithRemoteAddr(t, http.MethodPost, "/api/v1/public/config", nil, "guest", nil, "")
-	if response.Code != http.StatusNoContent {
+	response := fixture.RequestWithRemoteAddr(t, http.MethodPost, "/api/v1/auth/logout", nil, "guest", nil, "")
+	if response.Code != http.StatusOK {
 		t.Fatalf("headerless request status = %d", response.Code)
 	}
 }
