@@ -1,0 +1,97 @@
+{
+  "common": {
+    "brand": "VanillaPay",
+    "home": "VanillaPay home",
+    "skipToContent": "Skip to main content",
+    "backHome": "Back to home"
+  },
+  "language": {
+    "label": "Language",
+    "switchTo": "Switch language to {{language}}",
+    "zh-CN": "中文",
+    "en": "English"
+  },
+  "theme": {
+    "label": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "home": {
+    "nav": {
+      "label": "On this page",
+      "features": "Features",
+      "steps": "How it works"
+    },
+    "eyebrow": "Personal payment codes · Automatic confirmation",
+    "title": "Collect with your own payment codes, and know exactly what arrived",
+    "subtitle": "Upload your Alipay, WeChat and QQ payment codes. The monitor app on your phone reports each incoming payment, orders are matched by exact amount, and your site is notified using the EPay protocol.",
+    "cta": "Explore features",
+    "flowCard": {
+      "title": "Life of an order",
+      "steps": {
+        "create": "Your site places an order via the EPay protocol",
+        "pay": "The buyer scans and pays at checkout",
+        "receive": "The monitor app reports the payment",
+        "notify": "Your site gets a callback once the amount matches"
+      }
+    },
+    "features": {
+      "title": "Everything collection needs, in one dashboard",
+      "subtitle": "From payment codes and monitor devices to reconciliation and export, merchants configure it all themselves.",
+      "items": {
+        "matching": {
+          "title": "Exact amount matching",
+          "body": "Each payment notice is matched by channel and amount to a single pending order, and one payment is never confirmed twice."
+        },
+        "compat": {
+          "title": "EPay compatible",
+          "body": "Uses the familiar EPay order and callback formats, so an existing site connects with a few configuration changes."
+        },
+        "device": {
+          "title": "Monitor device status",
+          "body": "The Android monitor app sends regular heartbeats; the dashboard flags it clearly when offline, and payment codes follow the device state."
+        },
+        "stats": {
+          "title": "Statistics and export",
+          "body": "View amounts and order counts by channel for the last 1, 7 or 30 days or a custom range, and export orders as CSV."
+        },
+        "security": {
+          "title": "Account security",
+          "body": "Optional two-step verification and API IP allowlist; changing the password or resetting the key requires an email code."
+        },
+        "subscription": {
+          "title": "Pay as you go",
+          "body": "Enable collection with a plan, renew from the dashboard before it expires, and review purchases at any time."
+        }
+      }
+    },
+    "steps": {
+      "title": "Start collecting in three steps",
+      "items": {
+        "register": {
+          "title": "Register and choose a plan",
+          "body": "Create a merchant account with your email and subscribe to a plan."
+        },
+        "configure": {
+          "title": "Upload codes and bind the monitor",
+          "body": "Upload a payment code for each channel and sign in to the monitor app on an Android phone."
+        },
+        "integrate": {
+          "title": "Connect your site",
+          "body": "Copy your merchant ID and key, then set up ordering and callbacks following the integration guide."
+        }
+      }
+    }
+  },
+  "notFound": {
+    "code": "404",
+    "title": "Page not found",
+    "body": "There is no page at this address. It may have moved, or the link may be mistyped."
+  },
+  "error": {
+    "title": "Something went wrong",
+    "body": "Please try again. If the problem continues, contact the site administrator.",
+    "retry": "Try again"
+  }
+}
