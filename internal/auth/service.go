@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -58,7 +59,7 @@ func (v Siteverify) Verify(ctx context.Context, secret, token, action, hostname 
 	if err != nil {
 		return false, errors.New("turnstile verification unavailable")
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }() // Cleanup must not replace the operation result.
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return false, errors.New("turnstile verification unavailable")
 	}
@@ -358,6 +359,20 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 			return EmailCodeResult{}, appError("EMAIL_DOMAIN_DENIED", 403)
 		}
 	}
+	result, err := s.issueEmailCode(ctx, req, email, role, subject)
+	if req.Purpose != "reset_password" {
+		return result, err
+	}
+	// After public validation, account lookup, cooldown and delivery outcomes
+	// must not reveal whether this mailbox belongs to a merchant.
+	if err != nil {
+		metadata, _ := platform.RequestMetadataFromContext(ctx)
+		slog.ErrorContext(ctx, "reset_password_email_unavailable", "request_id", metadata.RequestID)
+	}
+	return EmailCodeResult{Sent: true, RetryAfterSeconds: 60}, nil
+}
+
+func (s *Service) issueEmailCode(ctx context.Context, req EmailCodeRequest, email, role string, subject any) (EmailCodeResult, error) {
 	if req.Purpose == "reset_password" {
 		var exists bool
 		if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM merchants WHERE email_normalized=$1)`, email).Scan(&exists); err != nil {
@@ -373,6 +388,9 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 		return EmailCodeResult{}, err
 	}
 	if last != nil && s.clock.Now().Before(last.Add(60*time.Second)) {
+		if req.Purpose == "reset_password" {
+			return EmailCodeResult{Sent: true, RetryAfterSeconds: 60}, nil
+		}
 		remaining := last.Add(60 * time.Second).Sub(s.clock.Now())
 		retryAfter := int((remaining + time.Second - 1) / time.Second)
 		if retryAfter < 1 {
@@ -386,7 +404,7 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 	}
 	var targetHash [32]byte
 	copy(targetHash[:], target)
-	var subjectID any = subject
+	var subjectID = subject
 	var rowID int64
 	err = sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, `INSERT INTO email_codes(purpose,subject_role,subject_id,email_normalized,target_digest,code_hash,sent_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, req.Purpose, role, subjectID, email, targetHash[:], HashOpaque(code), s.clock.Now(), s.clock.Now().Add(10*time.Minute)).Scan(&rowID); err != nil {
@@ -682,7 +700,10 @@ func (s *Service) ResetPassword(ctx context.Context, req ResetPasswordRequest) e
 	return sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var id int64
 		if err := tx.QueryRow(ctx, `SELECT id FROM merchants WHERE email_normalized=$1 FOR UPDATE`, email).Scan(&id); err != nil {
-			return nil
+			if errors.Is(err, pgx.ErrNoRows) {
+				return appError("INVALID_CODE", 400)
+			}
+			return err
 		}
 		if err := s.consumeCode(ctx, tx, "reset_password", "public", nil, email, targetDigestValue("reset_password", "", "", email), req.EmailCode, s.clock.Now()); err != nil {
 			return err

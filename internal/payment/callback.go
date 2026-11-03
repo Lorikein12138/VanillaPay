@@ -151,13 +151,14 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 	if err != nil {
 		return s.finishCallbackAttempt(ctx, work, 0, "", "SIGNING_KEY_UNAVAILABLE", err)
 	}
-	if work.protocol == "v1" {
+	switch work.protocol {
+	case "v1":
 		signature, signErr := SignV1(work.params, string(key))
 		if signErr != nil {
 			return s.finishCallbackAttempt(ctx, work, 0, "", "SIGNATURE_FAILED", signErr)
 		}
 		work.params.Set("sign", signature)
-	} else if work.protocol == "v2" {
+	case "v2":
 		private, keyID, keyErr := s.platformSigningKey(ctx)
 		if keyErr != nil {
 			return s.finishCallbackAttempt(ctx, work, 0, "", "PLATFORM_KEY_UNAVAILABLE", keyErr)
@@ -170,7 +171,7 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 			return s.finishCallbackAttempt(ctx, work, 0, "", "SIGNATURE_FAILED", signErr)
 		}
 		work.params.Set("sign", signature)
-	} else {
+	default:
 		return s.finishCallbackAttempt(ctx, work, 0, "", "UNSUPPORTED_PROTOCOL", errors.New("unsupported callback protocol"))
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, work.url, strings.NewReader(work.params.Encode()))
@@ -183,7 +184,7 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 	if err != nil {
 		return s.finishCallbackAttempt(ctx, work, 0, "", "NETWORK_ERROR", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }() // Cleanup must not replace the operation result.
 	body, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
 	if readErr != nil {
 		return s.finishCallbackAttempt(ctx, work, response.StatusCode, string(body), "RESPONSE_READ_ERROR", readErr)

@@ -751,16 +751,17 @@ func maskSecrets(value json.RawMessage, group string, secrets map[string]json.Ra
 	_ = json.Unmarshal(value, &object)
 	for name, raw := range secrets {
 		configured := string(raw) != "null" && len(raw) > 0
-		if name == "smtp_password" {
+		switch name {
+		case "smtp_password":
 			object["password_configured"] = configured
 			if configured {
 				object["masked_password"] = "••••••••"
 			} else {
 				object["masked_password"] = ""
 			}
-		} else if name == "billing_key" {
+		case "billing_key":
 			object["key_configured"] = configured
-		} else {
+		default:
 			object["secret_configured"] = configured
 		}
 	}

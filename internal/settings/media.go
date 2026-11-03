@@ -157,13 +157,13 @@ func (s *Service) saveAsset(ctx context.Context, actor platform.Actor, channel, 
 		return QRDTO{}, err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }() // The file no longer exists after a successful rename.
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		_ = tmp.Close() // Preserve the write or sync error.
 		return QRDTO{}, err
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
+		_ = tmp.Close() // Preserve the write or sync error.
 		return QRDTO{}, err
 	}
 	if err := tmp.Close(); err != nil {

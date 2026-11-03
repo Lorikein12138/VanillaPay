@@ -46,7 +46,7 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		defer application.Close()
+		defer func() { _ = application.Close() }() // Preserve the command result during shutdown.
 		status, err := application.Services.Auth.BootstrapStatus(ctx)
 		if err != nil {
 			return err
@@ -57,7 +57,9 @@ func run(ctx context.Context, args []string) error {
 				return err
 			}
 			if code != "" {
-				fmt.Fprintf(os.Stdout, "Administrator initialization code: %s\n", code)
+				if _, err := fmt.Fprintf(os.Stdout, "Administrator initialization code: %s\n", code); err != nil {
+					return err
+				}
 			}
 		}
 		return application.Start(ctx, httpx.NewRouter(application))
@@ -69,7 +71,7 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		defer application.Close()
+		defer func() { _ = application.Close() }() // Preserve the command result during shutdown.
 		if application.Services == nil || application.Services.Auth == nil {
 			return errors.New("authentication service is unavailable")
 		}
@@ -77,8 +79,8 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stdout, "Console recovery code: %s\n", code)
-		return nil
+		_, err = fmt.Fprintf(os.Stdout, "Console recovery code: %s\n", code)
+		return err
 	case "migrate":
 		if len(args) != 2 || args[1] != "up" {
 			return errors.New("expected migrate up")

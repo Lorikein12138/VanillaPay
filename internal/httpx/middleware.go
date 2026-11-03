@@ -216,7 +216,8 @@ func RealIP(remoteAddr, forwardedFor string, trusted []netip.Prefix) netip.Addr 
 func writePlatformError(w http.ResponseWriter, r *http.Request, err error) {
 	status := http.StatusInternalServerError
 	code := "INTERNAL_ERROR"
-	if apiErr, ok := err.(*platform.Error); ok {
+	apiErr := &platform.Error{}
+	if errors.As(err, &apiErr) {
 		if apiErr.HTTPStatus > 0 {
 			status = apiErr.HTTPStatus
 		}
