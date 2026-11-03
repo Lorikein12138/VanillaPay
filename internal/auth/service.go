@@ -682,7 +682,10 @@ func (s *Service) ResetPassword(ctx context.Context, req ResetPasswordRequest) e
 	return sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var id int64
 		if err := tx.QueryRow(ctx, `SELECT id FROM merchants WHERE email_normalized=$1 FOR UPDATE`, email).Scan(&id); err != nil {
-			return nil //nolint:nilerr // Keep reset responses uniform to avoid account enumeration.
+			if errors.Is(err, pgx.ErrNoRows) {
+				return appError("INVALID_CODE", 400)
+			}
+			return err
 		}
 		if err := s.consumeCode(ctx, tx, "reset_password", "public", nil, email, targetDigestValue("reset_password", "", "", email), req.EmailCode, s.clock.Now()); err != nil {
 			return err
