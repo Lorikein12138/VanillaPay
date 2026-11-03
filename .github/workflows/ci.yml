@@ -84,7 +84,7 @@ jobs:
       DATABASE_URL: postgres://postgres@localhost:5432/vanillapay_e2e?sslmode=disable
       PUBLIC_BASE_URL: http://localhost:8080
       LISTEN_ADDR: localhost:8080
-      DATA_DIR: ${{ runner.temp }}/vanillapay
+      DATA_DIR: .local/ci-e2e-data
       TRUSTED_PROXY_CIDRS: ''
       E2E_BASE_URL: http://localhost:8080
     steps:
