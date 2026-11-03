@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -397,47 +398,59 @@ type localSMTPSink struct {
 	authenticatedPassword string
 }
 
-func newTrustedLocalSMTPSink(t *testing.T) *localSMTPSink {
-	t.Helper()
+// Go caches system roots after the first TLS verification. All local SMTP
+// servers in this process therefore share one ephemeral trust root.
+type smtpCertificates struct {
+	server  tls.Certificate
+	rootPEM []byte
+}
+
+var localSMTPCertificate = sync.OnceValues(func() (smtpCertificates, error) {
 	now := time.Now()
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("generate local SMTP root key: %v", err)
+		return smtpCertificates{}, err
 	}
 	caTemplate := &x509.Certificate{SerialNumber: big.NewInt(now.UnixNano()), Subject: pkix.Name{CommonName: "VanillaPay local SMTP test root"}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(24 * time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageCRLSign, SubjectKeyId: []byte{1, 2, 3, 4}}
 	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
 	if err != nil {
-		t.Fatalf("create local SMTP root certificate: %v", err)
+		return smtpCertificates{}, err
 	}
 	ca, err := x509.ParseCertificate(caDER)
 	if err != nil {
-		t.Fatalf("parse local SMTP root certificate: %v", err)
+		return smtpCertificates{}, err
 	}
 	leafKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("generate local SMTP leaf key: %v", err)
+		return smtpCertificates{}, err
 	}
 	leafTemplate := &x509.Certificate{SerialNumber: big.NewInt(now.UnixNano() + 1), Subject: pkix.Name{CommonName: "127.0.0.1"}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(12 * time.Hour), KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}}
 	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, ca, &leafKey.PublicKey, caKey)
 	if err != nil {
-		t.Fatalf("create local SMTP leaf certificate: %v", err)
+		return smtpCertificates{}, err
 	}
 	leaf, err := x509.ParseCertificate(leafDER)
 	if err != nil {
-		t.Fatalf("parse local SMTP leaf certificate: %v", err)
+		return smtpCertificates{}, err
 	}
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
-	trustSMTPTestRoot(t, certPEM)
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(leafKey)})
 	serverCertificate, err := tls.X509KeyPair(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leaf.Raw}), keyPEM)
+	return smtpCertificates{server: serverCertificate, rootPEM: certPEM}, err
+})
+
+func newTrustedLocalSMTPSink(t *testing.T) *localSMTPSink {
+	t.Helper()
+	certificates, err := localSMTPCertificate()
 	if err != nil {
-		t.Fatalf("load local SMTP leaf certificate: %v", err)
+		t.Fatalf("create local SMTP certificates: %v", err)
 	}
+	trustSMTPTestRoot(t, certificates.rootPEM)
 	listener, err := net.Listen("tcp", netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), 0).String())
 	if err != nil {
 		t.Fatalf("listen for local SMTP TLS: %v", err)
 	}
-	tlsListener := tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{serverCertificate}, MinVersion: tls.VersionTLS12})
+	tlsListener := tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{certificates.server}, MinVersion: tls.VersionTLS12})
 	sink := &localSMTPSink{port: listener.Addr().(*net.TCPAddr).Port, message: make(chan string, 1)}
 	t.Cleanup(func() { _ = tlsListener.Close() })
 	go sink.serve(tlsListener)

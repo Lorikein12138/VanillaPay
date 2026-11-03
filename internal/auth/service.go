@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -358,6 +359,20 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 			return EmailCodeResult{}, appError("EMAIL_DOMAIN_DENIED", 403)
 		}
 	}
+	result, err := s.issueEmailCode(ctx, req, email, role, subject)
+	if req.Purpose != "reset_password" {
+		return result, err
+	}
+	// After public validation, account lookup, cooldown and delivery outcomes
+	// must not reveal whether this mailbox belongs to a merchant.
+	if err != nil {
+		metadata, _ := platform.RequestMetadataFromContext(ctx)
+		slog.ErrorContext(ctx, "reset_password_email_unavailable", "request_id", metadata.RequestID)
+	}
+	return EmailCodeResult{Sent: true, RetryAfterSeconds: 60}, nil
+}
+
+func (s *Service) issueEmailCode(ctx context.Context, req EmailCodeRequest, email, role string, subject any) (EmailCodeResult, error) {
 	if req.Purpose == "reset_password" {
 		var exists bool
 		if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM merchants WHERE email_normalized=$1)`, email).Scan(&exists); err != nil {
@@ -373,6 +388,9 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 		return EmailCodeResult{}, err
 	}
 	if last != nil && s.clock.Now().Before(last.Add(60*time.Second)) {
+		if req.Purpose == "reset_password" {
+			return EmailCodeResult{Sent: true, RetryAfterSeconds: 60}, nil
+		}
 		remaining := last.Add(60 * time.Second).Sub(s.clock.Now())
 		retryAfter := int((remaining + time.Second - 1) / time.Second)
 		if retryAfter < 1 {

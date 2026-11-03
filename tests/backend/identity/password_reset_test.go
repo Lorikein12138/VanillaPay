@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
+	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,6 +122,76 @@ func TestDB_PasswordResetPreservesAccountQueryError(t *testing.T) {
 	var postgresError *pgconn.PgError
 	if !errors.As(err, &postgresError) || postgresError.Code != "42P01" {
 		t.Fatalf("reset must preserve original database error, got %v", err)
+	}
+}
+
+func TestHTTP_PasswordResetMailQueueFailureDoesNotRevealAccount(t *testing.T) {
+	fixture, _, email := newPasswordResetFixture(t)
+	fixture.Mailer.SetError(errors.New("unavailable mail queue"))
+	var logs bytes.Buffer
+	logger := slog.Default()
+	logWriter, logFlags := log.Writer(), log.Flags()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(logger)
+		log.SetOutput(logWriter)
+		log.SetFlags(logFlags)
+	})
+	var known []byte
+	for _, address := range []string{email, "absent-reset@example.test"} {
+		response := fixture.Request(t, http.MethodPost, "/api/v1/auth/email-codes", auth.EmailCodeRequest{Purpose: "reset_password", Email: address, TurnstileToken: "ok:reset_password"}, "guest")
+		assertIdentityResponse(t, response, http.StatusOK, "unavailable reset mail queue")
+		var envelope map[string]json.RawMessage
+		if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+			t.Fatal(err)
+		}
+		delete(envelope, "request_id")
+		public, err := json.Marshal(envelope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if address == email {
+			known = public
+		} else if !bytes.Equal(known, public) {
+			t.Fatal("unavailable reset mail queue reveals whether the account exists")
+		}
+	}
+	if !strings.Contains(logs.String(), "reset_password_email_unavailable") || strings.Contains(logs.String(), email) || strings.Contains(logs.String(), fixture.Mailer.LastCode()) {
+		t.Fatal("reset mail preparation failure must be logged without the mailbox or code")
+	}
+	var activeCodes int
+	if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT count(*) FROM email_codes WHERE purpose='reset_password' AND consumed_at IS NULL`).Scan(&activeCodes); err != nil || activeCodes != 0 {
+		t.Fatalf("failed queue submission left a usable reset code: active=%d err=%v", activeCodes, err)
+	}
+	// Other email-code purposes must still report mail failures.
+	registration := fixture.Request(t, http.MethodPost, "/api/v1/auth/email-codes", auth.EmailCodeRequest{Purpose: "register", Email: "register-mail-failure@example.test", TargetUsername: "register_mail_failure", TurnstileToken: "ok:register"}, "guest")
+	if registration.Code != http.StatusServiceUnavailable {
+		t.Fatalf("registration mail failure status=%d, want 503", registration.Code)
+	}
+	assertIdentityError(t, registration, "MAIL_UNAVAILABLE", "registration mail failure remains visible")
+}
+
+func TestHTTP_PasswordResetEmailValidationPrecedesUniformResponse(t *testing.T) {
+	fixture, _, email := newPasswordResetFixture(t)
+	for _, test := range []struct {
+		name, email, mode, code string
+		status                  int
+	}{
+		{"invalid_email", "invalid-address", "accept", "VALIDATION_ERROR", http.StatusBadRequest},
+		{"invalid_turnstile", email, "wrong-action", "TURNSTILE_FAILED", http.StatusBadRequest},
+		{"turnstile_unavailable", email, "unavailable", "TURNSTILE_UNAVAILABLE", http.StatusServiceUnavailable},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture.Siteverify.SetMode(test.mode)
+			response := fixture.Request(t, http.MethodPost, "/api/v1/auth/email-codes", auth.EmailCodeRequest{Purpose: "reset_password", Email: test.email, TurnstileToken: "ok:reset_password"}, "guest")
+			if response.Code != test.status {
+				t.Fatalf("reset email validation status=%d want=%d", response.Code, test.status)
+			}
+			assertIdentityError(t, response, test.code, "reset email public validation")
+		})
+	}
+	if len(fixture.Mailer.Messages()) != 0 {
+		t.Fatal("failed public validation sent a reset email")
 	}
 }
 
