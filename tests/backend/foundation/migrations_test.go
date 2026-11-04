@@ -32,8 +32,7 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal("open TEST_DATABASE_URL")
 	}
-	defer admin.Close()
-
+	t.Cleanup(admin.Close) // Registered first so the schema cleanup below runs before closing.
 	var schemaBytes [8]byte
 	if _, err := rand.Read(schemaBytes[:]); err != nil {
 		t.Fatal("generate test schema name")
@@ -45,7 +44,9 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
-		_, _ = admin.Exec(cleanupCtx, "DROP SCHEMA "+pgx.Identifier{schema}.Sanitize()+" CASCADE")
+		if _, err := admin.Exec(cleanupCtx, "DROP SCHEMA "+pgx.Identifier{schema}.Sanitize()+" CASCADE"); err != nil {
+			t.Errorf("drop isolated test schema %s: %v", schema, err)
+		}
 	})
 
 	schemaURL, err := url.Parse(databaseURL)
