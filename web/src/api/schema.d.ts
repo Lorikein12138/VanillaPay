@@ -2858,6 +2858,15 @@ export interface components {
             };
         };
         /** @description 请求失败；error.code 使用 ErrorCode 枚举 */
+        Error415: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description 请求失败；error.code 使用 ErrorCode 枚举 */
         Error422: {
             headers: {
                 [name: string]: unknown;
@@ -2927,7 +2936,9 @@ export interface components {
             headers: {
                 [name: string]: unknown;
             };
-            content?: never;
+            content: {
+                "text/plain": string;
+            };
         };
     };
     parameters: never;
@@ -3691,6 +3702,7 @@ export interface operations {
             };
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
             500: components["responses"]["Error500"];
         };
     };
@@ -4035,6 +4047,7 @@ export interface operations {
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
             500: components["responses"]["Error500"];
         };
     };
@@ -4166,6 +4179,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
@@ -4618,6 +4632,8 @@ export interface operations {
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            415: components["responses"]["Error415"];
             500: components["responses"]["Error500"];
         };
     };
@@ -4656,6 +4672,8 @@ export interface operations {
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            415: components["responses"]["Error415"];
             500: components["responses"]["Error500"];
         };
     };
@@ -5590,6 +5608,7 @@ export interface operations {
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
             500: components["responses"]["Error500"];
         };
     };

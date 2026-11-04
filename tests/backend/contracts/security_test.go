@@ -218,7 +218,7 @@ func securityFixture(t *testing.T) (*testsupport.HTTPFixture, map[string]session
 	if err != nil {
 		t.Fatal(err)
 	}
-	admin := fixture.Request(t, http.MethodPost, "/api/v1/console/bootstrap", auth.BootstrapRequest{InitializationCode: code, Username: "contract_admin", Password: password, PasswordConfirmation: password}, "admin:matrix")
+	admin := fixture.Request(t, http.MethodPost, "/api/v1/console/bootstrap", auth.BootstrapRequest{InitializationCode: code, Username: "contract_admin", Password: password, PasswordConfirmation: password}, "admin:matrix-admin")
 	var version int64
 	if err := db.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings WHERE singleton=true`).Scan(&version); err != nil {
 		t.Fatal(err)
@@ -237,7 +237,7 @@ func securityFixture(t *testing.T) (*testsupport.HTTPFixture, map[string]session
 	if err := db.Pool.QueryRow(t.Context(), `UPDATE merchants SET password_hash=$1 WHERE id=$2 RETURNING email_normalized`, hash, id).Scan(&email); err != nil {
 		t.Fatal(err)
 	}
-	merchant := fixture.Request(t, http.MethodPost, "/api/v1/auth/login", auth.LoginRequest{Identifier: email, Password: password, TurnstileToken: "ok:login"}, "merchant:matrix")
+	merchant := fixture.Request(t, http.MethodPost, "/api/v1/auth/login", auth.LoginRequest{Identifier: email, Password: password, TurnstileToken: "ok:login"}, "merchant:matrix-merchant")
 	proofs := map[string]sessionProof{}
 	for role, response := range map[string]*httptest.ResponseRecorder{"admin": admin, "merchant": merchant} {
 		var envelope struct {
@@ -257,7 +257,7 @@ func securityFixture(t *testing.T) (*testsupport.HTTPFixture, map[string]session
 			t.Fatal("session fixture did not authenticate")
 		}
 	}
-	binding := fixture.Request(t, http.MethodPost, "/api/v1/merchant/device/bindings", map[string]any{"replace_confirmed": false}, "merchant:matrix")
+	binding := fixture.Request(t, http.MethodPost, "/api/v1/merchant/device/bindings", map[string]any{"replace_confirmed": false}, "merchant:matrix-merchant")
 	var bind struct {
 		Data device.BindingDTO `json:"data"`
 	}

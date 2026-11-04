@@ -922,6 +922,8 @@ paths:
           $ref: '#/components/responses/Error401'
         '403':
           $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
         '500':
           $ref: '#/components/responses/Error500'
   /api/v1/merchant/profile/username:
@@ -1389,6 +1391,8 @@ paths:
           $ref: '#/components/responses/Error401'
         '403':
           $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
         '500':
           $ref: '#/components/responses/Error500'
   /api/v1/merchant/integration/reset-key:
@@ -1545,6 +1549,8 @@ paths:
                         $ref: '#/components/schemas/DeviceCredentialDTO'
         '400':
           $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
         '403':
           $ref: '#/components/responses/Error403'
         '404':
@@ -2109,6 +2115,10 @@ paths:
           $ref: '#/components/responses/Error403'
         '409':
           $ref: '#/components/responses/Error409'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '415':
+          $ref: '#/components/responses/Error415'
         '500':
           $ref: '#/components/responses/Error500'
       parameters:
@@ -2157,6 +2167,10 @@ paths:
           $ref: '#/components/responses/Error403'
         '409':
           $ref: '#/components/responses/Error409'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '415':
+          $ref: '#/components/responses/Error415'
         '500':
           $ref: '#/components/responses/Error500'
       parameters:
@@ -3470,6 +3484,8 @@ paths:
           $ref: '#/components/responses/Error403'
         '404':
           $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
         '500':
           $ref: '#/components/responses/Error500'
       parameters:
@@ -4675,6 +4691,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    Error415:
+      description: 请求失败；error.code 使用 ErrorCode 枚举
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
     Error422:
       description: 请求失败；error.code 使用 ErrorCode 枚举
       content:
@@ -4746,6 +4768,11 @@ components:
             type: string
     MethodNotAllowed:
       description: chi 路由层拒绝未注册方法；无响应体
+      content:
+        text/plain:
+          schema:
+            type: string
+            maxLength: 0
   schemas:
     AuthBootstrapRequest:
       additionalProperties: false

@@ -3,6 +3,7 @@ package testsupport
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,15 +70,40 @@ func validateHTTPResponse(request *http.Request, response *httptest.ResponseReco
 		return fmt.Errorf("construct OpenAPI router: %w", err)
 	}
 	route, params, err := router.FindRoute(request)
+	headers := response.Header()
 	if err != nil {
-		// Negative route tests exercise the framework's 404/405 handlers,
-		// rather than a registered operation. Their schemas still live in
-		// the contract, without inventing paths that do not exist.
+		var routeError *routers.RouteError
+		if !errors.As(err, &routeError) || (routeError.Reason != routers.ErrPathNotFound.Error() && routeError.Reason != routers.ErrMethodNotAllowed.Error()) {
+			return fmt.Errorf("find contract route: %w", err)
+		}
+		methodNotAllowed := routeError.Reason == routers.ErrMethodNotAllowed.Error()
+		// legacy reports path-not-found for an unsupported method on a
+		// templated path. Probe supported methods through the same router
+		// to distinguish it from an actually unknown path.
+		if !methodNotAllowed {
+			probe := request.Clone(request.Context())
+			for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions, http.MethodTrace} {
+				probe.Method = method
+				if _, _, probeErr := router.FindRoute(probe); probeErr == nil {
+					methodNotAllowed = true
+					break
+				}
+			}
+		}
 		name := "UnmatchedRoute"
-		if response.Code == http.StatusMethodNotAllowed {
+		status := http.StatusNotFound
+		if methodNotAllowed {
 			name = "MethodNotAllowed"
-		} else if response.Code != http.StatusNotFound {
-			return fmt.Errorf("uncontracted route: %s %s status=%d", request.Method, request.URL.Path, response.Code)
+			status = http.StatusMethodNotAllowed
+		}
+		if response.Code != status {
+			return fmt.Errorf("uncontracted route: %s %s status=%d want=%d", request.Method, request.URL.Path, response.Code, status)
+		}
+		if methodNotAllowed && response.Body.Len() == 0 && headers.Get("Content-Type") == "" {
+			// chi emits an empty 405 without a media type. Supply the
+			// declared empty-string media type only to schema validation.
+			headers = headers.Clone()
+			headers.Set("Content-Type", "text/plain")
 		}
 		doc, err := loadOpenAPI()
 		if err != nil {
@@ -87,7 +113,7 @@ func validateHTTPResponse(request *http.Request, response *httptest.ResponseReco
 	}
 	input := &openapi3filter.ResponseValidationInput{
 		RequestValidationInput: &openapi3filter.RequestValidationInput{Request: request, Route: route, PathParams: params},
-		Status:                 response.Code, Header: response.Header(), Body: io.NopCloser(bytes.NewReader(response.Body.Bytes())),
+		Status:                 response.Code, Header: headers, Body: io.NopCloser(bytes.NewReader(response.Body.Bytes())),
 		Options: &openapi3filter.Options{IncludeResponseStatus: true, MultiError: true},
 	}
 	return openapi3filter.ValidateResponse(request.Context(), input)
