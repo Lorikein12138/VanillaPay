@@ -57,7 +57,7 @@ func runGoose(ctx context.Context, databaseURL string) error {
 	if err != nil {
 		return errors.New("database connection configuration failed")
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }() // Cleanup must not replace the operation result.
 	db.SetMaxOpenConns(2)
 	if err := db.PingContext(ctx); err != nil {
 		return errors.New("database connection failed")

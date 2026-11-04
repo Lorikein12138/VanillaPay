@@ -1,0 +1,9 @@
+**
+!go.mod
+!go.sum
+!tests/
+!tests/deployment/
+!tests/deployment/cmd/
+!tests/deployment/cmd/network-fixture/
+!tests/deployment/cmd/network-fixture/*.go
+!tests/deployment/setup-network.sh

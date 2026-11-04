@@ -210,12 +210,13 @@ func (h *Handler) authenticateV2(ctx context.Context, p url.Values) (int64, *rsa
 		return 0, nil, apiErr("INVALID_SIGNATURE", 400)
 	}
 	var public *rsa.PublicKey
-	if block.Type == "PUBLIC KEY" {
+	switch block.Type {
+	case "PUBLIC KEY":
 		parsed, e := x509.ParsePKIXPublicKey(block.Bytes)
 		if e == nil {
 			public, _ = parsed.(*rsa.PublicKey)
 		}
-	} else if block.Type == "RSA PUBLIC KEY" {
+	case "RSA PUBLIC KEY":
 		public, _ = x509.ParsePKCS1PublicKey(block.Bytes)
 	}
 	if public == nil {
@@ -433,7 +434,8 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	loc := time.FixedZone("CST", 8*3600)
 	params.Set("addtime", created.In(loc).Format("2006-01-02 15:04:05"))
 	params.Set("endtime", paid.In(loc).Format("2006-01-02 15:04:05"))
-	if protocol == "v1" {
+	switch protocol {
+	case "v1":
 		key, decErr := platform.Decrypt(h.Service.key[:], cipher)
 		if decErr != nil {
 			return "", decErr
@@ -443,7 +445,7 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 			return "", signErr
 		}
 		params.Set("sign", signature)
-	} else if protocol == "v2" {
+	case "v2":
 		params.Set("api_trade_no", provider)
 		params.Set("buyer", buyer)
 		params.Set("timestamp", strconv.FormatInt(h.Service.clock.Now().Unix(), 10))
@@ -458,7 +460,7 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 			return "", signErr
 		}
 		params.Set("sign", signature)
-	} else {
+	default:
 		return "", errors.New("unsupported payment protocol")
 	}
 	for key, values := range params {
@@ -793,9 +795,10 @@ func validateV2Capabilities(p url.Values) error {
 }
 func (h *Handler) protocolOrder(d OrderDTO) map[string]any {
 	status := 0
-	if d.Status == "paid" {
+	switch d.Status {
+	case "paid":
 		status = 1
-	} else if d.Status == "refunded" {
+	case "refunded":
 		status = 2
 	}
 	channel := ""

@@ -10,8 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "routes:generate": "node ./scripts/generate-routes.mjs",
-    "lint": "eslint --max-warnings 0",
-    "typecheck": "tsc -b --pretty false",
+    "lint": "eslint --max-warnings 0 && cd ../tests && eslint --max-warnings 0",
+    "typecheck": "tsc -b --pretty false && tsc --project ../tests/tsconfig.json --pretty false",
     "test": "vitest run --config ../tests/vitest.config.ts",
     "e2e": "playwright test --config ../tests/playwright.config.ts"
   },
