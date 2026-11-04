@@ -3,6 +3,7 @@ module vanillapay
 go 1.27.3
 
 require (
+	github.com/getkin/kin-openapi v0.151.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/makiuchi-d/gozxing v0.1.1
@@ -13,7 +14,6 @@ require (
 	github.com/wneessen/go-mail v0.8.1
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.61.0
-	golang.org/x/text v0.43.0
 )
 
 require (
@@ -40,6 +40,8 @@ require (
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.8.0 // indirect
+	github.com/go-openapi/jsonpointer v0.22.5 // indirect
+	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
 	github.com/go-sql-driver/mysql v1.10.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
@@ -63,6 +65,8 @@ require (
 	github.com/ncruces/go-sqlite3 v0.32.0 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
+	github.com/oasdiff/yaml v0.1.1 // indirect
+	github.com/oasdiff/yaml3 v0.0.14 // indirect
 	github.com/paulmach/orb v0.13.0 // indirect
 	github.com/pganalyze/pg_query_go/v6 v6.2.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
@@ -77,6 +81,7 @@ require (
 	github.com/riverqueue/river/rivershared v0.50.0 // indirect
 	github.com/riverqueue/river/rivertype v0.50.0 // indirect
 	github.com/riza-io/grpc-go v0.2.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/sethvargo/go-retry v0.5.0 // indirect
 	github.com/shopspring/decimal v1.5.0 // indirect
@@ -110,6 +115,7 @@ require (
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261005182115-fad411399dd8 // indirect

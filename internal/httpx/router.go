@@ -42,6 +42,9 @@ func NewRouter(a *app.App) http.Handler {
 	if a != nil && a.Services != nil {
 		s := a.Services
 		api := chi.NewRouter()
+		// An API route miss must not inherit the parent's SPA fallback.
+		// chi still handles unsupported methods on existing paths itself.
+		api.NotFound(apiNotFound)
 		if s.Auth != nil {
 			(&auth.Handler{Service: s.Auth, SecureCookies: a.AppEnvironment() != "development"}).RegisterRoutes(api)
 		}

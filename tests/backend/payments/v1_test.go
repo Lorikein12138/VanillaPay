@@ -26,7 +26,7 @@ func TestHTTP_V1SubmitCreatesOneSignedOrderAndRejectsDuplicateTradeNumber(t *tes
 	if err := db.Pool.QueryRow(context.Background(), `SELECT pid FROM merchants WHERE id=$1`, merchantID).Scan(&pid); err != nil {
 		t.Fatal(err)
 	}
-	router := paymentProtocolRouter(application.Services.Payment)
+	router := paymentProtocolRouter(t, application.Services.Payment)
 	params := url.Values{"pid": {pid}, "out_trade_no": {"v1-order-1"}, "notify_url": {"https://merchant.example/notify"}, "return_url": {"https://merchant.example/return"}, "name": {"测试商品"}, "money": {"1.00"}, "clientip": {"198.51.100.8"}, "type": {"alipay"}}
 	params.Set("sign", mustV1ContractSignature(params, merchantKey))
 	request := httptest.NewRequest(http.MethodGet, "/submit.php?"+params.Encode(), nil)
@@ -74,7 +74,7 @@ func TestHTTP_V1SubmitCreatesOneSignedOrderAndRejectsDuplicateTradeNumber(t *tes
 	secondMerchantRequest := httptest.NewRequest(http.MethodGet, "/submit.php?"+secondParams.Encode(), nil)
 	secondMerchantRequest.RemoteAddr = "192.0.2.10:32000"
 	secondResponse := httptest.NewRecorder()
-	paymentProtocolRouter(application.Services.Payment).ServeHTTP(secondResponse, secondMerchantRequest)
+	paymentProtocolRouter(t, application.Services.Payment).ServeHTTP(secondResponse, secondMerchantRequest)
 	if secondResponse.Code != http.StatusFound {
 		t.Fatalf("another merchant reusing out_trade_no status=%d body=%s", secondResponse.Code, secondResponse.Body.String())
 	}
@@ -86,10 +86,10 @@ func TestHTTP_V1SubmitCreatesOneSignedOrderAndRejectsDuplicateTradeNumber(t *tes
 	})
 }
 
-func paymentProtocolRouter(service *payment.Service) http.Handler {
+func paymentProtocolRouter(t *testing.T, service *payment.Service) http.Handler {
 	router := chi.NewRouter()
 	(&payment.Handler{Service: service, PublicBaseURL: "https://pay.example.test"}).RegisterProtocolRoutes(router)
-	return router
+	return testsupport.ContractHandler(t, router)
 }
 
 func mustV1ContractSignature(values url.Values, key string) string {
