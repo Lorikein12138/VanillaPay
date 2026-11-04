@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 	"vanillapay/internal/db/migrations"
@@ -62,9 +63,6 @@ func runGoose(ctx context.Context, databaseURL string) error {
 	if err := db.PingContext(ctx); err != nil {
 		return errors.New("database connection failed")
 	}
-	if err := goose.SetDialect("postgres"); err != nil {
-		return errors.New("goose dialect configuration failed")
-	}
 	migrationFS := migrations.FS()
 	files, err := fs.Glob(migrationFS, "*.sql")
 	if err != nil {
@@ -73,8 +71,12 @@ func runGoose(ctx context.Context, databaseURL string) error {
 	if len(files) == 0 {
 		return nil
 	}
-	goose.SetBaseFS(migrationFS)
-	return goose.UpContext(ctx, db, ".")
+	provider, err := goose.NewProvider(database.DialectPostgres, db, migrationFS)
+	if err != nil {
+		return errors.New("goose provider initialization failed")
+	}
+	_, err = provider.Up(ctx)
+	return err
 }
 
 func runRiver(ctx context.Context, pool *pgxpool.Pool) error {

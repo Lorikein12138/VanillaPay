@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 	dbmigrate "vanillapay/internal/db/migrate"
 	"vanillapay/internal/db/migrations"
 )
@@ -65,15 +66,15 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 		}
 	})
 
-	if err := goose.SetDialect("postgres"); err != nil {
-		t.Fatal("configure PostgreSQL migration dialect")
-	}
-	goose.SetBaseFS(migrations.FS())
 	migrationDB, err := sql.Open("pgx", schemaURL.String())
 	if err != nil {
 		t.Fatal("open isolated schema for down/up verification")
 	}
 	defer func() { _ = migrationDB.Close() }() // Cleanup must not replace the operation result.
+	provider, err := goose.NewProvider(database.DialectPostgres, migrationDB, migrations.FS())
+	if err != nil {
+		t.Fatal("initialize isolated schema migration provider")
+	}
 	t.Run("V03.B.r02/v01", func(t *testing.T) {
 		before := applicationCatalog(ctx, t, admin, schema)
 		for _, kind := range []string{"constraint c ", "constraint f ", "constraint p ", "constraint u ", "index "} {
@@ -81,13 +82,13 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 				t.Fatalf("first migration up produced no %q entries", strings.TrimSpace(kind))
 			}
 		}
-		if err := goose.DownToContext(ctx, migrationDB, ".", 0); err != nil {
+		if _, err := provider.DownTo(ctx, 0); err != nil {
 			t.Fatalf("down all application migrations: %v", err)
 		}
 		if remaining := applicationCatalog(ctx, t, admin, schema); len(remaining) != 0 {
 			t.Fatalf("down to 0 left application constraints/indexes: %s", strings.Join(remaining, "\n"))
 		}
-		if err := goose.UpToContext(ctx, migrationDB, ".", 6); err != nil {
+		if _, err := provider.UpTo(ctx, 6); err != nil {
 			t.Fatalf("reapply all application migrations: %v", err)
 		}
 		after := applicationCatalog(ctx, t, admin, schema)
