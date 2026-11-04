@@ -46,7 +46,7 @@ func TestHTTP_V2CreateUsesMerchantKeyAndReturnsPlatformSignedJump(t *testing.T) 
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	request.RemoteAddr = "192.0.2.9:32000"
 	response := httptest.NewRecorder()
-	paymentProtocolRouter(application.Services.Payment).ServeHTTP(response, request)
+	paymentProtocolRouter(t, application.Services.Payment).ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("V2 response status=%d body=%s", response.Code, response.Body.String())
 	}

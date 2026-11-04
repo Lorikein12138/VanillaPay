@@ -260,6 +260,7 @@ func (f *HTTPFixture) Request(t *testing.T, method, path string, body any, role 
 
 	recorder := httptest.NewRecorder()
 	f.Handler.ServeHTTP(recorder, request)
+	ValidateHTTPResponse(t, request, recorder)
 	if actor == "merchant" || actor == "admin" {
 		f.jar(client).SetCookies(request.URL, recorder.Result().Cookies())
 		f.rememberCSRF(client, recorder.Body.Bytes())
@@ -320,6 +321,7 @@ func (f *HTTPFixture) RequestWithRemoteAddr(t *testing.T, method, path string, b
 	}
 	recorder := httptest.NewRecorder()
 	f.Handler.ServeHTTP(recorder, request)
+	ValidateHTTPResponse(t, request, recorder)
 	if actor == "merchant" || actor == "admin" {
 		f.jar(client).SetCookies(request.URL, recorder.Result().Cookies())
 		f.rememberCSRF(client, recorder.Body.Bytes())
