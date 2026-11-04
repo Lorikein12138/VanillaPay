@@ -1950,6 +1950,8 @@ paths:
           $ref: '#/components/responses/Error404'
         '409':
           $ref: '#/components/responses/Error409'
+        '503':
+          $ref: '#/components/responses/Error503'
         '500':
           $ref: '#/components/responses/Error500'
       parameters:
@@ -6133,7 +6135,7 @@ components:
             - $ref: '#/components/schemas/Home'
             - $ref: '#/components/schemas/SettingsFooterLegal'
             - $ref: '#/components/schemas/MailSettings'
-            - $ref: '#/components/schemas/SecuritySettings'
+            - $ref: '#/components/schemas/SecuritySettingsUpdate'
             - $ref: '#/components/schemas/SettingsGroupBounds'
             - $ref: '#/components/schemas/BillingSettingsUpdate'
         version:
@@ -6847,7 +6849,17 @@ components:
         - masked_password
       additionalProperties: false
     SecuritySettings:
+      allOf:
+        - $ref: '#/components/schemas/SecuritySettingsUpdate'
+        - type: object
+          properties:
+            secret_configured:
+              type: boolean
+          required:
+            - secret_configured
+    SecuritySettingsUpdate:
       type: object
+      description: 更新响应仅在提交新密钥时包含 secret_configured；省略密钥时保留已保存的值。
       properties:
         turnstile_site_key:
           type: string
@@ -6870,7 +6882,6 @@ components:
         - restrict_email_domains
         - email_domains
         - ban_contact
-        - secret_configured
       additionalProperties: false
     BillingSettings:
       type: object

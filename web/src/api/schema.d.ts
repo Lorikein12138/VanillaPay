@@ -2189,7 +2189,7 @@ export interface components {
             /** Format: int64 */
             affected_merchants: number;
             group: string;
-            value: components["schemas"]["SiteGroup"] | components["schemas"]["Home"] | components["schemas"]["SettingsFooterLegal"] | components["schemas"]["MailSettings"] | components["schemas"]["SecuritySettings"] | components["schemas"]["SettingsGroupBounds"] | components["schemas"]["BillingSettingsUpdate"];
+            value: components["schemas"]["SiteGroup"] | components["schemas"]["Home"] | components["schemas"]["SettingsFooterLegal"] | components["schemas"]["MailSettings"] | components["schemas"]["SecuritySettingsUpdate"] | components["schemas"]["SettingsGroupBounds"] | components["schemas"]["BillingSettingsUpdate"];
             /** Format: int64 */
             version: number;
         };
@@ -2423,13 +2423,17 @@ export interface components {
             password_configured: boolean;
             masked_password: string;
         };
-        SecuritySettings: {
+        SecuritySettings: components["schemas"]["SecuritySettingsUpdate"] & {
+            secret_configured: boolean;
+        };
+        /** @description 更新响应仅在提交新密钥时包含 secret_configured；省略密钥时保留已保存的值。 */
+        SecuritySettingsUpdate: {
             turnstile_site_key: string;
             allowed_hostname: string;
             restrict_email_domains: boolean;
             email_domains: string[] | null;
             ban_contact: components["schemas"]["SettingsLanguageText"];
-            secret_configured: boolean;
+            secret_configured?: boolean;
         };
         BillingSettings: {
             merchant_pid: string;
@@ -4525,6 +4529,7 @@ export interface operations {
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
             500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
         };
     };
     post_api_v1_console_settings_mail_test: {

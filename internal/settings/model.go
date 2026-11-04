@@ -167,7 +167,7 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		return marshal(v), secrets, nil
 	case "security":
 		var v securityGroup
-		if err := decodeGroup(value, &v, "turnstile_site_key", "turnstile_secret", "allowed_hostname", "restrict_email_domains", "email_domains", "ban_contact"); err != nil || textLength(v.TurnstileSiteKey) > 512 || textLength(v.AllowedHostname) > 253 || len(v.EmailDomains) > 100 {
+		if err := decodeGroup(value, &v, "turnstile_site_key", "allowed_hostname", "restrict_email_domains", "email_domains", "ban_contact"); err != nil || textLength(v.TurnstileSiteKey) > 512 || textLength(v.AllowedHostname) > 253 || len(v.EmailDomains) > 100 {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		if (v.TurnstileSiteKey == "") != (v.AllowedHostname == "") || (v.RestrictEmailDomains && len(v.EmailDomains) == 0) {

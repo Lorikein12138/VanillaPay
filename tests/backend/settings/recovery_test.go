@@ -123,6 +123,77 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 		response := fixture.RequestWithHeaders(t, http.MethodPut, "/api/v1/console/settings/security", strings.NewReader(string(payload)), "guest", recoveryHeaders(cookie, csrf))
 		assertRecoveryAPIError(t, response, http.StatusUnauthorized, "UNAUTHENTICATED")
 	})
+
+	t.Run("V18.B.r02/v03", func(t *testing.T) {
+		db := testsupport.NewDatabase(t)
+		fixture := testsupport.NewHTTPFixture(t, db)
+		admin := bootstrapRecoveryAdmin(t, fixture, "recovery-existing-secret")
+		initial := updateSettingsGroupHTTP(t, fixture, admin, "security", map[string]any{
+			"turnstile_site_key": "existing-site-key", "turnstile_secret": "existing-recovery-secret", "allowed_hostname": "pay.example.test",
+			"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
+		})
+		assertRecoveryAPIError(t, initial, http.StatusOK, "")
+
+		code, err := fixture.App.Services.Auth.IssueConsoleRecoveryCode(t.Context())
+		if err != nil {
+			t.Fatal("issue recovery code with an existing Turnstile secret")
+		}
+		recovered := fixture.Request(t, http.MethodPost, "/api/v1/console/recovery", map[string]any{"recovery_code": code}, "guest")
+		if recovered.Code != http.StatusOK {
+			t.Fatalf("recovery session creation status=%d body=%s", recovered.Code, recovered.Body.String())
+		}
+		payload, err := json.Marshal(map[string]any{"expected_version": recoverySettingsVersion(t, fixture), "value": map[string]any{
+			"turnstile_site_key": "updated-site-key", "allowed_hostname": "pay.example.test",
+		}})
+		if err != nil {
+			t.Fatal("encode recovery update without a replacement secret")
+		}
+		cookie := findRecoveryCookie(t, recovered.Header().Values("Set-Cookie"))
+		response := fixture.RequestWithHeaders(t, http.MethodPut, "/api/v1/console/settings/security", strings.NewReader(string(payload)), "guest", recoveryHeaders(cookie, responseCSRF(t, recovered.Body.Bytes())))
+		assertRecoveryAPIError(t, response, http.StatusOK, "")
+		if strings.Contains(response.Body.String(), "existing-recovery-secret") || strings.Contains(response.Body.String(), `"turnstile_secret"`) {
+			t.Fatal("recovery response exposed the stored Turnstile secret")
+		}
+		secret, err := fixture.App.Services.Settings.Secret(t.Context(), "turnstile_secret")
+		if err != nil || secret != "existing-recovery-secret" {
+			t.Fatalf("recovery update changed the stored Turnstile secret: err=%v", err)
+		}
+
+		fixture.Siteverify.SetMode("accept")
+		login := fixture.Request(t, http.MethodPost, "/api/v1/console/login", map[string]any{
+			"identifier": "recovery_fixture_admin", "password": fixturePassword, "turnstile_token": "ok:login",
+		}, "guest")
+		if login.Code != http.StatusOK {
+			t.Fatalf("console login after recovery update status=%d body=%s", login.Code, login.Body.String())
+		}
+		requests := fixture.Siteverify.Requests()
+		if len(requests) == 0 || requests[len(requests)-1].Get("secret") != "existing-recovery-secret" {
+			t.Fatalf("console login did not verify Turnstile with the stored secret: requests=%d", len(requests))
+		}
+	})
+
+	t.Run("V18.B.r02/v04", func(t *testing.T) {
+		db := testsupport.NewDatabase(t)
+		fixture := testsupport.NewHTTPFixture(t, db)
+		bootstrapRecoveryAdmin(t, fixture, "recovery-no-secret")
+		code, err := fixture.App.Services.Auth.IssueConsoleRecoveryCode(t.Context())
+		if err != nil {
+			t.Fatal("issue recovery code without a configured Turnstile secret")
+		}
+		recovered := fixture.Request(t, http.MethodPost, "/api/v1/console/recovery", map[string]any{"recovery_code": code}, "guest")
+		if recovered.Code != http.StatusOK {
+			t.Fatalf("recovery session creation status=%d body=%s", recovered.Code, recovered.Body.String())
+		}
+		payload, err := json.Marshal(map[string]any{"expected_version": recoverySettingsVersion(t, fixture), "value": map[string]any{
+			"turnstile_site_key": "new-site-key", "allowed_hostname": "pay.example.test",
+		}})
+		if err != nil {
+			t.Fatal("encode recovery update without a configured secret")
+		}
+		cookie := findRecoveryCookie(t, recovered.Header().Values("Set-Cookie"))
+		response := fixture.RequestWithHeaders(t, http.MethodPut, "/api/v1/console/settings/security", strings.NewReader(string(payload)), "guest", recoveryHeaders(cookie, responseCSRF(t, recovered.Body.Bytes())))
+		assertRecoveryAPIError(t, response, http.StatusServiceUnavailable, "SETUP_REQUIRED")
+	})
 }
 
 func bootstrapRecoveryAdmin(t *testing.T, fixture *testsupport.HTTPFixture, client string) string {
