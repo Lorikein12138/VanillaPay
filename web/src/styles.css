@@ -17,6 +17,13 @@
   --vp-bg: #faf9f5;
   --vp-surface: #ffffff;
   --vp-muted: #f0eee6;
+  --vp-sidebar: #f5f4ed;
+  --vp-hover: rgba(115, 114, 108, 0.1);
+  --vp-oat: #e3dacc;
+  --vp-dot-ok: #558a42;
+  --vp-dot-wait: #c9a82d;
+  --vp-dot-info: #6a9bcc;
+  --vp-dot-off: #b0aea5;
   --vp-border: rgba(31, 30, 29, 0.15);
   --vp-border-strong: rgba(31, 30, 29, 0.3);
   --vp-primary: #141413;
@@ -37,6 +44,13 @@
     --vp-bg: #1a1918;
     --vp-surface: #262624;
     --vp-muted: #30302e;
+    --vp-sidebar: #1f1e1d;
+    --vp-hover: rgba(250, 249, 245, 0.06);
+    --vp-oat: #3d3d3a;
+    --vp-dot-ok: #7fae6d;
+    --vp-dot-wait: #d9bc52;
+    --vp-dot-info: #8fb6dc;
+    --vp-dot-off: #73726c;
     --vp-border: rgba(250, 249, 245, 0.12);
     --vp-border-strong: rgba(250, 249, 245, 0.24);
     --vp-primary: #faf9f5;
@@ -46,7 +60,7 @@
     --vp-text-3: #9c9a92;
     --vp-accent-text: #e39a7e;
     --vp-accent-text-hover: #eeb7a2;
-    --vp-danger: #c4574c;
+    --vp-danger: #e0857a;
   }
 }
 
@@ -55,6 +69,13 @@
   --vp-bg: #1a1918;
   --vp-surface: #262624;
   --vp-muted: #30302e;
+  --vp-sidebar: #1f1e1d;
+  --vp-hover: rgba(250, 249, 245, 0.06);
+  --vp-oat: #3d3d3a;
+  --vp-dot-ok: #7fae6d;
+  --vp-dot-wait: #d9bc52;
+  --vp-dot-info: #8fb6dc;
+  --vp-dot-off: #73726c;
   --vp-border: rgba(250, 249, 245, 0.12);
   --vp-border-strong: rgba(250, 249, 245, 0.24);
   --vp-primary: #faf9f5;
@@ -64,13 +85,20 @@
   --vp-text-3: #9c9a92;
   --vp-accent-text: #e39a7e;
   --vp-accent-text-hover: #eeb7a2;
-  --vp-danger: #c4574c;
+  --vp-danger: #e0857a;
 }
 
 @theme inline {
   --color-bg: var(--vp-bg);
   --color-surface: var(--vp-surface);
   --color-muted: var(--vp-muted);
+  --color-sidebar: var(--vp-sidebar);
+  --color-hover: var(--vp-hover);
+  --color-oat: var(--vp-oat);
+  --color-dot-ok: var(--vp-dot-ok);
+  --color-dot-wait: var(--vp-dot-wait);
+  --color-dot-info: var(--vp-dot-info);
+  --color-dot-off: var(--vp-dot-off);
   --color-border: var(--vp-border);
   --color-border-strong: var(--vp-border-strong);
   --color-primary: var(--vp-primary);
@@ -88,20 +116,24 @@
   --font-sans: 'Instrument Sans Variable', 'Noto Sans SC Variable', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
-  --text-display: 2.75rem;
-  --text-display--line-height: 1.15;
-  --text-title: 1.875rem;
+  --text-display: 3.5rem;
+  --text-display--line-height: 1.1;
+  --text-display--font-weight: 330;
+  --text-title: 2rem;
   --text-title--line-height: 1.25;
+  --text-title--font-weight: 400;
   --text-heading: 1.375rem;
-  --text-heading--line-height: 1.35;
-  --text-figure: 2.125rem;
-  --text-figure--line-height: 1.2;
+  --text-heading--line-height: 1.3;
+  --text-heading--font-weight: 500;
+  --text-figure: 2.5rem;
+  --text-figure--line-height: 1.15;
+  --text-figure--font-weight: 400;
   --text-body: 1rem;
-  --text-body--line-height: 1.6;
+  --text-body--line-height: 1.5;
   --text-label: 0.875rem;
   --text-label--line-height: 1.4;
   --text-caption: 0.75rem;
-  --text-caption--line-height: 1.4;
+  --text-caption--line-height: 1.35;
 
   --radius-control: 8px;
   --radius-card: 16px;
@@ -120,8 +152,15 @@
     color: var(--color-text);
     font-family: var(--font-sans);
     font-size: var(--text-body);
-    line-height: 1.6;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    font-synthesis: none;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: 0;
   }
 
   :focus-visible {

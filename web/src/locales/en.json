@@ -93,5 +93,68 @@
     "title": "Something went wrong",
     "body": "Please try again. If the problem continues, contact the site administrator.",
     "retry": "Try again"
+  },
+  "auth": {
+    "hero": "Make every payment find its place",
+    "description": "Manage payment codes, review orders and reconciliation, and configure callbacks in one quiet workspace.",
+    "features": {
+      "codes": "Alipay and WeChat payment codes, together",
+      "devices": "Monitor incoming payments and confirm orders",
+      "callbacks": "Automatic callback retries, with manual replay"
+    },
+    "welcome": "Welcome back",
+    "subtitle": "Sign in with your username or email",
+    "identifier": "Username / email",
+    "identifierPlaceholder": "Username or name@example.com",
+    "password": "Password",
+    "requiredIdentifier": "Enter your username or email",
+    "requiredPassword": "Enter your password",
+    "submit": "Sign in",
+    "submitting": "Submitting…",
+    "loading": "Loading…",
+    "register": "Register as a merchant",
+    "contactAdmin": "Need a merchant account? Contact the platform administrator.",
+    "factorTitle": "Two-step verification",
+    "factorDescription": "Verify your identity to continue signing in.",
+    "factorMethod": "Verification method",
+    "totp": "Authenticator",
+    "recovery": "Recovery code",
+    "totpCode": "Authentication code",
+    "recoveryCode": "Recovery code",
+    "requiredTOTP": "Enter a 6-digit authentication code",
+    "requiredRecovery": "Enter a recovery code",
+    "verify": "Verify and sign in",
+    "restart": "Start again",
+    "errors": {
+      "credentials": "Incorrect username or password",
+      "setup": "This site has not finished setup. Contact the platform administrator.",
+      "network": "Could not connect. Check your connection and try again.",
+      "expired": "This challenge has expired. Please sign in again.",
+      "code": "Incorrect authentication or recovery code. Try again.",
+      "turnstile": "Human verification is incomplete or has expired. Please verify again.",
+      "csrf": "Security verification failed. Refresh this page and try again.",
+      "banned": "This merchant account is disabled. Contact the platform administrator.",
+      "rateLimit": "Too many attempts. Please try again later.",
+      "forbidden": "You do not have permission for this action. Contact the platform administrator.",
+      "session": "Your session has expired. Please sign in again.",
+      "validation": "Check your entries and try again.",
+      "unavailable": "The service is temporarily unavailable. Please try again later."
+    }
+  },
+  "merchant": {
+    "navigation": "Merchant navigation",
+    "logout": "Sign out",
+    "nav": {
+      "overview": "Overview",
+      "orders": "Orders",
+      "notifications": "Notifications",
+      "codes": "Payment codes",
+      "devices": "Monitoring devices",
+      "integration": "Integration",
+      "subscription": "Subscription"
+    },
+    "bannedStatus": "Disabled",
+    "bannedTitle": "This merchant account is disabled",
+    "bannedDefault": "Contact the platform administrator for more information."
   }
 }

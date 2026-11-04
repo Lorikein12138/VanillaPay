@@ -22,7 +22,7 @@ const flowIcons = {
 const stepKeys = ['register', 'configure', 'integrate'] as const
 
 const navLinkClass =
-  'hidden h-10 items-center rounded-control px-3 text-label text-text-2 transition-colors hover:bg-muted hover:text-text md:inline-flex'
+  'hidden h-10 items-center rounded-control px-3 text-label text-text-2 transition-colors hover:bg-hover hover:text-text md:inline-flex'
 
 export function HomePage() {
   const { t } = useTranslation()
@@ -60,7 +60,7 @@ export function HomePage() {
           </div>
 
           <div className="flex min-w-0 flex-[1_1_420px] justify-center">
-            <figure className="m-0 flex w-full max-w-[440px] flex-col gap-5 rounded-dialog border border-border bg-surface p-6 shadow-[0_1px_2px_rgba(20,20,19,0.04),0_12px_32px_rgba(20,20,19,0.06)] sm:p-7">
+            <figure className="m-0 flex w-full max-w-[440px] flex-col gap-5 rounded-dialog border-[0.5px] border-border bg-surface p-6 shadow-[0_1px_2px_rgba(20,20,19,0.04),0_12px_32px_rgba(20,20,19,0.06)] sm:p-7">
               <figcaption className="text-label text-text-2">{t('home.flowCard.title')}</figcaption>
               <ol className="m-0 flex list-none flex-col p-0">
                 {(Object.keys(flowIcons) as (keyof typeof flowIcons)[]).map((key, index, all) => {
@@ -83,7 +83,7 @@ export function HomePage() {
           </div>
         </section>
 
-        <section id="features" className="scroll-mt-4 border-y border-border bg-surface">
+        <section id="features" className="scroll-mt-4 border-y-[0.5px] border-border bg-surface">
           <div className="mx-auto flex max-w-[1200px] flex-col gap-12 px-4 py-20 sm:px-6 lg:py-24">
             <div className="flex max-w-[640px] flex-col gap-3">
               <h2 className="m-0 font-serif text-[clamp(1.875rem,3.5vw,2.5rem)] leading-[1.2] font-normal">
@@ -91,7 +91,7 @@ export function HomePage() {
               </h2>
               <p className="m-0 text-[17px] leading-[1.7] text-text-2">{t('home.features.subtitle')}</p>
             </div>
-            <ul className="m-0 grid list-none grid-cols-1 gap-px overflow-hidden rounded-card border border-border bg-border p-0 md:grid-cols-2 lg:grid-cols-3">
+            <ul className="m-0 grid list-none grid-cols-1 gap-px overflow-hidden rounded-card border-[0.5px] border-border bg-border p-0 md:grid-cols-2 lg:grid-cols-3">
               {(Object.keys(featureIcons) as (keyof typeof featureIcons)[]).map((key) => {
                 const Icon = featureIcons[key]
                 return (
@@ -114,7 +114,7 @@ export function HomePage() {
           </h2>
           <ol className="m-0 grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-3">
             {stepKeys.map((key, index) => (
-              <li key={key} className="flex min-w-0 flex-col gap-3.5 border-t border-text pt-5">
+              <li key={key} className="flex min-w-0 flex-col gap-3.5 border-t-[0.5px] border-border-strong pt-5">
                 <span className="font-serif text-lg text-accent-text tabular-nums">{String(index + 1).padStart(2, '0')}</span>
                 <h3 className="m-0 text-[19px] font-medium">{t(`home.steps.items.${key}.title`)}</h3>
                 <p className="m-0 text-[15px] leading-[1.7] text-text-2">{t(`home.steps.items.${key}.body`)}</p>
@@ -124,7 +124,7 @@ export function HomePage() {
         </section>
       </main>
 
-      <footer className="border-t border-border">
+      <footer className="border-t-[0.5px] border-border">
         <div className="mx-auto flex max-w-[1200px] items-center gap-2.5 px-4 py-10 text-[13px] text-text-2 sm:px-6">
           <LogoMark className="size-5" />
           <span>{t('common.brand')}</span>
