@@ -33,6 +33,7 @@ export function LoginPage({ redirect }: { redirect?: string }) {
   const onToken = useCallback((value: string) => { setToken(value); if (value) setCaptchaError(false) }, [])
   const onCaptchaError = useCallback(() => { setCaptchaError(true); setToken('') }, [])
   const setupMissing = config.data?.turnstile.configured === false || (problem instanceof APIError && problem.problem?.code === 'SETUP_REQUIRED')
+  const hero = t('auth.hero')
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -75,7 +76,7 @@ export function LoginPage({ redirect }: { redirect?: string }) {
       <TopBar siteName={config.data?.site_name} />
       <main id="main" className="mx-auto grid w-full max-w-[1160px] flex-1 items-center gap-12 px-4 pt-12 pb-16 sm:px-8 lg:grid-cols-[1fr_400px] lg:gap-20 lg:pt-16 lg:pb-24">
         <section className="min-w-0">
-          <h1 className="m-0 max-w-[520px] font-serif text-[clamp(2.5rem,5vw,3.5rem)] leading-[1.1] font-[330] tracking-normal text-balance">{t('auth.hero')}</h1>
+          <h1 aria-label={hero.replaceAll('\n', '')} className="m-0 max-w-[520px] font-serif text-[clamp(2.5rem,5vw,3.5rem)] leading-[1.1] font-[330] tracking-normal text-balance">{hero.split('\n').map((line) => <span key={line} className={hero.includes('\n') ? 'block whitespace-nowrap' : undefined}>{line}</span>)}</h1>
           <p className="mt-7 max-w-[440px] text-lg leading-relaxed text-text-2">{t('auth.description')}</p>
           <ol className="mt-10 list-none border-t-[0.5px] border-border-strong p-0">
             {(['codes', 'devices', 'callbacks'] as const).map((key, index) => <li key={key} className="flex items-baseline gap-5 border-b-[0.5px] border-border py-4"><span className="font-mono text-caption text-text-3">0{index + 1}</span><span className="text-label">{t(`auth.features.${key}`)}</span></li>)}

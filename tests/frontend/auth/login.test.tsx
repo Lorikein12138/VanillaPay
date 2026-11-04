@@ -28,9 +28,9 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function renderApp(path = '/login') {
+function renderApp(path = '/login', queryClient = createQueryClient()) {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
-  render(<AppProviders i18n={createI18n()} queryClient={createQueryClient()}><RouterProvider router={router} /></AppProviders>)
+  render(<AppProviders i18n={createI18n()} queryClient={queryClient}><RouterProvider router={router} /></AppProviders>)
   return router
 }
 async function fillLogin() {
@@ -87,16 +87,42 @@ describe('merchant login', () => {
 
   it.each([
     [401, 'INVALID_CREDENTIALS', '账号或密码错误'],
+    [401, 'INVALID_2FA', '验证码或恢复码错误，请重试。'],
+    [401, 'CHALLENGE_EXPIRED', '本次验证已过期，请重新登录。'],
+    [400, 'TURNSTILE_FAILED', '人机验证未完成或已过期，请重新验证。'],
     [403, 'FORBIDDEN', '没有权限执行此操作，请联系平台管理员。'],
     [429, 'FORBIDDEN', '操作过于频繁，请稍后重试。'],
     [503, 'SETUP_REQUIRED', '站点尚未完成配置，请联系平台管理员。'],
     [503, 'TURNSTILE_UNAVAILABLE', '服务暂时不可用，请稍后重试。'],
+    [500, 'INTERNAL_ERROR', '服务暂时不可用，请稍后重试。'],
   ] as const)('maps HTTP %s / %s to readable errors', async (status, code, message) => {
     server.use(http.post('*/api/v1/auth/login', () => failure(status, code)))
     renderApp()
     const actor = await fillLogin()
     await actor.click(screen.getByRole('button', { name: '登录' }))
     expect((await screen.findByText(message)).closest('[role="alert"]')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('keeps an invalid second-factor challenge for retry and restarts an expired challenge', async () => {
+    const challenge = crypto.randomUUID()
+    let logins = 0
+    server.use(http.post('*/api/v1/auth/login', () => { logins++; return success({ requires_2fa: true, challenge_id: challenge, expires_at: session.expires_at }) }))
+    server.use(http.post('*/api/v1/auth/second-factor', () => failure(401, 'INVALID_2FA')))
+    renderApp()
+    const actor = await fillLogin()
+    await actor.click(screen.getByRole('button', { name: '登录' }))
+    await actor.type(await screen.findByLabelText('动态验证码'), '123456')
+    await actor.click(screen.getByRole('button', { name: '验证并登录' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('验证码或恢复码错误，请重试。')
+    expect(screen.getByLabelText('动态验证码')).toHaveValue('123456')
+    expect(logins).toBe(1)
+    server.use(http.post('*/api/v1/auth/second-factor', () => failure(401, 'CHALLENGE_EXPIRED')))
+    await actor.click(screen.getByRole('button', { name: '验证并登录' }))
+    expect(await screen.findByText('本次验证已过期，请重新登录。')).toBeVisible()
+    await actor.click(screen.getByRole('button', { name: '重新登录' }))
+    expect(await screen.findByLabelText('密码')).toHaveValue('')
+    expect(screen.queryByLabelText('动态验证码')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '登录' })).toBeDisabled()
   })
 
   it('maps network errors and server field validation', async () => {
@@ -135,15 +161,19 @@ describe('merchant login', () => {
     expect(await screen.findByRole('navigation', { name: '商户导航' })).toBeVisible()
   })
 
-  it('restores CSRF on refresh and attaches it to logout', async () => {
+  it('restores CSRF on refresh, attaches it to logout and clears private query data', async () => {
     const restored = crypto.randomUUID()
     server.use(http.get('*/api/v1/merchant/me', () => success({ ...session, csrf_token: restored })))
     let csrf: string | null = null
     server.use(http.post('*/api/v1/auth/logout', ({ request }) => { csrf = request.headers.get('X-CSRF-Token'); return success(null) }))
-    const router = renderApp('/dashboard')
+    const queryClient = createQueryClient()
+    const privateKey = ['merchant-private', user.id]
+    queryClient.setQueryData(privateKey, { merchantId: user.id })
+    const router = renderApp('/dashboard', queryClient)
     const actor = userEvent.setup()
     await actor.click(await screen.findByRole('button', { name: '退出登录' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(csrf).toBe(restored)
+    expect(queryClient.getQueryData(privateKey)).toBeUndefined()
   })
 })

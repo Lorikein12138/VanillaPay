@@ -6,6 +6,7 @@ export function authErrorKey(error: unknown) {
     case 'INVALID_CREDENTIALS': return 'auth.errors.credentials' as const
     case 'SETUP_REQUIRED': return 'auth.errors.setup' as const
     case 'CHALLENGE_EXPIRED': return 'auth.errors.expired' as const
+    case 'INVALID_2FA':
     case 'INVALID_CODE': return 'auth.errors.code' as const
     case 'TURNSTILE_FAILED': return 'auth.errors.turnstile' as const
     case 'CSRF_FAILED': return 'auth.errors.csrf' as const

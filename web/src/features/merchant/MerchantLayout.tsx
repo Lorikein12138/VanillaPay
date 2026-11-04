@@ -1,4 +1,5 @@
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,13 +15,14 @@ import { merchantNavigation } from '@/features/merchant/navigation'
 export function MerchantLayout({ session }: { session: components['schemas']['SessionIdentity'] }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<unknown>()
   async function logout() {
     if (busy) return
     setBusy(true)
     setProblem(undefined)
-    try { await api.logout(); await navigate({ to: '/login', search: {}, replace: true }) }
+    try { await api.logout(); queryClient.clear(); await navigate({ to: '/login', search: {}, replace: true }) }
     catch (error) { setProblem(error) }
     finally { setBusy(false) }
   }

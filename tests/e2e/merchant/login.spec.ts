@@ -1,4 +1,5 @@
 import { expect, login, noOverflow, test, totp } from './fixtures'
+import type { components } from '@/api/schema'
 
 test('signs in, restores CSRF after refresh, and signs out securely', async ({ page, account }) => {
   await page.goto('/login')
@@ -63,6 +64,15 @@ test('switches system and explicit dark themes without horizontal overflow', asy
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.goto('/login')
   await expect(page.getByRole('heading', { name: '让每一笔收款都有着落' })).toBeVisible()
+  const heroLines = page.getByRole('heading', { name: '让每一笔收款都有着落' }).locator('span')
+  await expect(heroLines).toHaveText(['让每一笔收款', '都有着落'])
+  for (const line of await heroLines.all()) {
+    const singleLine = await line.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return Math.abs(element.getBoundingClientRect().height - Number.parseFloat(style.lineHeight)) < 1
+    })
+    expect(singleLine).toBe(true)
+  }
   expect(await page.locator('html').evaluate((element) => getComputedStyle(element).getPropertyValue('--vp-danger').trim())).toBe('#e0857a')
   await page.getByRole('button', { name: '浅色', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
@@ -89,6 +99,43 @@ test.describe('second factor', () => {
     await page.getByRole('button', { name: '验证并登录' }).click()
     await expect(page).toHaveURL(/\/dashboard$/)
     await expect(page.getByRole('heading', { name: '概览', exact: true })).toBeVisible()
+    await noOverflow(page)
+  })
+
+  test('retries wrong TOTP and recovery proofs in the same real challenge', async ({ page, account }) => {
+    const challenges = new Set<string>()
+    page.on('request', (request) => {
+      if (request.url().endsWith('/api/v1/auth/second-factor')) challenges.add((request.postDataJSON() as components['schemas']['AuthFactorRequest']).challenge_id)
+    })
+    await page.goto('/login')
+    await login(page, account)
+    await expect(page.getByLabel('动态验证码')).toBeVisible()
+    const now = Date.now()
+    const validCodes = new Set([-30000, 0, 30000].map((offset) => totp(account.totpSeed, now + offset)))
+    let wrongCode: string
+    do { wrongCode = (crypto.getRandomValues(new Uint32Array(1))[0] ?? 0).toString().slice(-6).padStart(6, '0') } while (validCodes.has(wrongCode))
+    await page.getByLabel('动态验证码').fill(wrongCode)
+    const wrongTOTP = page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/second-factor'))
+    await page.getByRole('button', { name: '验证并登录' }).click()
+    const rejectedTOTP = await wrongTOTP
+    expect(rejectedTOTP.status()).toBe(401)
+    expect((await rejectedTOTP.json() as components['schemas']['ErrorEnvelope']).error.code).toBe('INVALID_2FA')
+    await expect(page.getByRole('alert')).toHaveText('验证码或恢复码错误，请重试。')
+    await expect(page.getByText('登录已失效，请重新登录。')).toHaveCount(0)
+    await page.getByRole('button', { name: '恢复码', exact: true }).click()
+    await page.getByLabel('恢复码', { exact: true }).fill(crypto.randomUUID())
+    const wrongRecovery = page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/second-factor'))
+    await page.getByRole('button', { name: '验证并登录' }).click()
+    const rejectedRecovery = await wrongRecovery
+    expect(rejectedRecovery.status()).toBe(401)
+    expect((await rejectedRecovery.json() as components['schemas']['ErrorEnvelope']).error.code).toBe('INVALID_2FA')
+    await expect(page.getByRole('alert')).toHaveText('验证码或恢复码错误，请重试。')
+    await expect(page.getByText('登录已失效，请重新登录。')).toHaveCount(0)
+    await page.getByRole('button', { name: '验证器', exact: true }).click()
+    await page.getByLabel('动态验证码').fill(totp(account.totpSeed))
+    await page.getByRole('button', { name: '验证并登录' }).click()
+    await expect(page).toHaveURL(/\/dashboard$/)
+    expect(challenges.size).toBe(1)
     await noOverflow(page)
   })
 })
