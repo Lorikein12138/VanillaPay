@@ -188,15 +188,15 @@ func TestHTTP_AdminMutationRoutesAbsent(t *testing.T) {
 	for i, path := range paths {
 		method := "POST"
 		response := fixture.Request(t, method, path, map[string]any{}, "admin:refund-admin")
-		if response.Code != 404 && response.Code != 405 {
+		if response.Code != 404 {
 			t.Fatalf("admin order mutation %s %s exposed status=%d body=%s", method, path, response.Code, response.Body.String())
 		}
 		if i == 0 {
 			t.Run("V37.B.r04/v01", func(t *testing.T) {
 				for _, mutationPath := range paths {
 					result := fixture.Request(t, "POST", mutationPath, map[string]any{}, "admin:refund-admin")
-					if result.Code != 404 && result.Code != 405 {
-						t.Fatalf("admin mutation route %s status=%d body=%s, want 404/405", mutationPath, result.Code, result.Body.String())
+					if result.Code != 404 {
+						t.Fatalf("admin mutation route %s status=%d body=%s, want 404", mutationPath, result.Code, result.Body.String())
 					}
 				}
 				var unchanged string
@@ -206,5 +206,9 @@ func TestHTTP_AdminMutationRoutesAbsent(t *testing.T) {
 			})
 			break
 		}
+	}
+	unsupported := fixture.Request(t, "DELETE", "/api/v1/console/orders/admin-readonly-trade", nil, "admin:refund-admin")
+	if unsupported.Code != 405 || unsupported.Header().Get("Allow") != "GET" || unsupported.Body.Len() != 0 {
+		t.Fatalf("known order path must retain empty 405 and Allow: GET; status=%d allow=%q", unsupported.Code, unsupported.Header().Get("Allow"))
 	}
 }
