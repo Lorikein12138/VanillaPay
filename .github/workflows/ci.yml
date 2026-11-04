@@ -117,9 +117,8 @@ jobs:
           encryption_key="$(openssl rand -base64 32)"
           echo "::add-mask::$encryption_key"
           export APP_ENCRYPTION_KEY="$encryption_key"
-          go build -o .local/server ./cmd/server
-          .local/server migrate up
-          .local/server serve > .local/server.log 2>&1 &
+          go build -o .local/server ./tests/e2e/server
+          .local/server > .local/server.log 2>&1 &
           echo "$!" > .local/server.pid
           for attempt in {1..60}; do
             if curl --fail --silent http://localhost:8080/health/ready > /dev/null; then

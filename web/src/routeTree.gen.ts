@@ -10,33 +10,84 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MerchantRouteImport } from './routes/_merchant'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MerchantSplatRouteImport } from './routes/_merchant.$'
+import { Route as MerchantBannedRouteImport } from './routes/_merchant.banned'
+import { Route as MerchantDashboardRouteImport } from './routes/_merchant.dashboard'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MerchantRoute = MerchantRouteImport.update({
+  id: '/_merchant',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MerchantSplatRoute = MerchantSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => MerchantRoute,
+} as any)
+const MerchantBannedRoute = MerchantBannedRouteImport.update({
+  id: '/banned',
+  path: '/banned',
+  getParentRoute: () => MerchantRoute,
+} as any)
+const MerchantDashboardRoute = MerchantDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => MerchantRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/$': typeof MerchantSplatRoute
+  '/banned': typeof MerchantBannedRoute
+  '/dashboard': typeof MerchantDashboardRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/$': typeof MerchantSplatRoute
+  '/banned': typeof MerchantBannedRoute
+  '/dashboard': typeof MerchantDashboardRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_merchant': typeof MerchantRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_merchant/$': typeof MerchantSplatRoute
+  '/_merchant/banned': typeof MerchantBannedRoute
+  '/_merchant/dashboard': typeof MerchantDashboardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/login' | '/$' | '/banned' | '/dashboard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/login' | '/$' | '/banned' | '/dashboard'
+  id:
+    | '__root__'
+    | '/'
+    | '/_merchant'
+    | '/login'
+    | '/_merchant/$'
+    | '/_merchant/banned'
+    | '/_merchant/dashboard'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MerchantRoute: typeof MerchantRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +99,64 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_merchant': {
+      id: '/_merchant'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MerchantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_merchant/$': {
+      id: '/_merchant/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof MerchantSplatRouteImport
+      parentRoute: typeof MerchantRoute
+    }
+    '/_merchant/banned': {
+      id: '/_merchant/banned'
+      path: '/banned'
+      fullPath: '/banned'
+      preLoaderRoute: typeof MerchantBannedRouteImport
+      parentRoute: typeof MerchantRoute
+    }
+    '/_merchant/dashboard': {
+      id: '/_merchant/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof MerchantDashboardRouteImport
+      parentRoute: typeof MerchantRoute
+    }
   }
 }
 
+interface MerchantRouteChildren {
+  MerchantSplatRoute: typeof MerchantSplatRoute
+  MerchantBannedRoute: typeof MerchantBannedRoute
+  MerchantDashboardRoute: typeof MerchantDashboardRoute
+}
+
+const MerchantRouteChildren: MerchantRouteChildren = {
+  MerchantSplatRoute: MerchantSplatRoute,
+  MerchantBannedRoute: MerchantBannedRoute,
+  MerchantDashboardRoute: MerchantDashboardRoute,
+}
+
+const MerchantRouteWithChildren = MerchantRoute._addFileChildren(
+  MerchantRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MerchantRoute: MerchantRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -14,7 +14,7 @@ export function LanguageSwitch() {
       lang={next}
       aria-label={t('language.switchTo', { language: nextLabel })}
       onClick={() => void changeLanguage(i18n, next)}
-      className="inline-flex h-10 items-center gap-1.5 rounded-control px-2.5 text-label text-text-2 transition-colors hover:bg-muted hover:text-text"
+      className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-control px-2.5 text-label text-text-2 transition-colors hover:bg-hover hover:text-text"
     >
       <Globe className="size-4" strokeWidth={1.8} aria-hidden="true" />
       {/* Icon-only on narrow screens so the top bar fits 360px; aria-label keeps the name. */}

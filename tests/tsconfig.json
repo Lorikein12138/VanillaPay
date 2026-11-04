@@ -21,6 +21,7 @@
     "paths": {
       "@/*": ["../web/src/*"],
       "@playwright/test": ["../web/node_modules/@playwright/test", "../web/node_modules/@playwright/test/index.mjs"],
+      "msw/node": ["../web/node_modules/msw/lib/node/index.d.ts"],
       "*": ["../web/node_modules/@types/*", "../web/node_modules/*"]
     }
   },
