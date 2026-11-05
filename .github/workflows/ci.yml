@@ -72,13 +72,14 @@ jobs:
   e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f # v1.64.1-noble
     services:
       postgres:
         image: postgres:17.6-alpine3.22
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: vanillapay_e2e
-        ports: [5432:5432]
         options: >-
           --health-cmd "pg_isready -U postgres -d vanillapay_e2e"
           --health-interval 5s
@@ -86,7 +87,7 @@ jobs:
           --health-retries 12
     env:
       APP_ENV: development
-      DATABASE_URL: postgres://postgres@localhost:5432/vanillapay_e2e?sslmode=disable
+      DATABASE_URL: postgres://postgres@postgres:5432/vanillapay_e2e?sslmode=disable
       PUBLIC_BASE_URL: http://localhost:8080
       LISTEN_ADDR: localhost:8080
       DATA_DIR: .local/ci-e2e-data
@@ -106,8 +107,21 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
-      - run: npx --no-install playwright install --with-deps chromium
+      - name: Verify Playwright image version
         working-directory: web
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const expected = require('./package.json').devDependencies['@playwright/test'];
+          const installed = require('@playwright/test/package.json').version;
+          const image = JSON.parse(fs.readFileSync('/ms-playwright/.docker-info', 'utf8'));
+          if (image.driverVersion !== expected || installed !== expected) {
+            console.error(`Playwright version mismatch: package.json=${expected}, installed=${installed}, image=${image.driverVersion}. Update the e2e container tag and digest in .github/workflows/ci.yml together with @playwright/test.`);
+            process.exit(1);
+          }
+          fs.accessSync(require('@playwright/test').chromium.executablePath(), fs.constants.X_OK);
+          console.log(`Playwright ${expected}: image version and Chromium executable verified`);
+          NODE
       - run: npm run build
         working-directory: web
       - name: Build and start backend
@@ -117,6 +131,8 @@ jobs:
           encryption_key="$(openssl rand -base64 32)"
           echo "::add-mask::$encryption_key"
           export APP_ENCRYPTION_KEY="$encryption_key"
+          # Checkout's temporary safe.directory config is not inherited by this root process.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           go build -o .local/server ./tests/e2e/server
           .local/server > .local/server.log 2>&1 &
           echo "$!" > .local/server.pid

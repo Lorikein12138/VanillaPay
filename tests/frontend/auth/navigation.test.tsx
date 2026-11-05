@@ -18,7 +18,7 @@ describe('safe navigation', () => {
     expect(merchantNavigation.map((item) => item.path)).toEqual(['/dashboard', '/orders', '/notifications', '/codes', '/devices', '/integration', '/subscription'])
     const lengths = merchantNavigation.map((item) => Array.from(item.label).length)
     expect(lengths).toEqual([...lengths].sort((a, b) => a - b))
-    expect(merchantNavigation.filter((item) => item.enabled).map((item) => item.key)).toEqual(['overview', 'orders'])
+    expect(merchantNavigation.filter((item) => item.enabled).map((item) => item.key)).toEqual(['overview', 'orders', 'codes', 'devices', 'integration'])
   })
 })
 
