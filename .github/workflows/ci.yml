@@ -41,9 +41,9 @@ jobs:
         with:
           version: v2.14.0
           args: ./...
-      # NewDatabase isolates schemas; package parallelism is verified locally and in CI.
-      # Disable test-result caching so every run exercises the PostgreSQL service.
-      - run: go test -count=1 ./...
+      # NewDatabase isolates schemas; five consecutive local shuffled runs passed.
+      # Shuffle test order and disable result caching on every PostgreSQL-backed run.
+      - run: go test -count=1 -shuffle=on ./...
 
   frontend:
     runs-on: ubuntu-24.04

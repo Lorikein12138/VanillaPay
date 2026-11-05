@@ -98,6 +98,8 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = application.Close() }() // Cleanup must not replace a startup or serve error.
+	// DisabledMailer isolates these login E2Es; this server does not exercise
+	// the production mail queue or SMTP delivery path.
 	application.Services.Auth = auth.NewService(pool, cfg.EncryptionKey, nil, nil, platform.DisabledMailer{}, auth.Siteverify{Client: &http.Client{Transport: localSiteverify{target: target}, Timeout: 5 * time.Second}})
 	value, err := json.Marshal(map[string]any{"turnstile_site_key": token, "turnstile_secret": secret, "allowed_hostname": publicURL.Hostname(), "restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "请联系平台管理员", "en": "Contact the platform administrator"}})
 	if err != nil {
@@ -113,14 +115,15 @@ func run(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /__e2e/merchant", func(w http.ResponseWriter, r *http.Request) {
 		var flags struct {
-			TOTP   bool `json:"totp"`
-			Banned bool `json:"banned"`
+			TOTP      bool   `json:"totp"`
+			Banned    bool   `json:"banned"`
+			BanReason string `json:"ban_reason"`
 		}
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&flags) != nil {
 			http.Error(w, "invalid fixture options", http.StatusBadRequest)
 			return
 		}
-		fixture, err := seedMerchant(r.Context(), pool, cfg.EncryptionKey, flags.TOTP, flags.Banned)
+		fixture, err := seedMerchant(r.Context(), pool, cfg.EncryptionKey, flags.TOTP, flags.Banned, flags.BanReason)
 		if err != nil {
 			http.Error(w, "merchant fixture failed", http.StatusInternalServerError)
 			return
@@ -134,7 +137,10 @@ func run(ctx context.Context) error {
 	return application.Start(ctx, mux)
 }
 
-func seedMerchant(ctx context.Context, pool *pgxpool.Pool, key [32]byte, factor, banned bool) (map[string]string, error) {
+func seedMerchant(ctx context.Context, pool *pgxpool.Pool, key [32]byte, factor, banned bool, banReason string) (map[string]string, error) {
+	if banReason == "" {
+		banReason = "Browser test restriction"
+	}
 	var random [32]byte
 	if _, err := rand.Read(random[:]); err != nil {
 		return nil, err
@@ -170,7 +176,7 @@ func seedMerchant(ctx context.Context, pool *pgxpool.Pool, key [32]byte, factor,
 			return nil, err
 		}
 	}
-	_, err = pool.Exec(ctx, `INSERT INTO merchants(username,username_normalized,email,email_normalized,pid,password_hash,key_cipher,totp_cipher,banned_at,ban_reason) VALUES($1,$1,$2,$2,$3,$4,$5,$6,CASE WHEN $7 THEN now() END,CASE WHEN $7 THEN 'Browser test restriction' END)`, username, username+"@example.test", pid, hash, cipher, totpCipher, banned)
+	_, err = pool.Exec(ctx, `INSERT INTO merchants(username,username_normalized,email,email_normalized,pid,password_hash,key_cipher,totp_cipher,banned_at,ban_reason) VALUES($1,$1,$2,$2,$3,$4,$5,$6,CASE WHEN $7 THEN now() END,CASE WHEN $7 THEN $8 END)`, username, username+"@example.test", pid, hash, cipher, totpCipher, banned, banReason)
 	if err != nil {
 		return nil, err
 	}
