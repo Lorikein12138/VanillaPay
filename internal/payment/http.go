@@ -489,7 +489,11 @@ func (h *Handler) OrderDetail(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) ExportOrders(w http.ResponseWriter, r *http.Request) {
 	actor, _ := platform.ActorFromContext(r.Context())
-	if !h.sameOrigin(r) {
+	allowedOrigin := h.sameOrigin(r)
+	if len(r.Header.Values("Origin")) == 0 {
+		allowedOrigin = r.Header.Get("Sec-Fetch-Site") == "same-origin"
+	}
+	if !allowedOrigin {
 		httpJSON(w, r, nil, apiErr("CSRF_FAILED", 403), 200)
 		return
 	}

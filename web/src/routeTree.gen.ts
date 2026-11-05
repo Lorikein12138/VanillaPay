@@ -15,6 +15,9 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MerchantSplatRouteImport } from './routes/_merchant.$'
 import { Route as MerchantBannedRouteImport } from './routes/_merchant.banned'
 import { Route as MerchantDashboardRouteImport } from './routes/_merchant.dashboard'
+import { Route as MerchantOrdersRouteImport } from './routes/_merchant.orders'
+import { Route as MerchantOrdersIndexRouteImport } from './routes/_merchant.orders.index'
+import { Route as MerchantOrdersTradeNoRouteImport } from './routes/_merchant.orders.$tradeNo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -45,6 +48,21 @@ const MerchantDashboardRoute = MerchantDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => MerchantRoute,
 } as any)
+const MerchantOrdersRoute = MerchantOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => MerchantRoute,
+} as any)
+const MerchantOrdersIndexRoute = MerchantOrdersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MerchantOrdersRoute,
+} as any)
+const MerchantOrdersTradeNoRoute = MerchantOrdersTradeNoRouteImport.update({
+  id: '/$tradeNo',
+  path: '/$tradeNo',
+  getParentRoute: () => MerchantOrdersRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -52,6 +70,9 @@ export interface FileRoutesByFullPath {
   '/$': typeof MerchantSplatRoute
   '/banned': typeof MerchantBannedRoute
   '/dashboard': typeof MerchantDashboardRoute
+  '/orders': typeof MerchantOrdersRouteWithChildren
+  '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/orders/': typeof MerchantOrdersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -59,6 +80,8 @@ export interface FileRoutesByTo {
   '/$': typeof MerchantSplatRoute
   '/banned': typeof MerchantBannedRoute
   '/dashboard': typeof MerchantDashboardRoute
+  '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/orders': typeof MerchantOrdersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -68,12 +91,30 @@ export interface FileRoutesById {
   '/_merchant/$': typeof MerchantSplatRoute
   '/_merchant/banned': typeof MerchantBannedRoute
   '/_merchant/dashboard': typeof MerchantDashboardRoute
+  '/_merchant/orders': typeof MerchantOrdersRouteWithChildren
+  '/_merchant/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/_merchant/orders/': typeof MerchantOrdersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/$' | '/banned' | '/dashboard'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/$'
+    | '/banned'
+    | '/dashboard'
+    | '/orders'
+    | '/orders/$tradeNo'
+    | '/orders/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/$' | '/banned' | '/dashboard'
+  to:
+    | '/'
+    | '/login'
+    | '/$'
+    | '/banned'
+    | '/dashboard'
+    | '/orders/$tradeNo'
+    | '/orders'
   id:
     | '__root__'
     | '/'
@@ -82,6 +123,9 @@ export interface FileRouteTypes {
     | '/_merchant/$'
     | '/_merchant/banned'
     | '/_merchant/dashboard'
+    | '/_merchant/orders'
+    | '/_merchant/orders/$tradeNo'
+    | '/_merchant/orders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -134,19 +178,56 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantDashboardRouteImport
       parentRoute: typeof MerchantRoute
     }
+    '/_merchant/orders': {
+      id: '/_merchant/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof MerchantOrdersRouteImport
+      parentRoute: typeof MerchantRoute
+    }
+    '/_merchant/orders/': {
+      id: '/_merchant/orders/'
+      path: '/'
+      fullPath: '/orders/'
+      preLoaderRoute: typeof MerchantOrdersIndexRouteImport
+      parentRoute: typeof MerchantOrdersRoute
+    }
+    '/_merchant/orders/$tradeNo': {
+      id: '/_merchant/orders/$tradeNo'
+      path: '/$tradeNo'
+      fullPath: '/orders/$tradeNo'
+      preLoaderRoute: typeof MerchantOrdersTradeNoRouteImport
+      parentRoute: typeof MerchantOrdersRoute
+    }
   }
 }
+
+interface MerchantOrdersRouteChildren {
+  MerchantOrdersTradeNoRoute: typeof MerchantOrdersTradeNoRoute
+  MerchantOrdersIndexRoute: typeof MerchantOrdersIndexRoute
+}
+
+const MerchantOrdersRouteChildren: MerchantOrdersRouteChildren = {
+  MerchantOrdersTradeNoRoute: MerchantOrdersTradeNoRoute,
+  MerchantOrdersIndexRoute: MerchantOrdersIndexRoute,
+}
+
+const MerchantOrdersRouteWithChildren = MerchantOrdersRoute._addFileChildren(
+  MerchantOrdersRouteChildren,
+)
 
 interface MerchantRouteChildren {
   MerchantSplatRoute: typeof MerchantSplatRoute
   MerchantBannedRoute: typeof MerchantBannedRoute
   MerchantDashboardRoute: typeof MerchantDashboardRoute
+  MerchantOrdersRoute: typeof MerchantOrdersRouteWithChildren
 }
 
 const MerchantRouteChildren: MerchantRouteChildren = {
   MerchantSplatRoute: MerchantSplatRoute,
   MerchantBannedRoute: MerchantBannedRoute,
   MerchantDashboardRoute: MerchantDashboardRoute,
+  MerchantOrdersRoute: MerchantOrdersRouteWithChildren,
 }
 
 const MerchantRouteWithChildren = MerchantRoute._addFileChildren(

@@ -2953,7 +2953,7 @@ paths:
         - MerchantSession: []
       responses:
         '200':
-          description: CSV 导出；需同源 Origin
+          description: CSV 导出；有 Origin 时必须同源；无 Origin 时仅接受 Sec-Fetch-Site 为 same-origin
           content:
             text/csv:
               schema:
@@ -3000,9 +3000,15 @@ paths:
           in: query
           schema:
             type: string
-        - name: Origin
+        - name: Sec-Fetch-Site
           in: header
-          required: true
+          description: Origin 缺失时必须为 same-origin；其他值或缺失一律拒绝。
+          schema:
+            type: string
+        - name: Origin
+          description: 有值（包括空字符串）时必须通过同源校验；缺失时仅允许 Sec-Fetch-Site 为 same-origin。
+          in: header
+          required: false
           schema:
             type: string
   /api/v1/merchant/audit-logs:
@@ -3209,7 +3215,7 @@ paths:
         - AdminSession: []
       responses:
         '200':
-          description: CSV 导出；需同源 Origin
+          description: CSV 导出；有 Origin 时必须同源；无 Origin 时仅接受 Sec-Fetch-Site 为 same-origin
           content:
             text/csv:
               schema:
@@ -3256,9 +3262,15 @@ paths:
           in: query
           schema:
             type: string
-        - name: Origin
+        - name: Sec-Fetch-Site
           in: header
-          required: true
+          description: Origin 缺失时必须为 same-origin；其他值或缺失一律拒绝。
+          schema:
+            type: string
+        - name: Origin
+          description: 有值（包括空字符串）时必须通过同源校验；缺失时仅允许 Sec-Fetch-Site 为 same-origin。
+          in: header
+          required: false
           schema:
             type: string
   /api/v1/console/audit-logs:
