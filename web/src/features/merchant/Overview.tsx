@@ -62,7 +62,7 @@ export function Overview({ name }: { name: string }) {
           <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2"><h2 id="overview-trend" className="font-serif text-heading">{t('merchant.overview.trend')}</h2><span className="text-caption text-text-3">{t('merchant.overview.thousands')}</span></div>
           {chart.isError ? <QueryProblem retry={() => { void chart.refetch() }} /> : chart.isPending ? <Skeleton className="h-[218px] w-full" /> : <TrendChart points={chart.data.trend ?? []} format={(cents) => decimal.format(cents / 100000)} />}
         </section>
-        <section aria-labelledby="overview-device" aria-busy={device.isPending} className="min-h-[340px] min-w-0 flex-[1_1_280px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7">
+        <section aria-labelledby="overview-device" aria-busy={device.isPending} className="min-h-48 min-w-0 flex-[1_1_280px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7">
           <h2 id="overview-device" className="mb-4 font-serif text-heading">{t('merchant.overview.device')}</h2>
           {device.isError ? <QueryProblem retry={() => { void device.refetch() }} /> : device.isPending ? <Skeleton className="h-20 w-full" /> : <DeviceCard device={device.data} now={now} />}
         </section>
