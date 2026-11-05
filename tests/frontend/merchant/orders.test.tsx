@@ -9,6 +9,7 @@ import { createAppRouter } from '@/app/router'
 import { APIError } from '@/api/client'
 import type { components } from '@/api/schema'
 import { availableOrderActions, orderErrorKey, validReason } from '@/features/merchant/orders-data'
+import { previousRange, statsRange } from '@/features/merchant/overview-data'
 import { createI18n } from '@/lib/i18n'
 import { order } from './fixtures'
 
@@ -104,6 +105,30 @@ describe('order filters and cursor pagination', () => {
 })
 
 describe('order actions', () => {
+  it.each(['supplement', 'refund', 'resolve'] as const)('invalidates every cached statistics range for this merchant after %s', async (action) => {
+    const value = detail(action === 'supplement' ? 'pending' : 'paid')
+    value.refund = action === 'resolve' ? { id: crypto.randomUUID(), trade_no: value.order.trade_no, out_refund_no: null, amount_cents: 12345, status: 'pending', reason: null, requested_at: new Date().toISOString(), handled_at: null, handled_by: null } : null
+    const endpoint = action === 'resolve' ? `/api/v1/merchant/refunds/${value.refund!.id}/resolve` : `/api/v1/merchant/orders/${value.order.trade_no}/${action}`
+    server.use(http.get('*/api/v1/merchant/orders/:trade', () => success(value)), http.post(`*${endpoint}`, () => success(action === 'resolve' ? value.refund : value.order)))
+    const { client } = mount(`/orders/${value.order.trade_no}`)
+    const ranges = ([1, 7, 30] as const).flatMap((days) => {
+      const range = statsRange(new Date(), days, 'Asia/Shanghai')
+      return [range, previousRange(range)]
+    })
+    const keys = ranges.map((range) => ['merchant', identity.user.username, 'stats', range])
+    for (const key of keys) client.setQueryData(key, { total_amount_cents: 12345 })
+    const otherMerchant = ['merchant', 'another_shop', 'stats', ranges[0]]
+    client.setQueryData(otherMerchant, { total_amount_cents: 12345 })
+    expect(keys.every((key) => client.getQueryState(key)?.isInvalidated === false)).toBe(true)
+    const actor = userEvent.setup()
+    await actor.click(await screen.findByRole('button', { name: action === 'supplement' ? '补单' : action === 'refund' ? '标记退款' : '处理退款' }))
+    await actor.type(screen.getByLabelText('原因', { exact: true }), 'Verified offline transaction')
+    if (action !== 'supplement') await actor.click(screen.getByRole('checkbox'))
+    await actor.click(screen.getByRole('button', { name: action === 'supplement' ? '确认补单' : action === 'refund' ? '确认退款' : '确认处理退款' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(keys.every((key) => client.getQueryState(key)?.isInvalidated === true)).toBe(true)
+    expect(client.getQueryState(otherMerchant)?.isInvalidated).toBe(false)
+  })
   it.each(['pending', 'expired', 'paid', 'refunded'])('limits actions for status %s', (status) => {
     const value = detail(status); value.order.callback_status = 'failed'
     expect(availableOrderActions(value)).toEqual(status === 'paid' ? ['refund', 'replay'] : status === 'refunded' ? [] : ['supplement'])

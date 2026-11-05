@@ -24,7 +24,11 @@ export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo:
   if (query.isPending) return <div className="mx-auto max-w-[1112px]" aria-busy="true">{back}<Skeleton className="mt-5 h-96 w-full" /></div>
   if (!detail || !order) return <div className="mx-auto max-w-[1112px] space-y-5">{back}<h1 className="font-serif text-3xl">{t(query.error instanceof APIError && query.error.status === 404 ? 'merchant.orders.notFound' : 'merchant.orders.detail')}</h1><p role="alert" className="text-label text-text-2">{t(orderErrorKey(query.error))}</p>{!(query.error instanceof APIError && query.error.status === 404) && <button type="button" className={orderButton} onClick={() => { void query.refetch() }}>{t('error.retry')}</button>}</div>
   async function completed() {
-    await Promise.all([client.invalidateQueries({ queryKey: ['merchant', name, 'order', tradeNo] }), client.invalidateQueries({ queryKey: ['merchant', name, 'orders'] })])
+    await Promise.all([
+      client.invalidateQueries({ queryKey: ['merchant', name, 'order', tradeNo] }),
+      client.invalidateQueries({ queryKey: ['merchant', name, 'orders'] }),
+      client.invalidateQueries({ queryKey: ['merchant', name, 'stats'] }),
+    ])
     setNotice(confirmation?.action)
     setConfirmation(undefined)
   }
