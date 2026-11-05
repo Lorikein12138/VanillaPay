@@ -6,9 +6,9 @@ export const merchantNavigation = [
   { label: '概览', key: 'overview', path: '/dashboard', icon: ChartNoAxesCombined, enabled: true },
   { label: '订单', key: 'orders', path: '/orders', icon: ShoppingBag, enabled: true },
   { label: '通知', key: 'notifications', path: '/notifications', icon: Bell, enabled: false },
-  { label: '收款码', key: 'codes', path: '/codes', icon: QrCode, enabled: false },
-  { label: '监控设备', key: 'devices', path: '/devices', icon: Smartphone, enabled: false },
-  { label: '接入配置', key: 'integration', path: '/integration', icon: CodeXml, enabled: false },
+  { label: '收款码', key: 'codes', path: '/codes', icon: QrCode, enabled: true },
+  { label: '监控设备', key: 'devices', path: '/devices', icon: Smartphone, enabled: true },
+  { label: '接入配置', key: 'integration', path: '/integration', icon: CodeXml, enabled: true },
   { label: '订阅套餐', key: 'subscription', path: '/subscription', icon: CreditCard, enabled: false },
 ] as const
 

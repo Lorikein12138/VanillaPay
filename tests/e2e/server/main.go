@@ -98,9 +98,9 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = application.Close() }() // Cleanup must not replace a startup or serve error.
-	// DisabledMailer isolates these login E2Es; this server does not exercise
-	// the production mail queue or SMTP delivery path.
-	application.Services.Auth = auth.NewService(pool, cfg.EncryptionKey, nil, nil, platform.DisabledMailer{}, auth.Siteverify{Client: &http.Client{Transport: localSiteverify{target: target}, Timeout: 5 * time.Second}})
+	// Capture runtime verification mail in memory; SMTP is tested separately.
+	inbox := &browserInbox{codes: make(map[string]string)}
+	application.Services.Auth = auth.NewService(pool, cfg.EncryptionKey, nil, nil, inbox, auth.Siteverify{Client: &http.Client{Transport: localSiteverify{target: target}, Timeout: 5 * time.Second}})
 	value, err := json.Marshal(map[string]any{"turnstile_site_key": token, "turnstile_secret": secret, "allowed_hostname": publicURL.Hostname(), "restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "请联系平台管理员", "en": "Contact the platform administrator"}})
 	if err != nil {
 		return err
@@ -113,6 +113,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 	mux := http.NewServeMux()
+	inbox.register(mux)
 	mux.HandleFunc("POST /__e2e/merchant", func(w http.ResponseWriter, r *http.Request) {
 		var flags struct {
 			TOTP      bool   `json:"totp"`

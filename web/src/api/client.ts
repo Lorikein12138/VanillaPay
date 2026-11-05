@@ -20,26 +20,27 @@ function remember<T extends { csrf_token: string }>(session: T): T {
 }
 
 function rejectResponse(response: Response, problem?: Schema['ErrorEnvelope']['error'], protectedRequest = true): never {
-  if (response.status === 401 && protectedRequest) {
+  if (response.status === 401 && protectedRequest && problem?.code !== 'INVALID_2FA') {
     csrfToken = ''
     unauthorized?.()
   }
   throw new APIError(response.status, problem)
 }
 
-async function request<T>(path: string, body?: unknown, protectedRequest = true, idempotencyKey?: string): Promise<T> {
+async function request<T>(path: string, body?: unknown, protectedRequest = true, idempotencyKey?: string, method?: string, signal?: AbortSignal): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, {
-      method: body === undefined ? 'GET' : 'POST',
+      method: method ?? (body === undefined ? 'GET' : 'POST'),
+      signal,
       credentials: 'include',
       headers: {
         Accept: 'application/json',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(body !== undefined && protectedRequest && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
         ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }),
     })
   } catch {
     throw new APIError(0)
@@ -53,7 +54,7 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true,
 }
 
 type OrdersQuery = NonNullable<operations['get_api_v1_merchant_orders']['parameters']['query']>
-function queryString(value: OrdersQuery) {
+function queryString(value: Record<string, string | number | undefined>) {
   return new URLSearchParams(Object.entries(value).filter(([, item]) => item !== undefined && item !== '').map(([key, item]) => [key, String(item)]))
 }
 
@@ -92,6 +93,24 @@ export const api = {
   banned: () => request<Schema['BannedInfo']>('/api/v1/merchant/banned'),
   stats: (range: { start: string; end: string; timezone: string }) => request<Schema['PortalStatsDTO']>(`/api/v1/merchant/stats?${new URLSearchParams(range)}`),
   device: () => request<Schema['DeviceDeviceDTO']>('/api/v1/merchant/device'),
+  collection: () => request<Schema['Collection']>('/api/v1/merchant/collection'),
+  qrSlots: () => request<Schema['QRSlots']>('/api/v1/merchant/collection/codes'),
+  uploadQR: (channel: string, file: File) => {
+    const form = new FormData(); form.set('file', file)
+    return request<Schema['SettingsQRDTO']>(`/api/v1/merchant/collection/codes/${encodeURIComponent(channel)}`, form, true, undefined, 'PUT')
+  },
+  setQREnabled: (channel: string, enabled: boolean) => request<Schema['SettingsQRDTO']>(`/api/v1/merchant/collection/codes/${encodeURIComponent(channel)}`, { enabled }, true, undefined, 'PATCH'),
+  saveCollection: (value: Schema['SettingsSaveCollectionRequest']) => request<Schema['SettingsCollectionSettings']>('/api/v1/merchant/collection/settings', value, true, undefined, 'PUT'),
+  createBinding: (replace_confirmed: boolean) => request<Schema['DeviceBindingDTO']>('/api/v1/merchant/device/bindings', { replace_confirmed }),
+  binding: (id: string, signal?: AbortSignal) => request<Schema['DeviceBindingStatus']>(`/api/v1/merchant/device/bindings/${encodeURIComponent(id)}`, undefined, true, undefined, undefined, signal),
+  unbindDevice: () => request<null>('/api/v1/merchant/device', { confirm: true }, true, undefined, 'DELETE'),
+  receipts: (filters: NonNullable<operations['get_api_v1_merchant_receipts']['parameters']['query']>) => request<Schema['ReceiptsPage']>(`/api/v1/merchant/receipts?${queryString(filters)}`),
+  receipt: (id: string) => request<Schema['PortalReceiptDTO']>(`/api/v1/merchant/receipts/${encodeURIComponent(id)}`),
+  integration: () => request<Schema['Integration']>('/api/v1/merchant/integration'),
+  emailCode: (value: Schema['AuthEmailCodeRequest']) => request<Schema['AuthEmailCodeResult']>('/api/v1/auth/email-codes', value),
+  resetKey: (security_proof: Schema['AuthSecurityProof']) => request<Schema['MerchantKeyDTO']>('/api/v1/merchant/integration/reset-key', { security_proof }),
+  saveRSA: (value: Schema['MerchantRSAKeyRequest']) => request<operations['put_api_v1_merchant_integration_rsa_public_key']['responses'][200]['content']['application/json']['data']>('/api/v1/merchant/integration/rsa-public-key', value, true, undefined, 'PUT'),
+  saveWhitelist: (value: Schema['MerchantIPWhitelist']) => request<Schema['MerchantIPWhitelist']>('/api/v1/merchant/integration/ip-whitelist', value, true, undefined, 'PUT'),
   orders: (limit: number) => request<Schema['OrdersPage']>(`/api/v1/merchant/orders?${new URLSearchParams({ limit: String(limit) })}`),
   orderPage: (filters: OrdersQuery) => request<Schema['OrdersPage']>(`/api/v1/merchant/orders?${queryString(filters)}`),
   order: (tradeNo: string) => request<Schema['OrderDetail']>(`/api/v1/merchant/orders/${encodeURIComponent(tradeNo)}`),

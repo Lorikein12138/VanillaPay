@@ -92,6 +92,11 @@ func seedOverviewOrders(ctx context.Context, pool *pgxpool.Pool, pid string, ord
 		if err != nil {
 			return err
 		}
+		if order.Status == "pending" && order.Channel != nil && order.ActualCents != nil {
+			if _, err := tx.Exec(ctx, `UPDATE orders SET channel_locked_at=created_at WHERE id=$1`, orderID); err != nil {
+				return err
+			}
+		}
 		if order.CallbackState != "" {
 			var eventID int64
 			err := tx.QueryRow(ctx, `INSERT INTO callback_events(public_id,order_id,generation,state,attempt_count,payload_snapshot) VALUES($1,$2,1,$3,1,jsonb_build_object('trade_no',$4::text)) RETURNING id`, order.TradeNo+"-callback", orderID, order.CallbackState, order.TradeNo).Scan(&eventID)
