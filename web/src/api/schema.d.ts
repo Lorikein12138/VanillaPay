@@ -5261,15 +5261,18 @@ export interface operations {
                 channel?: string;
                 query?: string;
             };
-            header: {
-                Origin: string;
+            header?: {
+                /** @description Origin 缺失时必须为 same-origin；其他值或缺失一律拒绝。 */
+                "Sec-Fetch-Site"?: string;
+                /** @description 有值（包括空字符串）时必须通过同源校验；缺失时仅允许 Sec-Fetch-Site 为 same-origin。 */
+                Origin?: string;
             };
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description CSV 导出；需同源 Origin */
+            /** @description CSV 导出；有 Origin 时必须同源；无 Origin 时仅接受 Sec-Fetch-Site 为 same-origin */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5423,15 +5426,18 @@ export interface operations {
                 channel?: string;
                 query?: string;
             };
-            header: {
-                Origin: string;
+            header?: {
+                /** @description Origin 缺失时必须为 same-origin；其他值或缺失一律拒绝。 */
+                "Sec-Fetch-Site"?: string;
+                /** @description 有值（包括空字符串）时必须通过同源校验；缺失时仅允许 Sec-Fetch-Site 为 same-origin。 */
+                Origin?: string;
             };
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description CSV 导出；需同源 Origin */
+            /** @description CSV 导出；有 Origin 时必须同源；无 Origin 时仅接受 Sec-Fetch-Site 为 same-origin */
             200: {
                 headers: {
                     [name: string]: unknown;

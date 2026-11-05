@@ -1,4 +1,4 @@
-import type { components } from '@/api/schema'
+import type { components, operations } from '@/api/schema'
 
 type Schema = components['schemas']
 export class APIError extends Error {
@@ -19,7 +19,15 @@ function remember<T extends { csrf_token: string }>(session: T): T {
   return session
 }
 
-async function request<T>(path: string, body?: unknown, protectedRequest = true): Promise<T> {
+function rejectResponse(response: Response, problem?: Schema['ErrorEnvelope']['error'], protectedRequest = true): never {
+  if (response.status === 401 && protectedRequest) {
+    csrfToken = ''
+    unauthorized?.()
+  }
+  throw new APIError(response.status, problem)
+}
+
+async function request<T>(path: string, body?: unknown, protectedRequest = true, idempotencyKey?: string): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, {
@@ -29,6 +37,7 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true)
         Accept: 'application/json',
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(body !== undefined && protectedRequest && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
@@ -37,14 +46,35 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true)
   }
   const envelope = await response.json().catch(() => null) as Schema['ErrorEnvelope'] | (Schema['SuccessEnvelope'] & { data: T }) | null
   if (!response.ok) {
-    if (response.status === 401 && protectedRequest) {
-      csrfToken = ''
-      unauthorized?.()
-    }
-    throw new APIError(response.status, envelope && 'error' in envelope && envelope.error ? envelope.error : undefined)
+    rejectResponse(response, envelope && 'error' in envelope && envelope.error ? envelope.error : undefined, protectedRequest)
   }
   if (!envelope || !('data' in envelope)) throw new APIError(502)
   return envelope.data
+}
+
+type OrdersQuery = NonNullable<operations['get_api_v1_merchant_orders']['parameters']['query']>
+function queryString(value: OrdersQuery) {
+  return new URLSearchParams(Object.entries(value).filter(([, item]) => item !== undefined && item !== '').map(([key, item]) => [key, String(item)]))
+}
+
+async function exportOrders(filters: OrdersQuery) {
+  let response: Response
+  try { response = await fetch(`/api/v1/merchant/orders/export.csv?${queryString(filters)}`, { credentials: 'include', headers: { Accept: 'text/csv' } }) }
+  catch { throw new APIError(0) }
+  if (!response.ok) {
+    const envelope = await response.json().catch(() => null) as Schema['ErrorEnvelope'] | null
+    rejectResponse(response, envelope?.error)
+  }
+  let filename = `orders-${new Date().toISOString().slice(0, 10)}.csv`
+  const supplied = /filename\*?=(?:UTF-8''|"?)([^";]+)/i.exec(response.headers.get('Content-Disposition') ?? '')?.[1]
+  if (supplied) {
+    try {
+      const decoded = decodeURIComponent(supplied)
+      if (!/[\\/\r\n]/.test(decoded) && decoded.endsWith('.csv')) filename = decoded
+    } catch { /* Use the local filename when the header is malformed. */ }
+  }
+  try { return { blob: await response.blob(), filename } }
+  catch { throw new APIError(0) }
 }
 
 export const api = {
@@ -63,6 +93,13 @@ export const api = {
   stats: (range: { start: string; end: string; timezone: string }) => request<Schema['PortalStatsDTO']>(`/api/v1/merchant/stats?${new URLSearchParams(range)}`),
   device: () => request<Schema['DeviceDeviceDTO']>('/api/v1/merchant/device'),
   orders: (limit: number) => request<Schema['OrdersPage']>(`/api/v1/merchant/orders?${new URLSearchParams({ limit: String(limit) })}`),
+  orderPage: (filters: OrdersQuery) => request<Schema['OrdersPage']>(`/api/v1/merchant/orders?${queryString(filters)}`),
+  order: (tradeNo: string) => request<Schema['OrderDetail']>(`/api/v1/merchant/orders/${encodeURIComponent(tradeNo)}`),
+  supplement: (tradeNo: string, value: Schema['PaymentSupplementRequest'], key: string) => request<Schema['PortalOrderDTO']>(`/api/v1/merchant/orders/${encodeURIComponent(tradeNo)}/supplement`, value, true, key),
+  refund: (tradeNo: string, value: operations['post_api_v1_merchant_orders_trade_no_refund']['requestBody']['content']['application/json'], key: string) => request<Schema['PortalOrderDTO']>(`/api/v1/merchant/orders/${encodeURIComponent(tradeNo)}/refund`, value, true, key),
+  resolveRefund: (id: string, value: Schema['PaymentRefundResolution'], key: string) => request<Schema['PaymentRefundDTO']>(`/api/v1/merchant/refunds/${encodeURIComponent(id)}/resolve`, value, true, key),
+  replayCallback: (tradeNo: string, key: string) => request<operations['post_api_v1_merchant_orders_trade_no_callback_replay']['responses'][202]['content']['application/json']['data']>(`/api/v1/merchant/orders/${encodeURIComponent(tradeNo)}/callback-replay`, {}, true, key),
+  exportOrders,
   async logout() {
     if (!csrfToken) await api.me()
     await request<null>('/api/v1/auth/logout', {})

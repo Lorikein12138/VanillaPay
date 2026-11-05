@@ -152,17 +152,18 @@ describe('merchant login', () => {
     expect(screen.queryByRole('link', { name: '注册商户' })).not.toBeInTheDocument()
   })
 
-  it('guards unimplemented merchant paths without flashing content and restores redirect', async () => {
+  it('guards merchant orders without flashing content and restores redirect filters', async () => {
     server.use(http.get('*/api/v1/merchant/me', async () => { await delay(30); return failure(401, 'UNAUTHENTICATED') }))
-    const router = renderApp('/orders?filter=paid')
+    const router = renderApp('/orders?status=paid')
     expect(screen.queryByRole('navigation', { name: '商户导航' })).not.toBeInTheDocument()
     await screen.findByLabelText('用户名 / 邮箱')
-    expect(router.state.location.search).toEqual({ redirect: '/orders?filter=paid' })
+    expect(router.state.location.search).toEqual({ redirect: '/orders?status=paid' })
     server.use(http.get('*/api/v1/merchant/me', () => success(session)))
     const actor = await fillLogin()
     await actor.click(screen.getByRole('button', { name: '登录' }))
-    await waitFor(() => expect(router.state.location.href).toBe('/orders?filter=paid'))
+    await waitFor(() => expect(router.state.location.href).toBe('/orders?status=paid'))
     expect(await screen.findByRole('navigation', { name: '商户导航' })).toBeVisible()
+    expect(await screen.findByLabelText('状态', { exact: true })).toHaveValue('paid')
   })
 
   it.each(['pending', 500, 403, 'network', 200, 401] as const)('logout %s preserves private state until success, except the global 401 redirect', async (outcome) => {

@@ -15,6 +15,7 @@ import (
 
 type overviewOrder struct {
 	TradeNo       string     `json:"trade_no"`
+	OutTradeNo    string     `json:"out_trade_no"`
 	Name          string     `json:"name"`
 	Channel       *string    `json:"channel"`
 	Status        string     `json:"status"`
@@ -22,6 +23,10 @@ type overviewOrder struct {
 	ActualCents   *int64     `json:"actual_cents"`
 	CreatedAt     time.Time  `json:"created_at"`
 	PaidAt        *time.Time `json:"paid_at"`
+	NotifyURL     *string    `json:"notify_url"`
+	ReturnURL     *string    `json:"return_url"`
+	CallbackState string     `json:"callback_state"`
+	RefundPending bool       `json:"refund_pending"`
 }
 
 // Only registered by the loopback E2E executable, never the production router.
@@ -78,9 +83,30 @@ func seedOverviewOrders(ctx context.Context, pool *pgxpool.Pool, pid string, ord
 		if order.Status == "refunded" {
 			refundedAt = order.PaidAt
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO orders(trade_no,out_trade_no,merchant_id,merchant_username_snapshot,purpose,protocol,name,channel,status,original_cents,actual_cents,created_at,paid_at,refunded_at,expires_at) VALUES($1,$1,$2,$3,'external','v1',$4,$5,$6,$7,$8,$9,$10,$11,$12)`, order.TradeNo, merchantID, username, order.Name, order.Channel, order.Status, order.OriginalCents, order.ActualCents, order.CreatedAt, order.PaidAt, refundedAt, order.CreatedAt.AddDate(0, 3, 0))
+		outTrade := order.OutTradeNo
+		if outTrade == "" {
+			outTrade = order.TradeNo
+		}
+		var orderID int64
+		err := tx.QueryRow(ctx, `INSERT INTO orders(trade_no,out_trade_no,merchant_id,merchant_username_snapshot,purpose,protocol,name,channel,status,original_cents,actual_cents,created_at,paid_at,refunded_at,expires_at,notify_url,return_url,allowed_channels_snapshot) VALUES($1,$2,$3,$4,'external','v1',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`, order.TradeNo, outTrade, merchantID, username, order.Name, order.Channel, order.Status, order.OriginalCents, order.ActualCents, order.CreatedAt, order.PaidAt, refundedAt, order.CreatedAt.AddDate(0, 3, 0), order.NotifyURL, order.ReturnURL, []string{"alipay", "wxpay", "qqpay"}).Scan(&orderID)
 		if err != nil {
 			return err
+		}
+		if order.CallbackState != "" {
+			var eventID int64
+			err := tx.QueryRow(ctx, `INSERT INTO callback_events(public_id,order_id,generation,state,attempt_count,payload_snapshot) VALUES($1,$2,1,$3,1,jsonb_build_object('trade_no',$4::text)) RETURNING id`, order.TradeNo+"-callback", orderID, order.CallbackState, order.TradeNo).Scan(&eventID)
+			if err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO callback_attempts(public_id,event_id,attempt_no,started_at,finished_at,http_status,duration_ms,response_excerpt,error_code,url_redacted) VALUES($1,$2,1,$3,$3,500,12,$4,$5,$6)`, order.TradeNo+"-attempt", eventID, order.CreatedAt, "fixture callback failed", "CALLBACK_NOT_CONFIRMED", order.NotifyURL); err != nil {
+				return err
+			}
+		}
+		if order.RefundPending {
+			digest := sha256.Sum256([]byte(order.TradeNo))
+			if _, err := tx.Exec(ctx, `INSERT INTO refunds(public_id,order_id,requested_cents,status,reason,request_digest) VALUES($1,$2,$3,'pending',$4,$5)`, order.TradeNo+"-refund", orderID, order.OriginalCents, "Fixture refund request", digest[:]); err != nil {
+				return err
+			}
 		}
 	}
 	return tx.Commit(ctx)
