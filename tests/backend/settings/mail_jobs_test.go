@@ -20,8 +20,6 @@ import (
 	"net"
 	"net/mail"
 	"net/netip"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -445,7 +443,6 @@ func newTrustedLocalSMTPSink(t *testing.T) *localSMTPSink {
 	if err != nil {
 		t.Fatalf("create local SMTP certificates: %v", err)
 	}
-	trustSMTPTestRoot(t, certificates.rootPEM)
 	listener, err := net.Listen("tcp", netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), 0).String())
 	if err != nil {
 		t.Fatalf("listen for local SMTP TLS: %v", err)
@@ -539,15 +536,6 @@ func (sink *localSMTPSink) serve(listener net.Listener) {
 			}
 		}
 	}
-}
-
-func trustSMTPTestRoot(t *testing.T, certPEM []byte) {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "smtp-test-root.pem")
-	if err := os.WriteFile(path, certPEM, 0o600); err != nil {
-		t.Fatalf("write local SMTP root certificate: %v", err)
-	}
-	t.Setenv("SSL_CERT_FILE", path)
 }
 
 func readMIMEBody(message *mail.Message) (string, error) {

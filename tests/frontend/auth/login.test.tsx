@@ -161,19 +161,49 @@ describe('merchant login', () => {
     expect(await screen.findByRole('navigation', { name: '商户导航' })).toBeVisible()
   })
 
-  it('restores CSRF on refresh, attaches it to logout and clears private query data', async () => {
+  it.each(['pending', 500, 403, 'network', 200, 401] as const)('logout %s preserves private state until success, except the global 401 redirect', async (outcome) => {
     const restored = crypto.randomUUID()
     server.use(http.get('*/api/v1/merchant/me', () => success({ ...session, csrf_token: restored })))
     let csrf: string | null = null
-    server.use(http.post('*/api/v1/auth/logout', ({ request }) => { csrf = request.headers.get('X-CSRF-Token'); return success(null) }))
+    let finish: (() => void) | undefined
+    server.use(http.post('*/api/v1/auth/logout', async ({ request }) => {
+      csrf = request.headers.get('X-CSRF-Token')
+      if (outcome === 'pending') await new Promise<void>((resolve) => { finish = resolve })
+      if (outcome === 'network') return HttpResponse.error()
+      if (outcome === 500) return failure(500, 'INTERNAL_ERROR')
+      if (outcome === 403) return failure(403, 'CSRF_FAILED')
+      if (outcome === 401) return failure(401, 'UNAUTHENTICATED')
+      return success(null)
+    }))
     const queryClient = createQueryClient()
     const privateKey = ['merchant-private', user.id]
     queryClient.setQueryData(privateKey, { merchantId: user.id })
     const router = renderApp('/dashboard', queryClient)
     const actor = userEvent.setup()
     await actor.click(await screen.findByRole('button', { name: '退出登录' }))
+    await waitFor(() => expect(csrf).toBe(restored))
+    if (outcome === 'pending') {
+      try {
+        await waitFor(() => expect(finish).toBeTypeOf('function'))
+        expect(screen.getByRole('button', { name: '正在提交…' })).toBeDisabled()
+        expect(queryClient.getQueryData(privateKey)).toEqual({ merchantId: user.id })
+        expect(router.state.location.pathname).toBe('/dashboard')
+      } finally { finish?.() }
+    }
+    if (outcome === 500 || outcome === 403 || outcome === 'network') {
+      expect(await screen.findByRole('alert')).toHaveTextContent(outcome === 500 ? '服务暂时不可用' : outcome === 403 ? '安全验证失败' : '网络连接失败')
+      expect(queryClient.getQueryData(privateKey)).toEqual({ merchantId: user.id })
+      expect(router.state.location.pathname).toBe('/dashboard')
+      return
+    }
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(csrf).toBe(restored)
+    if (outcome === 401) {
+      // A protected-request 401 intentionally uses the global session-expiry redirect.
+      expect(router.state.location.search).toEqual({ redirect: '/dashboard' })
+      expect(queryClient.getQueryData(privateKey)).toEqual({ merchantId: user.id })
+      return
+    }
     expect(queryClient.getQueryData(privateKey)).toBeUndefined()
   })
 })
