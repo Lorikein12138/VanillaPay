@@ -11,7 +11,7 @@ test('signs in, restores CSRF after refresh, and signs out securely', async ({ p
   }
   await login(page, account)
   await expect(page).toHaveURL(/\/dashboard$/)
-  await expect(page.getByRole('heading', { name: '概览', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
   const links = page.getByRole('navigation', { name: '商户导航' }).getByRole('link')
   await expect(links).toHaveText(['概览'])
   await expect(links.first()).toHaveAttribute('aria-current', 'page')
@@ -84,7 +84,7 @@ test('switches system and explicit dark themes without horizontal overflow', asy
   await noOverflow(page)
   await page.screenshot({ path: testInfo.outputPath('login-dark.png'), fullPage: true })
   await login(page, account)
-  await expect(page.getByRole('heading', { name: '概览', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
   await noOverflow(page)
   await page.screenshot({ path: testInfo.outputPath('dashboard-dark.png'), fullPage: true })
 })
@@ -98,7 +98,7 @@ test.describe('second factor', () => {
     await page.getByLabel('动态验证码').fill(totp(account.totpSeed))
     await page.getByRole('button', { name: '验证并登录' }).click()
     await expect(page).toHaveURL(/\/dashboard$/)
-    await expect(page.getByRole('heading', { name: '概览', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
     await noOverflow(page)
   })
 

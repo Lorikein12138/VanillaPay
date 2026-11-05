@@ -133,6 +133,7 @@ func run(ctx context.Context) error {
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(fixture)
 	})
+	registerOverviewFixtures(mux, pool)
 	mux.Handle("/", httpx.NewRouter(application))
 	return application.Start(ctx, mux)
 }

@@ -8,6 +8,7 @@ import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import type { components } from '@/api/schema'
 import { createI18n } from '@/lib/i18n'
+import { emptyStats, unboundDevice } from '../merchant/fixtures'
 
 vi.mock('@/features/auth/Turnstile', () => ({
   Turnstile: ({ onToken }: { onToken: (token: string) => void }) => <button type="button" onClick={() => onToken(crypto.randomUUID())}>完成人机验证</button>,
@@ -20,6 +21,9 @@ const config: Schema['PublicConfig'] = { site_name: 'Test Shop', logo_url: '', t
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: Schema['ErrorCode'], fields = {}) => HttpResponse.json({ error: { code, fields, details: {}, message: code }, request_id: crypto.randomUUID() }, { status })
 const server = setupServer(
+  http.get('*/api/v1/merchant/stats', () => success(emptyStats())),
+  http.get('*/api/v1/merchant/device', () => success(unboundDevice)),
+  http.get('*/api/v1/merchant/orders', () => success({ items: [], total: 0, next_cursor: null })),
   http.get('*/api/v1/public/config', () => success(config)),
   http.get('*/api/v1/merchant/me', () => success(session)),
   http.post('*/api/v1/auth/login', () => success(session)),

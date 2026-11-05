@@ -60,6 +60,9 @@ export const api = {
     return remember(await request<Schema['SessionIdentity']>('/api/v1/merchant/me', undefined, protectedRequest))
   },
   banned: () => request<Schema['BannedInfo']>('/api/v1/merchant/banned'),
+  stats: (range: { start: string; end: string; timezone: string }) => request<Schema['PortalStatsDTO']>(`/api/v1/merchant/stats?${new URLSearchParams(range)}`),
+  device: () => request<Schema['DeviceDeviceDTO']>('/api/v1/merchant/device'),
+  orders: (limit: number) => request<Schema['OrdersPage']>(`/api/v1/merchant/orders?${new URLSearchParams({ limit: String(limit) })}`),
   async logout() {
     if (!csrfToken) await api.me()
     await request<null>('/api/v1/auth/logout', {})
