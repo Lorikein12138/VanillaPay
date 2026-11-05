@@ -155,6 +155,63 @@
     },
     "bannedStatus": "Disabled",
     "bannedTitle": "This merchant account is disabled",
-    "bannedDefault": "Contact the platform administrator for more information."
+    "bannedDefault": "Contact the platform administrator for more information.",
+    "overview": {
+      "greeting": {
+        "morning": "Good morning, {{name}}",
+        "afternoon": "Good afternoon, {{name}}",
+        "evening": "Good evening, {{name}}"
+      },
+      "range": {
+        "1": "Today",
+        "7": "Last 7 days",
+        "30": "Last 30 days"
+      },
+      "timeRange": "Time range",
+      "metrics": "Payment metrics",
+      "receipts": "{{period}} receipts",
+      "orderCount": "{{period}} orders",
+      "change": "Previous period {{value}}",
+      "noPrevious": "No receipts in the previous period",
+      "paidCount": "{{count}} paid orders",
+      "successRate": "Payment success rate",
+      "excludingPending": "Excludes {{count}} pending orders",
+      "pending": "Pending payments",
+      "autoClose": "Automatically closed on timeout",
+      "trend": "Receipts over 7 days",
+      "thousands": "Unit: CNY thousands",
+      "noReceipts": "No receipts yet",
+      "date": "Date",
+      "device": "Monitoring device",
+      "unbound": "No monitoring device bound",
+      "unnamed": "Unnamed device",
+      "online": "Online",
+      "offline": "Offline",
+      "heartbeat": "Heartbeat {{time}}",
+      "lastOnline": "Last online {{time}}",
+      "neverSeen": "No heartbeat recorded",
+      "recentOrders": "Recent orders",
+      "noOrders": "No orders yet",
+      "tradeNo": "Order number",
+      "product": "Product",
+      "channel": "Channel",
+      "amount": "Amount",
+      "status": "Status",
+      "createdAt": "Created at",
+      "channels": {
+        "alipay": "Alipay",
+        "wxpay": "WeChat Pay",
+        "qqpay": "QQ Wallet",
+        "unassigned": "Unassigned"
+      },
+      "statuses": {
+        "paid": "Paid",
+        "pending": "Pending",
+        "expired": "Expired",
+        "refunded": "Refunded"
+      },
+      "unknownStatus": "Unknown status",
+      "loadError": "Unable to load data. Please retry."
+    }
   }
 }

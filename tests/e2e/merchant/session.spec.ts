@@ -79,7 +79,7 @@ for (const nextPath of [
     await page.goto('/login')
     await login(page, account)
     await expect(page).toHaveURL(/\/dashboard$/)
-    await expect(page.getByRole('heading', { name: '概览', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
   })
 }
 
@@ -125,11 +125,11 @@ for (const signedIn of [false, true]) {
       }
       expect(await page.locator('html').getAttribute('data-early-protected-content')).toBeNull()
       await expect(page.getByRole('navigation', { name: '商户导航' })).toHaveCount(0)
-      await expect(page.getByRole('heading', { name: '概览', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toHaveCount(0)
       await expect(page.getByRole('button', { name: '退出登录' })).toHaveCount(0)
       await expect(page.getByText(account.username, { exact: true })).toHaveCount(0)
     } finally { await page.evaluate(() => { document.documentElement.dataset.meReleased = 'true' }); release() }
-    if (signedIn) await expect(page.getByRole('heading', { name: '概览', exact: true })).toBeVisible()
+    if (signedIn) await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
     else await expect(page).toHaveURL(/\/login\?redirect=/)
   })
 }

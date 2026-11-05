@@ -155,6 +155,63 @@
     },
     "bannedStatus": "已停用",
     "bannedTitle": "商户账号已停用",
-    "bannedDefault": "请联系平台管理员了解详情。"
+    "bannedDefault": "请联系平台管理员了解详情。",
+    "overview": {
+      "greeting": {
+        "morning": "上午好，{{name}}",
+        "afternoon": "下午好，{{name}}",
+        "evening": "晚上好，{{name}}"
+      },
+      "range": {
+        "1": "今日",
+        "7": "近 7 天",
+        "30": "近 30 天"
+      },
+      "timeRange": "时间范围",
+      "metrics": "收款指标",
+      "receipts": "{{period}}收款",
+      "orderCount": "{{period}}订单",
+      "change": "较上一周期 {{value}}",
+      "noPrevious": "上一周期无收款",
+      "paidCount": "已支付 {{count}} 笔",
+      "successRate": "支付成功率",
+      "excludingPending": "不含待支付 {{count}} 笔",
+      "pending": "待支付",
+      "autoClose": "超时后自动关闭",
+      "trend": "近 7 天收款",
+      "thousands": "单位：千元",
+      "noReceipts": "暂无收款",
+      "date": "日期",
+      "device": "监控设备",
+      "unbound": "尚未绑定监控设备",
+      "unnamed": "未命名设备",
+      "online": "在线",
+      "offline": "离线",
+      "heartbeat": "心跳 {{time}}",
+      "lastOnline": "最后在线 {{time}}",
+      "neverSeen": "暂无心跳记录",
+      "recentOrders": "最近订单",
+      "noOrders": "暂无订单",
+      "tradeNo": "订单号",
+      "product": "商品",
+      "channel": "通道",
+      "amount": "金额",
+      "status": "状态",
+      "createdAt": "创建时间",
+      "channels": {
+        "alipay": "支付宝",
+        "wxpay": "微信支付",
+        "qqpay": "QQ 钱包",
+        "unassigned": "未分配"
+      },
+      "statuses": {
+        "paid": "已支付",
+        "pending": "待支付",
+        "expired": "已过期",
+        "refunded": "已退款"
+      },
+      "unknownStatus": "未知状态",
+      "loadError": "数据暂时无法加载，请重试。"
+    }
   }
 }
