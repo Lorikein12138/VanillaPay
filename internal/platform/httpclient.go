@@ -83,13 +83,18 @@ func (c PublicHTTPClient) DoPublic(ctx context.Context, request *http.Request) (
 	if timeout <= 0 || timeout > 10*time.Second {
 		timeout = 10 * time.Second
 	}
-	client := &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(request.WithContext(ctx))
 	if err != nil {
+		cancel()
 		transport.CloseIdleConnections()
 		return nil, err
 	}
-	response.Body = &limitedReadCloser{ReadCloser: response.Body, reader: io.LimitReader(response.Body, 4097), close: transport.CloseIdleConnections}
+	response.Body = &limitedReadCloser{ReadCloser: response.Body, reader: io.LimitReader(response.Body, 4097), ctx: ctx, close: func() {
+		cancel()
+		transport.CloseIdleConnections()
+	}}
 	return response, nil
 }
 
@@ -239,17 +244,41 @@ func isPublicAddress(address netip.Addr) bool {
 type limitedReadCloser struct {
 	io.ReadCloser
 	reader io.Reader
+	ctx    context.Context
 	close  func()
 	read   int
 }
 
 func (r *limitedReadCloser) Read(p []byte) (int, error) {
+	if err := r.contextError(); err != nil {
+		return 0, err
+	}
 	n, err := r.reader.Read(p)
+	// TLS cancellation sends close_notify before closing TCP. The peer can
+	// finish a chunked response in that window, so even EOF must be checked
+	// against the request deadline after the blocking read.
+	if contextErr := r.contextError(); contextErr != nil {
+		return n, contextErr
+	}
 	r.read += n
 	if r.read > 4096 {
 		return n, errors.New("outbound response exceeds 4096 bytes")
 	}
 	return n, err
+}
+
+func (r *limitedReadCloser) contextError() error {
+	if r.ctx == nil {
+		return nil
+	}
+	if err := r.ctx.Err(); err != nil {
+		return err
+	}
+	// The deadline can pass before its cancellation goroutine is scheduled.
+	if deadline, ok := r.ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
 }
 func (r *limitedReadCloser) Close() error {
 	err := r.ReadCloser.Close()
