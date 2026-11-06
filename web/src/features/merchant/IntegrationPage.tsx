@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
-import { APIError, api } from '@/api/client'
+import { api } from '@/api/client'
+import { useEmailCode } from '@/features/auth/account-shared'
 import { FormError } from '@/components/FormError'
 import { invalidateCollection, validWhitelist, type Schema } from './collection-data'
 import { CopyValue, ModuleDialog, ModuleError, ModuleHeading, modulePanel, useLocalAction } from './CollectionParts'
@@ -39,31 +40,14 @@ export function IntegrationPage({ user }: { user: Schema['AuthUserDTO'] }) {
 }
 
 export function SecurityDialog({ mode, user, onClose, onChanged }: { mode: 'reset' | 'rsa'; user: Schema['AuthUserDTO']; onClose: () => void; onChanged: () => Promise<void> }) {
-  const action = useLocalAction(), mail = useLocalAction(), id = useId()
+  const action = useLocalAction(), mail = useEmailCode(), id = useId()
   const [emailCode, setEmailCode] = useState(''), [totpCode, setTOTPCode] = useState(''), [pem, setPEM] = useState('')
   const [newKey, setNewKey] = useState<string | null>(null), [invalid, setInvalid] = useState(''), [saved, setSaved] = useState(false)
-  const [retryAt, setRetryAt] = useState(0), [remaining, setRemaining] = useState(0), [sent, setSent] = useState(false)
-  useEffect(() => {
-    if (!retryAt) return
-    const update = () => setRemaining(Math.max(0, Math.ceil((retryAt - Date.now()) / 1000)))
-    update(); const timer = setInterval(update, 1000)
-    return () => clearInterval(timer)
-  }, [retryAt])
+  const { remaining, sent } = mail
   function close() { setNewKey(null); setEmailCode(''); setTOTPCode(''); onClose() }
   async function send() {
     if (!user.email) return
-    await mail.run(async () => {
-      try {
-        const result = await api.emailCode({ email: user.email!, purpose: 'reset_key' })
-        if (mail.active.current) { setRetryAt(Date.now() + result.retry_after_seconds * 1000); setSent(result.sent) }
-      } catch (error) {
-        if (error instanceof APIError && error.status === 429 && mail.active.current) {
-          const retry = error.problem?.details?.retry_after_seconds
-          setRetryAt(Date.now() + (typeof retry === 'number' && retry > 0 ? retry : 60) * 1000)
-        }
-        throw error
-      }
-    })
+    await mail.send({ email: user.email, purpose: 'reset_key' })
   }
   async function submit() {
     if (!emailCode.trim() || (user.totp_enabled && !/^\d{6}$/.test(totpCode))) { setInvalid('请填写邮箱验证码和所需的六位动态验证码。'); return }

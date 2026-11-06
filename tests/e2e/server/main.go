@@ -17,6 +17,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -80,13 +82,21 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var usedTokens sync.Map
 	siteverify := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
 		}
+		response, action, fresh := r.PostForm.Get("response"), "login", true
+		parts := strings.SplitN(response, ":", 3)
+		if len(parts) == 3 {
+			response, action = parts[0], parts[1]
+			_, used := usedTokens.LoadOrStore(r.PostForm.Get("response"), true)
+			fresh = !used && parts[2] != "" && (action == "login" || action == "register" || action == "reset_password")
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"success": r.PostForm.Get("secret") == secret && r.PostForm.Get("response") == token, "action": "login", "hostname": publicURL.Hostname()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": r.PostForm.Get("secret") == secret && response == token && fresh, "action": action, "hostname": publicURL.Hostname()})
 	}))
 	defer siteverify.Close()
 	target, err := url.Parse(siteverify.URL)
@@ -110,6 +120,14 @@ func run(ctx context.Context) error {
 		return err
 	}
 	if _, err := application.Services.Settings.UpdateGroup(ctx, platform.Actor{Role: "admin"}, "security", settings.UpdateGroup{ExpectedVersion: version, Value: value}); err != nil {
+		return err
+	}
+	// Registration records a foreign key to published legal revisions. Seed only
+	// this disposable E2E database; production publication remains an admin action.
+	if _, err := pool.Exec(ctx, `INSERT INTO legal_versions(kind,revision,content,published_at) VALUES
+		('terms',1,'{"zh_CN":"测试服务条款\n仅用于浏览器测试。","en":"Browser test terms."}',now()),
+		('privacy',1,'{"zh_CN":"测试隐私政策\n仅用于浏览器测试。","en":"Browser test privacy policy."}',now())
+		ON CONFLICT (kind,revision) DO NOTHING`); err != nil {
 		return err
 	}
 	mux := http.NewServeMux()

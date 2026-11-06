@@ -12,13 +12,17 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MerchantRouteImport } from './routes/_merchant'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as MerchantSplatRouteImport } from './routes/_merchant.$'
+import { Route as MerchantAccountRouteImport } from './routes/_merchant.account'
 import { Route as MerchantBannedRouteImport } from './routes/_merchant.banned'
 import { Route as MerchantCodesRouteImport } from './routes/_merchant.codes'
 import { Route as MerchantDashboardRouteImport } from './routes/_merchant.dashboard'
 import { Route as MerchantDevicesRouteImport } from './routes/_merchant.devices'
 import { Route as MerchantIntegrationRouteImport } from './routes/_merchant.integration'
 import { Route as MerchantOrdersRouteImport } from './routes/_merchant.orders'
+import { Route as LegalKindRouteImport } from './routes/legal.$kind'
 import { Route as MerchantOrdersIndexRouteImport } from './routes/_merchant.orders.index'
 import { Route as MerchantOrdersTradeNoRouteImport } from './routes/_merchant.orders.$tradeNo'
 
@@ -36,9 +40,24 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MerchantSplatRoute = MerchantSplatRouteImport.update({
   id: '/$',
   path: '/$',
+  getParentRoute: () => MerchantRoute,
+} as any)
+const MerchantAccountRoute = MerchantAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => MerchantRoute,
 } as any)
 const MerchantBannedRoute = MerchantBannedRouteImport.update({
@@ -71,6 +90,11 @@ const MerchantOrdersRoute = MerchantOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => MerchantRoute,
 } as any)
+const LegalKindRoute = LegalKindRouteImport.update({
+  id: '/legal/$kind',
+  path: '/legal/$kind',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MerchantOrdersIndexRoute = MerchantOrdersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -85,25 +109,33 @@ const MerchantOrdersTradeNoRoute = MerchantOrdersTradeNoRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/$': typeof MerchantSplatRoute
+  '/account': typeof MerchantAccountRoute
   '/banned': typeof MerchantBannedRoute
   '/codes': typeof MerchantCodesRoute
   '/dashboard': typeof MerchantDashboardRoute
   '/devices': typeof MerchantDevicesRoute
   '/integration': typeof MerchantIntegrationRoute
   '/orders': typeof MerchantOrdersRouteWithChildren
+  '/legal/$kind': typeof LegalKindRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/orders/': typeof MerchantOrdersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/$': typeof MerchantSplatRoute
+  '/account': typeof MerchantAccountRoute
   '/banned': typeof MerchantBannedRoute
   '/codes': typeof MerchantCodesRoute
   '/dashboard': typeof MerchantDashboardRoute
   '/devices': typeof MerchantDevicesRoute
   '/integration': typeof MerchantIntegrationRoute
+  '/legal/$kind': typeof LegalKindRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/orders': typeof MerchantOrdersIndexRoute
 }
@@ -112,13 +144,17 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_merchant': typeof MerchantRouteWithChildren
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/_merchant/$': typeof MerchantSplatRoute
+  '/_merchant/account': typeof MerchantAccountRoute
   '/_merchant/banned': typeof MerchantBannedRoute
   '/_merchant/codes': typeof MerchantCodesRoute
   '/_merchant/dashboard': typeof MerchantDashboardRoute
   '/_merchant/devices': typeof MerchantDevicesRoute
   '/_merchant/integration': typeof MerchantIntegrationRoute
   '/_merchant/orders': typeof MerchantOrdersRouteWithChildren
+  '/legal/$kind': typeof LegalKindRoute
   '/_merchant/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/_merchant/orders/': typeof MerchantOrdersIndexRoute
 }
@@ -127,25 +163,33 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/register'
+    | '/reset-password'
     | '/$'
+    | '/account'
     | '/banned'
     | '/codes'
     | '/dashboard'
     | '/devices'
     | '/integration'
     | '/orders'
+    | '/legal/$kind'
     | '/orders/$tradeNo'
     | '/orders/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
+    | '/register'
+    | '/reset-password'
     | '/$'
+    | '/account'
     | '/banned'
     | '/codes'
     | '/dashboard'
     | '/devices'
     | '/integration'
+    | '/legal/$kind'
     | '/orders/$tradeNo'
     | '/orders'
   id:
@@ -153,13 +197,17 @@ export interface FileRouteTypes {
     | '/'
     | '/_merchant'
     | '/login'
+    | '/register'
+    | '/reset-password'
     | '/_merchant/$'
+    | '/_merchant/account'
     | '/_merchant/banned'
     | '/_merchant/codes'
     | '/_merchant/dashboard'
     | '/_merchant/devices'
     | '/_merchant/integration'
     | '/_merchant/orders'
+    | '/legal/$kind'
     | '/_merchant/orders/$tradeNo'
     | '/_merchant/orders/'
   fileRoutesById: FileRoutesById
@@ -168,6 +216,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MerchantRoute: typeof MerchantRouteWithChildren
   LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  LegalKindRoute: typeof LegalKindRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -193,11 +244,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_merchant/$': {
       id: '/_merchant/$'
       path: '/$'
       fullPath: '/$'
       preLoaderRoute: typeof MerchantSplatRouteImport
+      parentRoute: typeof MerchantRoute
+    }
+    '/_merchant/account': {
+      id: '/_merchant/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof MerchantAccountRouteImport
       parentRoute: typeof MerchantRoute
     }
     '/_merchant/banned': {
@@ -242,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantOrdersRouteImport
       parentRoute: typeof MerchantRoute
     }
+    '/legal/$kind': {
+      id: '/legal/$kind'
+      path: '/legal/$kind'
+      fullPath: '/legal/$kind'
+      preLoaderRoute: typeof LegalKindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_merchant/orders/': {
       id: '/_merchant/orders/'
       path: '/'
@@ -275,6 +354,7 @@ const MerchantOrdersRouteWithChildren = MerchantOrdersRoute._addFileChildren(
 
 interface MerchantRouteChildren {
   MerchantSplatRoute: typeof MerchantSplatRoute
+  MerchantAccountRoute: typeof MerchantAccountRoute
   MerchantBannedRoute: typeof MerchantBannedRoute
   MerchantCodesRoute: typeof MerchantCodesRoute
   MerchantDashboardRoute: typeof MerchantDashboardRoute
@@ -285,6 +365,7 @@ interface MerchantRouteChildren {
 
 const MerchantRouteChildren: MerchantRouteChildren = {
   MerchantSplatRoute: MerchantSplatRoute,
+  MerchantAccountRoute: MerchantAccountRoute,
   MerchantBannedRoute: MerchantBannedRoute,
   MerchantCodesRoute: MerchantCodesRoute,
   MerchantDashboardRoute: MerchantDashboardRoute,
@@ -301,6 +382,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MerchantRoute: MerchantRouteWithChildren,
   LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  LegalKindRoute: LegalKindRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

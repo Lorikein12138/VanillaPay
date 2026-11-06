@@ -13,5 +13,5 @@ export const merchantNavigation = [
 ] as const
 
 export function isMerchantPath(path: string) {
-  return path === '/banned' || merchantNavigation.some((item) => path === item.path || path.startsWith(`${item.path}/`))
+  return path === '/banned' || path === '/account' || merchantNavigation.some((item) => path === item.path || path.startsWith(`${item.path}/`))
 }

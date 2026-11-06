@@ -14,7 +14,7 @@ const inputClass = 'h-11 w-full min-w-0 rounded-control border border-border-str
 const buttonClass = 'inline-flex min-h-11 items-center justify-center rounded-control bg-primary px-5 text-label font-medium text-primary-fg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
 type Challenge = components['schemas']['AuthLoginResult']
 
-export function LoginPage({ redirect }: { redirect?: string }) {
+export function LoginPage({ redirect, notice }: { redirect?: string; notice?: 'registered' | 'password_reset' | 'password_changed' }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const config = useQuery({ queryKey: ['public-config'], queryFn: api.config })
@@ -84,11 +84,13 @@ export function LoginPage({ redirect }: { redirect?: string }) {
         </section>
         <form onSubmit={(event) => { void submit(event) }} noValidate aria-busy={busy} aria-labelledby="login-title" className="flex w-full min-w-0 flex-col gap-5 rounded-card border-[0.5px] border-border bg-surface p-10">
           <div><h2 id="login-title" className="m-0 font-serif text-title font-normal">{t(challenge ? 'auth.factorTitle' : 'auth.welcome')}</h2><p className="mt-1 mb-0 text-label text-text-2">{t(challenge ? 'auth.factorDescription' : 'auth.subtitle')}</p></div>
+          {notice && <p role="status" className="text-label text-accent-text">{t(`auth.notices.${notice}`)}</p>}
           {!challenge ? <>
             <label className="flex flex-col gap-2 text-label text-text-2" htmlFor="identifier">{t('auth.identifier')}<input id="identifier" name="username" autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder={t('auth.identifierPlaceholder')} disabled={busy} className={inputClass} aria-invalid={!!fields.identifier} aria-describedby={fields.identifier ? 'identifier-error' : undefined} /></label>
             {fields.identifier && <FormError id="identifier-error">{t('auth.requiredIdentifier')}</FormError>}
             <label className="flex flex-col gap-2 text-label text-text-2" htmlFor="password">{t('auth.password')}<input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} className={inputClass} aria-invalid={!!fields.password} aria-describedby={fields.password ? 'password-error' : undefined} /></label>
             {fields.password && <FormError id="password-error">{t('auth.requiredPassword')}</FormError>}
+            <a href="/reset-password" className="inline-flex min-h-11 items-center justify-end text-label text-accent-text">{t('auth.forgotPassword')}</a>
             {config.data?.turnstile.configured && !setupMissing && <Turnstile key={attempt} siteKey={config.data.turnstile.site_key} action={config.data.turnstile.login_action} onToken={onToken} onError={onCaptchaError} />}
             {config.isPending && <p role="status" className="m-0 text-label text-text-2">{t('auth.loading')}</p>}
             {config.error && <><FormError>{t(authErrorKey(config.error))}</FormError><button type="button" className="min-h-11 rounded-control text-label text-accent-text hover:bg-hover" onClick={() => { void config.refetch() }}>{t('error.retry')}</button></>}

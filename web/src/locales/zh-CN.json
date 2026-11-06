@@ -138,7 +138,18 @@
       "forbidden": "没有权限执行此操作，请联系平台管理员。",
       "session": "登录已失效，请重新登录。",
       "validation": "请检查填写内容后重试。",
-      "unavailable": "服务暂时不可用，请稍后重试。"
+      "unavailable": "服务暂时不可用，请稍后重试。",
+      "domain": "该邮箱域名不在允许范围内。",
+      "agreement": "请阅读并同意服务条款和隐私政策。",
+      "legalChanged": "条款版本已更新，请重新阅读后提交。",
+      "emailTaken": "邮箱已被使用，请换一个。",
+      "usernameTaken": "用户名已被使用，请换一个。"
+    },
+    "forgotPassword": "忘记密码",
+    "notices": {
+      "password_changed": "密码已修改，所有会话已失效，请重新登录。",
+      "registered": "注册成功，请登录。",
+      "password_reset": "密码已重置，旧会话已失效，请使用新密码登录。"
     }
   },
   "merchant": {

@@ -17,7 +17,7 @@ export const test = base.extend<{ account: Account; twoFactor: boolean; banned: 
           const button = document.createElement('button'); button.type = 'button';
           button.textContent = '完成验证'; button.style.minHeight = '44px';
           button.dataset.action = options.action;
-          button.onclick = () => options.callback(${JSON.stringify(account.turnstileToken)});
+          button.onclick = () => options.callback(${JSON.stringify(account.turnstileToken)} + ':' + options.action + ':' + crypto.randomUUID());
           node.append(button); return id;
         },
         remove(id) { const node = document.querySelector('[data-widget-id="' + id + '"]'); if (node) node.replaceChildren(); }

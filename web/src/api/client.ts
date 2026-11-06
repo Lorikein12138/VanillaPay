@@ -20,7 +20,7 @@ function remember<T extends { csrf_token: string }>(session: T): T {
 }
 
 function rejectResponse(response: Response, problem?: Schema['ErrorEnvelope']['error'], protectedRequest = true): never {
-  if (response.status === 401 && protectedRequest && problem?.code !== 'INVALID_2FA') {
+  if (response.status === 401 && protectedRequest && problem?.code !== 'INVALID_2FA' && problem?.code !== 'INVALID_CREDENTIALS' && problem?.code !== 'CHALLENGE_EXPIRED') {
     csrfToken = ''
     unauthorized?.()
   }
@@ -80,6 +80,17 @@ async function exportOrders(filters: OrdersQuery) {
 
 export const api = {
   config: () => request<Schema['PublicConfig']>('/api/v1/public/config', undefined, false),
+  legal: (kind: Schema['LegalVersion']['kind']) => request<Schema['LegalVersion']>(`/api/v1/public/legal/${kind}`, undefined, false),
+  register: (value: Schema['AuthRegisterRequest']) => request<Schema['RegisteredUser']>('/api/v1/auth/register', value, false),
+  resetPassword: (value: Schema['AuthResetPasswordRequest']) => request<null>('/api/v1/auth/reset-password', value, false),
+  forgetSession: () => { csrfToken = '' },
+  changeUsername: (value: operations['patch_api_v1_merchant_profile_username']['requestBody']['content']['application/json']) => request<Schema['AuthUserDTO']>('/api/v1/merchant/profile/username', value, true, undefined, 'PATCH'),
+  changeEmail: (value: operations['patch_api_v1_merchant_profile_email']['requestBody']['content']['application/json']) => request<Schema['AuthUserDTO']>('/api/v1/merchant/profile/email', value, true, undefined, 'PATCH'),
+  changePassword: (value: operations['patch_api_v1_merchant_profile_password']['requestBody']['content']['application/json']) => request<null>('/api/v1/merchant/profile/password', value, true, undefined, 'PATCH'),
+  setupTOTP: (value: operations['post_api_v1_merchant_2fa_setup']['requestBody']['content']['application/json']) => request<Schema['AuthTOTPSetup']>('/api/v1/merchant/2fa/setup', value),
+  confirmTOTP: (value: Schema['AuthTOTPConfirm']) => request<Schema['TOTPConfirmed']>('/api/v1/merchant/2fa/confirm', value),
+  disableTOTP: (value: Schema['AuthFactorProof']) => request<Schema['TOTPDisabled']>('/api/v1/merchant/2fa', value, true, undefined, 'DELETE'),
+  preferences: (value: Schema['Preferences']) => request<Schema['Preferences']>('/api/v1/merchant/preferences', value, true, undefined, 'PATCH'),
   async login(value: Schema['AuthLoginRequest']) {
     const result = await request<Schema['AuthSessionResult'] | Schema['AuthLoginResult']>('/api/v1/auth/login', value, false)
     return 'requires_2fa' in result ? result : remember(result)
@@ -107,7 +118,7 @@ export const api = {
   receipts: (filters: NonNullable<operations['get_api_v1_merchant_receipts']['parameters']['query']>) => request<Schema['ReceiptsPage']>(`/api/v1/merchant/receipts?${queryString(filters)}`),
   receipt: (id: string) => request<Schema['PortalReceiptDTO']>(`/api/v1/merchant/receipts/${encodeURIComponent(id)}`),
   integration: () => request<Schema['Integration']>('/api/v1/merchant/integration'),
-  emailCode: (value: Schema['AuthEmailCodeRequest']) => request<Schema['AuthEmailCodeResult']>('/api/v1/auth/email-codes', value),
+  emailCode: (value: Schema['AuthEmailCodeRequest']) => request<Schema['AuthEmailCodeResult']>('/api/v1/auth/email-codes', value, value.purpose !== 'register' && value.purpose !== 'reset_password'),
   resetKey: (security_proof: Schema['AuthSecurityProof']) => request<Schema['MerchantKeyDTO']>('/api/v1/merchant/integration/reset-key', { security_proof }),
   saveRSA: (value: Schema['MerchantRSAKeyRequest']) => request<operations['put_api_v1_merchant_integration_rsa_public_key']['responses'][200]['content']['application/json']['data']>('/api/v1/merchant/integration/rsa-public-key', value, true, undefined, 'PUT'),
   saveWhitelist: (value: Schema['MerchantIPWhitelist']) => request<Schema['MerchantIPWhitelist']>('/api/v1/merchant/integration/ip-whitelist', value, true, undefined, 'PUT'),
