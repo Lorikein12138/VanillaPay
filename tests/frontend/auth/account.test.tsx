@@ -73,7 +73,7 @@ describe('public account flows', () => {
     expect(screen.getByRole('link', { name: '服务条款' })).toHaveAttribute('target', '_blank')
     fireEvent.click(screen.getByRole('button', { name: '完成验证' }))
     fireEvent.click(screen.getByRole('button', { name: '获取邮箱验证码' }))
-    await screen.findByText('3 秒后重发')
+    await screen.findByText('0:03')
     expect(requests[0]).toMatchObject({ purpose: 'register', email: 'new@example.test', target_username: 'new_shop' })
     expect(screen.getByRole('button', { name: '创建账户' })).toBeDisabled()
     const mounts = captcha.mounts
@@ -89,7 +89,7 @@ describe('public account flows', () => {
     mount('/reset-password'); await screen.findByLabelText('邮箱')
     fill('邮箱', 'unknown@example.test'); fireEvent.click(screen.getByRole('button', { name: '完成验证' }))
     fireEvent.click(screen.getByRole('button', { name: '获取邮箱验证码' }))
-    expect(await screen.findByText('2 秒后重发')).toBeDisabled()
+    expect(await screen.findByText('0:02')).toBeDisabled()
     expect(screen.getByRole('button', { name: '确认重置密码' })).toBeDisabled()
     await screen.findByRole('button', { name: '获取邮箱验证码' }, { timeout: 3500 })
   })

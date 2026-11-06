@@ -2,7 +2,7 @@ import { generateKeyPairSync } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
 import type { APIRequestContext, Page } from '@playwright/test'
-import { expect, login, noOverflow, test } from './fixtures'
+import { expect, login, noOverflow, test, clickControl, polishShot } from './fixtures'
 
 async function shot(page: Page, name: string) {
   const width = page.viewportSize()?.width
@@ -10,12 +10,13 @@ async function shot(page: Page, name: string) {
   const theme = width === 360 ? 'dark' : 'light'
   await page.evaluate(() => document.fonts.ready)
   await noOverflow(page)
+  await polishShot(page, name === 'binding' || name === 'one-time-key' || name === 'totp-setup' || name === 'recovery-codes' ? name+'-dialog' : name)
   await page.screenshot({ path: fileURLToPath(new URL(`../../../.artifacts/merchant-devices-shots/${name}-${theme}.png`, import.meta.url)), animations: 'disabled', fullPage: name === 'codes', mask: [page.getByTestId('one-time-key'), page.getByTestId('binding-code')], maskColor: '#73726c' })
 }
 async function signIn(page: Page, account: Parameters<typeof login>[1], path: string) {
   await page.goto(`/login?redirect=${encodeURIComponent(path)}`); await login(page, account)
   await expect(page).toHaveURL(new RegExp(`${path}$`))
-  await page.getByRole('button', { name: page.viewportSize()?.width === 360 ? '深色' : '浅色', exact: true }).click()
+  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
 }
 async function mailbox(page: Page, request: APIRequestContext, username: string) {
   const sending = page.waitForResponse((response) => response.url().endsWith('/auth/email-codes'))
@@ -33,10 +34,11 @@ async function mailbox(page: Page, request: APIRequestContext, username: string)
 
 test('uploads and replaces collection codes, toggles availability and saves bounded collection settings', async ({ page, account }) => {
   await signIn(page, account, '/codes')
-  const slot = page.getByRole('article', { name: 'alipay收款码' })
+  const slot = page.getByRole('region', { name: 'alipay收款码' })
   const png = await QRCode.toBuffer(`https://qr.alipay.com/${crypto.randomUUID()}`, { width: 300 })
   for (let attempt = 0; attempt < 2; attempt++) {
     await slot.locator('input[type=file]').setInputFiles({ name: 'collection.png', mimeType: 'image/png', buffer: png })
+    await polishShot(page, 'upload-code-dialog', false)
     const uploaded = page.waitForResponse((response) => response.url().endsWith('/collection/codes/alipay') && response.request().method() === 'PUT')
     await page.getByRole('button', { name: '确认保存', exact: true }).click()
     const response = await uploaded
@@ -50,6 +52,7 @@ test('uploads and replaces collection codes, toggles availability and saves boun
   }
   await shot(page, 'codes')
   await slot.getByRole('button', { name: '停用', exact: true }).click()
+  await polishShot(page, 'toggle-code-dialog', false)
   await page.getByRole('button', { name: '确认保存', exact: true }).click()
   await expect(slot.getByText('已停用', { exact: true })).toBeVisible()
   await slot.getByRole('button', { name: '启用', exact: true }).click()
@@ -59,14 +62,18 @@ test('uploads and replaces collection codes, toggles availability and saves boun
   await page.getByLabel('浮动上限（元）', { exact: true }).fill('0.29')
   await page.getByLabel('浮动方向', { exact: true }).selectOption('down')
   await page.getByRole('button', { name: '保存收款设置' }).click()
+  await polishShot(page, 'collection-settings-dialog', false)
   await page.getByRole('button', { name: '确认保存', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: '收款设置已保存' })).toBeVisible()
-  await expect(page.getByText(/当前生效：有效期 120 秒，浮动上限 0.29 元，向下浮动/)).toBeVisible()
+  const effective = page.getByRole('heading', { name: '收款设置', exact: true }).locator('..').locator('..').locator('..').locator('dl')
+  await expect(effective).toContainText('120 秒'); await expect(effective).toContainText('0.29'); await expect(effective).toContainText('向下浮动')
 })
 
 test('redeems a real binding code, reports receipts, opens a matched order and revokes the device', async ({ page, account, request }) => {
   await signIn(page, account, '/devices')
+  await polishShot(page, 'devices')
   await page.getByRole('button', { name: '绑定设备', exact: true }).click()
+  await polishShot(page, 'binding-create-dialog', false)
   const issued = page.waitForResponse((response) => response.url().endsWith('/device/bindings') && response.request().method() === 'POST')
   await page.getByRole('button', { name: '生成绑定码' }).click()
   const issuedResponse = await issued
@@ -93,6 +100,7 @@ test('redeems a real binding code, reports receipts, opens a matched order and r
   await page.reload()
   await page.getByRole('button', { name: receipt.data.receipt_id, exact: true }).click()
   await expect(page.getByRole('dialog').locator('pre')).toHaveText(raw)
+  await polishShot(page, 'receipt-detail-dialog', false)
   await expect(page.getByRole('dialog').locator('img')).toHaveCount(0)
   await page.getByRole('dialog').getByRole('link', { name: trade, exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/orders/${trade}$`))
@@ -100,6 +108,7 @@ test('redeems a real binding code, reports receipts, opens a matched order and r
   await page.goto('/devices')
   await page.getByRole('button', { name: '解绑设备', exact: true }).click()
   await expect(page.getByRole('button', { name: '确认解绑' })).toBeDisabled()
+  await polishShot(page, 'unbind-dialog', false)
   await page.getByRole('checkbox', { name: '我确认解绑当前设备' }).check()
   await page.getByRole('button', { name: '确认解绑' }).click()
   await expect(page.getByText('未绑定', { exact: true })).toBeVisible()
@@ -109,7 +118,9 @@ test('redeems a real binding code, reports receipts, opens a matched order and r
 
 test('obtains a security email code, resets the key once and saves an IP whitelist', async ({ page, account, request }) => {
   await signIn(page, account, '/integration')
+  await polishShot(page, 'integration')
   await page.getByRole('button', { name: '重置 Key', exact: true }).click()
+  await polishShot(page, 'reset-key-dialog', false)
   await mailbox(page, request, account.username)
   const reset = page.waitForResponse((response) => response.url().endsWith('/integration/reset-key'))
   await page.getByRole('button', { name: '确认重置 Key' }).click()
@@ -125,6 +136,7 @@ test('obtains a security email code, resets the key once and saves an IP whiteli
   await page.getByRole('checkbox', { name: '启用 IP 白名单' }).check()
   await page.getByLabel('允许的 IP 或 CIDR').fill('192.0.2.1\n2001:db8::/32')
   await page.getByRole('button', { name: '保存白名单', exact: true }).click()
+  await polishShot(page, 'whitelist-dialog', false)
   const saved = page.waitForResponse((response) => response.url().endsWith('/integration/ip-whitelist') && response.request().method() === 'PUT')
   await page.getByRole('button', { name: '确认保存白名单' }).click()
   expect((await saved).status()).toBe(200)
@@ -139,12 +151,13 @@ test('saves an RSA public key using a real email security proof', async ({ page,
   await signIn(page, account, '/integration')
   await page.getByRole('button', { name: '保存商户公钥', exact: true }).click()
   await page.getByLabel('RSA 公钥 PEM', { exact: true }).fill(pair.publicKey)
+  await polishShot(page, 'rsa-dialog', false)
   await mailbox(page, request, account.username)
   const saved = page.waitForResponse((response) => response.url().endsWith('/integration/rsa-public-key') && response.request().method() === 'PUT')
   await page.getByRole('button', { name: '确认保存公钥' }).click()
   expect((await saved).status()).toBe(200)
   await expect(page.getByRole('status')).toContainText('RSA 公钥已保存')
   await page.getByRole('button', { name: '关闭', exact: true }).click()
-  await expect(page.locator('pre').first()).toContainText('BEGIN PUBLIC KEY')
+  await expect(page.getByText(pair.publicKey.trim(), { exact: true })).toContainText('BEGIN PUBLIC KEY')
   await noOverflow(page)
 })

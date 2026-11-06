@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
-import { expect, login, noOverflow, test } from './fixtures'
+import { expect, login, noOverflow, test, clickControl, openMenu, polishShot } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Shanghai' })
 function fixtureOrder(status = 'pending', index = 0) {
@@ -16,6 +16,7 @@ async function screenshot(page: Page, name: string) {
   const theme = width === 360 ? 'dark' : 'light'
   await page.evaluate(() => document.fonts.ready)
   await noOverflow(page)
+  await polishShot(page, name === 'list' ? 'orders' : name === 'detail' ? 'order-detail' : 'order-action-dialog')
   await page.screenshot({ path: fileURLToPath(new URL(`../../../.artifacts/orders-shots/${name}-${theme}-${width}.png`, import.meta.url)), fullPage: name !== 'confirmation', animations: 'disabled' })
 }
 
@@ -27,7 +28,7 @@ test('filters orders, restores shared URLs, loads cursors and exports only the c
   const otherOrder = { ...fixtureOrder('paid'), name: 'Other merchant private order', out_trade_no: `${prefix}-other` }
   expect((await request.post('/__e2e/orders', { data: { pid: other.pid, orders: [otherOrder] } })).status()).toBe(204)
   await page.goto('/login'); await login(page, account)
-  await page.getByRole('link', { name: '订单', exact: true }).click()
+  await openMenu(page); await page.getByRole('link', { name: '订单', exact: true }).click()
   await expect(rows(page)).toHaveCount(20)
   await page.getByRole('button', { name: '加载更多' }).click()
   await expect(rows(page)).toHaveCount(23)
@@ -90,8 +91,9 @@ test('shows order details, supplements a payment and records a confirmed offline
   const pending = fixtureOrder()
   expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [pending, fixtureOrder('paid', 1), fixtureOrder('refunded', 2)] } })).status()).toBe(204)
   await page.goto('/login'); await login(page, account)
-  await page.getByRole('button', { name: page.viewportSize()?.width === 360 ? '深色' : '浅色', exact: true }).click()
-  await page.getByRole('link', { name: '订单', exact: true }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
+  await openMenu(page); await page.getByRole('link', { name: '订单', exact: true }).click()
   await expect(rows(page)).toHaveCount(3)
   await screenshot(page, 'list')
   await page.getByRole('link', { name: pending.trade_no, exact: true }).filter({ visible: true }).click()
@@ -110,6 +112,7 @@ test('shows order details, supplements a payment and records a confirmed offline
   await expect(page.getByText('已核对银行收款记录', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '补单', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '标记退款' }).click()
+  await polishShot(page, 'refund-order-dialog', false)
   await expect(page.getByRole('dialog')).toContainText('不会自动退回资金')
   await page.getByLabel('原因', { exact: true }).fill('已线下原路全额退回')
   await expect(page.getByRole('button', { name: '确认退款' })).toBeDisabled()
@@ -128,10 +131,13 @@ test('shows real callback attempts and queues a replay with CSRF, Origin and ide
   const paid = { ...fixtureOrder('paid'), notify_url: 'https://127.0.0.1/notify', return_url: 'https://shop.example.test/return', callback_state: 'failed' }
   expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [paid] } })).status()).toBe(204)
   await page.goto(`/login?redirect=${encodeURIComponent(`/orders/${paid.trade_no}`)}`); await login(page, account)
+  await expect(page).toHaveURL(new RegExp(`/orders/${paid.trade_no}$`))
+  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
   await expect(page.getByText('fixture callback failed', { exact: true })).toBeVisible()
   await expect(page.getByText('CALLBACK_NOT_CONFIRMED', { exact: true })).toBeVisible()
   await expect(page.getByText(paid.return_url, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '重发回调', exact: true }).click()
+  await polishShot(page, 'callback-order-dialog', false)
   const replayResponse = page.waitForResponse((response) => response.url().endsWith('/callback-replay'))
   await page.getByRole('button', { name: '确认重发回调' }).click()
   const response = await replayResponse
@@ -150,8 +156,10 @@ test('rejects and resolves pending refund requests through the real backend', as
   expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [rejected, resolved] } })).status()).toBe(204)
   await page.goto('/login'); await login(page, account)
   await expect(page).toHaveURL(/\/dashboard$/)
+  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
   await page.goto(`/orders/${rejected.trade_no}`)
   await page.getByRole('button', { name: '拒绝退款', exact: true }).click()
+  await polishShot(page, 'reject-order-dialog', false)
   await page.getByLabel('原因', { exact: true }).fill('申请信息待核实')
   await page.getByRole('button', { name: '确认拒绝退款' }).click()
   await expect(page.getByRole('status')).toContainText('退款申请已拒绝')
@@ -159,6 +167,7 @@ test('rejects and resolves pending refund requests through the real backend', as
   await expect(page.getByRole('button', { name: '拒绝退款', exact: true })).toHaveCount(0)
   await page.goto(`/orders/${resolved.trade_no}`)
   await page.getByRole('button', { name: '处理退款', exact: true }).click()
+  await polishShot(page, 'resolve-order-dialog', false)
   await page.getByLabel('原因', { exact: true }).fill('已核实并线下全额退款')
   await page.getByRole('checkbox').check()
   await page.getByRole('button', { name: '确认处理退款' }).click()

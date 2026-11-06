@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { createHmac } from 'node:crypto'
 import { expect, test as base, type Page } from '@playwright/test'
 
@@ -53,4 +54,40 @@ export function totp(seed: string, time = Date.now()) {
 
 export async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
+}
+
+/** Open the mobile navigation only when a requested control is inside it. */
+export async function openMenu(page: Page) {
+  const menu = page.getByRole('button', { name: /打开菜单|Open menu/ })
+  if (page.viewportSize()!.width < 1024) {
+    await expect(page).toHaveURL(/\/(dashboard|orders|codes|devices|integration|account|banned)([/?#]|$)/)
+    await expect(menu).toBeVisible()
+    if (!(await page.getByRole('dialog').isVisible())) await menu.click()
+  }
+}
+export async function closeMenu(page: Page) {
+  const drawer = page.getByRole('dialog', { name: /商户导航|Merchant navigation/ })
+  if (await drawer.isVisible()) await page.keyboard.press('Escape')
+}
+export async function clickControl(page: Page, name: string) {
+  const control = page.getByRole('button', { name, exact: true })
+  if (page.viewportSize()!.width < 1024) {
+    const menu = page.getByRole('button', { name: /打开菜单|Open menu/ })
+    await expect(control.or(menu).filter({ visible: true }).first()).toBeVisible()
+    if (!(await control.isVisible())) await openMenu(page)
+  }
+  await control.click()
+  await closeMenu(page)
+}
+export async function polishShot(page: Page, name: string, fullPage = !name.includes('dialog') && name !== 'drawer') {
+  const width = page.viewportSize()?.width
+  if (width !== 360 && width !== 1280) return
+  await page.evaluate(() => document.fonts.ready)
+  await page.waitForLoadState('networkidle')
+  await noOverflow(page)
+  expect(await page.getByRole('status').count()).toBeLessThanOrEqual(1)
+  expect(await page.getByRole('alert').count()).toBeLessThanOrEqual(1)
+  const theme = await page.locator('html').getAttribute('data-theme')
+  expect(theme).toMatch(/^(light|dark)$/)
+  await page.screenshot({ path: fileURLToPath(new URL('../../../.artifacts/web-ui-polish-shots/'+name+'-'+theme+'-'+width+'.png', import.meta.url)), fullPage, animations: 'disabled', mask: [page.getByTestId('one-time-key'), page.getByTestId('binding-code'), page.getByTestId('totp-secret'), page.getByTestId('totp-qr'), page.getByTestId('recovery-codes'), page.getByRole('img', { name: '设备绑定二维码' }), page.locator('input[type=password]')], maskColor: '#73726c' })
 }

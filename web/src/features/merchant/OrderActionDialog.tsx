@@ -1,17 +1,21 @@
-import { Dialog } from 'radix-ui'
 import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
 import { api } from '@/api/client'
 import { FormError } from '@/components/FormError'
-import { orderButton, orderInput, orderPrimary } from './OrderParts'
+import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
+import { Field } from '@/components/ui/field'
+import { Checkbox, Select, Textarea } from '@/components/ui/input'
 import { orderChannels, orderErrorKey, validReason, type OrderAction } from './orders-data'
+import { money } from './overview-data'
 
 export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onSuccess }: {
   action: OrderAction; detail: components['schemas']['OrderDetail']; idempotencyKey: string; onClose: () => void; onSuccess: () => Promise<void>
 }) {
-  const { t } = useTranslation()
-  const reasonId = useId()
+  const { t, i18n } = useTranslation()
+  const formId = useId()
+  const reasonId = `${formId}-reason`
   const [reason, setReason] = useState('')
   const [channel, setChannel] = useState(detail.order.channel ?? '')
   const [confirm, setConfirm] = useState(false)
@@ -21,6 +25,7 @@ export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onS
   const [error, setError] = useState<unknown>()
   const isRefund = action === 'refund' || action === 'resolve'
   const valid = (action === 'replay' || validReason(reason, action)) && (!isRefund || confirm) && (action !== 'supplement' || !!channel)
+  const order = detail.order
   async function submit() {
     if (submitting.current || !valid) return
     submitting.current = true
@@ -28,7 +33,7 @@ export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onS
     setAttempted(true)
     setError(undefined)
     try {
-      const trade = detail.order.trade_no
+      const trade = order.trade_no
       if (action === 'supplement') await api.supplement(trade, { reason: reason.trim(), ...(channel ? { channel } : {}) }, idempotencyKey)
       else if (action === 'refund') await api.refund(trade, { confirm, reason: reason.trim() }, idempotencyKey)
       else if (action === 'replay') await api.replayCallback(trade, idempotencyKey)
@@ -38,20 +43,70 @@ export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onS
     } catch (problem) { setError(problem) }
     finally { submitting.current = false; setBusy(false) }
   }
-  return <Dialog.Root open onOpenChange={(open) => { if (!open && !submitting.current) onClose() }}><Dialog.Portal>
-    <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
-    <Dialog.Content className="fixed inset-x-4 top-[12dvh] z-50 mx-auto max-h-[80dvh] max-w-[480px] overflow-y-auto rounded-card border-[0.5px] border-border-strong bg-surface p-5 shadow-xl sm:p-7" onEscapeKeyDown={(event) => { if (submitting.current) event.preventDefault() }} onPointerDownOutside={(event) => { if (submitting.current) event.preventDefault() }}>
-      <Dialog.Title className="font-serif text-2xl">{t(`merchant.orders.actions.${action}`)}</Dialog.Title>
-      <Dialog.Description className="mt-3 text-label leading-relaxed text-text-2">{t(`merchant.orders.confirm.${action}`)}</Dialog.Description>
-      <p className="my-4 break-all rounded-control bg-muted px-3 py-2 font-mono text-caption">{detail.order.trade_no}</p>
-      <form onSubmit={(event) => { event.preventDefault(); void submit() }} className="space-y-4">
-        {action === 'supplement' && <div className="space-y-2 text-label"><label htmlFor={`${reasonId}-channel`}>{t('merchant.orders.supplementChannel')}</label><select id={`${reasonId}-channel`} className={orderInput} value={channel} disabled={busy || attempted || !!detail.order.channel} onChange={(event) => setChannel(event.target.value)}><option value="">{t('merchant.orders.selectChannel')}</option>{orderChannels.map((value) => <option key={value} value={value}>{t(`merchant.overview.channels.${value}`)}</option>)}</select></div>}
-        {action !== 'replay' && <div className="space-y-2 text-label"><label htmlFor={reasonId}>{t('merchant.orders.reason')}</label><textarea id={reasonId} aria-describedby={`${reasonId}-hint`} required rows={3} maxLength={500} className={orderInput} value={reason} readOnly={busy || attempted} onChange={(event) => setReason(event.target.value)} /><p id={`${reasonId}-hint`} className="text-caption text-text-3">{t(action === 'supplement' ? 'merchant.orders.reasonHint' : 'merchant.orders.reasonBytesHint')}</p></div>}
-        {isRefund && <label className="flex items-start gap-2 text-label"><input type="checkbox" className="mt-1 size-4 shrink-0 accent-accent" checked={confirm} disabled={busy || attempted} onChange={(event) => setConfirm(event.target.checked)} /><span>{t('merchant.orders.refundConfirmed')}</span></label>}
-        {error != null && <FormError>{t(orderErrorKey(error))}</FormError>}
-        {attempted && error != null && <p className="text-caption text-text-3">{t('merchant.orders.retryHint')}</p>}
-        <div className="flex flex-wrap justify-end gap-2 pt-2"><button type="button" className={orderButton} disabled={busy} onClick={onClose}>{t('merchant.orders.cancel')}</button><button type="submit" className={orderPrimary} disabled={busy || !valid}>{t(busy ? 'merchant.orders.submitting' : `merchant.orders.submit.${action}`)}</button></div>
+  return (
+    <Dialog
+      onClose={onClose}
+      busy={busy}
+      title={t(`merchant.orders.actions.${action}`)}
+      description={t(`merchant.orders.confirm.${action}`)}
+      footer={
+        <>
+          <Button disabled={busy} onClick={onClose}>{t('merchant.orders.cancel')}</Button>
+          <Button type="submit" form={formId} variant={action === 'reject' ? 'secondary' : 'primary'} loading={busy} disabled={!valid}>
+            {t(busy ? 'merchant.orders.submitting' : `merchant.orders.submit.${action}`)}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={(event) => { event.preventDefault(); void submit() }} className="flex flex-col gap-5">
+        <div className="flex items-center justify-between gap-4 rounded-control bg-muted px-4 py-3">
+          <span className="min-w-0 font-mono text-[13px] text-text-2 [overflow-wrap:anywhere]">{order.trade_no}</span>
+          <span className="shrink-0 font-serif text-[1.25rem] tabular-nums">
+            {money(order.actual_cents ?? order.original_cents, i18n.resolvedLanguage ?? 'zh-CN')}
+          </span>
+        </div>
+        {action === 'supplement' && (
+          <Field label={t('merchant.orders.supplementChannel')} htmlFor={`${formId}-channel`}>
+            <Select
+              id={`${formId}-channel`}
+              value={channel}
+              disabled={busy || attempted || !!order.channel}
+              onChange={(event) => setChannel(event.target.value)}
+            >
+              <option value="">{t('merchant.orders.selectChannel')}</option>
+              {orderChannels.map((value) => <option key={value} value={value}>{t(`merchant.overview.channels.${value}`)}</option>)}
+            </Select>
+          </Field>
+        )}
+        {action !== 'replay' && (
+          <Field
+            label={t('merchant.orders.reason')}
+            htmlFor={reasonId}
+            hint={t(action === 'supplement' ? 'merchant.orders.reasonHint' : 'merchant.orders.reasonBytesHint')}
+          >
+            <Textarea
+              id={reasonId}
+              aria-describedby={`${reasonId}-hint`}
+              required
+              maxLength={500}
+              value={reason}
+              readOnly={busy || attempted}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </Field>
+        )}
+        {isRefund && (
+          <Checkbox checked={confirm} disabled={busy || attempted} onChange={(event) => setConfirm(event.target.checked)}>
+            {t('merchant.orders.refundConfirmed')}
+          </Checkbox>
+        )}
+        {error != null && (
+          <div className="flex flex-col gap-1.5">
+            <FormError>{t(orderErrorKey(error))}</FormError>
+            {attempted && <p className="m-0 pl-6 text-caption text-text-3">{t('merchant.orders.retryHint')}</p>}
+          </div>
+        )}
       </form>
-    </Dialog.Content>
-  </Dialog.Portal></Dialog.Root>
+    </Dialog>
+  )
 }

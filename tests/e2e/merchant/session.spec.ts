@@ -1,5 +1,5 @@
 import type { components } from '@/api/schema'
-import { expect, login, test } from './fixtures'
+import { expect, login, test, clickControl, openMenu } from './fixtures'
 
 type Schema = components['schemas']
 
@@ -11,7 +11,7 @@ test('logout invalidates a previously working merchant cookie', async ({ page, a
   expect(cookies.some((cookie) => cookie.name === 'vp_merchant' || cookie.name === '__Host-vp_merchant')).toBe(true)
   const headers = { Cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ') }
   expect((await request.get('/api/v1/merchant/me', { headers })).status()).toBe(200)
-  await page.getByRole('button', { name: '退出登录' }).click()
+  await clickControl(page, '退出登录')
   await expect(page).toHaveURL(/\/login$/)
   const replay = await request.get('/api/v1/merchant/me', { headers })
   expect(replay.status()).toBe(401)
@@ -33,8 +33,9 @@ test.describe('same SPA account switch', () => {
     const firstSession = (await (await firstLogin).json() as { data: Schema['AuthSessionResult'] }).data
     await expect(page).toHaveURL(/\/banned$/)
     await expect(page.getByText('Browser test restriction', { exact: true })).toBeVisible()
-    await expect(page.getByText(account.pid, { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '退出登录' }).click()
+    await openMenu(page)
+    await expect(page.getByText(account.pid, { exact: true }).filter({ visible: true })).toBeVisible()
+    await clickControl(page, '退出登录')
     await expect(page).toHaveURL(/\/login$/)
     const secondLogin = page.waitForResponse((result) => result.url().endsWith('/api/v1/auth/login'))
     await login(page, second)
@@ -42,8 +43,9 @@ test.describe('same SPA account switch', () => {
     await expect(page).toHaveURL(/\/banned$/)
     await expect(page.getByText(reason, { exact: true })).toBeVisible()
     await expect(page.getByText('Browser test restriction', { exact: true })).toHaveCount(0)
-    await expect(page.getByText(second.username, { exact: true })).toBeVisible()
-    await expect(page.getByText(second.pid, { exact: true })).toBeVisible()
+    await openMenu(page)
+    await expect(page.getByText(second.username, { exact: true }).filter({ visible: true })).toBeVisible()
+    await expect(page.getByText(second.pid, { exact: true }).filter({ visible: true })).toBeVisible()
     await expect(page.getByText(account.username, { exact: true })).toHaveCount(0)
     await expect(page.getByText(account.pid, { exact: true })).toHaveCount(0)
     expect(await page.evaluate((value) => document.documentElement.dataset.spaMarker === value, marker)).toBe(true)
@@ -55,7 +57,7 @@ test.describe('same SPA account switch', () => {
     expect(identity.user.id === secondSession.user.id && identity.csrf_token === secondSession.csrf_token).toBe(true)
     const logout = page.waitForRequest((result) => result.url().endsWith('/api/v1/auth/logout'))
     const loggedOut = page.waitForResponse((result) => result.url().endsWith('/api/v1/auth/logout'))
-    await page.getByRole('button', { name: '退出登录' }).click()
+    await clickControl(page, '退出登录')
     expect((await logout).headers()['x-csrf-token'] === secondSession.csrf_token).toBe(true)
     expect((await loggedOut).status()).toBe(200)
     await expect(page).toHaveURL(/\/login$/)

@@ -45,5 +45,5 @@ export function AccountProvider({ session, children }: { session: Schema['Sessio
     saving.current = false
     if (action.active.current) setBusy(false)
   }
-  return <AccountContext.Provider value={{ user, preferences, busy, save, refresh }}>{action.error != null && <div className="px-4 pt-4 sm:px-8"><AccountError error={action.error} /></div>}{identity.error && <div className="px-4 pt-4 sm:px-8"><AccountError error={identity.error} /></div>}{children}</AccountContext.Provider>
+  return <AccountContext.Provider value={{ user, preferences, busy, save, refresh }}>{action.error != null && <div className="px-4 pt-4 sm:px-8"><AccountError error={action.error} /></div>}{action.error == null && identity.error && <div className="px-4 pt-4 sm:px-8"><AccountError error={identity.error} /></div>}{children}</AccountContext.Provider>
 }
