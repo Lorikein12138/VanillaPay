@@ -28,7 +28,12 @@ export function OrderChannel({ channel }: { channel: string | null }) {
 export function OrderTime({ value }: { value: string | null }) {
   const { i18n } = useTranslation()
   if (!value || Number.isNaN(Date.parse(value))) return <>—</>
-  return <time dateTime={value}>{new Intl.DateTimeFormat(i18n.resolvedLanguage, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))}</time>
+  return <time dateTime={value}>{formatOrderTime(value, i18n.resolvedLanguage)}</time>
+}
+
+export function formatOrderTime(value: string | null, language: string | undefined) {
+  if (!value || Number.isNaN(Date.parse(value))) return '—'
+  return new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
 type Order = components['schemas']['PortalOrderDTO']

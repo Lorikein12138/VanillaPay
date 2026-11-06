@@ -657,6 +657,10 @@
     "available": "可选套餐",
     "currentPlan": "当前套餐",
     "duration": "{{count}} 天",
+    "durationLabel": "时长",
+    "currentExpiry": "当前到期",
+    "tradeNo": "订单号",
+    "copyTradeNo": "复制订单号",
     "unlimited": "不限购买次数",
     "remaining": "剩余可购买 {{count}} 次",
     "noPlans": "暂无可购买套餐",
@@ -670,9 +674,10 @@
     "cancel": "取消订单",
     "cancelExplain": "确认取消这笔待支付订单？取消后可重新选择套餐。",
     "confirmCancel": "确认取消订单",
+    "keepPurchase": "暂不取消",
     "createPurchase": "确认并创建订单",
-    "forfeit": "当前套餐剩余时间将作废",
-    "switchConsent": "我已理解：付款生效后，新套餐从生效时起算。",
+    "forfeit": "当前套餐（{{name}}，{{expires}} 到期）的剩余时间将在支付完成后作废。",
+    "switchConsent": "我已了解当前套餐剩余时间将作废",
     "reopen": "数据已刷新，请关闭后重新确认。",
     "sources": {
       "none": "未开通",
@@ -691,8 +696,8 @@
     },
     "explain": {
       "new": "支付完成后开通所选套餐。",
-      "renew": "支付完成后，从当前套餐到期时间顺延。",
-      "switch": "支付完成后替换当前套餐，新周期从生效时起算。"
+      "renew": "支付完成后，在当前到期时间基础上顺延 {{count}} 天。",
+      "switch": "支付完成后立即生效，新周期 {{count}} 天从生效时起算。"
     },
     "errors": {
       "BILLING_CREDENTIAL_STALE": "平台收款配置已变更，请稍后重试。",
@@ -715,6 +720,7 @@
     "markRead": "标为已读",
     "view": "查看详情",
     "empty": "暂无通知",
+    "emptyUnread": "暂无未读通知",
     "announcement": "平台公告",
     "acknowledge": "知道了",
     "readFailed": "确认失败，请重试。"
@@ -730,6 +736,8 @@
     "request": "请求 ID",
     "copyRequest": "复制请求 ID",
     "details": "详情",
+    "detailTitle": "操作详情",
+    "mobileList": "操作记录卡片",
     "empty": "暂无符合条件的操作记录",
     "actor": "操作者",
     "target": "操作对象",
@@ -737,6 +745,26 @@
     "filters": "日志筛选",
     "allActions": "全部操作",
     "allResults": "全部结果",
+    "roles": {
+      "merchant": "商户",
+      "admin": "管理员",
+      "system": "系统",
+      "device": "设备"
+    },
+    "targets": {
+      "account": "账户",
+      "merchant": "商户",
+      "admin": "管理员",
+      "subscription": "订阅套餐",
+      "order": "订单",
+      "device": "设备",
+      "device_binding": "设备绑定",
+      "announcement": "公告",
+      "order_export": "订单导出",
+      "merchant_collection_settings": "收款设置",
+      "settings": "平台设置",
+      "media_asset": "收款码图片"
+    },
     "results": {
       "success": "成功",
       "failure": "失败"

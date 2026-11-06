@@ -5,6 +5,7 @@ import { api, APIError } from '@/api/client'
 import type { components } from '@/api/schema'
 import { StatusDot } from '@/components/StatusDot'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { CopyText } from '@/components/ui/copy-button'
 import { formatCountdown, useCountdown } from '@/components/ui/countdown'
 import { DetailList } from '@/components/ui/detail-list'
 import { Dialog } from '@/components/ui/dialog'
@@ -12,7 +13,7 @@ import { Checkbox } from '@/components/ui/input'
 import { Card, EmptyState, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
 import { ModuleError, useLocalAction } from './CollectionParts'
-import { OrderChannel, OrderTime } from './OrderParts'
+import { formatOrderTime, OrderChannel, OrderTime } from './OrderParts'
 import { money } from './overview-data'
 import { invalidateSubscription, localized, purchaseKind, subscriptionError, type Plan, type Subscription } from './subscription-data'
 
@@ -28,7 +29,7 @@ export function SubscriptionPage({ name }: { name: string }) {
     {subscription.isError && <ModuleError error={subscription.error} retry={() => { void subscription.refetch() }} />}
     {data && <>
       {data.pending_purchase && <PendingPurchase key={data.pending_purchase.id} name={name} purchase={data.pending_purchase} onChanged={refresh} />}
-      {!data.billing_ready ? <Notice tone="info">{t('subscription.billingClosed')}</Notice> : data.pending_purchase && <Notice tone="info">{t('subscription.pendingBlocks')}</Notice>}
+      {!data.billing_ready && <Notice tone="info">{t('subscription.billingClosed')}</Notice>}
       <Card><SectionHeader title={t('subscription.current')} actions={<StatusDot tone={data.current.active ? 'ok' : 'off'}>{t(data.current.active ? 'subscription.active' : 'subscription.inactive')}</StatusDot>} />
         <DetailList columns={2} items={[
           { label: t('subscription.plan'), value: data.current.plan ? localized(data.current.plan.name, language) : t('subscription.noPlan') },
@@ -38,6 +39,7 @@ export function SubscriptionPage({ name }: { name: string }) {
         ]} />
       </Card>
       <section aria-label={t('subscription.available')}><SectionHeader title={t('subscription.available')} />
+        {data.pending_purchase && <div className="mb-5"><Notice tone="info">{t('subscription.pendingBlocks')}</Notice></div>}
         {data.plans?.length ? <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{data.plans.map((plan) => {
           const kind = purchaseKind(data.current, plan)
           return <Card key={plan.id} aria-label={localized(plan.name, language)} className="flex flex-col gap-5">
@@ -79,9 +81,19 @@ export function PurchaseDialog({ plan, current, onClose, onChanged }: { plan: Pl
       }
     })
   }
-  return <Dialog title={t(`subscription.confirm.${kind}`)} description={t(`subscription.explain.${kind}`)} onClose={onClose} busy={action.busy} footer={<Button variant="primary" loading={action.busy} disabled={stale || (kind === 'switch' && !confirmed)} onClick={() => { void submit() }}>{t('subscription.createPurchase')}</Button>}>
-    <DetailList items={[{ label: t('subscription.plan'), value: localized(plan.name, i18n.resolvedLanguage ?? 'zh-CN') }, { label: t('subscription.amount'), value: money(plan.price_cents, i18n.resolvedLanguage ?? 'zh-CN') }, { label: t('subscription.expires'), value: <OrderTime value={current.expires_at} /> }]} />
-    {kind === 'switch' && <div className="mt-5"><Checkbox checked={confirmed} disabled={action.busy || stale} onChange={(event) => setConfirmed(event.target.checked)} description={t('subscription.switchConsent')}>{t('subscription.forfeit')}</Checkbox></div>}
+  const language = i18n.resolvedLanguage ?? 'zh-CN'
+  return <Dialog title={t(`subscription.confirm.${kind}`)} description={t(`subscription.explain.${kind}`, { count: plan.duration_days })} onClose={onClose} busy={action.busy} footer={<Button variant="primary" loading={action.busy} disabled={stale || (kind === 'switch' && !confirmed)} onClick={() => { void submit() }}>{t('subscription.createPurchase')}</Button>}>
+    <DetailList columns={2} items={[
+      { label: t('subscription.plan'), value: localized(plan.name, language) },
+      { label: t('subscription.amount'), value: money(plan.price_cents, language) },
+      { label: t('subscription.durationLabel'), value: t('subscription.duration', { count: plan.duration_days }) },
+      { label: t('subscription.currentExpiry'), value: kind === 'renew' && <OrderTime value={current.expires_at} /> },
+      { label: t('subscription.currentPlan'), value: kind === 'switch' && <>{current.plan && localized(current.plan.name, language)}<br /><OrderTime value={current.expires_at} /></> },
+    ]} />
+    {kind === 'switch' && <div className="mt-5 flex flex-col gap-4">
+      <Notice tone="warning">{t('subscription.forfeit', { name: current.plan ? localized(current.plan.name, language) : t('subscription.noPlan'), expires: formatOrderTime(current.expires_at, language) })}</Notice>
+      <Checkbox checked={confirmed} disabled={action.busy || stale} onChange={(event) => setConfirmed(event.target.checked)}>{t('subscription.switchConsent')}</Checkbox>
+    </div>}
     {action.error != null && <div className="mt-5"><Notice tone="error">{t(subscriptionError(action.error), { defaultValue: t('polish.theOperationFailedPleaseTryAgain') })}{stale && <p className="mb-0 mt-2">{t('subscription.reopen')}</p>}</Notice></div>}
   </Dialog>
 }
@@ -91,7 +103,7 @@ function PendingPurchase({ name, purchase, onChanged }: { name: string; purchase
   const detail = useQuery({ queryKey: ['merchant', name, 'subscription', 'purchase', purchase.id], queryFn: () => api.purchaseDetail(purchase.id), gcTime: 0 })
   const seconds = useCountdown(purchase.expires_at), value = detail.data ?? purchase
   return <Card aria-label={t('subscription.pending')}><SectionHeader title={t('subscription.pending')} description={t('subscription.timeLeft', { time: formatCountdown(seconds) })} />
-    <DetailList columns={2} items={[{ label: t('subscription.plan'), value: localized(value.plan_snapshot.name, i18n.resolvedLanguage ?? 'zh-CN') }, { label: t('subscription.amount'), value: money(value.price_cents, i18n.resolvedLanguage ?? 'zh-CN') }, { label: t('subscription.created'), value: <OrderTime value={value.created_at} /> }]} />
+    <DetailList columns={2} items={[{ label: t('subscription.plan'), value: localized(value.plan_snapshot.name, i18n.resolvedLanguage ?? 'zh-CN') }, { label: t('subscription.amount'), value: money(value.price_cents, i18n.resolvedLanguage ?? 'zh-CN') }, { label: t('subscription.created'), value: <OrderTime value={value.created_at} /> }, { label: t('subscription.tradeNo'), value: value.trade_no ? <CopyText value={value.trade_no} label={t('subscription.copyTradeNo')} /> : '—' }]} />
     {detail.isError && <ModuleError error={detail.error} retry={() => { void detail.refetch() }} />}
     <div className="mt-5 flex flex-wrap gap-3 border-t-[0.5px] border-border pt-5">
       {detail.data?.state === 'pending' && detail.data.cashier_url && seconds > 0 && <a className={buttonVariants({ variant: 'primary' })} href={detail.data.cashier_url}>{t('subscription.pay')}</a>}
@@ -102,10 +114,10 @@ function PendingPurchase({ name, purchase, onChanged }: { name: string; purchase
 }
 export function CancelPurchaseDialog({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => Promise<void> }) {
   const { t } = useTranslation(), action = useLocalAction()
-  return <Dialog title={t('subscription.cancel')} description={t('subscription.cancelExplain')} onClose={onClose} busy={action.busy} footer={<Button variant="danger" loading={action.busy} onClick={() => { void action.run(async () => {
+  return <Dialog title={t('subscription.cancel')} description={t('subscription.cancelExplain')} onClose={onClose} busy={action.busy} footer={<><Button variant="secondary" disabled={action.busy} onClick={onClose}>{t('subscription.keepPurchase')}</Button><Button variant="dangerOutline" loading={action.busy} onClick={() => { void action.run(async () => {
     try { await api.cancelPurchase(id); await onChanged(); if (action.active.current) onClose() }
     catch (error) { if (error instanceof APIError && error.status === 409) await onChanged(); throw error }
-  }) }}>{t('subscription.confirmCancel')}</Button>}>
+  }) }}>{t('subscription.confirmCancel')}</Button></>}>
     {action.error != null && <Notice tone="error">{t(subscriptionError(action.error), { defaultValue: t('polish.theOperationFailedPleaseTryAgain') })}</Notice>}
   </Dialog>
 }

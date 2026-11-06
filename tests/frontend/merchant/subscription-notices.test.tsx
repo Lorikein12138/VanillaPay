@@ -14,6 +14,9 @@ import { PopupAnnouncements, UnreadBadge } from '@/features/merchant/Notificatio
 import { invalidateNotifications, notificationTarget, useNotificationSummary } from '@/features/merchant/notification-data'
 import { invalidateSubscription } from '@/features/merchant/subscription-data'
 import { auditSearch } from '@/features/merchant/audit-data'
+import { AuditDetails } from '@/features/merchant/AuditLogsPage'
+import { formatOrderTime } from '@/features/merchant/OrderParts'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { createI18n } from '@/lib/i18n'
 import { emptyNotifications } from './notification-fixture'
 
@@ -43,19 +46,39 @@ function mount(path: string) {
 describe('subscription confirmations', () => {
   it.each(['new', 'renew', 'switch'] as const)('shows %s semantics and sends the captured revisions with CSRF and one idempotency key', async (kind) => {
     await api.me()
-    const value = kind === 'new' ? current : { ...current, revision: 7, active: true, plan: kind === 'renew' ? plan : { ...plan, id: 'other' }, expires_at: new Date(Date.now() + 86400000).toISOString() }
+    const value = kind === 'new' ? current : { ...current, revision: 7, active: true, plan: kind === 'renew' ? plan : { ...plan, id: 'other', name: { zh_CN: '原有套餐', en: 'Previous plan' } }, expires_at: '2026-12-01T12:00:00Z' }
     const requests: Request[] = [], bodies: unknown[] = []
     server.use(http.post('*/api/v1/merchant/subscription/purchases', async ({ request }) => { requests.push(request); bodies.push(await request.json()); return success(purchase) }))
     const changed = vi.fn().mockResolvedValue(undefined)
     wrap(<PurchaseDialog plan={plan} current={value} onClose={() => {}} onChanged={changed} />)
     expect(screen.getByRole('dialog')).toHaveAccessibleName(kind === 'new' ? '确认购买套餐' : kind === 'renew' ? '确认续费套餐' : '确认更换套餐')
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('套餐', { selector: 'dt' })).toBeVisible()
+    expect(within(dialog).getByText('金额', { selector: 'dt' })).toBeVisible()
+    expect(within(dialog).getByText('时长', { selector: 'dt' })).toBeVisible()
+    expect(within(dialog).getByText('30 天')).toBeVisible()
+    expect(within(dialog).queryByText('到期时间', { selector: 'dt' })).not.toBeInTheDocument()
     const submit = screen.getByRole('button', { name: '确认并创建订单' })
     if (kind === 'switch') {
-      expect(screen.getByText('当前套餐剩余时间将作废')).toBeVisible(); expect(submit).toBeDisabled()
+      expect(dialog).toHaveAccessibleDescription('支付完成后立即生效，新周期 30 天从生效时起算。')
+      expect(within(dialog).getByText('当前套餐', { selector: 'dt' })).toBeVisible()
+      expect(screen.getByRole('note')).toHaveTextContent(`当前套餐（原有套餐，${formatOrderTime(value.expires_at, 'zh-CN')} 到期）的剩余时间将在支付完成后作废。`)
+      expect(screen.getByRole('checkbox', { name: '我已了解当前套餐剩余时间将作废' })).not.toHaveAccessibleDescription()
+      expect(submit).toBeDisabled()
       fireEvent.click(submit); expect(requests).toHaveLength(0)
       await userEvent.click(screen.getByRole('checkbox'))
     }
-    if (kind === 'renew') expect(screen.getByText('支付完成后，从当前套餐到期时间顺延。')).toBeVisible()
+    if (kind === 'renew') {
+      expect(dialog).toHaveAccessibleDescription('支付完成后，在当前到期时间基础上顺延 30 天。')
+      expect(within(dialog).getByText('当前到期', { selector: 'dt' }).nextElementSibling?.querySelector('time')).toHaveAttribute('datetime', value.expires_at)
+    }
+    if (kind === 'new') {
+      expect(dialog).toHaveAccessibleDescription('支付完成后开通所选套餐。')
+      expect(dialog.querySelector('time')).toBeNull()
+      expect(within(dialog).queryByText('当前套餐', { selector: 'dt' })).not.toBeInTheDocument()
+      expect(within(dialog).queryByText('当前到期')).not.toBeInTheDocument()
+    }
+    expect(dialog.querySelectorAll('time')).toHaveLength(kind === 'new' ? 0 : 1)
     await userEvent.click(submit)
     await waitFor(() => expect(changed).toHaveBeenCalledTimes(1))
     expect(bodies).toEqual([{ plan_id: plan.id, plan_revision: 3, expected_subscription_revision: value.revision, confirm_replace: kind === 'switch' }])
@@ -101,7 +124,13 @@ describe('subscription confirmations', () => {
     server.use(http.get('*/api/v1/merchant/subscription', () => success({ ...overview, pending_purchase: pending ? { ...purchase, cashier_url: null } : null })), http.get('*/api/v1/merchant/subscription/purchases/:id', () => success(purchase)), http.post('*/api/v1/merchant/subscription/purchases/:id/cancel', () => { canceled++; pending = false; return success({ ...purchase, state: 'cancelled' }) }))
     wrap(<SubscriptionPage name={user.username} />)
     expect(await screen.findByRole('link', { name: '去支付' })).toHaveAttribute('href', purchase.cashier_url)
+    expect(within(screen.getByRole('region', { name: '可选套餐' })).getByRole('status')).toHaveTextContent('已有待支付订单')
+    expect(within(screen.getByRole('region', { name: '待支付订单' })).getByText('trade-123')).toBeVisible()
+    expect(screen.getByRole('button', { name: '复制订单号' })).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: '取消订单' })); expect(canceled).toBe(0)
+    await userEvent.click(screen.getByRole('button', { name: '暂不取消' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); expect(canceled).toBe(0)
+    await userEvent.click(screen.getByRole('button', { name: '取消订单' }))
     await userEvent.click(screen.getByRole('button', { name: '确认取消订单' }))
     await waitFor(() => expect(screen.queryByRole('region', { name: '待支付订单' })).not.toBeInTheDocument())
     expect(canceled).toBe(1); expect(screen.getByRole('button', { name: '购买套餐' })).toBeEnabled()
@@ -201,13 +230,13 @@ describe('notifications and announcements', () => {
     mount('/notifications')
     await screen.findByRole('heading', { name: 'n1' })
     expect(screen.queryByRole('link', { name: '查看详情' })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '未读' }))
+    await userEvent.click(screen.getByRole('radio', { name: '未读' }))
     await waitFor(() => expect(parameters.some((value) => value.get('unread_only') === 'true')).toBe(true))
     await userEvent.click(screen.getByRole('button', { name: '加载更多' }))
     await screen.findByRole('heading', { name: 'n2' })
     expect(parameters.at(-1)?.get('cursor')).toBe('next-notice')
     await userEvent.click(screen.getByRole('button', { name: '全部标为已读' }))
-    await screen.findByText('暂无通知')
+    await screen.findByText('暂无未读通知')
     expect(screen.getByRole('button', { name: '全部标为已读' })).toBeDisabled()
   })
 })
@@ -220,7 +249,7 @@ describe('audit logs', () => {
       return success({ items: [{ id: query.has('cursor') ? '2' : '1', actor_role: 'merchant', actor_id: '1', merchant_id: '1', action: 'future.unknown', target_type: 'subscription', target_id: 'p1', result: 'success', ip: '127.0.0.1', created_at: new Date().toISOString(), request_id: query.has('cursor') ? 'request-two' : 'request-one', safe_metadata: { text: '<script>raw</script>' } }], total: 2, next_cursor: query.has('cursor') ? null : 'opaque-cursor' })
     }))
     const { router } = mount('/account/logs')
-    await screen.findByText('request-one')
+    await screen.findAllByText('request-one')
     await userEvent.selectOptions(screen.getByLabelText('操作类型'), 'auth.login')
     await userEvent.click(screen.getByRole('button', { name: '重置' }))
     expect(screen.getByLabelText('操作类型')).toHaveValue('')
@@ -232,12 +261,70 @@ describe('audit logs', () => {
     await waitFor(() => expect(router.state.location.search).toMatchObject({ action: 'subscription.purchase', result: 'success' }))
     await waitFor(() => expect(queries.at(-1)?.get('start')).toBe(new Date('2026-11-01T00:00:00').toISOString()))
     await userEvent.click(screen.getByRole('button', { name: '加载更多' }))
-    await screen.findByText('request-two')
+    await screen.findAllByText('request-two')
     expect(queries.at(-1)?.get('cursor')).toBe('opaque-cursor'); expect(queries.at(-1)?.has('merchant_id')).toBe(false)
-    expect(screen.getAllByText('future.unknown')).toHaveLength(2)
+    expect(within(screen.getByRole('table')).getAllByText('future.unknown')).toHaveLength(2)
+    const mobile = screen.getByRole('list', { name: '操作记录卡片' })
+    expect(within(mobile).getAllByRole('button', { name: '详情' })).toHaveLength(2)
     await userEvent.click(screen.getAllByRole('button', { name: '详情' })[0]!)
     expect(within(screen.getByRole('dialog')).getByText(/<script>raw<\/script>/)).toBeVisible()
     expect(screen.getByRole('dialog').querySelector('script')).toBeNull()
     expect(auditSearch({ result: 'success', action: ' auth.login ', merchant_id: 'other', cursor: 'bad' })).toEqual({ result: 'success', action: 'auth.login' })
+  })
+})
+
+describe('visual revision interactions', () => {
+  it('uses roving focus, wrapping arrows, Home, End and Space in the shared segmented control', async () => {
+    function Host() {
+      const [value, setValue] = useState('all')
+      return <SegmentedControl label="筛选" value={value} options={[{ value: 'all', label: '全部' }, { value: 'disabled', label: '禁用', disabled: true }, { value: 'unread', label: '未读' }]} onValueChange={setValue} />
+    }
+    wrap(<Host />)
+    const controls = within(screen.getByRole('radiogroup', { name: '筛选' }))
+    const all = controls.getByRole('radio', { name: '全部' }), unread = controls.getByRole('radio', { name: '未读' })
+    await userEvent.tab(); expect(all).toHaveFocus()
+    await userEvent.keyboard('{ArrowRight}'); expect(unread).toHaveFocus(); expect(unread).toHaveAttribute('aria-checked', 'true')
+    expect(all).toHaveAttribute('tabindex', '-1'); expect(controls.getByRole('radio', { name: '禁用' })).toBeDisabled()
+    await userEvent.keyboard('{ArrowDown}'); expect(all).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}'); expect(unread).toHaveFocus()
+    await userEvent.keyboard('{Home}'); expect(all).toHaveFocus()
+    await userEvent.keyboard('{End}'); expect(unread).toHaveFocus()
+    await userEvent.keyboard('{ArrowUp}'); expect(all).toHaveFocus()
+    await userEvent.keyboard(' '); expect(all).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('distinguishes all and unread empty states and keeps the compact row actions readable', async () => {
+    let empty = true
+    server.use(http.get('*/api/v1/merchant/notifications', () => success({ items: empty ? [] : [{ id: 'compact', kind: 'device_offline', source_id: 'd', title: { zh_CN: '设备离线', en: 'Device offline' }, summary: { zh_CN: '请检查设备网络', en: 'Check the network' }, created_at: new Date().toISOString(), read_at: null, action: { page: '/dashboard/collection', entity_id: '' } }], total: empty ? 0 : 1, unread_count: empty ? 0 : 1, next_cursor: null, popup_announcements: [] })))
+    const { client } = mount('/notifications')
+    await screen.findByText('暂无通知')
+    await userEvent.click(screen.getByRole('radio', { name: '未读' }))
+    await screen.findByText('暂无未读通知')
+    empty = false
+    await act(() => invalidateNotifications(client, user.username))
+    const row = await screen.findByRole('listitem', { name: '设备离线' })
+    expect(within(row).getByRole('heading', { name: '设备离线' })).toBeVisible()
+    expect(within(row).getByRole('button', { name: '标为已读' })).toBeVisible()
+    expect(within(row).getByRole('link', { name: '查看详情' })).toHaveAttribute('href', '/devices')
+  })
+
+  const audit: Schema['PortalAuditDTO'] = { id: '1', actor_id: 'internal-10', actor_role: 'merchant', merchant_id: '1', action: 'subscription.purchase', target_type: 'subscription', target_id: 'purchase-1', result: 'success', created_at: '2026-11-06T12:00:00Z', ip: null, request_id: 'request-detail', safe_metadata: {} }
+  it.each([['merchant', '商户'], ['admin', '管理员'], ['system', '系统']] as const)('localizes the %s actor without its internal id', (role, label) => {
+    wrap(<AuditDetails item={{ ...audit, actor_role: role }} onClose={() => {}} />)
+    const dialog = screen.getByRole('dialog', { name: '操作详情' })
+    expect(within(dialog).getByText('操作者', { selector: 'dt' }).nextElementSibling).toHaveTextContent(label)
+    expect(dialog).not.toHaveTextContent('internal-10')
+    expect(within(dialog).getByText('操作对象', { selector: 'dt' }).nextElementSibling).toHaveTextContent('订阅套餐 · purchase-1')
+    expect(within(dialog).queryByText('安全元数据')).not.toBeInTheDocument()
+  })
+  it('hides null metadata, preserves unknown targets and copies an unboxed request id', async () => {
+    const user = userEvent.setup()
+    // Defensive handling of null responses without weakening the generated DTO.
+    const item = { ...audit, target_type: 'future_target', safe_metadata: null } as unknown as Schema['PortalAuditDTO']
+    wrap(<AuditDetails item={item} onClose={() => {}} />)
+    expect(screen.queryByText('安全元数据')).not.toBeInTheDocument()
+    expect(screen.getByText('操作对象', { selector: 'dt' }).nextElementSibling).toHaveTextContent('future_target · purchase-1')
+    await user.click(screen.getByRole('button', { name: '复制请求 ID' }))
+    expect(await navigator.clipboard.readText()).toBe('request-detail')
   })
 })

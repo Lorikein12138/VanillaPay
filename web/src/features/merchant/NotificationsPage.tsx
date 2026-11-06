@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, APIError } from '@/api/client'
 import type { components } from '@/api/schema'
-import { StatusDot } from '@/components/StatusDot'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { Card, EmptyState, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
+import { Card, EmptyState, Page, PageHeader, Skeleton } from '@/components/ui/layout'
+import { List, ListRow } from '@/components/ui/list'
 import { Notice } from '@/components/ui/notice'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ModuleError, useLocalAction } from './CollectionParts'
 import { OrderTime } from './OrderParts'
 import { invalidateNotifications, notificationTarget } from './notification-data'
@@ -35,22 +36,16 @@ export function NotificationsPage({ name }: { name: string }) {
   }
   return <Page>
     <PageHeader title={t('merchant.nav.notifications')} description={t('notifications.description')} actions={<Button disabled={action.busy || !query.data?.pages[0]?.unread_count} loading={action.busy} onClick={() => { void read({ all: true }) }}>{t('notifications.readAll')}</Button>} />
-    <div className="flex flex-wrap gap-2" role="group" aria-label={t('notifications.filter')}>
-      <Button variant={unread ? 'ghost' : 'secondary'} aria-pressed={!unread} onClick={() => setUnread(false)}>{t('notifications.all')}</Button>
-      <Button variant={unread ? 'secondary' : 'ghost'} aria-pressed={unread} onClick={() => setUnread(true)}>{t('notifications.unread')}</Button>
-    </div>
+    <SegmentedControl label={t('notifications.filter')} value={unread ? 'unread' : 'all'} options={[{ value: 'all', label: t('notifications.all') }, { value: 'unread', label: t('notifications.unread') }]} onValueChange={(value) => setUnread(value === 'unread')} />
     {action.error != null ? <ModuleError error={action.error} /> : query.isError && <ModuleError error={query.error} retry={() => { void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch()) }} />}
     {query.isPending && <Skeleton className="h-64" />}
-    {query.data && (items.length ? <ul className="m-0 flex list-none flex-col gap-4 p-0">{items.map((item) => {
+    {query.data && (items.length ? <Card><List label={t('merchant.nav.notifications')}>{items.map((item) => {
       const target = notificationTarget(item.action)
-      return <li key={item.id}><Card aria-label={localized(item.title, language)}><SectionHeader title={localized(item.title, language)} actions={<StatusDot tone={item.read_at ? 'off' : 'info'}>{t(item.read_at ? 'notifications.read' : 'notifications.unread')}</StatusDot>} />
-        <p className="whitespace-pre-wrap break-words text-label leading-relaxed text-text-2">{localized(item.summary, language)}</p>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t-[0.5px] border-border pt-4"><span className="text-caption text-text-3"><OrderTime value={item.created_at} /></span><div className="flex flex-wrap gap-2">
-          {!item.read_at && <Button disabled={action.busy} onClick={() => { void read({ ids: [item.id] }) }}>{t('notifications.markRead')}</Button>}
-          {target && <a href={target} aria-disabled={action.busy || undefined} className={buttonVariants({ variant: 'link' })} onClick={(event) => { event.preventDefault(); if (!action.busy) void read({ ids: [item.id] }, target) }}>{t('notifications.view')}</a>}
-        </div></div>
-      </Card></li>
-    })}</ul> : <EmptyState title={t('notifications.empty')} />)}
+      return <ListRow key={item.id} label={localized(item.title, language)} title={localized(item.title, language)} unread={!item.read_at} description={localized(item.summary, language)} meta={<>{t(item.read_at ? 'notifications.read' : 'notifications.unread')} · <OrderTime value={item.created_at} /></>} actions={<>
+        {!item.read_at && <Button variant="ghost" size="sm" disabled={action.busy} onClick={() => { void read({ ids: [item.id] }) }}>{t('notifications.markRead')}</Button>}
+        {target && <a href={target} aria-disabled={action.busy || undefined} className={buttonVariants({ variant: 'link', size: 'sm' })} onClick={(event) => { event.preventDefault(); if (!action.busy) void read({ ids: [item.id] }, target) }}>{t('notifications.view')}</a>}
+      </>} />
+    })}</List></Card> : <EmptyState title={t(unread ? 'notifications.emptyUnread' : 'notifications.empty')} />)}
     {query.hasNextPage && <div className="flex justify-center"><Button loading={query.isFetchingNextPage} onClick={() => { void query.fetchNextPage() }}>{t('polish.loadMore')}</Button></div>}
   </Page>
 }

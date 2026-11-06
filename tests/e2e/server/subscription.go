@@ -65,8 +65,9 @@ func registerSubscriptionFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [3
 	})
 	mux.HandleFunc("POST /__e2e/notifications", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
-			PID     string `json:"pid"`
-			TradeNo string `json:"trade_no"`
+			PID        string `json:"pid"`
+			TradeNo    string `json:"trade_no"`
+			UnsafeText bool   `json:"unsafe_text"`
 		}
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&input) != nil {
 			http.Error(w, "invalid notification fixture", http.StatusBadRequest)
@@ -78,12 +79,23 @@ func registerSubscriptionFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [3
 				http.Error(w, "notification identity failed", http.StatusInternalServerError)
 				return
 			}
-			payload, err := json.Marshal(map[string]any{"title": map[string]string{"zh_CN": "通知 " + page, "en": "Notice " + page}, "summary": map[string]string{"zh_CN": "<b>仅按纯文本显示</b>", "en": "<b>Plain text only</b>"}, "action": map[string]string{"page": page, "entity_id": input.TradeNo}})
+			kind := "device_offline"
+			title := map[string]string{"zh_CN": "监控设备已离线", "en": "Monitoring device offline"}
+			summary := map[string]string{"zh_CN": "监控设备已超过离线阈值，请检查设备网络和应用运行状态。", "en": "The device has exceeded its offline threshold. Check its network and application."}
+			if page == "/dashboard/orders" {
+				kind = "refund_request"
+				title = map[string]string{"zh_CN": "退款申请待处理", "en": "Refund request pending"}
+				summary = map[string]string{"zh_CN": "订单 " + input.TradeNo + " 收到退款申请，请查看订单详情并及时处理。", "en": "Order " + input.TradeNo + " has a refund request. Review the order and process it promptly."}
+			}
+			if input.UnsafeText {
+				summary = map[string]string{"zh_CN": "<b>仅按纯文本显示</b>", "en": "<b>Plain text only</b>"}
+			}
+			payload, err := json.Marshal(map[string]any{"title": title, "summary": summary, "action": map[string]string{"page": page, "entity_id": input.TradeNo}})
 			if err != nil {
 				http.Error(w, "notification payload failed", http.StatusInternalServerError)
 				return
 			}
-			if _, err := pool.Exec(r.Context(), `INSERT INTO notifications(public_id,merchant_id,kind,source_id,dedupe_key,safe_payload) SELECT $1,id,'device_offline',$1,$1,$2 FROM merchants WHERE pid=$3`, id, payload, input.PID); err != nil {
+			if _, err := pool.Exec(r.Context(), `INSERT INTO notifications(public_id,merchant_id,kind,source_id,dedupe_key,safe_payload) SELECT $1,id,$4,$1,$1,$2 FROM merchants WHERE pid=$3`, id, payload, input.PID, kind); err != nil {
 				http.Error(w, "notification fixture failed", http.StatusInternalServerError)
 				return
 			}
@@ -92,13 +104,14 @@ func registerSubscriptionFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [3
 	})
 	mux.HandleFunc("POST /__e2e/announcements", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
-			PID string `json:"pid"`
+			PID        string `json:"pid"`
+			UnsafeText bool   `json:"unsafe_text"`
 		}
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&input) != nil {
 			http.Error(w, "invalid announcement fixture", http.StatusBadRequest)
 			return
 		}
-		if err := seedAnnouncement(r.Context(), pool, input.PID); err != nil {
+		if err := seedAnnouncement(r.Context(), pool, input.PID, input.UnsafeText); err != nil {
 			http.Error(w, "announcement fixture failed", http.StatusInternalServerError)
 			return
 		}
@@ -141,7 +154,7 @@ func seedBilling(ctx context.Context, pool *pgxpool.Pool, key [32]byte) error {
 	return seedOverviewDevice(ctx, pool, merchant["pid"], "online", "Billing device")
 }
 
-func seedAnnouncement(ctx context.Context, pool *pgxpool.Pool, pid string) error {
+func seedAnnouncement(ctx context.Context, pool *pgxpool.Pool, pid string, unsafeText bool) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -154,11 +167,15 @@ func seedAnnouncement(ctx context.Context, pool *pgxpool.Pool, pid string) error
 	if err != nil {
 		return err
 	}
-	title, err := json.Marshal(map[string]string{"zh_CN": "测试公告 " + pid, "en": "Test announcement " + pid})
+	title, err := json.Marshal(map[string]string{"zh_CN": "平台收款服务使用说明", "en": "Using the platform payment service"})
 	if err != nil {
 		return err
 	}
-	body, err := json.Marshal(map[string]string{"zh_CN": "<script>不执行</script>\n公告按纯文本显示。", "en": "<script>Never execute</script>\nThis is plain text."})
+	text := map[string]string{"zh_CN": "为保证收款顺利，请保持监控设备在线，并定期检查收款码状态。\n如遇订单未匹配，可在收款记录中查看原因并联系平台支持。", "en": "Keep your monitoring device online and check your collection codes regularly to ensure smooth payments.\nIf a receipt is unmatched, review its reason in the receipts list and contact platform support."}
+	if unsafeText {
+		text = map[string]string{"zh_CN": "<script>不执行</script>\n<b>原始文本</b>", "en": "<script>Never execute</script>\n<b>Raw text</b>"}
+	}
+	body, err := json.Marshal(text)
 	if err != nil {
 		return err
 	}

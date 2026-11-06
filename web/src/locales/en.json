@@ -657,6 +657,10 @@
     "available": "Available plans",
     "currentPlan": "Current plan",
     "duration": "{{count}} days",
+    "durationLabel": "Duration",
+    "currentExpiry": "Current expiry",
+    "tradeNo": "Order number",
+    "copyTradeNo": "Copy order number",
     "unlimited": "No purchase limit",
     "remaining": "{{count}} purchases remaining",
     "noPlans": "No plans available",
@@ -670,9 +674,10 @@
     "cancel": "Cancel purchase",
     "cancelExplain": "Cancel this pending purchase? You can choose another plan afterwards.",
     "confirmCancel": "Confirm cancellation",
+    "keepPurchase": "Keep purchase",
     "createPurchase": "Confirm and create order",
-    "forfeit": "The remaining time on your current plan will be forfeited.",
-    "switchConsent": "I understand: the new plan starts when payment takes effect.",
+    "forfeit": "The remaining time on your current plan ({{name}}, expires {{expires}}) will be forfeited after payment.",
+    "switchConsent": "I understand that the remaining time on my current plan will be forfeited.",
     "reopen": "The data has been refreshed. Close this dialog and review your purchase again.",
     "sources": {
       "none": "None",
@@ -691,8 +696,8 @@
     },
     "explain": {
       "new": "Your selected plan activates after payment.",
-      "renew": "After payment, the new period extends your current expiry date.",
-      "switch": "After payment, this replaces your current plan and starts a new period."
+      "renew": "After payment, {{count}} days are added to your current expiry date.",
+      "switch": "The new plan takes effect immediately after payment. Its {{count}}-day period starts when it takes effect."
     },
     "errors": {
       "BILLING_CREDENTIAL_STALE": "The platform billing credentials have changed. Try again later.",
@@ -715,6 +720,7 @@
     "markRead": "Mark as read",
     "view": "View details",
     "empty": "No notifications",
+    "emptyUnread": "No unread notifications",
     "announcement": "Platform announcement",
     "acknowledge": "Got it",
     "readFailed": "Could not acknowledge this announcement. Try again."
@@ -730,6 +736,8 @@
     "request": "Request ID",
     "copyRequest": "Copy request ID",
     "details": "Details",
+    "detailTitle": "Activity details",
+    "mobileList": "Activity cards",
     "empty": "No activity matches these filters",
     "actor": "Actor",
     "target": "Target",
@@ -737,6 +745,26 @@
     "filters": "Activity filters",
     "allActions": "All actions",
     "allResults": "All results",
+    "roles": {
+      "merchant": "Merchant",
+      "admin": "Administrator",
+      "system": "System",
+      "device": "Device"
+    },
+    "targets": {
+      "account": "Account",
+      "merchant": "Merchant",
+      "admin": "Administrator",
+      "subscription": "Subscription",
+      "order": "Order",
+      "device": "Device",
+      "device_binding": "Device binding",
+      "announcement": "Announcement",
+      "order_export": "Order export",
+      "merchant_collection_settings": "Collection settings",
+      "settings": "Platform settings",
+      "media_asset": "Collection code image"
+    },
     "results": {
       "success": "Success",
       "failure": "Failure"

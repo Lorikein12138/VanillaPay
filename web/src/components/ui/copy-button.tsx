@@ -2,12 +2,13 @@ import { Check, Copy } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { Mono } from './layout'
 
 /**
  * Icon button that copies `value`. Feedback is the icon turning into a check
  * plus a polite live text — never a role=status, so pages keep one status.
  */
-export function CopyButton({ value, label, className }: { value: string; label?: string; className?: string }) {
+export function CopyButton({ value, label, className, size = 'md' }: { value: string; label?: string; className?: string; size?: 'md' | 'sm' }) {
   const { t } = useTranslation()
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const timer = useRef<number>(undefined)
@@ -30,7 +31,8 @@ export function CopyButton({ value, label, className }: { value: string; label?:
       aria-label={name}
       title={name}
       className={cn(
-        'relative grid size-11 shrink-0 place-items-center rounded-control text-text-3 transition-colors hover:bg-hover hover:text-text',
+        'relative grid shrink-0 place-items-center rounded-control text-text-3 transition-colors hover:bg-hover hover:text-text',
+        size === 'sm' ? 'size-8 [&_svg]:size-3.5' : 'size-11',
         state === 'copied' && 'text-dot-ok hover:text-dot-ok',
         className,
       )}
@@ -45,6 +47,11 @@ export function CopyButton({ value, label, className }: { value: string; label?:
       </span>
     </button>
   )
+}
+
+/** Unboxed identifier with a compact icon, for dense lists and detail rows. */
+export function CopyText({ value, label }: { value: string; label?: string }) {
+  return <span className="inline-flex max-w-full items-center gap-1"><Mono className="min-w-0">{value}</Mono><CopyButton value={value} label={label} size="sm" /></span>
 }
 
 /** A monospace value with its copy button, for keys, IDs and URLs. */
