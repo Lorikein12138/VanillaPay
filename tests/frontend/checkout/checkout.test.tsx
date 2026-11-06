@@ -127,6 +127,130 @@ describe('public checkout', () => {
     const mounted = mount(); await tick(100); mounted.unmount(); await tick(4000)
     expect(returnToMerchant).not.toHaveBeenCalled()
   })
+  it('同一订单的签名地址刷新后仍只能返回一次', async () => {
+    vi.useFakeTimers()
+    server.use(http.post(path + '/channel', async () => {
+      await delay(5000); return success(locked())
+    }))
+    mount(); await tick(100)
+    fireEvent.click(screen.getByRole('button', { name: '支付宝' })); await tick(100)
+    value = order({ status: 'paid', return_url_signed: 'https://shop.example/return?timestamp=1&sign=one' })
+    await tick(3100)
+    expect(screen.getByRole('heading', { name: '支付成功' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '返回商户' }))
+    expect(returnToMerchant).toHaveBeenCalledExactlyOnceWith(value.return_url_signed)
+    value = { ...value, return_url_signed: 'https://shop.example/return?timestamp=2&sign=two' }
+    await tick(2100); expect(gets).toBe(3)
+    fireEvent.click(screen.getByRole('button', { name: '返回商户' }))
+    expect(returnToMerchant).toHaveBeenCalledTimes(1)
+    await tick(3100); expect(returnToMerchant).toHaveBeenCalledTimes(1)
+  })
+  it('does not return again when the signed URL changes after automatic return', async () => {
+    vi.useFakeTimers()
+    server.use(http.post(path + '/channel', async () => {
+      await delay(8000); return success(locked())
+    }))
+    mount(); await tick(100)
+    fireEvent.click(screen.getByRole('button', { name: '支付宝' })); await tick(100)
+    const first = 'https://shop.example/return?timestamp=1&sign=one'
+    value = order({ status: 'paid', return_url_signed: first })
+    await tick(3100); await tick(3100)
+    expect(returnToMerchant).toHaveBeenCalledExactlyOnceWith(first)
+    value = { ...value, return_url_signed: 'https://shop.example/return?timestamp=2&sign=two' }
+    await tick(2100); expect(gets).toBe(3)
+    await tick(3100); expect(returnToMerchant).toHaveBeenCalledTimes(1)
+  })
+  it('keeps the original deadline and returns once using the latest exact URL', async () => {
+    vi.useFakeTimers()
+    server.use(http.post(path + '/channel', async () => {
+      await delay(4500); return success(locked())
+    }))
+    mount(); await tick(100)
+    fireEvent.click(screen.getByRole('button', { name: '支付宝' })); await tick(100)
+    value = order({ status: 'paid', return_url_signed: 'https://shop.example/return?timestamp=1&sign=one' })
+    await tick(3100)
+    expect(screen.getByText('3 秒后返回商户')).toBeVisible()
+    const latest = 'https://shop.example/return?timestamp=2&sign=a%2Bb&extra=%2F'
+    value = { ...value, return_url_signed: latest }
+    await tick(1500); expect(gets).toBe(3)
+    expect(returnToMerchant).not.toHaveBeenCalled()
+    expect(screen.queryByText('3 秒后返回商户')).not.toBeInTheDocument()
+    await tick(1600)
+    expect(returnToMerchant).toHaveBeenCalledExactlyOnceWith(latest)
+    await tick(4000); expect(returnToMerchant).toHaveBeenCalledTimes(1)
+  })
+  it('ignores a late paid response after leaving the page', async () => {
+    vi.useFakeTimers()
+    server.use(http.post(path + '/channel', async () => {
+      await delay(5000); return success(locked())
+    }))
+    const mounted = mount(); await tick(100)
+    fireEvent.click(screen.getByRole('button', { name: '支付宝' })); await tick(100)
+    value = order({ status: 'paid', return_url_signed: 'https://shop.example/return' })
+    await tick(3100)
+    mounted.unmount(); await tick(10000)
+    expect(gets).toBe(2)
+    expect(returnToMerchant).not.toHaveBeenCalled()
+  })
+  it('never falls back to the original amount when a locked actual amount is null', async () => {
+    value = { ...locked(), actual_cents: null, can_pay: false, reason: 'qr_disabled', qr_image_url: null }
+    mount(); expect(await screen.findByText('实付金额')).toBeVisible()
+    expect(screen.getByText('—')).toBeVisible()
+    expect(screen.queryByText('¥30.00')).not.toBeInTheDocument()
+  })
+  it.each(['device_offline', 'qr_disabled'])('immediately removes an existing QR when GET changes to %s', async (reason) => {
+    vi.useFakeTimers(); value = locked(); mount(); await tick(100)
+    expect(screen.getByRole('img', { name: '收款二维码' })).toBeVisible()
+    // Even a stale non-null image URL must not keep the QR visible.
+    value = { ...value, reason, can_pay: false, device_online: reason !== 'device_offline' }
+    await tick(3100)
+    expect(screen.queryByRole('img', { name: '收款二维码' })).not.toBeInTheDocument()
+  })
+  it('aborts an in-flight GET on unmount and ignores its late paid response', async () => {
+    vi.useFakeTimers()
+    let requestSignal: AbortSignal | undefined
+    server.use(http.get(path, async ({ request }) => {
+      gets++; requestSignal = request.signal
+      await delay(2000)
+      return success(order({ status: 'paid', return_url_signed: 'https://shop.example/return' }))
+    }))
+    const mounted = mount(); await tick(100)
+    expect(requestSignal).toBeDefined()
+    mounted.unmount(); expect(requestSignal!.aborted).toBe(true)
+    await tick(7000)
+    expect(gets).toBe(1); expect(returnToMerchant).not.toHaveBeenCalled()
+  })
+  it('does not let a slow old poll overwrite the fresh GET after channel selection', async () => {
+    vi.useFakeTimers()
+    let oldSignal: AbortSignal | undefined
+    server.use(http.get(path, async ({ request }) => {
+      gets++
+      if (gets === 2) {
+        oldSignal = request.signal
+        const stale = order()
+        await delay(5000)
+        return success(stale)
+      }
+      return success(value)
+    }), http.post(path + '/channel', () => { value = locked(); return success(value) }))
+    mount(); await tick(100); await tick(3100)
+    expect(oldSignal).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: '支付宝' })); await tick(100)
+    expect(oldSignal!.aborted).toBe(true)
+    expect(screen.getByRole('img', { name: '收款二维码' })).toBeVisible()
+    await tick(5100)
+    expect(screen.getByRole('img', { name: '收款二维码' })).toHaveAttribute('src', value.qr_image_url)
+    expect(screen.queryByRole('button', { name: '支付宝' })).not.toBeInTheDocument()
+  })
+  it('corrects the clock using response receipt time even when GET is delayed', async () => {
+    vi.useFakeTimers()
+    const sentAt = Date.now()
+    server.use(http.get(path, async () => { await delay(2000); return success(value) }))
+    mount(); await tick(2100)
+    expect(Date.now() - sentAt).toBe(2100)
+    expect(screen.getByText('5:00')).toBeVisible()
+    await tick(1000); expect(screen.getByText('4:59')).toBeVisible()
+  })
   it.each([
     ['merchant_banned', '商户暂停收款，请联系商户。'],
     ['device_offline', '收款设备离线，请稍后或联系商户。页面会自动刷新。'],
