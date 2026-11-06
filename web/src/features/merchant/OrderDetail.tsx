@@ -1,28 +1,54 @@
-import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, APIError } from '@/api/client'
 import type { components } from '@/api/schema'
+import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
+import { DetailList } from '@/components/ui/detail-list'
+import { BackLink, Card, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
+import { Notice } from '@/components/ui/notice'
+import { cn } from '@/lib/utils'
 import { OrderActionDialog } from './OrderActionDialog'
 import { availableOrderActions, orderErrorKey, type OrderAction, type OrderFilters } from './orders-data'
 import { money } from './overview-data'
-import { Skeleton } from './OverviewCards'
-import { orderButton, OrderChannel, OrderStatus, OrderTime } from './OrderParts'
+import { OrderChannel, OrderStatus, OrderTime } from './OrderParts'
+
+type Detail = components['schemas']['OrderDetail']
 
 export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo: string; filters: OrderFilters }) {
-  const { t, i18n } = useTranslation()
-  const language = i18n.resolvedLanguage ?? 'zh-CN'
+  const { t } = useTranslation()
   const client = useQueryClient()
   const query = useQuery({ queryKey: ['merchant', name, 'order', tradeNo], queryFn: () => api.order(tradeNo) })
-  const [confirmation, setConfirmation] = useState<{ action: OrderAction; key: string; detail: components['schemas']['OrderDetail'] }>()
+  const [confirmation, setConfirmation] = useState<{ action: OrderAction; key: string; detail: Detail }>()
   const [notice, setNotice] = useState<OrderAction>()
   const detail = query.data
-  const order = detail?.order
-  const refund = detail?.refund
-  const back = <Link to="/orders" search={filters} className="inline-flex min-h-11 items-center text-label text-accent-text underline-offset-4 hover:underline">← {t('merchant.orders.back')}</Link>
-  if (query.isPending) return <div className="mx-auto max-w-[1112px]" aria-busy="true">{back}<Skeleton className="mt-5 h-96 w-full" /></div>
-  if (!detail || !order) return <div className="mx-auto max-w-[1112px] space-y-5">{back}<h1 className="font-serif text-3xl">{t(query.error instanceof APIError && query.error.status === 404 ? 'merchant.orders.notFound' : 'merchant.orders.detail')}</h1><p role="alert" className="text-label text-text-2">{t(orderErrorKey(query.error))}</p>{!(query.error instanceof APIError && query.error.status === 404) && <button type="button" className={orderButton} onClick={() => { void query.refetch() }}>{t('error.retry')}</button>}</div>
+  const back = <BackLink to="/orders" search={filters}>{t('merchant.orders.back')}</BackLink>
+  if (query.isPending) {
+    return (
+      <Page className="gap-8" aria-busy="true">
+        <div className="flex flex-col gap-4">{back}<Skeleton className="h-10 w-48" /><Skeleton className="h-4 w-72" /></div>
+        <Skeleton className="h-28 w-full rounded-card" />
+        <Skeleton className="h-80 w-full rounded-card" />
+      </Page>
+    )
+  }
+  if (!detail?.order) {
+    const missing = query.error instanceof APIError && query.error.status === 404
+    return (
+      <Page className="gap-6">
+        <PageHeader back={back} title={t(missing ? 'merchant.orders.notFound' : 'merchant.orders.detail')} />
+        <Notice
+          tone={missing ? 'info' : 'error'}
+          action={!missing && <Button size="sm" onClick={() => { void query.refetch() }}>{t('error.retry')}</Button>}
+        >
+          {t(orderErrorKey(query.error))}
+        </Notice>
+      </Page>
+    )
+  }
+  const order = detail.order
+  const actions = availableOrderActions(detail)
   async function completed() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ['merchant', name, 'order', tradeNo] }),
@@ -32,29 +58,192 @@ export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo:
     setNotice(confirmation?.action)
     setConfirmation(undefined)
   }
-  return <div className="mx-auto flex max-w-[1112px] flex-col gap-8">
-    <div>{back}<div className="mt-4 flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><h1 className="font-serif text-4xl font-[330]">{t('merchant.orders.detail')}</h1><p className="mt-3 break-all font-mono text-label text-text-2">{order.trade_no}</p></div><OrderStatus status={order.status} /></div></div>
-    {notice && <p role="status" className="rounded-control border-[0.5px] border-border bg-muted px-4 py-3 text-label">{t(`merchant.orders.success.${notice}`)}</p>}
-    {query.isError && <div role="alert" className="text-label text-text-2">{t(orderErrorKey(query.error))} <button className={orderButton} onClick={() => { void query.refetch() }}>{t('error.retry')}</button></div>}
-    <section aria-label={t('merchant.orders.operations')} className="flex flex-wrap gap-2">{availableOrderActions(detail).map((action) => <button type="button" key={action} className={orderButton} onClick={() => { setNotice(undefined); setConfirmation({ action, key: crypto.randomUUID(), detail }) }}>{t(`merchant.orders.actions.${action}`)}</button>)}</section>
-    <section className="rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7"><h2 className="mb-6 font-serif text-heading">{t('merchant.orders.information')}</h2><dl className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
-      <Field label={t('merchant.overview.product')}>{order.name}</Field><Field label={t('merchant.orders.outTradeNo')}>{order.out_trade_no}</Field><Field label={t('merchant.overview.channel')}><OrderChannel channel={order.channel} /></Field>
-      <Field label={t('merchant.orders.originalAmount')}><span className="font-serif text-2xl tabular-nums">{money(order.original_cents, language)}</span></Field><Field label={t('merchant.orders.actualAmount')}><span className="font-serif text-2xl tabular-nums">{order.actual_cents === null ? '—' : money(order.actual_cents, language)}</span></Field><Field label={t('merchant.orders.callbackStatus')}>{t(`merchant.orders.callback.${order.callback_status}`, { defaultValue: order.callback_status })}</Field>
-      <Field label={t('merchant.overview.createdAt')}><OrderTime value={order.created_at} /></Field><Field label={t('merchant.orders.paidAt')}><OrderTime value={order.paid_at} /></Field><Field label={t('merchant.orders.expiresAt')}><OrderTime value={order.expires_at} /></Field>
-      <Field label={t('merchant.orders.purpose')}>{t(order.purpose === 'subscription' ? 'merchant.orders.subscription' : 'merchant.orders.external')}</Field><Field label={t('merchant.orders.protocol')}>{order.protocol}</Field><Field label={t('merchant.orders.productId')}>{order.product_id || '—'}</Field>
-      <Field label={t('merchant.orders.manual')}>{t(order.is_manual ? 'merchant.orders.yes' : 'merchant.orders.no')}</Field><Field label={t('merchant.orders.manualReason')}>{order.manual_reason || '—'}</Field><Field label={t('merchant.orders.expireReason')}>{order.expire_reason || '—'}</Field>
-      <Field label="notify_url">{detail.notify_url || '—'}</Field><Field label="return_url">{detail.return_url || '—'}</Field><Field label={t('merchant.orders.param')}>{order.param || '—'}</Field>
-    </dl></section>
-    <section className="rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7"><h2 className="mb-5 font-serif text-heading">{t('merchant.orders.refundInfo')}</h2>{refund ? <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-      <Field label={t('merchant.orders.refundId')}>{refund.id}</Field><Field label={t('merchant.orders.refundStatus')}>{t(`merchant.orders.refundStatusValues.${refund.status}`, { defaultValue: refund.status })}</Field><Field label={t('merchant.orders.refundAmount')}>{money(refund.amount_cents, language)}</Field><Field label={t('merchant.orders.refundOutNo')}>{refund.out_refund_no || '—'}</Field><Field label={t('merchant.orders.reason')}>{refund.reason || '—'}</Field><Field label={t('merchant.orders.requestedAt')}><OrderTime value={refund.requested_at} /></Field><Field label={t('merchant.orders.handledAt')}><OrderTime value={refund.handled_at} /></Field><Field label={t('merchant.orders.handledBy')}>{refund.handled_by || '—'}</Field>
-    </dl> : <p className="text-label text-text-3">{t('merchant.orders.noRefund')}</p>}{order.refunded_at && <p className="mt-5 text-label text-text-2">{t('merchant.orders.refundedAt')} · <OrderTime value={order.refunded_at} /></p>}</section>
-    <section><h2 className="mb-5 font-serif text-heading">{t('merchant.orders.attempts')}</h2>{detail.callback_attempts?.length ? <ol className="space-y-4">{detail.callback_attempts.map((attempt) => <li key={attempt.id} className="rounded-card border-[0.5px] border-border bg-surface p-5">
-      <h3 className="mb-4 text-label font-medium">{t('merchant.orders.attempt', { generation: attempt.generation, number: attempt.attempt_no })}</h3><dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Field label={t('merchant.orders.startedAt')}><OrderTime value={attempt.started_at} /></Field><Field label={t('merchant.orders.finishedAt')}><OrderTime value={attempt.finished_at} /></Field><Field label={t('merchant.orders.httpStatus')}>{attempt.http_status ?? '—'}</Field><Field label={t('merchant.orders.duration')}>{attempt.duration_ms === null ? '—' : `${attempt.duration_ms} ms`}</Field><Field label={t('merchant.orders.errorCode')}>{attempt.error_code || '—'}</Field><Field label={t('merchant.orders.nextAttempt')}><OrderTime value={attempt.next_attempt_at} /></Field><Field label={t('merchant.orders.target')}>{attempt.url_redacted}</Field></dl><pre className="mt-4 whitespace-pre-wrap break-all rounded-control bg-muted p-3 font-mono text-caption text-text-2">{attempt.response_excerpt || '—'}</pre>
-    </li>)}</ol> : <p className="border-t-[0.5px] border-border py-6 text-label text-text-3">{t('merchant.orders.noAttempts')}</p>}</section>
-    {confirmation && <OrderActionDialog key={confirmation.key} action={confirmation.action} idempotencyKey={confirmation.key} detail={confirmation.detail} onClose={() => setConfirmation(undefined)} onSuccess={completed} />}
-  </div>
+  return (
+    <Page className="gap-8">
+      <PageHeader
+        back={back}
+        title={t('merchant.orders.detail')}
+        meta={
+          <div className="-my-2 flex min-w-0 items-center gap-0.5">
+            <span className="min-w-0 font-mono text-label text-text-2 [overflow-wrap:anywhere]">{order.trade_no}</span>
+            <CopyButton value={order.trade_no} label={t('merchant.orders.copyTradeNo')} />
+          </div>
+        }
+        actions={actions.length > 0 && (
+          <section aria-label={t('merchant.orders.operations')} className="flex flex-wrap gap-2">
+            {actions.map((action) => (
+              <Button
+                key={action}
+                variant={action === 'reject' ? 'danger' : 'secondary'}
+                onClick={() => { setNotice(undefined); setConfirmation({ action, key: crypto.randomUUID(), detail }) }}
+              >
+                {t(`merchant.orders.actions.${action}`)}
+              </Button>
+            ))}
+          </section>
+        )}
+      />
+      {notice && (
+        <Notice tone="success" onDismiss={() => setNotice(undefined)}>{t(`merchant.orders.success.${notice}`)}</Notice>
+      )}
+      {query.isError && (
+        <Notice tone="error" action={<Button size="sm" onClick={() => { void query.refetch() }}>{t('error.retry')}</Button>}>
+          {t(orderErrorKey(query.error))}
+        </Notice>
+      )}
+      <Summary detail={detail} />
+      <Card>
+        <SectionHeader title={t('merchant.orders.information')} className="mb-2" />
+        <OrderInformation detail={detail} />
+      </Card>
+      <Card>
+        <SectionHeader title={t('merchant.orders.refundInfo')} className="mb-2" />
+        <RefundInformation detail={detail} />
+      </Card>
+      <section className="flex flex-col gap-4">
+        <h2 className="m-0 font-serif text-heading">{t('merchant.orders.attempts')}</h2>
+        <CallbackAttempts detail={detail} />
+      </section>
+      {confirmation && (
+        <OrderActionDialog
+          key={confirmation.key}
+          action={confirmation.action}
+          idempotencyKey={confirmation.key}
+          detail={confirmation.detail}
+          onClose={() => setConfirmation(undefined)}
+          onSuccess={completed}
+        />
+      )}
+    </Page>
+  )
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="min-w-0"><dt className="mb-1.5 text-caption text-text-3">{label}</dt><dd className="whitespace-pre-wrap break-all text-label">{children}</dd></div>
+/** Amount, status, channel and callback state: what a merchant checks first. */
+function Summary({ detail }: { detail: Detail }) {
+  const { t, i18n } = useTranslation()
+  const language = i18n.resolvedLanguage ?? 'zh-CN'
+  const order = detail.order
+  return (
+    <Card className="grid grid-cols-2 gap-x-6 gap-y-5 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
+      <SummaryItem label={t(order.actual_cents === null ? 'merchant.orders.orderAmount' : 'merchant.orders.actualAmount')} className="col-span-2 lg:col-span-1">
+        <span className="font-serif text-figure tabular-nums">{money(order.actual_cents ?? order.original_cents, language)}</span>
+      </SummaryItem>
+      <SummaryItem label={t('merchant.overview.status')}><OrderStatus status={order.status} /></SummaryItem>
+      <SummaryItem label={t('merchant.overview.channel')}><OrderChannel channel={order.channel} /></SummaryItem>
+      <SummaryItem label={t('merchant.orders.callbackStatus')} className="col-span-2 sm:col-span-1">
+        {t(`merchant.orders.callback.${order.callback_status}`, { defaultValue: order.callback_status })}
+      </SummaryItem>
+    </Card>
+  )
+}
+
+function SummaryItem({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return (
+    <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
+      <span className="text-caption text-text-3">{label}</span>
+      <div className="text-[15px]">{children}</div>
+    </div>
+  )
+}
+
+function OrderInformation({ detail }: { detail: Detail }) {
+  const { t, i18n } = useTranslation()
+  const language = i18n.resolvedLanguage ?? 'zh-CN'
+  const order = detail.order
+  // The headline amount is shown above; repeat the original only when it differs.
+  const adjusted = order.actual_cents !== null && order.actual_cents !== order.original_cents
+  return (
+    <DetailList
+      items={[
+        { label: t('merchant.overview.product'), value: order.name },
+        { label: t('merchant.orders.outTradeNo'), value: order.out_trade_no, mono: true },
+        { label: t('merchant.orders.originalAmount'), value: adjusted ? money(order.original_cents, language) : null },
+        { label: t('merchant.overview.createdAt'), value: <OrderTime value={order.created_at} /> },
+        { label: t('merchant.orders.paidAt'), value: order.paid_at && <OrderTime value={order.paid_at} /> },
+        { label: t('merchant.orders.expiresAt'), value: order.expires_at && <OrderTime value={order.expires_at} /> },
+        { label: t('merchant.orders.purpose'), value: t(order.purpose === 'subscription' ? 'merchant.orders.subscription' : 'merchant.orders.external') },
+        { label: t('merchant.orders.protocol'), value: order.protocol },
+        { label: t('merchant.orders.productId'), value: order.product_id, mono: true },
+        { label: t('merchant.orders.manual'), value: order.is_manual ? t('merchant.orders.yes') : null },
+        { label: t('merchant.orders.manualReason'), value: order.manual_reason },
+        { label: t('merchant.orders.expireReason'), value: order.expire_reason },
+        { label: t('merchant.orders.param'), value: order.param, mono: true },
+        { label: t('merchant.orders.notifyUrl'), value: detail.notify_url, mono: true, wide: true },
+        { label: t('merchant.orders.returnUrl'), value: detail.return_url, mono: true, wide: true },
+      ]}
+    />
+  )
+}
+
+function RefundInformation({ detail }: { detail: Detail }) {
+  const { t, i18n } = useTranslation()
+  const language = i18n.resolvedLanguage ?? 'zh-CN'
+  const { refund, order } = detail
+  return (
+    <>
+      {refund ? (
+        <DetailList
+          items={[
+            { label: t('merchant.orders.refundStatus'), value: t(`merchant.orders.refundStatusValues.${refund.status}`, { defaultValue: refund.status }) },
+            { label: t('merchant.orders.refundAmount'), value: money(refund.amount_cents, language) },
+            { label: t('merchant.orders.requestedAt'), value: <OrderTime value={refund.requested_at} /> },
+            { label: t('merchant.orders.refundId'), value: refund.id, mono: true },
+            { label: t('merchant.orders.refundOutNo'), value: refund.out_refund_no, mono: true },
+            { label: t('merchant.orders.handledAt'), value: refund.handled_at && <OrderTime value={refund.handled_at} /> },
+            { label: t('merchant.orders.handledBy'), value: refund.handled_by },
+            { label: t('merchant.orders.reason'), value: refund.reason, wide: true },
+          ]}
+        />
+      ) : (
+        <p className="m-0 border-t-[0.5px] border-border pt-3.5 text-label text-text-3">{t('merchant.orders.noRefund')}</p>
+      )}
+      {order.refunded_at && (
+        <p className="m-0 mt-4 text-label text-text-2">
+          {t('merchant.orders.refundedAt')} · <OrderTime value={order.refunded_at} />
+        </p>
+      )}
+    </>
+  )
+}
+
+function CallbackAttempts({ detail }: { detail: Detail }) {
+  const { t } = useTranslation()
+  const attempts = detail.callback_attempts ?? []
+  if (!attempts.length) {
+    return <p className="m-0 border-t-[0.5px] border-border py-6 text-label text-text-3">{t('merchant.orders.noAttempts')}</p>
+  }
+  return (
+    <ol className="m-0 flex list-none flex-col gap-3 p-0">
+      {attempts.map((attempt) => {
+        const ok = attempt.http_status !== null && attempt.http_status >= 200 && attempt.http_status < 300 && !attempt.error_code
+        return (
+          <li key={attempt.id} className="rounded-card border-[0.5px] border-border bg-surface p-5 sm:px-7">
+            <h3 className="m-0 mb-2 flex items-center gap-2.5 text-label font-medium">
+              <span aria-hidden="true" className={cn('size-[7px] shrink-0 rounded-full', ok ? 'bg-dot-ok' : attempt.finished_at ? 'bg-danger' : 'bg-dot-wait')} />
+              {t('merchant.orders.attempt', { generation: attempt.generation, number: attempt.attempt_no })}
+            </h3>
+            <DetailList
+              items={[
+                { label: t('merchant.orders.startedAt'), value: <OrderTime value={attempt.started_at} /> },
+                { label: t('merchant.orders.finishedAt'), value: attempt.finished_at && <OrderTime value={attempt.finished_at} /> },
+                { label: t('merchant.orders.duration'), value: attempt.duration_ms === null ? null : `${attempt.duration_ms} ms` },
+                { label: t('merchant.orders.httpStatus'), value: attempt.http_status, mono: true },
+                { label: t('merchant.orders.errorCode'), value: attempt.error_code, mono: true },
+                { label: t('merchant.orders.nextAttempt'), value: attempt.next_attempt_at && <OrderTime value={attempt.next_attempt_at} /> },
+                { label: t('merchant.orders.target'), value: attempt.url_redacted, mono: true, wide: true },
+              ]}
+            />
+            {attempt.response_excerpt && (
+              <div className="mt-1 border-t-[0.5px] border-border pt-3.5">
+                <p className="m-0 mb-1.5 text-caption text-text-3">{t('merchant.orders.responseExcerpt')}</p>
+                <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap rounded-control bg-muted p-3 font-mono text-caption leading-relaxed text-text-2 [overflow-wrap:anywhere]">
+                  {attempt.response_excerpt}
+                </pre>
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ol>
+  )
 }

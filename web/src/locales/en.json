@@ -349,7 +349,22 @@
         "validation": "Check the reason, channel and confirmation fields.",
         "unavailable": "The service is temporarily unavailable. Please retry later.",
         "filters": "Check the time range (end must follow start). Search is limited to 100 UTF-8 bytes."
-      }
+      },
+      "notifyUrl": "Notify URL",
+      "returnUrl": "Return URL",
+      "copyTradeNo": "Copy order number",
+      "orderAmount": "Order amount",
+      "responseExcerpt": "Response excerpt"
     }
+  },
+  "ui": {
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Copy failed. Select the text to copy it manually.",
+    "chooseFile": "Choose file",
+    "noFileChosen": "No file chosen",
+    "optional": "Optional"
   }
 }

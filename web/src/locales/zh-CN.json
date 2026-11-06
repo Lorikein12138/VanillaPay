@@ -349,7 +349,22 @@
         "validation": "提交的信息有误，请核对原因、通道和确认选项。",
         "unavailable": "服务暂时不可用，请稍后重试。",
         "filters": "请检查时间范围（结束时间须晚于开始时间），搜索内容最多 100 字节。"
-      }
+      },
+      "notifyUrl": "异步通知地址",
+      "returnUrl": "同步跳转地址",
+      "copyTradeNo": "复制订单号",
+      "orderAmount": "订单金额",
+      "responseExcerpt": "响应摘要"
     }
+  },
+  "ui": {
+    "close": "关闭",
+    "dismiss": "关闭提示",
+    "copy": "复制",
+    "copied": "已复制",
+    "copyFailed": "复制失败，请手动选择复制",
+    "chooseFile": "选择文件",
+    "noFileChosen": "未选择文件",
+    "optional": "选填"
   }
 }
