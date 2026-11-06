@@ -36,6 +36,8 @@
   --vp-accent-text-hover: #8f3f22;
   --vp-danger: #bf4d43;
   --vp-focus-ring: rgba(217, 119, 87, 0.22);
+  --vp-overlay: rgba(20, 20, 19, 0.45);
+  --vp-dialog-shadow: 0 24px 64px -16px rgba(20, 20, 19, 0.35);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -111,6 +113,8 @@
   --color-accent-text-hover: var(--vp-accent-text-hover);
   --color-danger: var(--vp-danger);
   --color-focus-ring: var(--vp-focus-ring);
+  --color-overlay: var(--vp-overlay);
+  --shadow-dialog: var(--vp-dialog-shadow);
 
   --font-serif: 'Source Serif 4 Variable', 'Noto Serif SC Variable', Georgia, serif;
   --font-sans: 'Instrument Sans Variable', 'Noto Sans SC Variable', system-ui, sans-serif;

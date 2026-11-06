@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { expect, login, noOverflow, test } from './fixtures'
+import { expect, login, noOverflow, test, clickControl, polishShot } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Shanghai' })
 const day = 86400000
@@ -72,8 +72,9 @@ test('shows real scoped stats, a fixed seven-day chart and the latest six orders
   await expect(page.getByRole('region', { name: '今日收款', exact: true })).toContainText('¥2,000.00')
   await page.evaluate(() => document.fonts.ready)
   for (const theme of ['light', 'dark'] as const) {
-    await page.getByRole('button', { name: theme === 'light' ? '浅色' : '深色', exact: true }).click()
+    await clickControl(page, theme === 'light' ? '浅色' : '深色')
     await noOverflow(page)
+    await polishShot(page, 'dashboard')
     await page.screenshot({ path: fileURLToPath(new URL(`../../../.artifacts/overview-shots/dashboard-${theme}-${testInfo.project.name}.png`, import.meta.url)), fullPage: true, animations: 'disabled' })
   }
 })

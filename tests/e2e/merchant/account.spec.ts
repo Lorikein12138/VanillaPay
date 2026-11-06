@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import type { APIRequestContext, Page } from '@playwright/test'
-import { expect, login, noOverflow, test, totp } from './fixtures'
+import { expect, login, noOverflow, test, totp, clickControl, openMenu, closeMenu, polishShot } from './fixtures'
 
 async function shot(page: Page, name: string) {
   const width = page.viewportSize()?.width
@@ -8,9 +8,10 @@ async function shot(page: Page, name: string) {
   const theme = width === 360 ? 'dark' : 'light'
   await page.evaluate(() => document.fonts.ready)
   await noOverflow(page)
+  await polishShot(page, name === 'binding' || name === 'one-time-key' || name === 'totp-setup' || name === 'recovery-codes' ? name+'-dialog' : name)
   await page.screenshot({ path: fileURLToPath(new URL(`../../../.artifacts/merchant-account-shots/${name}-${theme}.png`, import.meta.url)), fullPage: name !== 'totp-setup' && name !== 'recovery-codes', animations: 'disabled', mask: [page.getByTestId('totp-secret'), page.getByTestId('totp-qr'), page.getByTestId('recovery-codes'), page.locator('input[type=password]')], maskColor: '#73726c' })
 }
-async function chooseTheme(page: Page) { await page.getByRole('button', { name: page.viewportSize()?.width === 360 ? '深色' : '浅色', exact: true }).click() }
+async function chooseTheme(page: Page) { await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色') }
 async function signIn(page: Page, account: Parameters<typeof login>[1]) {
   await page.goto('/login?redirect=%2Faccount'); await login(page, account)
   await expect(page.getByRole('heading', { name: '账户安全' })).toBeVisible()
@@ -48,7 +49,7 @@ test('registers with separate single-use Turnstile tokens and signs in', async (
   await expect(page.getByRole('status')).toHaveText('注册成功，请登录。')
   await login(page, { ...account, username, password })
   await expect(page).toHaveURL(/\/dashboard$/)
-  await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible()
+  await openMenu(page); await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible(); await closeMenu(page)
 })
 
 test('resets a password, revokes an existing session and signs in with the new password', async ({ page, account, request, playwright }) => {
@@ -69,19 +70,19 @@ test('resets a password, revokes an existing session and signs in with the new p
 test('changes the username using a code bound to the new name', async ({ page, account, request }) => {
   await signIn(page, account); await chooseTheme(page); await shot(page, 'account')
   const username = `ren_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
-  await page.getByRole('button', { name: '修改用户名', exact: true }).click()
+  await page.getByRole('button', { name: '修改用户名', exact: true }).click(); await polishShot(page, 'username-dialog', false)
   await page.getByLabel('新用户名', { exact: true }).fill(username)
   await sendCode(page, request, `${account.username}@example.test`)
   await page.getByRole('button', { name: '确认保存', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible()
-  await page.reload(); await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible()
+  await openMenu(page); await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible(); await closeMenu(page)
+  await page.reload(); await openMenu(page); await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible(); await closeMenu(page)
 })
 
 test('changes the email using separate old and new mailbox proofs', async ({ page, account, request }) => {
-  await signIn(page, account)
+  await signIn(page, account); await chooseTheme(page)
   const email = `mail_${crypto.randomUUID().replaceAll('-', '')}@example.test`
-  await page.getByRole('button', { name: '修改邮箱', exact: true }).click(); await page.getByLabel('新邮箱', { exact: true }).fill(email)
+  await page.getByRole('button', { name: '修改邮箱', exact: true }).click(); await polishShot(page, 'email-dialog', false); await page.getByLabel('新邮箱', { exact: true }).fill(email)
   await sendCode(page, request, `${account.username}@example.test`, '获取旧邮箱验证码', '旧邮箱验证码')
   await sendCode(page, request, email, '获取新邮箱验证码', '新邮箱验证码')
   await page.getByRole('button', { name: '确认保存', exact: true }).click(); await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -90,8 +91,8 @@ test('changes the email using separate old and new mailbox proofs', async ({ pag
 })
 
 test('changes the password, clears the session and requires a new login', async ({ page, account, request }) => {
-  await signIn(page, account)
-  await page.getByRole('button', { name: '修改密码', exact: true }).click()
+  await signIn(page, account); await chooseTheme(page)
+  await page.getByRole('button', { name: '修改密码', exact: true }).click(); await polishShot(page, 'password-dialog', false)
   const password = crypto.randomUUID(); await newPassword(page, password)
   await sendCode(page, request, `${account.username}@example.test`)
   await page.getByRole('button', { name: '确认保存', exact: true }).click()
@@ -104,6 +105,7 @@ test('enables 2FA, logs in with TOTP and recovery, then disables 2FA', async ({ 
   test.setTimeout(90000)
   await signIn(page, account); await chooseTheme(page)
   await page.getByRole('button', { name: '开启两步验证', exact: true }).click()
+  await polishShot(page, 'totp-password-dialog', false)
   await page.getByLabel('当前密码', { exact: true }).fill(account.password); await page.getByRole('button', { name: '验证密码并生成' }).click()
   const seed = (await page.getByTestId('totp-secret').textContent())!
   await expect(page.getByTestId('totp-qr')).toBeVisible(); await shot(page, 'totp-setup')
@@ -115,17 +117,17 @@ test('enables 2FA, logs in with TOTP and recovery, then disables 2FA', async ({ 
   const downloading = page.waitForEvent('download'); await page.getByRole('button', { name: '下载恢复码 TXT' }).click()
   expect((await downloading).suggestedFilename()).toBe('vanillapay-recovery-codes.txt')
   await page.getByRole('button', { name: '关闭', exact: true }).click(); await expect(page.getByTestId('recovery-codes')).toHaveCount(0)
-  await page.getByRole('button', { name: '退出登录', exact: true }).click(); await login(page, account)
+  await clickControl(page, '退出登录'); await login(page, account)
   await expect(page.getByRole('heading', { name: '二次验证' })).toBeVisible()
   // The backend accepts +/- one step and rejects reuse. Use a fresh valid step,
   // waiting at most one period before disabling instead of reusing a login code.
   const loginStep = Math.max(Math.floor(Date.now() / 30000), confirmedStep + 1)
   await page.getByLabel('动态验证码', { exact: true }).fill(totp(seed, loginStep * 30000)); await page.getByRole('button', { name: '验证并登录' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
-  await page.getByRole('button', { name: '退出登录', exact: true }).click(); await login(page, account)
+  await clickControl(page, '退出登录'); await login(page, account)
   await page.getByRole('button', { name: '恢复码', exact: true }).click(); await page.getByLabel('恢复码', { exact: true }).fill(codes[0]!)
   await page.getByRole('button', { name: '验证并登录' }).click(); await expect(page).toHaveURL(/\/dashboard$/)
-  await page.getByRole('link', { name: account.username, exact: true }).click(); await page.getByRole('button', { name: '关闭两步验证', exact: true }).click()
+  await openMenu(page); await page.getByRole('link', { name: account.username, exact: true }).click(); await page.getByRole('button', { name: '关闭两步验证', exact: true }).click(); await polishShot(page, 'disable-totp-dialog', false)
   await page.getByLabel('当前密码', { exact: true }).fill(account.password)
   await expect.poll(() => Math.floor(Date.now() / 30000) >= loginStep, { timeout: 35000, intervals: [500] }).toBe(true)
   const disableStep = Math.max(Math.floor(Date.now() / 30000), loginStep + 1)
@@ -136,17 +138,17 @@ test('enables 2FA, logs in with TOTP and recovery, then disables 2FA', async ({ 
 test('persists header and account preferences across sessions and overrides public local choices', async ({ page, account }) => {
   await signIn(page, account)
   const savedTheme = page.waitForResponse((response) => response.url().endsWith('/merchant/preferences'))
-  await page.getByRole('button', { name: '深色', exact: true }).click(); expect((await savedTheme).status()).toBe(200)
-  await expect(page.getByLabel('账户主题')).toHaveValue('dark')
+  await clickControl(page, '深色'); expect((await savedTheme).status()).toBe(200)
+  await expect(page.getByLabel(/账户主题|Account theme/)).toHaveValue('dark')
   const savedLanguage = page.waitForResponse((response) => response.url().endsWith('/merchant/preferences'))
-  await page.getByLabel('账户语言').selectOption('en'); expect((await savedLanguage).status()).toBe(200)
+  await page.getByLabel(/账户语言|Account language/).selectOption('en'); expect((await savedLanguage).status()).toBe(200)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click()
-  await page.getByRole('button', { name: 'Switch language to 中文' }).click(); await page.getByRole('button', { name: '浅色', exact: true }).click()
+  await clickControl(page, 'Sign out')
+  await page.getByRole('button', { name: 'Switch language to 中文' }).click(); await clickControl(page, '浅色')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await login(page, account); await expect(page).toHaveURL(/\/dashboard$/)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en'); await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-  await page.getByRole('link', { name: account.username, exact: true }).click()
-  await expect(page.getByLabel('账户语言')).toHaveValue('en'); await expect(page.getByLabel('账户主题')).toHaveValue('dark')
+  await openMenu(page); await page.getByRole('link', { name: account.username, exact: true }).click()
+  await expect(page.getByLabel(/账户语言|Account language/)).toHaveValue('en'); await expect(page.getByLabel(/账户主题|Account theme/)).toHaveValue('dark')
   await noOverflow(page)
 })

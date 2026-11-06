@@ -2,18 +2,9 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
 import { StatusDot } from '@/components/StatusDot'
-import { buttonVariants } from '@/components/ui/button'
-import { controlClass } from '@/components/ui/input'
 import { Table, Td, Th } from '@/components/ui/table'
 import { money } from './overview-data'
 import { orderStatuses, type OrderFilters } from './orders-data'
-
-/** @deprecated Legacy class strings for pages not yet moved to `@/components/ui`. */
-export const orderInput = `${controlClass} min-h-11 py-2`
-/** @deprecated Use `<Button>` from `@/components/ui/button`. */
-export const orderButton = buttonVariants({ variant: 'secondary' })
-/** @deprecated Use `<Button variant="primary">` from `@/components/ui/button`. */
-export const orderPrimary = buttonVariants({ variant: 'primary' })
 
 const statusTones = { paid: 'ok', pending: 'wait', expired: 'off', refunded: 'info' } as const
 

@@ -18,11 +18,11 @@ function empty(value: ReactNode) {
  * Label/value grid with a hairline above each item. Items whose value is
  * empty are left out instead of showing a column of dashes.
  */
-export function DetailList({ items, columns = 3, className }: { items: DetailItem[]; columns?: 2 | 3; className?: string }) {
+export function DetailList({ items, columns = 3, className }: { items: DetailItem[]; columns?: 2 | 3 | 4; className?: string }) {
   const shown = items.filter((item) => !empty(item.value))
   if (!shown.length) return null
   return (
-    <dl className={cn('m-0 grid gap-x-8 sm:grid-cols-2', columns === 3 && 'lg:grid-cols-3', className)}>
+    <dl className={cn('m-0 grid gap-x-8 sm:grid-cols-2', columns === 3 && 'lg:grid-cols-3', columns === 4 && 'lg:grid-cols-4', className)}>
       {shown.map((item, index) => (
         <div
           key={index}

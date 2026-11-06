@@ -1,3 +1,4 @@
+import { buttonVariants } from '@/components/ui/button'
 import { ArrowDown, BellRing, ChartColumn, CodeXml, CreditCard, QrCode, ShieldCheck, ShoppingCart, Smartphone, Target, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LogoMark } from '@/components/Logo'
@@ -51,7 +52,7 @@ export function HomePage() {
             <div>
               <a
                 href="#features"
-                className="inline-flex h-12 items-center gap-2 rounded-[10px] bg-primary px-6 font-medium text-primary-fg transition-opacity hover:opacity-90"
+                className={buttonVariants({ variant: 'primary' })}
               >
                 {t('home.cta')}
                 <ArrowDown className="size-4" strokeWidth={1.8} aria-hidden="true" />

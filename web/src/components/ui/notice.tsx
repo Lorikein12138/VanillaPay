@@ -16,12 +16,14 @@ const tones = {
  */
 export function Notice({
   tone = 'success',
+  id,
   title,
   children,
   action,
   onDismiss,
   className,
 }: {
+  id?: string
   tone?: keyof typeof tones
   title?: ReactNode
   children: ReactNode
@@ -33,7 +35,9 @@ export function Notice({
   const { icon: Icon, color, role } = tones[tone]
   return (
     <div
+      id={id}
       role={role}
+      aria-live="polite"
       className={cn(
         'flex items-start gap-3 rounded-control border-[0.5px] border-border bg-surface py-3 pl-4 pr-2 text-label',
         tone === 'error' && 'border-danger/40',

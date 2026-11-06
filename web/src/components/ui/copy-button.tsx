@@ -48,10 +48,10 @@ export function CopyButton({ value, label, className }: { value: string; label?:
 }
 
 /** A monospace value with its copy button, for keys, IDs and URLs. */
-export function CopyField({ value, label, className }: { value: string; label?: string; className?: string }) {
+export function CopyField({ value, label, className, children, testId }: { value: string; label?: string; className?: string; children?: React.ReactNode; testId?: string }) {
   return (
     <div className={cn('flex min-w-0 items-center gap-1 rounded-control bg-muted py-0 pl-3', className)}>
-      <code className="min-w-0 flex-1 py-2.5 font-mono text-[13px] leading-relaxed [overflow-wrap:anywhere]">{value}</code>
+      <div data-testid={testId} className="min-w-0 flex-1 whitespace-pre-wrap py-2.5 font-mono text-[13px] leading-relaxed [overflow-wrap:anywhere]">{children ?? value}</div>
       <CopyButton value={value} label={label} />
     </div>
   )

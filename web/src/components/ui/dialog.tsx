@@ -35,14 +35,14 @@ export function Dialog({
   return (
     <Primitive.Root open={open} onOpenChange={(next) => { if (!next && !busy) onClose() }}>
       <Primitive.Portal>
-        <Primitive.Overlay className="vp-overlay fixed inset-0 z-40 bg-[rgba(20,20,19,0.45)] backdrop-blur-[2px]" />
+        <Primitive.Overlay className="vp-overlay fixed inset-0 z-40 bg-overlay backdrop-blur-[2px]" />
         <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
           <Primitive.Content
             onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }}
             onPointerDownOutside={(event) => { if (busy) event.preventDefault() }}
             onInteractOutside={(event) => { if (busy) event.preventDefault() }}
             className={cn(
-              'vp-dialog pointer-events-auto flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden rounded-t-dialog border-[0.5px] border-border-strong bg-surface text-text shadow-[0_24px_64px_-16px_rgba(20,20,19,0.35)] focus:outline-none sm:max-h-[calc(100dvh-48px)] sm:rounded-dialog',
+              'vp-dialog pointer-events-auto flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden rounded-t-dialog border-[0.5px] border-border-strong bg-surface text-text shadow-dialog focus:outline-none sm:max-h-[calc(100dvh-48px)] sm:rounded-dialog',
               widths[size],
             )}
           >

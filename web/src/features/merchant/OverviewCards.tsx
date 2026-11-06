@@ -1,16 +1,19 @@
+import { Table, Th, Td } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Notice } from '@/components/ui/notice'
+import { Skeleton } from '@/components/ui/layout'
+import { StatusDot } from '@/components/StatusDot'
+export { Skeleton }
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
 import { money, relativeTime } from './overview-data'
 
 type Schema = components['schemas']
 
-export function Skeleton({ className }: { className: string }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded-control bg-muted motion-reduce:animate-none ${className}`} />
-}
 
 export function QueryProblem({ retry }: { retry: () => void }) {
   const { t } = useTranslation()
-  return <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-label text-text-2"><span>{t('merchant.overview.loadError')}</span><button type="button" onClick={retry} className="min-h-11 px-1 text-accent-text underline underline-offset-4 hover:text-accent-text-hover">{t('error.retry')}</button></div>
+  return <Notice tone="error" action={<Button variant="ghost" onClick={retry}>{t('error.retry')}</Button>}>{t('merchant.overview.loadError')}</Notice>
 }
 
 export function TrendChart({ points, format }: { points: Schema['PortalTrendPoint'][]; format: (cents: number) => string }) {
@@ -33,25 +36,25 @@ export function DeviceCard({ device, now }: { device: Schema['DeviceDeviceDTO'];
   const last = device.online ? device.last_seen_at : device.offline_at ?? device.last_seen_at
   return <div className="flex flex-wrap items-center justify-between gap-3 border-t-[0.5px] border-border py-3.5">
     <div className="min-w-0"><p className="break-words text-[15px]">{device.name ?? t('merchant.overview.unnamed')}</p><p className="mt-1 text-caption text-text-3">{last ? t(device.online ? 'merchant.overview.heartbeat' : 'merchant.overview.lastOnline', { time: relativeTime(last, now, language) }) : t('merchant.overview.neverSeen')}</p></div>
-    <span className={`inline-flex items-center gap-2 whitespace-nowrap text-label ${device.online ? '' : 'text-text-2'}`}><span aria-hidden="true" className={`size-[7px] rounded-full ${device.online ? 'bg-dot-ok' : 'bg-dot-off'}`} />{t(device.online ? 'merchant.overview.online' : 'merchant.overview.offline')}</span>
+    <StatusDot tone={device.online ? 'ok' : 'off'}>{t(device.online ? 'merchant.overview.online' : 'merchant.overview.offline')}</StatusDot>
   </div>
 }
 
-const tones: Record<string, string> = { paid: 'bg-dot-ok', pending: 'bg-dot-wait', expired: 'bg-dot-off', refunded: 'bg-dot-info' }
+const tones = { paid: 'ok', pending: 'wait', expired: 'off', refunded: 'info' } as const
 export function RecentOrders({ orders }: { orders: Schema['PortalOrderDTO'][] }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'zh-CN'
   const date = new Intl.DateTimeFormat(language, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
   if (orders.length === 0) return <p className="min-h-80 border-t-[0.5px] border-border py-10 text-center text-label text-text-3">{t('merchant.overview.noOrders')}</p>
-  return <div role="region" aria-label={t('merchant.overview.recentOrders')} tabIndex={0} className="overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-label">
-    <thead><tr className="text-left">{(['tradeNo', 'product', 'channel', 'amount', 'status', 'createdAt'] as const).map((key) => <th key={key} className={`border-b-[0.5px] border-border-strong px-4 py-2.5 text-[13px] font-normal text-text-2 first:pl-0 last:pr-0 ${key === 'amount' || key === 'createdAt' ? 'text-right' : ''}`}>{t(`merchant.overview.${key}`)}</th>)}</tr></thead>
+  return <div role="region" aria-label={t('merchant.overview.recentOrders')} tabIndex={0} className="overflow-x-auto"><Table caption={t('merchant.overview.recentOrders')} minWidth={760}>
+    <thead><tr className="text-left">{(['tradeNo', 'product', 'channel', 'amount', 'status', 'createdAt'] as const).map((key) => <Th key={key} align={key === 'amount' || key === 'createdAt' ? 'right' : 'left'}>{t(`merchant.overview.${key}`)}</Th>)}</tr></thead>
     <tbody>{orders.map((order) => <tr key={order.trade_no}>
-      <td className="border-b-[0.5px] border-border py-4 pr-4 font-mono text-[13px]">{order.trade_no}</td>
-      <td className="border-b-[0.5px] border-border p-4">{order.name}</td>
-      <td className="border-b-[0.5px] border-border p-4 text-text-2">{t(order.channel === 'alipay' || order.channel === 'wxpay' || order.channel === 'qqpay' ? `merchant.overview.channels.${order.channel}` : 'merchant.overview.channels.unassigned')}</td>
-      <td className="border-b-[0.5px] border-border p-4 text-right tabular-nums">{money(order.actual_cents ?? order.original_cents, language)}</td>
-      <td className="border-b-[0.5px] border-border p-4"><span className="inline-flex items-center gap-2 whitespace-nowrap"><span aria-hidden="true" className={`size-[7px] rounded-full ${tones[order.status] ?? 'bg-dot-off'}`} />{t(order.status === 'paid' || order.status === 'pending' || order.status === 'expired' || order.status === 'refunded' ? `merchant.overview.statuses.${order.status}` : 'merchant.overview.unknownStatus')}</span></td>
-      <td className="whitespace-nowrap border-b-[0.5px] border-border py-4 pl-4 text-right text-text-2"><time dateTime={order.created_at}>{date.format(new Date(order.created_at))}</time></td>
+      <Td className="border-b-[0.5px] border-border py-4 pr-4 font-mono text-[13px]">{order.trade_no}</Td>
+      <Td className="border-b-[0.5px] border-border p-4">{order.name}</Td>
+      <Td className="border-b-[0.5px] border-border p-4 text-text-2">{t(order.channel === 'alipay' || order.channel === 'wxpay' || order.channel === 'qqpay' ? `merchant.overview.channels.${order.channel}` : 'merchant.overview.channels.unassigned')}</Td>
+      <Td className="border-b-[0.5px] border-border p-4 text-right tabular-nums">{money(order.actual_cents ?? order.original_cents, language)}</Td>
+      <Td className="border-b-[0.5px] border-border p-4"><StatusDot tone={tones[order.status as keyof typeof tones] ?? 'off'}>{t(order.status === 'paid' || order.status === 'pending' || order.status === 'expired' || order.status === 'refunded' ? `merchant.overview.statuses.${order.status}` : 'merchant.overview.unknownStatus')}</StatusDot></Td>
+      <Td className="whitespace-nowrap border-b-[0.5px] border-border py-4 pl-4 text-right text-text-2"><time dateTime={order.created_at}>{date.format(new Date(order.created_at))}</time></Td>
     </tr>)}</tbody>
-  </table></div>
+  </Table></div>
 }

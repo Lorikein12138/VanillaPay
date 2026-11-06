@@ -1,20 +1,24 @@
-import { useEffect, useId, useState, type InputHTMLAttributes } from 'react'
+import { useId, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { APIError, api } from '@/api/client'
 import type { components } from '@/api/schema'
-import { FormError } from '@/components/FormError'
+import { Button } from '@/components/ui/button'
+import { formatCountdown, useCountdown } from '@/components/ui/countdown'
+import { Field } from '@/components/ui/field'
+import { Input, InputGroup } from '@/components/ui/input'
+import { Notice } from '@/components/ui/notice'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
-import { orderButton, orderInput } from '@/features/merchant/OrderParts'
 import { authErrorKey } from './errors'
 
 export type AccountSchema = components['schemas']
 export function AccountError({ error }: { error: unknown }) {
   const { t } = useTranslation()
-  return <FormError>{t(authErrorKey(error))}</FormError>
+  return <Notice tone="error">{t(authErrorKey(error))}</Notice>
 }
-export function AccountField({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+export function AccountField({ label, action, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; action?: ReactNode }) {
   const id = useId()
-  return <label htmlFor={id} className="flex min-w-0 flex-col gap-2 text-label text-text-2"><span>{label}</span><input id={id} className={orderInput} {...props} /></label>
+  const input = <Input id={id} {...props} />
+  return <Field htmlFor={id} label={label}>{action ? <InputGroup action={action}>{input}</InputGroup> : input}</Field>
 }
 export function validPassword(password: string, confirmation: string) { return Array.from(password).length >= 12 && Array.from(password).length <= 128 && password === confirmation }
 export function validUsername(value: string) { return /^[A-Za-z0-9_-]{3,32}$/.test(value.trim()) }
@@ -24,17 +28,7 @@ export function allowedEmail(email: string, restriction: AccountSchema['PublicCo
   try { domain = new URL(`http://${domain ?? ''}`).hostname.replace(/\.$/, '') } catch { return false }
   return !restriction.enabled || !domains.length || domains.some((item) => item.trim().toLowerCase().replace(/^@/, '') === domain)
 }
-export function useSecondsUntil(expiresAt: number) {
-  const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    if (!expiresAt) return
-    const update = () => setNow(Date.now())
-    update()
-    const timer = setInterval(update, 1000)
-    return () => clearInterval(timer)
-  }, [expiresAt])
-  return Math.max(0, Math.ceil((expiresAt - now) / 1000))
-}
+export function useSecondsUntil(expiresAt: number) { return useCountdown(expiresAt || null) }
 // Proofs and passwords stay in callers' component state, never in mutation caches.
 export function useEmailCode() {
   const action = useLocalAction()
@@ -56,6 +50,12 @@ export function useEmailCode() {
   }
   return { ...action, send, remaining, sent }
 }
-export function EmailCodeButton({ mail, disabled, onSend, label = '获取邮箱验证码' }: { mail: ReturnType<typeof useEmailCode>; disabled?: boolean; onSend: () => void; label?: string }) {
-  return <div className="space-y-2"><button type="button" className={orderButton} disabled={disabled || mail.busy || mail.remaining > 0} onClick={onSend}>{mail.busy ? '发送中…' : mail.remaining > 0 ? `${mail.remaining} 秒后重发` : label}</button>{mail.sent && <p role="status" className="text-caption text-text-2">如邮箱可接收验证码，请查收邮件。</p>}{mail.error != null && <AccountError error={mail.error} />}</div>
+export function EmailCodeButton({ mail, disabled, onSend, label }: { mail: ReturnType<typeof useEmailCode>; disabled?: boolean; onSend: () => void; label?: string }) {
+  const { t } = useTranslation()
+  return <Button loading={mail.busy} disabled={disabled || mail.busy || mail.remaining > 0} onClick={onSend}>{mail.busy ? t('polish.sending') : mail.remaining > 0 ? formatCountdown(mail.remaining) : label ?? t('polish.getEmailCode')}</Button>
+}
+export function EmailCodeNotice({ mails }: { mails: ReturnType<typeof useEmailCode>[] }) {
+  const { t } = useTranslation()
+  const error = mails.find((mail) => mail.error != null)?.error
+  return error != null ? <AccountError error={error} /> : mails.some((mail) => mail.sent) ? <Notice tone="info">{t('polish.ifThisMailboxCanReceiveACode')}</Notice> : null
 }

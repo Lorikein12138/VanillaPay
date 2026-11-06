@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from 'class-variance-authority'
 import { LoaderCircle } from 'lucide-react'
-import type { ButtonHTMLAttributes } from 'react'
+import type { ComponentPropsWithRef } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
  * Shared button styles. 44px default height keeps every target touch-sized;
- * `sm` is only for dense toolbars on wide screens.
+ * `sm` uses compact horizontal padding while retaining the touch target.
  */
 export const buttonVariants = cva(
   'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-control text-label font-medium transition-[background-color,color,border-color,opacity] duration-150 disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0',
@@ -20,7 +20,7 @@ export const buttonVariants = cva(
       },
       size: {
         md: 'h-11 px-[18px]',
-        sm: 'h-9 px-3',
+        sm: 'h-11 px-3',
         icon: 'size-11',
       },
     },
@@ -29,7 +29,7 @@ export const buttonVariants = cva(
   },
 )
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
+export type ButtonProps = ComponentPropsWithRef<'button'> &
   VariantProps<typeof buttonVariants> & {
     /** Shows a spinner and disables the button while keeping its label for screen readers. */
     loading?: boolean

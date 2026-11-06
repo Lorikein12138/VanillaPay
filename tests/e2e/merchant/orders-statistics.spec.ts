@@ -1,6 +1,6 @@
 import type { Response } from '@playwright/test'
 import type { components } from '@/api/schema'
-import { expect, login, test } from './fixtures'
+import { expect, login, test, openMenu } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Shanghai' })
 
@@ -32,7 +32,7 @@ for (const action of ['supplement', 'refund', 'resolve'] as const) {
     // Keep the same document and QueryClient: only use links after the initial login.
     const documentMarker = crypto.randomUUID()
     await page.evaluate((marker) => { document.documentElement.dataset.cacheRegression = marker }, documentMarker)
-    await page.getByRole('link', { name: '订单', exact: true }).click()
+    await openMenu(page); await page.getByRole('link', { name: '订单', exact: true }).click()
     await page.getByRole('link', { name: trade, exact: true }).filter({ visible: true }).click()
     await page.getByRole('button', { name: action === 'supplement' ? '补单' : action === 'refund' ? '标记退款' : '处理退款', exact: true }).click()
     if (pending) await page.getByLabel('补单通道').selectOption('alipay')
@@ -41,7 +41,7 @@ for (const action of ['supplement', 'refund', 'resolve'] as const) {
     await page.getByRole('button', { name: pending ? '确认补单' : action === 'refund' ? '确认退款' : '确认处理退款', exact: true }).click()
     await expect(page.getByRole('status')).toContainText(pending ? '补单成功' : action === 'refund' ? '已标记退款' : '退款申请已处理')
     await expect(page.getByText(pending ? '已支付' : '已退款', { exact: true })).toBeVisible()
-    await page.getByRole('link', { name: '概览', exact: true }).click()
+    await openMenu(page); await page.getByRole('link', { name: '概览', exact: true }).click()
     await expect(receipts).toContainText(pending ? '¥123.45' : '¥0.00')
     await expect(count).toContainText(`已支付 ${pending ? 1 : 0} 笔`)
     await expect(count.locator('p')).toHaveText(pending ? '1' : '0')
