@@ -848,5 +848,51 @@
         "bootstrap": "初始化管理员"
       }
     }
+  },
+  "checkout": {
+    "footer": "由 VanillaPay 提供收款服务",
+    "loading": "正在加载订单…",
+    "original": "应付金额",
+    "actual": "实付金额",
+    "choose": "支付方式",
+    "chooseHelp": "选择支付方式后确定实付金额",
+    "locked": "已锁定，不可更改",
+    "exact": "请务必支付 {{amount}}，金额不符将无法自动到账",
+    "exactSame": "请按显示金额付款，金额不符将无法自动到账。",
+    "qr": "收款二维码",
+    "scan": "打开{{channel}}「扫一扫」付款",
+    "remaining": "订单剩余时间",
+    "order": "复制订单号",
+    "capacity": "该支付方式当前繁忙，请换一种方式或稍后再试。",
+    "changed": "订单或支付方式已发生变化，已重新获取最新状态。",
+    "retryError": "暂时无法完成请求，请稍后重试。",
+    "retry": "重试",
+    "return": "返回商户",
+    "returnCountdown": "{{seconds}} 秒后返回商户",
+    "close": "支付成功，可关闭本页。",
+    "notFound": "订单不存在",
+    "notFoundHelp": "请检查订单链接，或返回商户重新下单。",
+    "channels": {
+      "alipay": "支付宝",
+      "wxpay": "微信支付",
+      "qqpay": "QQ 钱包"
+    },
+    "status": {
+      "paid": "支付成功",
+      "expired": "订单已过期",
+      "refunded": "订单已退款"
+    },
+    "statusHelp": {
+      "expired": "请返回商户重新下单。",
+      "refunded": "款项已退回，请联系商户了解详情。"
+    },
+    "reasons": {
+      "merchant_banned": "商户暂停收款，请联系商户。",
+      "device_offline": "收款设备离线，请稍后或联系商户。页面会自动刷新。",
+      "no_channel": "请选择支付方式。",
+      "qr_disabled": "该支付方式暂不可用，请稍后或联系商户。页面会自动刷新。",
+      "expired": "正在确认订单状态，页面会自动刷新。",
+      "unavailable": "暂时无法付款，请稍后或联系商户。页面会自动刷新。"
+    }
   }
 }

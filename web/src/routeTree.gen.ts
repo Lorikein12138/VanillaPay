@@ -25,6 +25,7 @@ import { Route as MerchantNotificationsRouteImport } from './routes/_merchant.no
 import { Route as MerchantOrdersRouteImport } from './routes/_merchant.orders'
 import { Route as MerchantSubscriptionRouteImport } from './routes/_merchant.subscription'
 import { Route as LegalKindRouteImport } from './routes/legal.$kind'
+import { Route as PayTradeNoRouteImport } from './routes/pay.$tradeNo'
 import { Route as MerchantAccountIndexRouteImport } from './routes/_merchant.account.index'
 import { Route as MerchantAccountLogsRouteImport } from './routes/_merchant.account.logs'
 import { Route as MerchantOrdersIndexRouteImport } from './routes/_merchant.orders.index'
@@ -109,6 +110,11 @@ const LegalKindRoute = LegalKindRouteImport.update({
   path: '/legal/$kind',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PayTradeNoRoute = PayTradeNoRouteImport.update({
+  id: '/pay/$tradeNo',
+  path: '/pay/$tradeNo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MerchantAccountIndexRoute = MerchantAccountIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -146,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/orders': typeof MerchantOrdersRouteWithChildren
   '/subscription': typeof MerchantSubscriptionRoute
   '/legal/$kind': typeof LegalKindRoute
+  '/pay/$tradeNo': typeof PayTradeNoRoute
   '/account/logs': typeof MerchantAccountLogsRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/account/': typeof MerchantAccountIndexRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof MerchantNotificationsRoute
   '/subscription': typeof MerchantSubscriptionRoute
   '/legal/$kind': typeof LegalKindRoute
+  '/pay/$tradeNo': typeof PayTradeNoRoute
   '/account/logs': typeof MerchantAccountLogsRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/account': typeof MerchantAccountIndexRoute
@@ -188,6 +196,7 @@ export interface FileRoutesById {
   '/_merchant/orders': typeof MerchantOrdersRouteWithChildren
   '/_merchant/subscription': typeof MerchantSubscriptionRoute
   '/legal/$kind': typeof LegalKindRoute
+  '/pay/$tradeNo': typeof PayTradeNoRoute
   '/_merchant/account/logs': typeof MerchantAccountLogsRoute
   '/_merchant/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/_merchant/account/': typeof MerchantAccountIndexRoute
@@ -211,6 +220,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/subscription'
     | '/legal/$kind'
+    | '/pay/$tradeNo'
     | '/account/logs'
     | '/orders/$tradeNo'
     | '/account/'
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/subscription'
     | '/legal/$kind'
+    | '/pay/$tradeNo'
     | '/account/logs'
     | '/orders/$tradeNo'
     | '/account'
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/_merchant/orders'
     | '/_merchant/subscription'
     | '/legal/$kind'
+    | '/pay/$tradeNo'
     | '/_merchant/account/logs'
     | '/_merchant/orders/$tradeNo'
     | '/_merchant/account/'
@@ -265,6 +277,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   LegalKindRoute: typeof LegalKindRoute
+  PayTradeNoRoute: typeof PayTradeNoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -381,6 +394,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalKindRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pay/$tradeNo': {
+      id: '/pay/$tradeNo'
+      path: '/pay/$tradeNo'
+      fullPath: '/pay/$tradeNo'
+      preLoaderRoute: typeof PayTradeNoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_merchant/account/': {
       id: '/_merchant/account/'
       path: '/'
@@ -477,6 +497,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   LegalKindRoute: LegalKindRoute,
+  PayTradeNoRoute: PayTradeNoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

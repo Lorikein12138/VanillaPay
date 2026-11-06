@@ -79,6 +79,8 @@ async function exportOrders(filters: OrdersQuery) {
 }
 
 export const api = {
+  checkout: (tradeNo: string, signal?: AbortSignal) => request<Schema['PaymentCheckoutDTO']>(`/api/v1/checkout/${encodeURIComponent(tradeNo)}`, undefined, false, undefined, 'GET', signal),
+  selectCheckoutChannel: (tradeNo: string, value: operations['post_api_v1_checkout_tradeNo_channel']['requestBody']['content']['application/json'], signal?: AbortSignal) => request<Schema['PaymentCheckoutDTO']>(`/api/v1/checkout/${encodeURIComponent(tradeNo)}/channel`, value, false, undefined, 'POST', signal),
   subscription: () => request<Schema['SubscriptionOverview']>('/api/v1/merchant/subscription'),
   purchase: (value: Schema['SubscriptionPurchaseRequest'], key: string) => request<Schema['SubscriptionPurchaseDTO']>('/api/v1/merchant/subscription/purchases', value, true, key),
   purchaseDetail: (id: string) => request<Schema['SubscriptionPurchaseDTO']>(`/api/v1/merchant/subscription/purchases/${encodeURIComponent(id)}`),

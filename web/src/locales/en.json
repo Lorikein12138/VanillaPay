@@ -848,5 +848,51 @@
         "bootstrap": "Administrator initialized"
       }
     }
+  },
+  "checkout": {
+    "footer": "Payments powered by VanillaPay",
+    "loading": "Loading order…",
+    "original": "Order amount",
+    "actual": "Exact payment amount",
+    "choose": "Payment method",
+    "chooseHelp": "Choose a payment method to determine the exact amount",
+    "locked": "Locked, cannot be changed",
+    "exact": "Pay exactly {{amount}}. A different amount cannot be credited automatically.",
+    "exactSame": "Pay the displayed amount exactly. A different amount cannot be credited automatically.",
+    "qr": "Payment QR code",
+    "scan": "Open {{channel}} and scan to pay",
+    "remaining": "Time remaining",
+    "order": "Copy order number",
+    "capacity": "This payment method is busy. Try another method or try again later.",
+    "changed": "The order or payment method has changed. The latest status has been retrieved.",
+    "retryError": "Unable to complete the request. Please try again later.",
+    "retry": "Retry",
+    "return": "Return to merchant",
+    "returnCountdown": "Returning to merchant in {{seconds}} seconds",
+    "close": "Payment successful. You may close this page.",
+    "notFound": "Order not found",
+    "notFoundHelp": "Check the order link or return to the merchant to place a new order.",
+    "channels": {
+      "alipay": "Alipay",
+      "wxpay": "WeChat Pay",
+      "qqpay": "QQ Wallet"
+    },
+    "status": {
+      "paid": "Payment successful",
+      "expired": "Order expired",
+      "refunded": "Order refunded"
+    },
+    "statusHelp": {
+      "expired": "Return to the merchant to place a new order.",
+      "refunded": "The payment has been refunded. Contact the merchant for details."
+    },
+    "reasons": {
+      "merchant_banned": "This merchant has paused payments. Contact the merchant.",
+      "device_offline": "The payment device is offline. Try later or contact the merchant. This page refreshes automatically.",
+      "no_channel": "Choose a payment method.",
+      "qr_disabled": "This payment method is unavailable. Try later or contact the merchant. This page refreshes automatically.",
+      "expired": "Confirming order status. This page refreshes automatically.",
+      "unavailable": "Payment is currently unavailable. Try later or contact the merchant. This page refreshes automatically."
+    }
   }
 }

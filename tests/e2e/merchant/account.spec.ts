@@ -152,7 +152,12 @@ test('persists header and account preferences across sessions and overrides publ
   await page.getByLabel(/账户语言|Account language/).selectOption('en'); expect((await savedLanguage).status()).toBe(200)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await clickControl(page, 'Sign out')
-  await page.getByRole('button', { name: 'Switch language to 中文' }).click(); await clickControl(page, '浅色')
+  // Wait for the public page so this click cannot hit the departing account's
+  // preference control while sign-out navigation is still in flight.
+  await expect(page).toHaveURL(/\/login(?:\?|$)/)
+  await page.getByRole('button', { name: 'Switch language to 中文' }).click()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+  await clickControl(page, '浅色')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await login(page, account); await expect(page).toHaveURL(/\/dashboard$/)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en'); await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
