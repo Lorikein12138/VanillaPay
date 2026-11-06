@@ -21,7 +21,7 @@ import { OrderTime } from './OrderParts'
 
 export function AccountPage() {
   const { t } = useTranslation()
-  const account = useMerchantAccount(), id = useId()
+  const account = useMerchantAccount()
   const [dialog, setDialog] = useState<'username' | 'email' | 'password' | 'setup' | 'disable' | null>(null)
   if (!account) return null
   const { user } = account
@@ -29,7 +29,7 @@ export function AccountPage() {
     <Card><SectionHeader title={t('audit.title')} description={t('audit.description')} actions={<Link to="/account/logs" className={buttonVariants()}>{t('audit.open')}</Link>} /></Card>
     <Card><SectionHeader title={t('polish.merchantProfile')} actions={<>{(['username', 'email', 'password'] as const).map((mode) => <Button key={mode} onClick={() => setDialog(mode)}>{mode === 'username' ? t('polish.changeUsername') : mode === 'email' ? t('polish.changeEmail') : t('polish.changePassword')}</Button>)}</>} /><DetailList columns={2} items={[{ label: t('polish.username'), value: user.username }, { label: t('polish.email'), value: user.email ?? '—' }, { label: 'PID', value: user.pid, mono: true }, { label: t('polish.createdAt'), value: <OrderTime value={user.created_at} /> }]} /></Card>
     <Card><SectionHeader title={t('polish.twoFactorAuthentication')} description={user.totp_enabled ? t('polish.enabledAnAuthenticatorCodeIsRequiredTo') : t('polish.notEnabledProtectSignInAndSensitive')} actions={<StatusDot tone={user.totp_enabled ? 'ok' : 'off'}>{user.totp_enabled ? t('polish.enabled') : t('polish.notEnabled')}</StatusDot>} /><Button variant="primary" onClick={() => setDialog(user.totp_enabled ? 'disable' : 'setup')}>{user.totp_enabled ? t('polish.disableTwoFactorAuthentication') : t('polish.enableTwoFactorAuthentication')}</Button></Card>
-    <Card><SectionHeader title={t('polish.preferences')} description={t('polish.yourSavedPreferencesApplyAfterSignIn')} /><FieldGrid><Field label={t('polish.language')} htmlFor={id+'-language'}><Select id={id+'-language'} aria-label={t('polish.accountLanguage')} disabled={account.busy} value={account.preferences.locale} onChange={(event) => { void account.save({ ...account.preferences, locale: event.target.value === 'en' ? 'en' : 'zh-CN' }) }}><option value="zh-CN">{t('polish.chinese')}</option><option value="en">English</option></Select></Field><Field label={t('polish.theme')} htmlFor={id+'-theme'}><Select id={id+'-theme'} aria-label={t('polish.accountTheme')} disabled={account.busy} value={account.preferences.theme} onChange={(event) => { const theme = event.target.value; if (theme === 'system' || theme === 'light' || theme === 'dark') void account.save({ ...account.preferences, theme }) }}><option value="system">{t('polish.system')}</option><option value="light">{t('polish.light')}</option><option value="dark">{t('polish.dark')}</option></Select></Field></FieldGrid></Card>
+    <PreferencesCard />
     {dialog && (dialog === 'setup' || dialog === 'disable' ? <FactorDialog mode={dialog} onClose={() => setDialog(null)} onChanged={account.refresh} /> : <IdentityDialog mode={dialog} user={user} onClose={() => setDialog(null)} onChanged={account.refresh} />)}
   </Page>
 }
@@ -73,7 +73,7 @@ export function IdentityDialog({ mode, user, onClose, onChanged }: { mode: 'user
   </form></Dialog>
 }
 
-export function FactorDialog({ mode, onClose, onChanged }: { mode: 'setup' | 'disable'; onClose: () => void; onChanged: () => Promise<void> }) {
+export function FactorDialog({ mode, onClose, onChanged, client = api }: { client?: Pick<typeof api, 'setupTOTP' | 'confirmTOTP' | 'disableTOTP'>; mode: 'setup' | 'disable'; onClose: () => void; onChanged: () => Promise<void> }) {
   const { t } = useTranslation()
   const action = useLocalAction(), formId = useId()
   const [password, setPassword] = useState(''), [code, setCode] = useState('')
@@ -90,14 +90,14 @@ export function FactorDialog({ mode, onClose, onChanged }: { mode: 'setup' | 'di
     if ((mode === 'disable' || setup) && !/^\d{6}$/.test(code)) return
     await action.run(async () => {
       if (mode === 'disable') {
-        await api.disableTOTP({ password, totp_code: code })
+        await client.disableTOTP({ password, totp_code: code })
         if (action.active.current) { setPassword(''); setCode(''); await onChanged(); if (action.active.current) close() }
       } else if (!setup) {
-        const result = await api.setupTOTP({ password })
+        const result = await client.setupTOTP({ password })
         if (action.active.current) { setPassword(''); const valid = Date.parse(result.expires_at) > Date.now(); setSetup(valid ? result : null); setExpired(!valid) }
       } else {
         try {
-          const result = await api.confirmTOTP({ setup_id: setup.setup_id, totp_code: code })
+          const result = await client.confirmTOTP({ setup_id: setup.setup_id, totp_code: code })
           if (action.active.current) { setSetup(null); setCode(''); setRecovery(result.recovery_codes ?? []); await onChanged() }
         } catch (error) {
           if (action.active.current && error instanceof APIError && error.problem?.code === 'CHALLENGE_EXPIRED') { setSetup(null); setCode(''); setExpired(true) }
@@ -131,4 +131,10 @@ function TOTPSecret({ setup }: { setup: AccountSchema['AuthTOTPSetup'] }) {
     return () => { active = false }
   }, [setup])
   return <div className="space-y-4 text-center">{qr && <img data-testid="totp-qr" className="mx-auto w-60 max-w-full rounded-control" src={qr} alt={t('polish.authenticatorSetupQrCode')} />}{failed && <Notice tone="error">{t('polish.couldNotGenerateTheQrCodeEnter')}</Notice>}<p className="text-caption text-text-2">{t('polish.manualSetupSecret')}</p><CopyField testId="totp-secret" value={setup.secret} label={t('polish.copyAuthenticatorSecret')} /></div>
+}
+
+export function PreferencesCard() {
+  const { t } = useTranslation(), account = useMerchantAccount(), id = useId()
+  if (!account) return null
+  return <Card><SectionHeader title={t('polish.preferences')} description={t('polish.yourSavedPreferencesApplyAfterSignIn')} /><FieldGrid><Field label={t('polish.language')} htmlFor={id+'-language'}><Select id={id+'-language'} aria-label={t('polish.accountLanguage')} disabled={account.busy} value={account.preferences.locale} onChange={(event) => { void account.save({ ...account.preferences, locale: event.target.value === 'en' ? 'en' : 'zh-CN' }) }}><option value="zh-CN">{t('polish.chinese')}</option><option value="en">English</option></Select></Field><Field label={t('polish.theme')} htmlFor={id+'-theme'}><Select id={id+'-theme'} aria-label={t('polish.accountTheme')} disabled={account.busy} value={account.preferences.theme} onChange={(event) => { const theme = event.target.value; if (theme === 'system' || theme === 'light' || theme === 'dark') void account.save({ ...account.preferences, theme }) }}><option value="system">{t('polish.system')}</option><option value="light">{t('polish.light')}</option><option value="dark">{t('polish.dark')}</option></Select></Field></FieldGrid></Card>
 }

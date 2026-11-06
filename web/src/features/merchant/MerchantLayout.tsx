@@ -1,6 +1,6 @@
 import { Link, Outlet, useRouter, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { LogOut, Menu } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/api/client'
@@ -9,7 +9,7 @@ import { LanguageSwitch } from '@/components/LanguageSwitch'
 import { LogoMark } from '@/components/Logo'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
 import { Button } from '@/components/ui/button'
-import { Drawer } from '@/components/ui/drawer'
+import { PortalShell } from '@/components/ui/portal-shell'
 import { Notice } from '@/components/ui/notice'
 import { authErrorKey } from '@/features/auth/errors'
 import { merchantNavigation } from '@/features/merchant/navigation'
@@ -45,13 +45,7 @@ function MerchantContent() {
   const userClass = 'flex min-h-11 min-w-0 items-center gap-3 rounded-control px-2 py-3'
   const userBlock = <div className="mt-auto border-t-[0.5px] border-border pt-4">{session.user.banned ? <div className={userClass}>{user}</div> : <Link to="/account" aria-label={session.user.username} onClick={() => setOpen(false)} className={`${userClass} hover:bg-hover`}>{user}</Link>}</div>
   const controls = <><LanguageSwitch /><ThemeSwitch /><Button variant="ghost" loading={busy} disabled={account.busy} onClick={() => { void logout() }}><LogOut aria-hidden="true" strokeWidth={1.6} />{t(busy ? 'auth.submitting' : 'merchant.logout')}</Button></>
-  return <div className="grid min-h-dvh min-w-0 grid-rows-[auto_1fr] lg:grid-cols-[224px_1fr] lg:grid-rows-1">
-    <aside className="hidden min-w-0 flex-col gap-7 bg-sidebar px-4 py-6 lg:flex lg:min-h-dvh">{logo}{navigation}{userBlock}</aside>
-    <div className="min-w-0"><header className="flex min-h-20 items-center justify-between gap-2 border-b-[0.5px] border-border px-4 py-3 lg:justify-end lg:border-0 sm:px-8"><div className="lg:hidden">{logo}</div><Button ref={menu} className="lg:hidden" size="icon" variant="ghost" aria-label={t('ui.menu')} aria-expanded={open} onClick={() => setOpen(true)}><Menu aria-hidden="true" /></Button><div className="hidden items-center gap-2 lg:flex">{controls}</div></header>
-      {problem != null && <div className="px-4 pt-4 sm:px-8"><Notice tone="error" onDismiss={() => setProblem(undefined)}>{t(authErrorKey(problem))}</Notice></div>}
-      <main id="main" className="min-w-0 px-4 py-8 sm:px-8 lg:px-12 lg:py-10"><Outlet /></main>
-    </div>
-    <Drawer returnFocus={menu} open={open} onClose={() => setOpen(false)} title={t('merchant.navigation')}>{navigation}{userBlock}<div className="flex flex-wrap items-center gap-2 border-t-[0.5px] border-border pt-4">{controls}</div></Drawer>
+  return <><PortalShell logo={logo} navigation={navigation} userBlock={userBlock} controls={controls} problem={problem != null && <Notice tone="error" onDismiss={() => setProblem(undefined)}>{t(authErrorKey(problem))}</Notice>} open={open} onOpenChange={setOpen} menu={menu} title={t('merchant.navigation')}><Outlet /></PortalShell>
     {!session.user.banned && <PopupAnnouncements key={session.user.username} name={session.user.username} items={notifications.data?.popup_announcements ?? []} />}
-  </div>
+  </>
 }

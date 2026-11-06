@@ -896,5 +896,58 @@
     },
     "paidAmount": "已支付 {{amount}}",
     "orderLabel": "订单号"
+  },
+  "console": {
+    "hero": "管理平台，\n从这里开始。",
+    "description": "安全地管理商户、交易与平台配置。",
+    "login": "管理员登录",
+    "loginDescription": "使用管理员账户进入控制台。",
+    "manage": "管理",
+    "admin": "管理员",
+    "navigation": "管理控制台",
+    "nav": {
+      "overview": "概览",
+      "merchants": "商户",
+      "orders": "订单",
+      "plans": "套餐",
+      "announcements": "公告",
+      "purchases": "购买记录",
+      "settings": "系统设置",
+      "auditLogs": "审计日志"
+    },
+    "features": {
+      "codes": "掌握平台交易与经营概况",
+      "devices": "统一管理商户与接入配置",
+      "callbacks": "保护账户与平台安全"
+    },
+    "setup": "初始化管理员",
+    "setupDescription": "创建平台的第一个管理员账户。",
+    "initializationHelp": "初始化码位于服务器启动日志中，查找 Administrator initialization code。",
+    "initializationCode": "初始化码",
+    "validationHelp": "用户名为 3–32 位英文字母、数字、下划线或连字符；密码为 12–128 个字符。",
+    "initialize": "创建管理员",
+    "recovery": "恢复管理端访问",
+    "recoveryDescription": "使用服务器终端签发的一次性恢复码。",
+    "recoveryHelp": "在服务器终端运行 console-recovery 命令生成恢复码。此流程仅修复 Turnstile 配置，不会建立管理员登录会话。",
+    "terminalCode": "终端恢复码",
+    "continueRecovery": "验证恢复码",
+    "repairDescription": "修复 Turnstile 配置后，请重新登录。",
+    "repairRemaining": "修复会话剩余 {{time}}，仅允许成功保存一次。",
+    "siteKey": "Turnstile Site Key",
+    "hostname": "允许的主机名",
+    "secret": "Turnstile Secret",
+    "keepSecret": "Secret 已配置，留空保留原值。",
+    "needSecret": "尚未配置 Secret，本次必须填写。",
+    "repair": "保存并结束修复",
+    "recoveryExpired": "修复会话已过期，请重新生成恢复码。",
+    "recoveryRestart": "修复会话已失效或配置版本已变化，请重新生成恢复码。",
+    "account": "管理员账户",
+    "accountDescription": "管理登录安全与个人偏好。",
+    "role": "角色",
+    "notices": {
+      "initialized": "平台已初始化，请登录。",
+      "repaired": "已修复，请登录。",
+      "password_changed": "密码已修改，请重新登录。"
+    }
   }
 }

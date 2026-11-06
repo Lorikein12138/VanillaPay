@@ -72,7 +72,7 @@ func (h *Handler) consoleRecovery(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: name, Value: session.Token, Path: "/", HttpOnly: true, Secure: h.SecureCookies, SameSite: http.SameSiteStrictMode, Expires: session.ExpiresAt, MaxAge: int(time.Until(session.ExpiresAt).Seconds())})
 	w.Header().Set("Cache-Control", "no-store")
-	writeResult(w, r, map[string]any{"csrf_token": session.CSRFToken, "expires_at": session.ExpiresAt, "repair_only": true}, nil, http.StatusOK)
+	writeResult(w, r, map[string]any{"csrf_token": session.CSRFToken, "expires_at": session.ExpiresAt, "repair_only": true, "settings_version": session.SettingsVersion, "security": session.Security}, nil, http.StatusOK)
 }
 
 func (h *Handler) bootstrapStatus(w http.ResponseWriter, r *http.Request) {

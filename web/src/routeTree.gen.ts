@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MerchantRouteImport } from './routes/_merchant'
+import { Route as ConsoleRouteImport } from './routes/console'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -24,6 +25,12 @@ import { Route as MerchantIntegrationRouteImport } from './routes/_merchant.inte
 import { Route as MerchantNotificationsRouteImport } from './routes/_merchant.notifications'
 import { Route as MerchantOrdersRouteImport } from './routes/_merchant.orders'
 import { Route as MerchantSubscriptionRouteImport } from './routes/_merchant.subscription'
+import { Route as ConsoleIndexRouteImport } from './routes/console.index'
+import { Route as ConsoleSplatRouteImport } from './routes/console.$'
+import { Route as ConsoleAccountRouteImport } from './routes/console.account'
+import { Route as ConsoleLoginRouteImport } from './routes/console_.login'
+import { Route as ConsoleRecoveryRouteImport } from './routes/console_.recovery'
+import { Route as ConsoleSetupRouteImport } from './routes/console_.setup'
 import { Route as LegalKindRouteImport } from './routes/legal.$kind'
 import { Route as PayTradeNoRouteImport } from './routes/pay.$tradeNo'
 import { Route as MerchantAccountIndexRouteImport } from './routes/_merchant.account.index'
@@ -38,6 +45,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const MerchantRoute = MerchantRouteImport.update({
   id: '/_merchant',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsoleRoute = ConsoleRouteImport.update({
+  id: '/console',
+  path: '/console',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -105,6 +117,36 @@ const MerchantSubscriptionRoute = MerchantSubscriptionRouteImport.update({
   path: '/subscription',
   getParentRoute: () => MerchantRoute,
 } as any)
+const ConsoleIndexRoute = ConsoleIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ConsoleRoute,
+} as any)
+const ConsoleSplatRoute = ConsoleSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => ConsoleRoute,
+} as any)
+const ConsoleAccountRoute = ConsoleAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => ConsoleRoute,
+} as any)
+const ConsoleLoginRoute = ConsoleLoginRouteImport.update({
+  id: '/console_/login',
+  path: '/console/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsoleRecoveryRoute = ConsoleRecoveryRouteImport.update({
+  id: '/console_/recovery',
+  path: '/console/recovery',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsoleSetupRoute = ConsoleSetupRouteImport.update({
+  id: '/console_/setup',
+  path: '/console/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LegalKindRoute = LegalKindRouteImport.update({
   id: '/legal/$kind',
   path: '/legal/$kind',
@@ -138,6 +180,7 @@ const MerchantOrdersTradeNoRoute = MerchantOrdersTradeNoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/console': typeof ConsoleRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -151,8 +194,14 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof MerchantNotificationsRoute
   '/orders': typeof MerchantOrdersRouteWithChildren
   '/subscription': typeof MerchantSubscriptionRoute
+  '/console/$': typeof ConsoleSplatRoute
+  '/console/account': typeof ConsoleAccountRoute
+  '/console/login': typeof ConsoleLoginRoute
+  '/console/recovery': typeof ConsoleRecoveryRoute
+  '/console/setup': typeof ConsoleSetupRoute
   '/legal/$kind': typeof LegalKindRoute
   '/pay/$tradeNo': typeof PayTradeNoRoute
+  '/console/': typeof ConsoleIndexRoute
   '/account/logs': typeof MerchantAccountLogsRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/account/': typeof MerchantAccountIndexRoute
@@ -171,8 +220,14 @@ export interface FileRoutesByTo {
   '/integration': typeof MerchantIntegrationRoute
   '/notifications': typeof MerchantNotificationsRoute
   '/subscription': typeof MerchantSubscriptionRoute
+  '/console/$': typeof ConsoleSplatRoute
+  '/console/account': typeof ConsoleAccountRoute
+  '/console/login': typeof ConsoleLoginRoute
+  '/console/recovery': typeof ConsoleRecoveryRoute
+  '/console/setup': typeof ConsoleSetupRoute
   '/legal/$kind': typeof LegalKindRoute
   '/pay/$tradeNo': typeof PayTradeNoRoute
+  '/console': typeof ConsoleIndexRoute
   '/account/logs': typeof MerchantAccountLogsRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/account': typeof MerchantAccountIndexRoute
@@ -182,6 +237,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_merchant': typeof MerchantRouteWithChildren
+  '/console': typeof ConsoleRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -195,8 +251,14 @@ export interface FileRoutesById {
   '/_merchant/notifications': typeof MerchantNotificationsRoute
   '/_merchant/orders': typeof MerchantOrdersRouteWithChildren
   '/_merchant/subscription': typeof MerchantSubscriptionRoute
+  '/console/$': typeof ConsoleSplatRoute
+  '/console/account': typeof ConsoleAccountRoute
+  '/console_/login': typeof ConsoleLoginRoute
+  '/console_/recovery': typeof ConsoleRecoveryRoute
+  '/console_/setup': typeof ConsoleSetupRoute
   '/legal/$kind': typeof LegalKindRoute
   '/pay/$tradeNo': typeof PayTradeNoRoute
+  '/console/': typeof ConsoleIndexRoute
   '/_merchant/account/logs': typeof MerchantAccountLogsRoute
   '/_merchant/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
   '/_merchant/account/': typeof MerchantAccountIndexRoute
@@ -206,6 +268,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/console'
     | '/login'
     | '/register'
     | '/reset-password'
@@ -219,8 +282,14 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/orders'
     | '/subscription'
+    | '/console/$'
+    | '/console/account'
+    | '/console/login'
+    | '/console/recovery'
+    | '/console/setup'
     | '/legal/$kind'
     | '/pay/$tradeNo'
+    | '/console/'
     | '/account/logs'
     | '/orders/$tradeNo'
     | '/account/'
@@ -239,8 +308,14 @@ export interface FileRouteTypes {
     | '/integration'
     | '/notifications'
     | '/subscription'
+    | '/console/$'
+    | '/console/account'
+    | '/console/login'
+    | '/console/recovery'
+    | '/console/setup'
     | '/legal/$kind'
     | '/pay/$tradeNo'
+    | '/console'
     | '/account/logs'
     | '/orders/$tradeNo'
     | '/account'
@@ -249,6 +324,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_merchant'
+    | '/console'
     | '/login'
     | '/register'
     | '/reset-password'
@@ -262,8 +338,14 @@ export interface FileRouteTypes {
     | '/_merchant/notifications'
     | '/_merchant/orders'
     | '/_merchant/subscription'
+    | '/console/$'
+    | '/console/account'
+    | '/console_/login'
+    | '/console_/recovery'
+    | '/console_/setup'
     | '/legal/$kind'
     | '/pay/$tradeNo'
+    | '/console/'
     | '/_merchant/account/logs'
     | '/_merchant/orders/$tradeNo'
     | '/_merchant/account/'
@@ -273,9 +355,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MerchantRoute: typeof MerchantRouteWithChildren
+  ConsoleRoute: typeof ConsoleRouteWithChildren
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ConsoleLoginRoute: typeof ConsoleLoginRoute
+  ConsoleRecoveryRoute: typeof ConsoleRecoveryRoute
+  ConsoleSetupRoute: typeof ConsoleSetupRoute
   LegalKindRoute: typeof LegalKindRoute
   PayTradeNoRoute: typeof PayTradeNoRoute
 }
@@ -294,6 +380,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof MerchantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/console': {
+      id: '/console'
+      path: '/console'
+      fullPath: '/console'
+      preLoaderRoute: typeof ConsoleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -386,6 +479,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/subscription'
       preLoaderRoute: typeof MerchantSubscriptionRouteImport
       parentRoute: typeof MerchantRoute
+    }
+    '/console/': {
+      id: '/console/'
+      path: '/'
+      fullPath: '/console/'
+      preLoaderRoute: typeof ConsoleIndexRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/console/$': {
+      id: '/console/$'
+      path: '/$'
+      fullPath: '/console/$'
+      preLoaderRoute: typeof ConsoleSplatRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/console/account': {
+      id: '/console/account'
+      path: '/account'
+      fullPath: '/console/account'
+      preLoaderRoute: typeof ConsoleAccountRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/console_/login': {
+      id: '/console_/login'
+      path: '/console/login'
+      fullPath: '/console/login'
+      preLoaderRoute: typeof ConsoleLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/console_/recovery': {
+      id: '/console_/recovery'
+      path: '/console/recovery'
+      fullPath: '/console/recovery'
+      preLoaderRoute: typeof ConsoleRecoveryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/console_/setup': {
+      id: '/console_/setup'
+      path: '/console/setup'
+      fullPath: '/console/setup'
+      preLoaderRoute: typeof ConsoleSetupRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/legal/$kind': {
       id: '/legal/$kind'
@@ -490,12 +625,31 @@ const MerchantRouteWithChildren = MerchantRoute._addFileChildren(
   MerchantRouteChildren,
 )
 
+interface ConsoleRouteChildren {
+  ConsoleSplatRoute: typeof ConsoleSplatRoute
+  ConsoleAccountRoute: typeof ConsoleAccountRoute
+  ConsoleIndexRoute: typeof ConsoleIndexRoute
+}
+
+const ConsoleRouteChildren: ConsoleRouteChildren = {
+  ConsoleSplatRoute: ConsoleSplatRoute,
+  ConsoleAccountRoute: ConsoleAccountRoute,
+  ConsoleIndexRoute: ConsoleIndexRoute,
+}
+
+const ConsoleRouteWithChildren =
+  ConsoleRoute._addFileChildren(ConsoleRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MerchantRoute: MerchantRouteWithChildren,
+  ConsoleRoute: ConsoleRouteWithChildren,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ConsoleLoginRoute: ConsoleLoginRoute,
+  ConsoleRecoveryRoute: ConsoleRecoveryRoute,
+  ConsoleSetupRoute: ConsoleSetupRoute,
   LegalKindRoute: LegalKindRoute,
   PayTradeNoRoute: PayTradeNoRoute,
 }

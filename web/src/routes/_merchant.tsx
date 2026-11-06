@@ -12,7 +12,7 @@ export const Route = createFileRoute('/_merchant')({
       if (!session.user.banned && location.pathname === '/banned') redirect({ to: '/dashboard', replace: true, throw: true })
       return { session }
     } catch (error) {
-      if (error instanceof APIError && error.status === 401) redirect({ to: '/login', search: { redirect: location.href }, replace: true, throw: true })
+      if (error instanceof APIError && (error.status === 401 || (error.status === 403 && error.problem?.code === 'FORBIDDEN'))) redirect({ to: '/login', search: { redirect: location.href }, replace: true, throw: true })
       throw error
     }
   },

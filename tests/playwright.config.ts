@@ -24,6 +24,9 @@ export default {
   },
   projects: viewports.map(({ name, width, height }) => ({
     name,
+    // The administrator is a singleton: console specs execute only once and
+    // capture both required viewport sizes internally, serially.
+    testIgnore: name === 'chromium-1280' ? [] : ['**/console/**'],
     use: { browserName: 'chromium', viewport: { width, height } },
   })),
 } satisfies PlaywrightTestConfig
