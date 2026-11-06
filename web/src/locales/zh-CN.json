@@ -854,9 +854,9 @@
     "loading": "正在加载订单…",
     "original": "应付金额",
     "actual": "实付金额",
-    "choose": "支付方式",
+    "choose": "选择支付方式",
     "chooseHelp": "选择支付方式后确定实付金额",
-    "locked": "已锁定，不可更改",
+    "locked": "已锁定",
     "exact": "请务必支付 {{amount}}，金额不符将无法自动到账",
     "exactSame": "请按显示金额付款，金额不符将无法自动到账。",
     "qr": "收款二维码",
@@ -869,7 +869,7 @@
     "retry": "重试",
     "return": "返回商户",
     "returnCountdown": "{{seconds}} 秒后返回商户",
-    "close": "支付成功，可关闭本页。",
+    "close": "可以关闭本页",
     "notFound": "订单不存在",
     "notFoundHelp": "请检查订单链接，或返回商户重新下单。",
     "channels": {
@@ -893,6 +893,8 @@
       "qr_disabled": "该支付方式暂不可用，请稍后或联系商户。页面会自动刷新。",
       "expired": "正在确认订单状态，页面会自动刷新。",
       "unavailable": "暂时无法付款，请稍后或联系商户。页面会自动刷新。"
-    }
+    },
+    "paidAmount": "已支付 {{amount}}",
+    "orderLabel": "订单号"
   }
 }

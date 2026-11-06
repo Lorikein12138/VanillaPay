@@ -854,9 +854,9 @@
     "loading": "Loading order…",
     "original": "Order amount",
     "actual": "Exact payment amount",
-    "choose": "Payment method",
+    "choose": "Choose a payment method",
     "chooseHelp": "Choose a payment method to determine the exact amount",
-    "locked": "Locked, cannot be changed",
+    "locked": "Locked",
     "exact": "Pay exactly {{amount}}. A different amount cannot be credited automatically.",
     "exactSame": "Pay the displayed amount exactly. A different amount cannot be credited automatically.",
     "qr": "Payment QR code",
@@ -869,7 +869,7 @@
     "retry": "Retry",
     "return": "Return to merchant",
     "returnCountdown": "Returning to merchant in {{seconds}} seconds",
-    "close": "Payment successful. You may close this page.",
+    "close": "You may close this page.",
     "notFound": "Order not found",
     "notFoundHelp": "Check the order link or return to the merchant to place a new order.",
     "channels": {
@@ -893,6 +893,8 @@
       "qr_disabled": "This payment method is unavailable. Try later or contact the merchant. This page refreshes automatically.",
       "expired": "Confirming order status. This page refreshes automatically.",
       "unavailable": "Payment is currently unavailable. Try later or contact the merchant. This page refreshes automatically."
-    }
+    },
+    "paidAmount": "Paid {{amount}}",
+    "orderLabel": "Order number"
   }
 }

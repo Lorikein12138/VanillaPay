@@ -25,6 +25,17 @@ async function checkout(request: APIRequestContext, trade: string) {
   return (await response.json() as { data: Checkout }).data
 }
 async function screenshots(page: Page, name: string) {
+  // Presentation-only screenshot seeds: the immutable backend fixture has only
+  // Alipay. Restore the real GET before any payment actions or assertions.
+  const dualChannel = name === 'unselected' || name === 'offline'
+  const endpoint = `/api/v1/checkout/${page.url().split('/').at(-1)}`
+  if (dualChannel) {
+    const response = await page.request.get(endpoint)
+    const seed = await response.json() as { data: Checkout }
+    await page.route(`**${endpoint}`, (route) => route.fulfill({ json: { ...seed, data: { ...seed.data, available_channels: ['alipay', 'wxpay'] } } }))
+    await page.reload()
+    await expect(page.getByRole('button', { name: '微信支付', exact: true })).toBeVisible()
+  }
   for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
     await page.getByRole('button', { name: label, exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
@@ -33,6 +44,20 @@ async function screenshots(page: Page, name: string) {
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     })
     await polishShot(page, name, true, 'checkout-shots')
+    const shop = await page.locator('header').getByText('示例小店').boundingBox()
+    const controls = await page.getByRole('button', { name: '浅色', exact: true }).boundingBox()
+    expect(Math.abs((shop!.y + shop!.height / 2) - (controls!.y + controls!.height / 2))).toBeLessThan(2)
+    if (dualChannel) {
+      const alipay = await page.getByRole('button', { name: '支付宝', exact: true }).boundingBox()
+      const wxpay = await page.getByRole('button', { name: '微信支付', exact: true }).boundingBox()
+      expect(alipay!.y).toBe(wxpay!.y)
+      expect(alipay!.x).toBeLessThan(wxpay!.x)
+    }
+  }
+  if (dualChannel) {
+    await page.unroute(`**${endpoint}`)
+    await page.reload()
+    await expect(page.getByRole('heading', { name: '月度会员' })).toBeVisible()
   }
 }
 
@@ -63,7 +88,8 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
   expect(receipt.status()).toBe(201)
   expect((await receipt.json() as { data: { match_state: string } }).data.match_state).toBe('matched')
   await expect(page.getByRole('heading', { name: '支付成功', exact: true })).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText('支付成功，可关闭本页。')).toBeVisible()
+  await expect(page.getByText('已支付 ¥29.99 · 支付宝')).toBeVisible()
+  await expect(page.getByText('可以关闭本页')).toBeVisible()
   await screenshots(page, 'paid')
   expect((await checkout(request, trade)).status).toBe('paid')
 })

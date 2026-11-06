@@ -7,6 +7,7 @@ import type { components } from '@/api/schema'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { CheckoutPage } from '@/features/checkout/CheckoutPage'
+import { ChannelOption } from '@/components/ui/payment'
 import { checkoutDeadline } from '@/features/checkout/useCheckout'
 import { returnToMerchant } from '@/features/checkout/return'
 import { createI18n } from '@/lib/i18n'
@@ -48,7 +49,7 @@ describe('public checkout', () => {
     expect(await screen.findByRole('img', { name: '收款二维码' })).toHaveAttribute('src', value.qr_image_url)
     expect(posts).toBe(1); expect(gets).toBe(2)
     expect(screen.queryByRole('button', { name: '微信支付' })).not.toBeInTheDocument()
-    expect(screen.getByText('已锁定，不可更改', { exact: false })).toBeVisible()
+    expect(screen.getByText('已锁定')).toBeVisible()
     expect(screen.getByText('请务必支付 ¥29.99，金额不符将无法自动到账')).toBeVisible()
     expect(screen.getByText('¥30.00', { selector: 'del' })).toBeVisible()
   })
@@ -108,7 +109,8 @@ describe('public checkout', () => {
   })
   it('shows a close message for a paid subscription without a return URL', async () => {
     value = order({ status: 'paid' }); mount()
-    expect(await screen.findByText('支付成功，可关闭本页。')).toBeVisible()
+    expect(await screen.findByText('可以关闭本页')).toBeVisible()
+    expect(screen.queryByText(/^已支付/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '返回商户' })).not.toBeInTheDocument()
   })
   it.each([false, true])('returns using the exact signed URL (early click: %s)', async (early) => {
@@ -128,11 +130,32 @@ describe('public checkout', () => {
   it.each([
     ['merchant_banned', '商户暂停收款，请联系商户。'],
     ['device_offline', '收款设备离线，请稍后或联系商户。页面会自动刷新。'],
-    ['no_channel', '请选择支付方式。'],
     ['qr_disabled', '该支付方式暂不可用，请稍后或联系商户。页面会自动刷新。'],
   ])('explains %s without exposing a QR', async (reason, message) => {
     value = order({ reason }); mount(); expect(await screen.findByText(message)).toBeVisible()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+  it('labels the channel group without repeating an informational notice', async () => {
+    mount(); expect(await screen.findByRole('group', { name: '选择支付方式' })).toBeVisible()
+    expect(screen.queryByText('请选择支付方式。')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByText('订单号')).toBeVisible()
+  })
+  it('shows the paid amount and localized channel once, including English', async () => {
+    value = { ...locked(), status: 'paid' }; mount()
+    expect(await screen.findByText('已支付 ¥29.99 · 支付宝')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '切换语言为 English' }))
+    expect(await screen.findByText('Paid ¥29.99 · Alipay')).toBeVisible()
+    expect(screen.getByText('You may close this page.')).toBeVisible()
+  })
+  it.each([false, true])('renders a channel option selected=%s with disabled behavior', (selected) => {
+    const clicked = vi.fn()
+    const view = render(<ChannelOption channel="wxpay" selected={selected} onClick={clicked}>微信支付</ChannelOption>)
+    const option = screen.getByRole('button', { name: '微信支付' })
+    expect(option).toHaveAttribute('aria-pressed', String(selected))
+    fireEvent.click(option); expect(clicked).toHaveBeenCalledTimes(1)
+    view.rerender(<ChannelOption channel="wxpay" selected={selected} disabled onClick={clicked}>微信支付</ChannelOption>)
+    expect(option).toBeDisabled(); fireEvent.click(option); expect(clicked).toHaveBeenCalledTimes(1)
   })
   it('handles a missing order and does not poll', async () => {
     server.use(http.get(path, () => { gets++; return failure('NOT_FOUND', 404) }))
