@@ -5,13 +5,13 @@ import { Bell, ChartNoAxesCombined, CodeXml, CreditCard, QrCode, ShoppingBag, Sm
 export const merchantNavigation = [
   { label: '概览', key: 'overview', path: '/dashboard', icon: ChartNoAxesCombined, enabled: true },
   { label: '订单', key: 'orders', path: '/orders', icon: ShoppingBag, enabled: true },
-  { label: '通知', key: 'notifications', path: '/notifications', icon: Bell, enabled: false },
+  { label: '通知', key: 'notifications', path: '/notifications', icon: Bell, enabled: true },
   { label: '收款码', key: 'codes', path: '/codes', icon: QrCode, enabled: true },
   { label: '监控设备', key: 'devices', path: '/devices', icon: Smartphone, enabled: true },
   { label: '接入配置', key: 'integration', path: '/integration', icon: CodeXml, enabled: true },
-  { label: '订阅套餐', key: 'subscription', path: '/subscription', icon: CreditCard, enabled: false },
+  { label: '订阅套餐', key: 'subscription', path: '/subscription', icon: CreditCard, enabled: true },
 ] as const
 
 export function isMerchantPath(path: string) {
-  return path === '/banned' || path === '/account' || merchantNavigation.some((item) => path === item.path || path.startsWith(`${item.path}/`))
+  return path === '/banned' || path === '/account' || path === '/account/logs' || merchantNavigation.some((item) => path === item.path || path.startsWith(`${item.path}/`))
 }

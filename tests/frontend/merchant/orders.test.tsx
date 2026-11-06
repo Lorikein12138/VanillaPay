@@ -1,3 +1,4 @@
+import { emptyNotifications } from './notification-fixture'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -20,7 +21,7 @@ function detail(status = 'pending', channel: string | null = 'alipay'): Schema['
 }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: Schema['ErrorCode']) => HttpResponse.json({ error: { code, fields: {}, details: {}, message: code }, request_id: crypto.randomUUID() }, { status })
-const server = setupServer(
+const server = setupServer(emptyNotifications,
   http.get('*/api/v1/merchant/me', () => success(identity)),
   http.get('*/api/v1/merchant/orders', () => success({ items: [], total: 0, next_cursor: null })),
 )

@@ -153,6 +153,7 @@ func run(ctx context.Context) error {
 		_ = json.NewEncoder(w).Encode(fixture)
 	})
 	registerOverviewFixtures(mux, pool)
+	registerSubscriptionFixtures(mux, pool, cfg.EncryptionKey)
 	mux.Handle("/", httpx.NewRouter(application))
 	return application.Start(ctx, mux)
 }
@@ -196,8 +197,25 @@ func seedMerchant(ctx context.Context, pool *pgxpool.Pool, key [32]byte, factor,
 			return nil, err
 		}
 	}
-	_, err = pool.Exec(ctx, `INSERT INTO merchants(username,username_normalized,email,email_normalized,pid,password_hash,key_cipher,totp_cipher,banned_at,ban_reason) VALUES($1,$1,$2,$2,$3,$4,$5,$6,CASE WHEN $7 THEN now() END,CASE WHEN $7 THEN $8 END)`, username, username+"@example.test", pid, hash, cipher, totpCipher, banned, banReason)
+	tx, err := pool.Begin(ctx)
 	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	// Serialize with announcement fixtures so parallel browser tests never see
+	// another merchant's test-only popup, including merchants created later.
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(710061)`); err != nil {
+		return nil, err
+	}
+	var merchantID int64
+	err = tx.QueryRow(ctx, `INSERT INTO merchants(username,username_normalized,email,email_normalized,pid,password_hash,key_cipher,totp_cipher,banned_at,ban_reason) VALUES($1,$1,$2,$2,$3,$4,$5,$6,CASE WHEN $7 THEN now() END,CASE WHEN $7 THEN $8 END) RETURNING id`, username, username+"@example.test", pid, hash, cipher, totpCipher, banned, banReason).Scan(&merchantID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO announcement_reads(merchant_id,announcement_id,revision) SELECT $1,id,revision FROM announcements ON CONFLICT DO NOTHING`, merchantID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return map[string]string{"username": username, "password": password, "pid": pid, "totpSeed": seed}, nil

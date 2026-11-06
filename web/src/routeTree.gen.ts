@@ -21,8 +21,12 @@ import { Route as MerchantCodesRouteImport } from './routes/_merchant.codes'
 import { Route as MerchantDashboardRouteImport } from './routes/_merchant.dashboard'
 import { Route as MerchantDevicesRouteImport } from './routes/_merchant.devices'
 import { Route as MerchantIntegrationRouteImport } from './routes/_merchant.integration'
+import { Route as MerchantNotificationsRouteImport } from './routes/_merchant.notifications'
 import { Route as MerchantOrdersRouteImport } from './routes/_merchant.orders'
+import { Route as MerchantSubscriptionRouteImport } from './routes/_merchant.subscription'
 import { Route as LegalKindRouteImport } from './routes/legal.$kind'
+import { Route as MerchantAccountIndexRouteImport } from './routes/_merchant.account.index'
+import { Route as MerchantAccountLogsRouteImport } from './routes/_merchant.account.logs'
 import { Route as MerchantOrdersIndexRouteImport } from './routes/_merchant.orders.index'
 import { Route as MerchantOrdersTradeNoRouteImport } from './routes/_merchant.orders.$tradeNo'
 
@@ -85,15 +89,35 @@ const MerchantIntegrationRoute = MerchantIntegrationRouteImport.update({
   path: '/integration',
   getParentRoute: () => MerchantRoute,
 } as any)
+const MerchantNotificationsRoute = MerchantNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => MerchantRoute,
+} as any)
 const MerchantOrdersRoute = MerchantOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
+  getParentRoute: () => MerchantRoute,
+} as any)
+const MerchantSubscriptionRoute = MerchantSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
   getParentRoute: () => MerchantRoute,
 } as any)
 const LegalKindRoute = LegalKindRouteImport.update({
   id: '/legal/$kind',
   path: '/legal/$kind',
   getParentRoute: () => rootRouteImport,
+} as any)
+const MerchantAccountIndexRoute = MerchantAccountIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MerchantAccountRoute,
+} as any)
+const MerchantAccountLogsRoute = MerchantAccountLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => MerchantAccountRoute,
 } as any)
 const MerchantOrdersIndexRoute = MerchantOrdersIndexRouteImport.update({
   id: '/',
@@ -112,15 +136,19 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/$': typeof MerchantSplatRoute
-  '/account': typeof MerchantAccountRoute
+  '/account': typeof MerchantAccountRouteWithChildren
   '/banned': typeof MerchantBannedRoute
   '/codes': typeof MerchantCodesRoute
   '/dashboard': typeof MerchantDashboardRoute
   '/devices': typeof MerchantDevicesRoute
   '/integration': typeof MerchantIntegrationRoute
+  '/notifications': typeof MerchantNotificationsRoute
   '/orders': typeof MerchantOrdersRouteWithChildren
+  '/subscription': typeof MerchantSubscriptionRoute
   '/legal/$kind': typeof LegalKindRoute
+  '/account/logs': typeof MerchantAccountLogsRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/account/': typeof MerchantAccountIndexRoute
   '/orders/': typeof MerchantOrdersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -129,14 +157,17 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/$': typeof MerchantSplatRoute
-  '/account': typeof MerchantAccountRoute
   '/banned': typeof MerchantBannedRoute
   '/codes': typeof MerchantCodesRoute
   '/dashboard': typeof MerchantDashboardRoute
   '/devices': typeof MerchantDevicesRoute
   '/integration': typeof MerchantIntegrationRoute
+  '/notifications': typeof MerchantNotificationsRoute
+  '/subscription': typeof MerchantSubscriptionRoute
   '/legal/$kind': typeof LegalKindRoute
+  '/account/logs': typeof MerchantAccountLogsRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/account': typeof MerchantAccountIndexRoute
   '/orders': typeof MerchantOrdersIndexRoute
 }
 export interface FileRoutesById {
@@ -147,15 +178,19 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_merchant/$': typeof MerchantSplatRoute
-  '/_merchant/account': typeof MerchantAccountRoute
+  '/_merchant/account': typeof MerchantAccountRouteWithChildren
   '/_merchant/banned': typeof MerchantBannedRoute
   '/_merchant/codes': typeof MerchantCodesRoute
   '/_merchant/dashboard': typeof MerchantDashboardRoute
   '/_merchant/devices': typeof MerchantDevicesRoute
   '/_merchant/integration': typeof MerchantIntegrationRoute
+  '/_merchant/notifications': typeof MerchantNotificationsRoute
   '/_merchant/orders': typeof MerchantOrdersRouteWithChildren
+  '/_merchant/subscription': typeof MerchantSubscriptionRoute
   '/legal/$kind': typeof LegalKindRoute
+  '/_merchant/account/logs': typeof MerchantAccountLogsRoute
   '/_merchant/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/_merchant/account/': typeof MerchantAccountIndexRoute
   '/_merchant/orders/': typeof MerchantOrdersIndexRoute
 }
 export interface FileRouteTypes {
@@ -172,9 +207,13 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/devices'
     | '/integration'
+    | '/notifications'
     | '/orders'
+    | '/subscription'
     | '/legal/$kind'
+    | '/account/logs'
     | '/orders/$tradeNo'
+    | '/account/'
     | '/orders/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -183,14 +222,17 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/$'
-    | '/account'
     | '/banned'
     | '/codes'
     | '/dashboard'
     | '/devices'
     | '/integration'
+    | '/notifications'
+    | '/subscription'
     | '/legal/$kind'
+    | '/account/logs'
     | '/orders/$tradeNo'
+    | '/account'
     | '/orders'
   id:
     | '__root__'
@@ -206,9 +248,13 @@ export interface FileRouteTypes {
     | '/_merchant/dashboard'
     | '/_merchant/devices'
     | '/_merchant/integration'
+    | '/_merchant/notifications'
     | '/_merchant/orders'
+    | '/_merchant/subscription'
     | '/legal/$kind'
+    | '/_merchant/account/logs'
     | '/_merchant/orders/$tradeNo'
+    | '/_merchant/account/'
     | '/_merchant/orders/'
   fileRoutesById: FileRoutesById
 }
@@ -307,11 +353,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantIntegrationRouteImport
       parentRoute: typeof MerchantRoute
     }
+    '/_merchant/notifications': {
+      id: '/_merchant/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof MerchantNotificationsRouteImport
+      parentRoute: typeof MerchantRoute
+    }
     '/_merchant/orders': {
       id: '/_merchant/orders'
       path: '/orders'
       fullPath: '/orders'
       preLoaderRoute: typeof MerchantOrdersRouteImport
+      parentRoute: typeof MerchantRoute
+    }
+    '/_merchant/subscription': {
+      id: '/_merchant/subscription'
+      path: '/subscription'
+      fullPath: '/subscription'
+      preLoaderRoute: typeof MerchantSubscriptionRouteImport
       parentRoute: typeof MerchantRoute
     }
     '/legal/$kind': {
@@ -320,6 +380,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/legal/$kind'
       preLoaderRoute: typeof LegalKindRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_merchant/account/': {
+      id: '/_merchant/account/'
+      path: '/'
+      fullPath: '/account/'
+      preLoaderRoute: typeof MerchantAccountIndexRouteImport
+      parentRoute: typeof MerchantAccountRoute
+    }
+    '/_merchant/account/logs': {
+      id: '/_merchant/account/logs'
+      path: '/logs'
+      fullPath: '/account/logs'
+      preLoaderRoute: typeof MerchantAccountLogsRouteImport
+      parentRoute: typeof MerchantAccountRoute
     }
     '/_merchant/orders/': {
       id: '/_merchant/orders/'
@@ -338,6 +412,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface MerchantAccountRouteChildren {
+  MerchantAccountLogsRoute: typeof MerchantAccountLogsRoute
+  MerchantAccountIndexRoute: typeof MerchantAccountIndexRoute
+}
+
+const MerchantAccountRouteChildren: MerchantAccountRouteChildren = {
+  MerchantAccountLogsRoute: MerchantAccountLogsRoute,
+  MerchantAccountIndexRoute: MerchantAccountIndexRoute,
+}
+
+const MerchantAccountRouteWithChildren = MerchantAccountRoute._addFileChildren(
+  MerchantAccountRouteChildren,
+)
+
 interface MerchantOrdersRouteChildren {
   MerchantOrdersTradeNoRoute: typeof MerchantOrdersTradeNoRoute
   MerchantOrdersIndexRoute: typeof MerchantOrdersIndexRoute
@@ -354,24 +442,28 @@ const MerchantOrdersRouteWithChildren = MerchantOrdersRoute._addFileChildren(
 
 interface MerchantRouteChildren {
   MerchantSplatRoute: typeof MerchantSplatRoute
-  MerchantAccountRoute: typeof MerchantAccountRoute
+  MerchantAccountRoute: typeof MerchantAccountRouteWithChildren
   MerchantBannedRoute: typeof MerchantBannedRoute
   MerchantCodesRoute: typeof MerchantCodesRoute
   MerchantDashboardRoute: typeof MerchantDashboardRoute
   MerchantDevicesRoute: typeof MerchantDevicesRoute
   MerchantIntegrationRoute: typeof MerchantIntegrationRoute
+  MerchantNotificationsRoute: typeof MerchantNotificationsRoute
   MerchantOrdersRoute: typeof MerchantOrdersRouteWithChildren
+  MerchantSubscriptionRoute: typeof MerchantSubscriptionRoute
 }
 
 const MerchantRouteChildren: MerchantRouteChildren = {
   MerchantSplatRoute: MerchantSplatRoute,
-  MerchantAccountRoute: MerchantAccountRoute,
+  MerchantAccountRoute: MerchantAccountRouteWithChildren,
   MerchantBannedRoute: MerchantBannedRoute,
   MerchantCodesRoute: MerchantCodesRoute,
   MerchantDashboardRoute: MerchantDashboardRoute,
   MerchantDevicesRoute: MerchantDevicesRoute,
   MerchantIntegrationRoute: MerchantIntegrationRoute,
+  MerchantNotificationsRoute: MerchantNotificationsRoute,
   MerchantOrdersRoute: MerchantOrdersRouteWithChildren,
+  MerchantSubscriptionRoute: MerchantSubscriptionRoute,
 }
 
 const MerchantRouteWithChildren = MerchantRoute._addFileChildren(

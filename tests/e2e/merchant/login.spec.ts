@@ -14,7 +14,7 @@ test('signs in, restores CSRF after refresh, and signs out securely', async ({ p
   await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
   await openMenu(page)
   const links = page.getByRole('navigation', { name: '商户导航' }).getByRole('link')
-  await expect(links).toHaveText(['概览', '订单', '收款码', '监控设备', '接入配置'])
+  await expect(links).toHaveText(['概览', '订单', '通知', '收款码', '监控设备', '接入配置', '订阅套餐'])
   await expect(links.first()).toHaveAttribute('aria-current', 'page')
   await expect(page.getByText(account.pid, { exact: true }).filter({ visible: true })).toBeVisible()
   await noOverflow(page)

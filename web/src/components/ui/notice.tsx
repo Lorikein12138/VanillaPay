@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 const tones = {
   success: { icon: CircleCheck, color: 'text-dot-ok', role: 'status' },
   info: { icon: Info, color: 'text-dot-info', role: 'status' },
+  warning: { icon: CircleAlert, color: 'text-dot-wait', role: 'note' },
   error: { icon: CircleAlert, color: 'text-danger', role: 'alert' },
 } as const
 
@@ -41,6 +42,7 @@ export function Notice({
       className={cn(
         'flex items-start gap-3 rounded-control border-[0.5px] border-border bg-surface py-3 pl-4 pr-2 text-label',
         tone === 'error' && 'border-danger/40',
+        tone === 'warning' && 'border-dot-wait/50 bg-dot-wait/5',
         className,
       )}
     >
