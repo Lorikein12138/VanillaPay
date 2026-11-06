@@ -46,6 +46,22 @@ async function fillLogin() {
 }
 
 describe('merchant login', () => {
+  it('keeps the password-change notice as the only status while public config is loading', async () => {
+    let finish: (() => void) | undefined
+    server.use(http.get('*/api/v1/public/config', async () => {
+      await new Promise<void>((resolve) => { finish = resolve })
+      return success(config)
+    }))
+    renderApp('/login?notice=password_changed')
+    try {
+      await screen.findByText('正在加载…')
+      await waitFor(() => expect(finish).toBeDefined())
+      expect(screen.getAllByRole('status')).toHaveLength(1)
+      expect(screen.getByRole('status')).toHaveTextContent('密码已修改，所有会话已失效，请重新登录。')
+    } finally { finish?.() }
+    await screen.findByRole('button', { name: '完成人机验证' })
+  })
+
   it('validates fields, waits for Turnstile and disables duplicate submissions', async () => {
     let submissions = 0
     let finish: (() => void) | undefined

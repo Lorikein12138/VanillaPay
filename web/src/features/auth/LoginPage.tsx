@@ -93,7 +93,7 @@ export function LoginPage({ redirect, notice }: { redirect?: string; notice?: 'r
 
             <a href="/reset-password" className="inline-flex min-h-11 items-center justify-end text-label text-accent-text">{t('auth.forgotPassword')}</a>
             {config.data?.turnstile.configured && !setupMissing && <Turnstile key={attempt} siteKey={config.data.turnstile.site_key} action={config.data.turnstile.login_action} onToken={onToken} onError={onCaptchaError} />}
-            {config.isPending && <p role="status" className="m-0 text-label text-text-2">{t('auth.loading')}</p>}
+            {config.isPending && <p role={notice ? undefined : 'status'} className="m-0 text-label text-text-2">{t('auth.loading')}</p>}
             {config.error && <><Button variant="ghost" onClick={() => { void config.refetch() }}>{t('error.retry')}</Button></>}
 
             {captchaError && <><Button variant="ghost" onClick={() => { setCaptchaError(false); setAttempt((value) => value + 1) }}>{t('error.retry')}</Button></>}
