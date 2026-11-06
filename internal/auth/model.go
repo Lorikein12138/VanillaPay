@@ -53,10 +53,18 @@ type SessionResult struct {
 // ConsoleRecoverySession is an in-memory result for the one-use repair flow.
 // The token is only placed in an HttpOnly cookie and is never serialized.
 type ConsoleRecoverySession struct {
-	Token       string
-	CSRFToken   string
-	ExpiresAt   time.Time
-	ChallengeID int64
+	Token           string
+	CSRFToken       string
+	ExpiresAt       time.Time
+	ChallengeID     int64
+	SettingsVersion int64
+	Security        ConsoleRecoverySecurity
+}
+
+type ConsoleRecoverySecurity struct {
+	TurnstileSiteKey          string `json:"turnstile_site_key"`
+	AllowedHostname           string `json:"allowed_hostname"`
+	TurnstileSecretConfigured bool   `json:"turnstile_secret_configured"`
 }
 
 type RegisterRequest struct {

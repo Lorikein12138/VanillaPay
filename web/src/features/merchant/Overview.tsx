@@ -3,15 +3,15 @@ import { Page } from '@/components/ui/layout'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '@/api/client'
+import { api, consoleApi } from '@/api/client'
 import { amountChange, money, previousRange, statsRange, successRate, type OverviewDays, type StatsRange } from './overview-data'
 import { DeviceCard, RecentOrders, Skeleton, TrendChart, QueryProblem } from './OverviewCards'
 
-function useStats(name: string, range: StatsRange) {
-  return useQuery({ queryKey: ['merchant', name, 'stats', range], queryFn: () => api.stats(range), staleTime: 60000 })
+function useStats(name: string, range: StatsRange, role: 'merchant' | 'console') {
+  return useQuery({ queryKey: [role, name, 'stats', range], queryFn: () => (role === 'console' ? consoleApi : api).stats(range), staleTime: 60000 })
 }
 
-export function Overview({ name }: { name: string }) {
+export function Overview({ name, role = 'merchant' }: { name: string; role?: 'merchant' | 'console' }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'zh-CN'
   const [days, setDays] = useState<OverviewDays>(1)
@@ -22,11 +22,11 @@ export function Overview({ name }: { name: string }) {
   }, [])
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const range = statsRange(now, days, timezone)
-  const current = useStats(name, range)
-  const previous = useStats(name, previousRange(range))
-  const chart = useStats(name, statsRange(now, 7, timezone))
-  const device = useQuery({ queryKey: ['merchant', name, 'device'], queryFn: api.device, refetchInterval: 30000 })
-  const orders = useQuery({ queryKey: ['merchant', name, 'orders', 6], queryFn: () => api.orders(6) })
+  const current = useStats(name, range, role)
+  const previous = useStats(name, previousRange(range), role)
+  const chart = useStats(name, statsRange(now, 7, timezone), role)
+  const device = useQuery({ queryKey: ['merchant', name, 'device'], queryFn: api.device, enabled: role === 'merchant', refetchInterval: 30000 })
+  const orders = useQuery({ queryKey: ['merchant', name, 'orders', 6], enabled: role === 'merchant', queryFn: () => api.orders(6) })
   const paid = current.data?.status_counts?.paid ?? 0
   const pending = current.data?.status_counts?.pending ?? 0
   const rate = successRate(paid, current.data?.status_counts?.expired ?? 0)
@@ -64,16 +64,16 @@ export function Overview({ name }: { name: string }) {
           <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2"><h2 id="overview-trend" className="font-serif text-heading">{t('merchant.overview.trend')}</h2><span className="text-caption text-text-3">{t('merchant.overview.thousands')}</span></div>
           {chart.isError ? <QueryProblem retry={() => { void chart.refetch() }} /> : chart.isPending ? <Skeleton className="h-[218px] w-full" /> : <TrendChart points={chart.data.trend ?? []} format={(cents) => decimal.format(cents / 100000)} />}
         </section>
-        <section aria-labelledby="overview-device" aria-busy={device.isPending} className="min-h-48 min-w-0 flex-[1_1_280px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7">
+        {role === 'merchant' && <section aria-labelledby="overview-device" aria-busy={device.isPending} className="min-h-48 min-w-0 flex-[1_1_280px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7">
           <h2 id="overview-device" className="mb-4 font-serif text-heading">{t('merchant.overview.device')}</h2>
           {device.isError ? <QueryProblem retry={() => { void device.refetch() }} /> : device.isPending ? <Skeleton className="h-20 w-full" /> : <DeviceCard device={device.data} now={now} />}
-        </section>
+        </section>}
       </div>
 
-      <section aria-labelledby="overview-orders" aria-busy={orders.isPending} className="min-w-0">
+      {role === 'merchant' && <section aria-labelledby="overview-orders" aria-busy={orders.isPending} className="min-w-0">
         <h2 id="overview-orders" className="mb-4 font-serif text-heading">{t('merchant.overview.recentOrders')}</h2>
         {orders.isError ? <div className="min-h-80"><QueryProblem retry={() => { void orders.refetch() }} /></div> : orders.isPending ? <Skeleton className="h-80 w-full" /> : <RecentOrders orders={orders.data.items ?? []} />}
-      </section>
+      </section>}
     </Page>
   )
 }

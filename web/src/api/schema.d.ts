@@ -3214,6 +3214,13 @@ export interface operations {
                             /** Format: date-time */
                             expires_at: string;
                             repair_only: boolean;
+                            /** Format: int64 */
+                            settings_version: number;
+                            security: {
+                                turnstile_site_key: string;
+                                allowed_hostname: string;
+                                turnstile_secret_configured: boolean;
+                            };
                         };
                     };
                 };

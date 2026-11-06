@@ -25,7 +25,7 @@ export function TrendChart({ points, format }: { points: Schema['PortalTrendPoin
       {points.map((point, index) => <div key={point.date} aria-hidden="true" className="flex min-w-0 flex-1 flex-col items-center gap-2"><span className="font-mono text-[11px] text-text-3">{format(point.amount_cents)}</span><div data-date={point.date} className={`w-full max-w-10 rounded-t-[4px] ${index === points.length - 1 ? 'bg-accent' : 'bg-oat'}`} style={{ height: max === 0 ? 0 : 130 * point.amount_cents / max }} /></div>)}
     </div>
     <div aria-hidden="true" className="mt-2 flex gap-[clamp(8px,2vw,28px)]">{points.map((point, index) => <span key={point.date} className="min-w-0 flex-1 text-center text-caption text-text-2">{index === points.length - 1 ? t('merchant.overview.range.1') : point.date.slice(5).replace('-', '/')}</span>)}</div>
-    <table className="sr-only"><caption>{t('merchant.overview.trend')} · {t('merchant.overview.thousands')}</caption><thead><tr><th>{t('merchant.overview.date')}</th><th>{t('merchant.overview.amount')}</th></tr></thead><tbody>{points.map((point) => <tr key={point.date}><td>{point.date}</td><td>{format(point.amount_cents)}</td></tr>)}</tbody></table>
+    <div className="sr-only"><table><caption>{t('merchant.overview.trend')} · {t('merchant.overview.thousands')}</caption><thead><tr><th>{t('merchant.overview.date')}</th><th>{t('merchant.overview.amount')}</th></tr></thead><tbody>{points.map((point) => <tr key={point.date}><td>{point.date}</td><td>{format(point.amount_cents)}</td></tr>)}</tbody></table></div>
   </div>
 }
 

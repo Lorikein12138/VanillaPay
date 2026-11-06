@@ -7,27 +7,30 @@ export class APIError extends Error {
   }
 }
 
-let csrfToken = ''
+type Role = 'merchant' | 'console'
+const csrfTokens: Record<Role, string> = { merchant: '', console: '' }
 let unauthorized: (() => void) | undefined
 
 export function onUnauthorized(handler: () => void) {
   unauthorized = handler
 }
 
-function remember<T extends { csrf_token: string }>(session: T): T {
-  csrfToken = session.csrf_token
+function remember<T extends { csrf_token: string }>(session: T, role: Role = 'merchant'): T {
+  csrfTokens[role] = session.csrf_token
   return session
 }
 
-function rejectResponse(response: Response, problem?: Schema['ErrorEnvelope']['error'], protectedRequest = true): never {
+function rejectResponse(response: Response, problem?: Schema['ErrorEnvelope']['error'], protectedRequest = true, role: Role = 'merchant'): never {
   if (response.status === 401 && protectedRequest && problem?.code !== 'INVALID_2FA' && problem?.code !== 'INVALID_CREDENTIALS' && problem?.code !== 'CHALLENGE_EXPIRED') {
-    csrfToken = ''
+    csrfTokens[role] = ''
     unauthorized?.()
   }
   throw new APIError(response.status, problem)
 }
 
-async function request<T>(path: string, body?: unknown, protectedRequest = true, idempotencyKey?: string, method?: string, signal?: AbortSignal): Promise<T> {
+async function request<T>(path: string, body?: unknown, protectedRequest = true, idempotencyKey?: string, method?: string, signal?: AbortSignal, csrfOverride?: string): Promise<T> {
+  const role = path.startsWith('/api/v1/console/') ? 'console' : 'merchant'
+  const csrf = csrfOverride ?? (protectedRequest ? csrfTokens[role] : '')
   let response: Response
   try {
     response = await fetch(path, {
@@ -37,7 +40,7 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true,
       headers: {
         Accept: 'application/json',
         ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-        ...(body !== undefined && protectedRequest && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        ...(body !== undefined && csrf ? { 'X-CSRF-Token': csrf } : {}),
         ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       },
       ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }),
@@ -47,7 +50,7 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true,
   }
   const envelope = await response.json().catch(() => null) as Schema['ErrorEnvelope'] | (Schema['SuccessEnvelope'] & { data: T }) | null
   if (!response.ok) {
-    rejectResponse(response, envelope && 'error' in envelope && envelope.error ? envelope.error : undefined, protectedRequest)
+    rejectResponse(response, envelope && 'error' in envelope && envelope.error ? envelope.error : undefined, protectedRequest, role)
   }
   if (!envelope || !('data' in envelope)) throw new APIError(502)
   return envelope.data
@@ -93,7 +96,7 @@ export const api = {
   legal: (kind: Schema['LegalVersion']['kind']) => request<Schema['LegalVersion']>(`/api/v1/public/legal/${kind}`, undefined, false),
   register: (value: Schema['AuthRegisterRequest']) => request<Schema['RegisteredUser']>('/api/v1/auth/register', value, false),
   resetPassword: (value: Schema['AuthResetPasswordRequest']) => request<null>('/api/v1/auth/reset-password', value, false),
-  forgetSession: () => { csrfToken = '' },
+  forgetSession: () => { csrfTokens.merchant = '' },
   changeUsername: (value: operations['patch_api_v1_merchant_profile_username']['requestBody']['content']['application/json']) => request<Schema['AuthUserDTO']>('/api/v1/merchant/profile/username', value, true, undefined, 'PATCH'),
   changeEmail: (value: operations['patch_api_v1_merchant_profile_email']['requestBody']['content']['application/json']) => request<Schema['AuthUserDTO']>('/api/v1/merchant/profile/email', value, true, undefined, 'PATCH'),
   changePassword: (value: operations['patch_api_v1_merchant_profile_password']['requestBody']['content']['application/json']) => request<null>('/api/v1/merchant/profile/password', value, true, undefined, 'PATCH'),
@@ -141,8 +144,34 @@ export const api = {
   replayCallback: (tradeNo: string, key: string) => request<operations['post_api_v1_merchant_orders_trade_no_callback_replay']['responses'][202]['content']['application/json']['data']>(`/api/v1/merchant/orders/${encodeURIComponent(tradeNo)}/callback-replay`, {}, true, key),
   exportOrders,
   async logout() {
-    if (!csrfToken) await api.me()
+    if (!csrfTokens.merchant) await api.me()
     await request<null>('/api/v1/auth/logout', {})
-    csrfToken = ''
+    csrfTokens.merchant = ''
   },
+}
+
+export type ConsoleRecovery = NonNullable<operations['post_api_v1_console_recovery']['responses'][200]['content']['application/json']['data']>
+export const consoleApi = {
+  bootstrapStatus: () => request<NonNullable<operations['get_api_v1_console_bootstrap_status']['responses'][200]['content']['application/json']['data']>>('/api/v1/console/bootstrap-status', undefined, false),
+  bootstrap: async (value: Schema['AuthBootstrapRequest']) => remember(await request<Schema['AuthSessionResult']>('/api/v1/console/bootstrap', value, false), 'console'),
+  async login(value: Schema['AuthLoginRequest']) {
+    const result = await request<Schema['AuthSessionResult'] | Schema['AuthLoginResult']>('/api/v1/console/login', value, false)
+    return 'requires_2fa' in result ? result : remember(result, 'console')
+  },
+  secondFactor: async (value: Schema['AuthFactorRequest']) => remember(await request<Schema['AuthSessionResult']>('/api/v1/console/second-factor', value, false), 'console'),
+  me: async (protectedRequest = true) => remember(await request<Schema['SessionIdentity']>('/api/v1/console/me', undefined, protectedRequest), 'console'),
+  async logout() {
+    if (!csrfTokens.console) await consoleApi.me()
+    await request<null>('/api/v1/console/logout', {})
+    csrfTokens.console = ''
+  },
+  forgetSession: () => { csrfTokens.console = '' },
+  preferences: (value: Schema['Preferences']) => request<Schema['Preferences']>('/api/v1/console/preferences', value, true, undefined, 'PATCH'),
+  setupTOTP: (value: operations['post_api_v1_console_2fa_setup']['requestBody']['content']['application/json']) => request<Schema['AuthTOTPSetup']>('/api/v1/console/2fa/setup', value),
+  confirmTOTP: (value: Schema['AuthTOTPConfirm']) => request<Schema['TOTPConfirmed']>('/api/v1/console/2fa/confirm', value),
+  disableTOTP: (value: Schema['AuthFactorProof']) => request<Schema['TOTPDisabled']>('/api/v1/console/2fa', value, true, undefined, 'DELETE'),
+  changePassword: (value: operations['patch_api_v1_console_password']['requestBody']['content']['application/json']) => request<null>('/api/v1/console/password', value, true, undefined, 'PATCH'),
+  stats: (range: { start: string; end: string; timezone: string }) => request<Schema['PortalStatsDTO']>(`/api/v1/console/stats?${new URLSearchParams(range)}`),
+  recover: (recovery_code: string, signal?: AbortSignal) => request<ConsoleRecovery>('/api/v1/console/recovery', { recovery_code }, false, undefined, 'POST', signal),
+  repair: (csrf: string, value: Schema['SettingsUpdateGroup'], signal?: AbortSignal) => request<Schema['SettingsGroupResult']>('/api/v1/console/settings/security', value, false, undefined, 'PUT', signal, csrf),
 }

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '@/api/client'
+import { api, consoleApi } from '@/api/client'
 import type { components } from '@/api/schema'
 import { AccountError } from '@/features/auth/account-shared'
 import { changeLanguage } from '@/lib/i18n'
@@ -15,17 +15,18 @@ const AccountContext = createContext<AccountContextValue | null>(null)
 export function useMerchantAccount() { return useContext(AccountContext) }
 export function accountPreferences(user: Schema['AuthUserDTO']): Schema['Preferences'] { return { locale: user.locale === 'en' ? 'en' : 'zh-CN', theme: user.theme === 'light' || user.theme === 'dark' ? user.theme : 'system' } }
 
-export function AccountProvider({ session, children }: { session: Schema['SessionIdentity']; children: ReactNode }) {
+export function AccountProvider({ session, children, role = 'merchant' }: { role?: 'merchant' | 'console'; session: Schema['SessionIdentity']; children: ReactNode }) {
   const client = useQueryClient(), router = useRouter(), { i18n } = useTranslation(), action = useLocalAction()
-  const key = ['merchant', 'identity', session.user.id] as const
-  const identity = useQuery({ queryKey: key, queryFn: () => api.me(), initialData: session, staleTime: 30000, gcTime: 0 })
+  const accountApi = role === 'console' ? consoleApi : api
+  const key = [role, 'identity', session.user.id] as const
+  const identity = useQuery({ queryKey: key, queryFn: () => accountApi.me(), initialData: session, staleTime: 30000, gcTime: 0 })
   const user = identity.data.user, preferences = accountPreferences(user)
   const saving = useRef(false), [busy, setBusy] = useState(false)
   useEffect(() => { setTheme(preferences.theme); void changeLanguage(i18n, preferences.locale) }, [i18n, preferences.locale, preferences.theme])
   async function apply(value: Schema['Preferences']) { setTheme(value.theme); await changeLanguage(i18n, value.locale) }
   async function refresh() {
     await client.cancelQueries({ queryKey: key })
-    const result = await api.me()
+    const result = await accountApi.me()
     if (action.active.current) { client.setQueryData(key, result); await router.invalidate() }
   }
   async function save(value: Schema['Preferences']) {
@@ -35,7 +36,7 @@ export function AccountProvider({ session, children }: { session: Schema['Sessio
       await client.cancelQueries({ queryKey: key })
       await apply(value)
       try {
-        const result = await api.preferences(value)
+        const result = await accountApi.preferences(value)
         if (action.active.current) {
           client.setQueryData<Schema['SessionIdentity']>(key, (old) => old && ({ ...old, user: { ...old.user, ...result } }))
           await apply(result)

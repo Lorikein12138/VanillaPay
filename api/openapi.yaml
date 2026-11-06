@@ -286,10 +286,29 @@ paths:
                             format: date-time
                           repair_only:
                             type: boolean
+                          settings_version:
+                            type: integer
+                            format: int64
+                          security:
+                            type: object
+                            properties:
+                              turnstile_site_key:
+                                type: string
+                              allowed_hostname:
+                                type: string
+                              turnstile_secret_configured:
+                                type: boolean
+                            required:
+                              - turnstile_site_key
+                              - allowed_hostname
+                              - turnstile_secret_configured
+                            additionalProperties: false
                         required:
                           - csrf_token
                           - expires_at
                           - repair_only
+                          - settings_version
+                          - security
                         additionalProperties: false
         '400':
           $ref: '#/components/responses/Error400'

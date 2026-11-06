@@ -198,6 +198,9 @@ func (s *Service) RecoverConsole(ctx context.Context, code string) (ConsoleRecov
 		result.Token = token
 		result.CSRFToken = csrf
 		result.ExpiresAt = expires
+		if err := tx.QueryRow(ctx, `SELECT version,security->>'turnstile_site_key',security->>'allowed_hostname',EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND encrypted_value IS NOT NULL) FROM site_settings WHERE singleton=true`).Scan(&result.SettingsVersion, &result.Security.TurnstileSiteKey, &result.Security.AllowedHostname, &result.Security.TurnstileSecretConfigured); err != nil {
+			return err
+		}
 		return recordAudit(ctx, tx, platform.Actor{Role: "admin", SubjectID: 1}, nil, "auth.console_recovery", "admin", "1", "success", nil)
 	})
 	if err != nil && authErrorCode(err) == "INVALID_CODE" {

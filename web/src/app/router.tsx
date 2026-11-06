@@ -1,7 +1,7 @@
 import { createRouter, type RouterHistory } from '@tanstack/react-router'
 import { routeTree } from '@/routeTree.gen'
 import { onUnauthorized } from '@/api/client'
-import { safePath } from '@/lib/redirect'
+import { consoleSafePath, safePath } from '@/lib/redirect'
 
 export function createAppRouter(options: { history?: RouterHistory } = {}) {
   const router = createRouter({
@@ -12,6 +12,11 @@ export function createAppRouter(options: { history?: RouterHistory } = {}) {
     scrollRestoration: true,
   })
   onUnauthorized(() => {
+    const path = router.state.location.pathname
+    if (path === '/console' || path.startsWith('/console/')) {
+      if (!['/console/login', '/console/setup', '/console/recovery'].includes(path)) void router.navigate({ to: '/console/login', search: { redirect: consoleSafePath(router.state.location.href) }, replace: true })
+      return
+    }
     if (router.state.location.pathname !== '/login') {
       void router.navigate({ to: '/login', search: { redirect: safePath(router.state.location.href) }, replace: true })
     }

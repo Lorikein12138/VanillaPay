@@ -896,5 +896,59 @@
     },
     "paidAmount": "Paid {{amount}}",
     "orderLabel": "Order number"
+  },
+  "console": {
+    "hero": "Your platform,\nunder control.",
+    "description": "Manage merchants, transactions and platform settings securely.",
+    "login": "Administrator sign in",
+    "loginDescription": "Sign in with your administrator account.",
+    "manage": "Admin",
+    "admin": "Administrator",
+    "navigation": "Admin console",
+    "nav": {
+      "overview": "Overview",
+      "merchants": "Merchants",
+      "orders": "Orders",
+      "plans": "Plans",
+      "announcements": "Announcements",
+      "purchases": "Purchases",
+      "settings": "System settings",
+      "auditLogs": "Audit logs"
+    },
+    "features": {
+      "codes": "Understand platform transactions",
+      "devices": "Manage merchants and integrations",
+      "callbacks": "Protect accounts and platform security"
+    },
+    "setup": "Initialize administrator",
+    "setupDescription": "Create the first administrator account.",
+    "setupMissing": "Turnstile is not configured yet. Use \"Recover console access\" at the bottom of the page to fix it.",
+    "initializationHelp": "Find Administrator initialization code in the server startup logs.",
+    "initializationCode": "Initialization code",
+    "validationHelp": "Username: 3–32 ASCII letters, digits, underscores or hyphens. Password: 12–128 characters.",
+    "initialize": "Create administrator",
+    "recovery": "Recover console access",
+    "recoveryDescription": "Use a one-time code issued by the server terminal.",
+    "recoveryHelp": "Run the console-recovery command on the server to issue a code. This flow only repairs Turnstile configuration and does not create an administrator login session.",
+    "terminalCode": "Terminal recovery code",
+    "continueRecovery": "Verify recovery code",
+    "repairDescription": "Repair Turnstile configuration, then sign in again.",
+    "repairRemaining": "Repair session: {{time}} remaining. Only one successful save is allowed.",
+    "siteKey": "Turnstile Site Key",
+    "hostname": "Allowed hostname",
+    "secret": "Turnstile Secret",
+    "keepSecret": "A secret is configured. Leave blank to keep it.",
+    "needSecret": "No secret is configured. A secret is required.",
+    "repair": "Save and end repair",
+    "recoveryExpired": "The repair session expired. Generate a new recovery code.",
+    "recoveryRestart": "The repair session is invalid or settings changed. Generate a new recovery code.",
+    "account": "Administrator account",
+    "accountDescription": "Manage sign-in security and preferences.",
+    "role": "Role",
+    "notices": {
+      "initialized": "The platform is initialized. Please sign in.",
+      "repaired": "Configuration repaired. Please sign in.",
+      "password_changed": "Password changed. Please sign in again."
+    }
   }
 }
