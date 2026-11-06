@@ -414,7 +414,7 @@
     "createdAt": "Created at",
     "twoFactorAuthentication": "Two-factor authentication",
     "enabledAnAuthenticatorCodeIsRequiredTo": "Enabled. An authenticator code is required to sign in and make sensitive changes.",
-    "notEnabledProtectSignInAndSensitive": "Not enabled. Protect sign-in and sensitive changes with an authenticator app.",
+    "notEnabledProtectSignInAndSensitive": "Protect sign-in and sensitive changes with an authenticator app.",
     "enabled": "Enabled",
     "notEnabled": "Not enabled",
     "disableTwoFactorAuthentication": "Disable two-factor authentication",

@@ -414,7 +414,7 @@
     "createdAt": "注册时间",
     "twoFactorAuthentication": "两步验证",
     "enabledAnAuthenticatorCodeIsRequiredTo": "已开启。登录和敏感操作需要验证器动态验证码。",
-    "notEnabledProtectSignInAndSensitive": "尚未开启。使用验证器应用保护登录和敏感操作。",
+    "notEnabledProtectSignInAndSensitive": "使用验证器应用保护登录和敏感操作。",
     "enabled": "已开启",
     "notEnabled": "未开启",
     "disableTwoFactorAuthentication": "关闭两步验证",

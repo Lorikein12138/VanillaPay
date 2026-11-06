@@ -83,7 +83,7 @@ export function LoginPage({ redirect, notice }: { redirect?: string; notice?: 'r
             {(['codes', 'devices', 'callbacks'] as const).map((key, index) => <li key={key} className="flex items-baseline gap-5 border-b-[0.5px] border-border py-4"><span className="font-mono text-caption text-text-3">0{index + 1}</span><span className="text-label">{t(`auth.features.${key}`)}</span></li>)}
           </ol>
         </section>
-        <form onSubmit={(event) => { void submit(event) }} noValidate aria-busy={busy} aria-labelledby="login-title" className="flex w-full min-w-0 flex-col gap-5 rounded-card border-[0.5px] border-border bg-surface p-10">
+        <form onSubmit={(event) => { void submit(event) }} noValidate aria-busy={busy} aria-labelledby="login-title" className="flex w-full min-w-0 flex-col gap-5 rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-10">
           <div><h2 id="login-title" className="m-0 font-serif text-title font-normal">{t(challenge ? 'auth.factorTitle' : 'auth.welcome')}</h2><p className="mt-1 mb-0 text-label text-text-2">{t(challenge ? 'auth.factorDescription' : 'auth.subtitle')}</p></div>
           {notice && <Notice>{t(`auth.notices.${notice}`)}</Notice>}
           {!challenge ? <>

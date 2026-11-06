@@ -6,7 +6,6 @@ import { useEmailCode } from '@/features/auth/account-shared'
 import { Button } from '@/components/ui/button'
 import { CopyButton, CopyField } from '@/components/ui/copy-button'
 import { formatCountdown } from '@/components/ui/countdown'
-import { DetailList } from '@/components/ui/detail-list'
 import { Dialog } from '@/components/ui/dialog'
 import { Field, FormActions } from '@/components/ui/field'
 import { Checkbox, Input, InputGroup, Textarea } from '@/components/ui/input'
@@ -33,7 +32,7 @@ export function IntegrationPage({ user }: { user: Schema['AuthUserDTO'] }) {
     <PageHeader title={t('polish.integration')} description={t('polish.managePaymentEndpointsKeysAndAccessControl')} />
     {integration.isPending && <Skeleton className="h-80" />}{integration.isError && <ModuleError error={integration.error} retry={() => { void integration.refetch() }} />}
     {data && <>
-      <Card><SectionHeader title={t('polish.merchantCredentials')} /><div className="grid gap-5 sm:grid-cols-2"><div><p className="mb-2 text-caption text-text-3">PID</p><CopyField value={data.pid} /></div><DetailList columns={2} items={[{ label: t('polish.keyVersion'), value: data.key_version }]} /><div className="sm:col-span-2"><p className="mb-2 text-caption text-text-3">{t('polish.apiBaseUrl')}</p><CopyField value={data.base_url} /></div></div>
+      <Card><SectionHeader title={t('polish.merchantCredentials')} /><div className="grid gap-5 sm:grid-cols-2"><div><p className="mb-2 text-caption text-text-3">PID</p><CopyField value={data.pid} /></div><div><p className="mb-2 text-caption text-text-3">{t('polish.keyVersion')}</p><p className="flex h-11 items-center text-label text-text">{data.key_version}</p></div><div className="sm:col-span-2"><p className="mb-2 text-caption text-text-3">{t('polish.apiBaseUrl')}</p><CopyField value={data.base_url} /></div></div>
         <div className="mt-5 border-t-[0.5px] border-border pt-5"><p className="mb-2 text-caption text-text-3">{t('polish.merchantKey')}</p><Mono>{reveal ? currentKey : '••••••••••••••••••••••••••••••••'}</Mono><div className="mt-4 flex flex-wrap gap-2"><Button loading={secretAction.busy} onClick={() => {
           if (reveal) { hide(); return }
           revealIntent.current = true

@@ -4,14 +4,14 @@ import { cn } from '@/lib/utils'
 
 /** Base look for every text-like control: 44px, 1px strong border, accent focus ring. */
 export const controlClass =
-  'w-full min-w-0 rounded-control border border-border-strong bg-surface px-3 text-[15px] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--color-focus-ring)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-text-2 read-only:bg-muted/60 aria-invalid:border-danger'
+  'w-full min-w-0 rounded-control border border-border-strong bg-surface px-3 text-[15px] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--color-focus-ring)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-text-2 aria-invalid:border-danger'
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       className={cn(
         controlClass,
-        'h-11 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-55 hover:[&::-webkit-calendar-picker-indicator]:opacity-90',
+        'h-11 read-only:bg-muted/60 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-55 hover:[&::-webkit-calendar-picker-indicator]:opacity-90',
         className,
       )}
       {...props}
@@ -20,7 +20,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 }
 
 export function Textarea({ className, rows = 3, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea rows={rows} className={cn(controlClass, 'block min-h-11 resize-y py-2.5 leading-relaxed', className)} {...props} />
+  return <textarea rows={rows} className={cn(controlClass, 'block min-h-11 resize-y read-only:bg-muted/60 py-2.5 leading-relaxed', className)} {...props} />
 }
 
 /** Native select (keeps keyboard, mobile pickers and tests) with the template's chevron. */
