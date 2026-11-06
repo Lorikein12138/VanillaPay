@@ -11,6 +11,11 @@ export function authErrorKey(error: unknown) {
     case 'TURNSTILE_FAILED': return 'auth.errors.turnstile' as const
     case 'CSRF_FAILED': return 'auth.errors.csrf' as const
     case 'ACCOUNT_BANNED': return 'auth.errors.banned' as const
+    case 'USERNAME_TAKEN': return 'auth.errors.usernameTaken' as const
+    case 'EMAIL_TAKEN': return 'auth.errors.emailTaken' as const
+    case 'EMAIL_DOMAIN_DENIED': return 'auth.errors.domain' as const
+    case 'AGREEMENT_REQUIRED': return 'auth.errors.agreement' as const
+    case 'LEGAL_VERSION_CHANGED': return 'auth.errors.legalChanged' as const
   }
   if (error.status === 429) return 'auth.errors.rateLimit' as const
   if (error.status === 403) return 'auth.errors.forbidden' as const

@@ -2,6 +2,7 @@ import { Monitor, Moon, Sun, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { setTheme, themePreferences, useTheme, type ThemePreference } from '@/lib/theme'
 import { cn } from '@/lib/utils'
+import { useMerchantAccount } from '@/features/merchant/AccountProvider'
 
 const icons: Record<ThemePreference, LucideIcon> = {
   system: Monitor,
@@ -13,6 +14,7 @@ const icons: Record<ThemePreference, LucideIcon> = {
 export function ThemeSwitch() {
   const { t } = useTranslation()
   const theme = useTheme()
+  const account = useMerchantAccount()
 
   return (
     <div role="group" aria-label={t('theme.label')} className="inline-flex gap-0.5 rounded-control p-0.5">
@@ -26,7 +28,8 @@ export function ThemeSwitch() {
             aria-pressed={selected}
             aria-label={t(`theme.${preference}`)}
             title={t(`theme.${preference}`)}
-            onClick={() => setTheme(preference)}
+            disabled={account?.busy}
+            onClick={() => { if (account) void account.save({ ...account.preferences, theme: preference }); else setTheme(preference) }}
             className={cn(
               'grid size-11 place-items-center rounded-[6px] text-text-2 transition-colors hover:text-text',
               selected && 'bg-hover text-text',

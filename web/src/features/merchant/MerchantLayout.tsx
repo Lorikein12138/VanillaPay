@@ -11,8 +11,14 @@ import { LogoMark } from '@/components/Logo'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
 import { authErrorKey } from '@/features/auth/errors'
 import { merchantNavigation } from '@/features/merchant/navigation'
+import { AccountProvider, useMerchantAccount } from './AccountProvider'
 
 export function MerchantLayout({ session }: { session: components['schemas']['SessionIdentity'] }) {
+  return <AccountProvider session={session}><MerchantContent /></AccountProvider>
+}
+function MerchantContent() {
+  const account = useMerchantAccount()!
+  const session = { user: account.user }
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -34,7 +40,7 @@ export function MerchantLayout({ session }: { session: components['schemas']['Se
         <div className="mt-auto flex min-w-0 items-center gap-3 border-t-[0.5px] border-border px-2 pt-4"><span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-oat text-label">{session.user.username.slice(0, 1)}</span><div className="min-w-0"><div className="truncate text-label">{session.user.username}</div><div className="truncate font-mono text-caption text-text-3">{session.user.pid}</div></div></div>
       </aside>
       <div className="min-w-0">
-        <header className="flex flex-wrap items-center justify-end gap-2 px-4 py-4 sm:px-8"><LanguageSwitch /><ThemeSwitch /><button type="button" disabled={busy} onClick={() => { void logout() }} className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-label text-text-2 hover:bg-hover disabled:opacity-50"><LogOut className="size-4" strokeWidth={1.6} aria-hidden="true" />{t(busy ? 'auth.submitting' : 'merchant.logout')}</button></header>
+        <header className="flex flex-wrap items-center justify-end gap-2 px-4 py-4 sm:px-8">{!session.user.banned && <Link to="/account" className="inline-flex min-h-11 max-w-48 items-center rounded-control px-3 text-label text-text-2 hover:bg-hover"><span className="truncate">{session.user.username}</span></Link>}<LanguageSwitch /><ThemeSwitch /><button type="button" disabled={busy || account.busy} onClick={() => { void logout() }} className="inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-label text-text-2 hover:bg-hover disabled:opacity-50"><LogOut className="size-4" strokeWidth={1.6} aria-hidden="true" />{t(busy ? 'auth.submitting' : 'merchant.logout')}</button></header>
         {problem != null && <div className="px-4 sm:px-8"><FormError>{t(authErrorKey(problem))}</FormError></div>}
         <main id="main" className="min-w-0 px-4 py-8 sm:px-8 lg:px-12 lg:py-10"><Outlet /></main>
       </div>

@@ -138,7 +138,18 @@
       "forbidden": "You do not have permission for this action. Contact the platform administrator.",
       "session": "Your session has expired. Please sign in again.",
       "validation": "Check your entries and try again.",
-      "unavailable": "The service is temporarily unavailable. Please try again later."
+      "unavailable": "The service is temporarily unavailable. Please try again later.",
+      "domain": "This email domain is not allowed.",
+      "agreement": "Please accept the terms and privacy policy.",
+      "legalChanged": "The legal documents have changed. Please review and submit again.",
+      "emailTaken": "This email is already in use.",
+      "usernameTaken": "This username is already in use."
+    },
+    "forgotPassword": "Forgot password",
+    "notices": {
+      "password_changed": "Password changed. All sessions have expired. Please sign in again.",
+      "registered": "Registration complete. Please sign in.",
+      "password_reset": "Password reset. Previous sessions have expired. Sign in with your new password."
     }
   },
   "merchant": {
