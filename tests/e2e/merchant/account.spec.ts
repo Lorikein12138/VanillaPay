@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import type { APIRequestContext, Page } from '@playwright/test'
+import type { components } from '@/api/schema'
 import { expect, login, noOverflow, test, totp, clickControl, openMenu, closeMenu, polishShot } from './fixtures'
 
 async function shot(page: Page, name: string) {
@@ -47,8 +48,15 @@ test('registers with separate single-use Turnstile tokens and signs in', async (
   const registered = page.waitForResponse((value) => value.url().endsWith('/auth/register'))
   await page.getByRole('button', { name: '创建账户' }).click(); expect((await registered).status()).toBe(201)
   await expect(page.getByRole('status')).toHaveText('注册成功，请登录。')
+  const summary = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/merchant/notifications' && new URL(response.url()).searchParams.get('limit') === '1')
   await login(page, { ...account, username, password })
   await expect(page).toHaveURL(/\/dashboard$/)
+  // This real registration bypasses seedMerchant. Newly registered merchants
+  // correctly receive published announcements, including other E2E fixtures.
+  const { data } = await (await summary).json() as { data: components['schemas']['PortalNotificationPage'] }
+  for (const announcement of data.popup_announcements ?? []) {
+    await page.getByRole('dialog', { name: announcement.title.zh_CN, exact: true }).getByRole('button', { name: '知道了' }).click()
+  }
   await openMenu(page); await expect(page.getByRole('link', { name: username, exact: true })).toBeVisible(); await closeMenu(page)
 })
 

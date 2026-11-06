@@ -643,5 +643,182 @@
     "setupRemaining": "Setup time remaining {{time}}",
     "emailDomainHint": "Allowed email domains: {{domains}} (subdomains excluded)",
     "legalRevision": "Revision {{revision}}"
+  },
+  "subscription": {
+    "description": "Review your access and choose a plan for your business.",
+    "current": "Current subscription",
+    "active": "Active",
+    "inactive": "Inactive",
+    "plan": "Plan",
+    "expires": "Expires",
+    "source": "Source",
+    "noPlan": "No plan",
+    "channels": "Available channels",
+    "available": "Available plans",
+    "currentPlan": "Current plan",
+    "duration": "{{count}} days",
+    "unlimited": "No purchase limit",
+    "remaining": "{{count}} purchases remaining",
+    "noPlans": "No plans available",
+    "billingClosed": "Online purchases are not available yet.",
+    "pendingBlocks": "Pay or cancel your pending order before purchasing another plan.",
+    "pending": "Pending purchase",
+    "timeLeft": "Time to pay: {{time}}",
+    "amount": "Amount",
+    "created": "Created",
+    "pay": "Continue to payment",
+    "cancel": "Cancel purchase",
+    "cancelExplain": "Cancel this pending purchase? You can choose another plan afterwards.",
+    "confirmCancel": "Confirm cancellation",
+    "createPurchase": "Confirm and create order",
+    "forfeit": "The remaining time on your current plan will be forfeited.",
+    "switchConsent": "I understand: the new plan starts when payment takes effect.",
+    "reopen": "The data has been refreshed. Close this dialog and review your purchase again.",
+    "sources": {
+      "none": "None",
+      "manual": "Manually granted",
+      "purchase": "Purchased"
+    },
+    "buy": {
+      "new": "Buy plan",
+      "renew": "Renew plan",
+      "switch": "Switch plan"
+    },
+    "confirm": {
+      "new": "Confirm plan purchase",
+      "renew": "Confirm plan renewal",
+      "switch": "Confirm plan switch"
+    },
+    "explain": {
+      "new": "Your selected plan activates after payment.",
+      "renew": "After payment, the new period extends your current expiry date.",
+      "switch": "After payment, this replaces your current plan and starts a new period."
+    },
+    "errors": {
+      "BILLING_CREDENTIAL_STALE": "The platform billing credentials have changed. Try again later.",
+      "BILLING_NOT_READY": "Online purchases are not available yet.",
+      "PLAN_UNAVAILABLE": "This plan has changed or is no longer available. Choose again.",
+      "VERSION_CONFLICT": "Your subscription has changed. Review it again.",
+      "PURCHASE_PENDING": "You already have a pending purchase. Pay or cancel it first.",
+      "PURCHASE_LIMIT_REACHED": "You have reached the purchase limit for this plan.",
+      "IDEMPOTENCY_CONFLICT": "The purchase details changed. Close this dialog and confirm again."
+    }
+  },
+  "notifications": {
+    "description": "Payment alerts, refund requests and platform announcements.",
+    "unreadCount": "{{count}} unread notifications",
+    "readAll": "Mark all as read",
+    "filter": "Notification filter",
+    "all": "All",
+    "unread": "Unread",
+    "read": "Read",
+    "markRead": "Mark as read",
+    "view": "View details",
+    "empty": "No notifications",
+    "announcement": "Platform announcement",
+    "acknowledge": "Got it",
+    "readFailed": "Could not acknowledge this announcement. Try again."
+  },
+  "audit": {
+    "title": "Activity log",
+    "description": "Review activity and request details for your merchant account.",
+    "open": "View activity log",
+    "time": "Time",
+    "action": "Action",
+    "result": "Result",
+    "ip": "IP address",
+    "request": "Request ID",
+    "copyRequest": "Copy request ID",
+    "details": "Details",
+    "empty": "No activity matches these filters",
+    "actor": "Actor",
+    "target": "Target",
+    "metadata": "Safe metadata",
+    "filters": "Activity filters",
+    "allActions": "All actions",
+    "allResults": "All results",
+    "results": {
+      "success": "Success",
+      "failure": "Failure"
+    },
+    "actions": {
+      "subscription": {
+        "purchase": "Plan purchase",
+        "cancel": "Purchase cancellation",
+        "fulfilled": "Plan activated",
+        "refunded": "Plan refunded",
+        "manual_grant": "Plan manually granted"
+      },
+      "auth": {
+        "login": "Sign in",
+        "login_challenge": "Sign-in challenge",
+        "identity_change": "Account details changed",
+        "password_reset": "Password reset",
+        "totp_setup": "Set up two-factor authentication",
+        "totp_confirm": "Enable two-factor authentication",
+        "totp_disable": "Disable two-factor authentication",
+        "admin_password_change": "Administrator password changed",
+        "console_recovery_issue": "Console recovery codes created",
+        "console_recovery": "Console recovered"
+      },
+      "account": {
+        "preferences": "Preferences changed"
+      },
+      "merchant": {
+        "register": "Account registration",
+        "reset_password": "Password changed",
+        "reset_key": "Key reset",
+        "set_rsa_public_key": "RSA public key changed",
+        "update_ip_whitelist": "IP whitelist changed",
+        "orders": {
+          "supplement": "Order supplemented"
+        },
+        "admin_created": "Merchant created by administrator",
+        "ban": "Merchant suspended",
+        "unban": "Merchant reinstated"
+      },
+      "device": {
+        "binding_issue": "Binding code created",
+        "bind": "Device bound",
+        "replace": "Device replaced",
+        "revoke": "Device unbound"
+      },
+      "collection": {
+        "save": "Collection settings saved",
+        "bounds_reset": "Collection limits reset"
+      },
+      "media": {
+        "upload": "Collection code uploaded"
+      },
+      "order": {
+        "create": "Order created",
+        "paid": "Order paid",
+        "refunded": "Order refunded"
+      },
+      "orders": {
+        "export": "Orders exported"
+      },
+      "refund": {
+        "request": "Refund requested",
+        "reject": "Refund rejected"
+      },
+      "callback": {
+        "replay": "Callback retried"
+      },
+      "plan": {
+        "save": "Plan saved",
+        "delete": "Plan deleted"
+      },
+      "announcement": {
+        "save": "Announcement saved",
+        "delete": "Announcement deleted"
+      },
+      "settings": {
+        "update_group": "Platform settings updated"
+      },
+      "admin": {
+        "bootstrap": "Administrator initialized"
+      }
+    }
   }
 }

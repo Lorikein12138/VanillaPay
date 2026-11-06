@@ -60,7 +60,7 @@ export async function noOverflow(page: Page) {
 export async function openMenu(page: Page) {
   const menu = page.getByRole('button', { name: /打开菜单|Open menu/ })
   if (page.viewportSize()!.width < 1024) {
-    await expect(page).toHaveURL(/\/(dashboard|orders|codes|devices|integration|account|banned)([/?#]|$)/)
+    await expect(page).toHaveURL(/\/(dashboard|orders|codes|devices|integration|account|banned|subscription|notifications)([/?#]|$)/)
     await expect(menu).toBeVisible()
     if (!(await page.getByRole('dialog').isVisible())) await menu.click()
   }
@@ -79,7 +79,7 @@ export async function clickControl(page: Page, name: string) {
   await control.click()
   await closeMenu(page)
 }
-export async function polishShot(page: Page, name: string, fullPage = !name.includes('dialog') && name !== 'drawer') {
+export async function polishShot(page: Page, name: string, fullPage = !name.includes('dialog') && name !== 'drawer', directory = 'web-ui-polish-shots') {
   const width = page.viewportSize()?.width
   if (width !== 360 && width !== 1280) return
   await page.evaluate(() => document.fonts.ready)
@@ -89,5 +89,5 @@ export async function polishShot(page: Page, name: string, fullPage = !name.incl
   expect(await page.getByRole('alert').count()).toBeLessThanOrEqual(1)
   const theme = await page.locator('html').getAttribute('data-theme')
   expect(theme).toMatch(/^(light|dark)$/)
-  await page.screenshot({ path: fileURLToPath(new URL('../../../.artifacts/web-ui-polish-shots/'+name+'-'+theme+'-'+width+'.png', import.meta.url)), fullPage, animations: 'disabled', mask: [page.getByTestId('one-time-key'), page.getByTestId('binding-code'), page.getByTestId('totp-secret'), page.getByTestId('totp-qr'), page.getByTestId('recovery-codes'), page.getByRole('img', { name: '设备绑定二维码' }), page.locator('input[type=password]')], maskColor: '#73726c' })
+  await page.screenshot({ path: fileURLToPath(new URL('../../../.artifacts/'+directory+'/'+name+'-'+theme+'-'+width+'.png', import.meta.url)), fullPage, animations: 'disabled', mask: [page.getByTestId('one-time-key'), page.getByTestId('binding-code'), page.getByTestId('totp-secret'), page.getByTestId('totp-qr'), page.getByTestId('recovery-codes'), page.getByRole('img', { name: '设备绑定二维码' }), page.locator('input[type=password]')], maskColor: '#73726c' })
 }

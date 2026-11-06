@@ -1,0 +1,127 @@
+import type { Page } from '@playwright/test'
+import { clickControl, expect, login, openMenu, polishShot, test } from './fixtures'
+
+async function signIn(page: Page, account: Parameters<typeof login>[1], path: string) {
+  await page.goto(`/login?redirect=${encodeURIComponent(path)}`)
+  await login(page, account)
+  await expect(page).toHaveURL(new RegExp(path+'$'))
+  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
+}
+async function shot(page: Page, name: string) {
+  if (![360, 1280].includes(page.viewportSize()!.width)) return
+  const previous = await page.locator('html').getAttribute('data-theme')
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((value) => { document.documentElement.dataset.theme = value }, theme)
+    await polishShot(page, name, !name.includes('dialog'), 'merchant-subscription-notices-shots')
+  }
+  await page.evaluate((value) => { document.documentElement.dataset.theme = value ?? 'light' }, previous)
+}
+async function nav(page: Page, name: string) {
+  await openMenu(page)
+  await page.getByRole('link', { name, exact: true }).click()
+}
+
+test('purchases a plan, keeps the cashier URL unchanged, cancels it and shows both real audit events', async ({ page, request, account }) => {
+  const fixture = await request.post('/__e2e/subscription', { data: { pid: account.pid } })
+  expect(fixture.ok()).toBe(true)
+  await signIn(page, account, '/subscription')
+  const card = page.getByRole('region', { name: '基础套餐', exact: true })
+  await expect(card.getByRole('button', { name: '购买套餐' })).toBeEnabled()
+  await shot(page, 'subscription')
+  await card.getByRole('button', { name: '购买套餐' }).click()
+  await shot(page, 'purchase-dialog')
+  const creating = page.waitForResponse((response) => response.url().endsWith('/subscription/purchases') && response.request().method() === 'POST')
+  await page.getByRole('button', { name: '确认并创建订单' }).click()
+  const created = await creating
+  expect(created.status()).toBe(201)
+  const headers = await created.request().allHeaders()
+  expect(headers.origin).toBe(new URL(page.url()).origin)
+  expect(headers['x-csrf-token']).toBeTruthy()
+  expect(headers['idempotency-key']).toMatch(/^[\da-f-]{36}$/)
+  const { data } = await created.json() as { data: { id: string; cashier_url: string } }
+  const detail = await page.request.get(`/api/v1/merchant/subscription/purchases/${encodeURIComponent(data.id)}`)
+  expect(detail.ok()).toBe(true)
+  const { data: { cashier_url: cashier } } = await detail.json() as { data: { cashier_url: string } }
+  await expect(page.getByRole('link', { name: '去支付' })).toHaveAttribute('href', cashier)
+  await expect(card.getByRole('button', { name: '购买套餐' })).toBeDisabled()
+  await shot(page, 'pending-subscription')
+  await page.getByRole('button', { name: '取消订单', exact: true }).click()
+  await shot(page, 'cancel-purchase-dialog')
+  const canceling = page.waitForResponse((response) => response.url().endsWith(`/purchases/${data.id}/cancel`))
+  await page.getByRole('button', { name: '确认取消订单' }).click()
+  expect((await canceling).status()).toBe(200)
+  await expect(page.getByRole('region', { name: '待支付订单' })).toHaveCount(0)
+  await expect(card.getByRole('button', { name: '购买套餐' })).toBeEnabled()
+  await openMenu(page); await page.getByRole('link', { name: account.username, exact: true }).click()
+  await page.getByRole('link', { name: '查看操作日志' }).click()
+  await expect(page).toHaveURL(/\/account\/logs$/)
+  await expect(page.getByRole('cell', { name: '购买套餐', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: '取消套餐订单', exact: true })).toBeVisible()
+  await shot(page, 'audit-logs')
+  await page.getByRole('button', { name: '详情', exact: true }).first().click()
+  await shot(page, 'audit-details-dialog')
+})
+
+test('requires explicit forfeiture consent for switching a live plan', async ({ page, request, account }) => {
+  expect((await request.post('/__e2e/subscription', { data: { pid: account.pid, active: true } })).ok()).toBe(true)
+  await signIn(page, account, '/subscription')
+  const card = page.getByRole('region', { name: '进阶套餐', exact: true })
+  await card.getByRole('button', { name: '更换套餐' }).click()
+  await expect(page.getByText('当前套餐剩余时间将作废')).toBeVisible()
+  const submit = page.getByRole('button', { name: '确认并创建订单' })
+  await expect(submit).toBeDisabled()
+  await shot(page, 'switch-purchase-dialog')
+  await page.getByRole('checkbox').check(); await expect(submit).toBeEnabled()
+  await page.getByRole('button', { name: '关闭', exact: true }).click()
+  const current = page.getByRole('region', { name: '基础套餐', exact: true })
+  await current.getByRole('button', { name: '续费套餐' }).click()
+  await shot(page, 'renew-purchase-dialog')
+})
+
+test('reads notifications before internal navigation and clears the unread badge', async ({ page, request, account }) => {
+  const trade = 'notice-'+crypto.randomUUID()
+  expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [{ trade_no: trade, name: '通知关联订单', status: 'paid', channel: 'alipay', original_cents: 1200, actual_cents: 1200, created_at: new Date().toISOString(), paid_at: new Date().toISOString() }] } })).ok()).toBe(true)
+  expect((await request.post('/__e2e/notifications', { data: { pid: account.pid, trade_no: trade } })).ok()).toBe(true)
+  await signIn(page, account, '/notifications')
+  await expect(page.getByText('<b>仅按纯文本显示</b>')).toHaveCount(2)
+  await shot(page, 'notifications')
+  const order = page.getByRole('region', { name: '通知 /dashboard/orders', exact: true })
+  const marking = page.waitForResponse((response) => response.url().endsWith('/notifications/read'))
+  await order.getByRole('link', { name: '查看详情' }).click()
+  const marked = await marking; expect(marked.status()).toBe(200)
+  const headers = await marked.request().allHeaders()
+  expect(headers.origin).toBe(new URL(page.url()).origin); expect(headers['x-csrf-token']).toBeTruthy()
+  await expect(page).toHaveURL(new RegExp('/orders/'+trade+'$'))
+  await nav(page, '通知 1 条未读通知')
+  const device = page.getByRole('region', { name: '通知 /dashboard/collection', exact: true })
+  await device.getByRole('link', { name: '查看详情' }).click()
+  await expect(page).toHaveURL(/\/devices$/)
+  await nav(page, '通知')
+  // Seed fresh notices to exercise mark-all separately from per-item reads.
+  expect((await request.post('/__e2e/notifications', { data: { pid: account.pid, trade_no: trade } })).ok()).toBe(true)
+  await page.reload()
+  await page.getByRole('button', { name: '全部标为已读' }).click()
+  await expect(page.getByRole('button', { name: '全部标为已读' })).toBeDisabled()
+  await openMenu(page)
+  await expect(page.getByRole('link', { name: '通知', exact: true })).toBeVisible()
+  await expect(page.getByLabel(/条未读通知/)).toHaveCount(0)
+})
+
+test('acknowledges the current popup revision and does not reopen it after refresh', async ({ page, request, account }) => {
+  expect((await request.post('/__e2e/announcements', { data: { pid: account.pid } })).ok()).toBe(true)
+  await page.goto('/login?redirect=%2Fnotifications'); await login(page, account)
+  const dialog = page.getByRole('dialog', { name: '测试公告 '+account.pid, exact: true })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('<script>不执行</script>')
+  expect(await dialog.locator('script').count()).toBe(0)
+  // Set the document theme without opening a second modal over the popup.
+  await page.evaluate((theme) => { document.documentElement.dataset.theme = theme }, page.viewportSize()?.width === 360 ? 'dark' : 'light')
+  await shot(page, 'announcement-dialog')
+  const reading = page.waitForResponse((response) => /\/announcements\/[^/]+\/read$/.test(new URL(response.url()).pathname))
+  await dialog.getByRole('button', { name: '知道了' }).click()
+  const response = await reading; expect(response.status()).toBe(200)
+  expect(response.request().postDataJSON()).toEqual({ revision: 1 })
+  await expect(dialog).toHaveCount(0)
+  await page.reload(); await expect(page.getByRole('heading', { name: '通知', exact: true })).toBeVisible()
+  await expect(dialog).toHaveCount(0)
+})

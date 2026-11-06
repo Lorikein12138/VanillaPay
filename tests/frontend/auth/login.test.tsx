@@ -1,3 +1,4 @@
+import { emptyNotifications } from '../merchant/notification-fixture'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -20,7 +21,7 @@ const session: Schema['AuthSessionResult'] = { user, csrf_token: crypto.randomUU
 const config: Schema['PublicConfig'] = { site_name: 'Test Shop', logo_url: '', turnstile: { site_key: crypto.randomUUID(), configured: true, login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: Schema['ErrorCode'], fields = {}) => HttpResponse.json({ error: { code, fields, details: {}, message: code }, request_id: crypto.randomUUID() }, { status })
-const server = setupServer(
+const server = setupServer(emptyNotifications,
   http.get('*/api/v1/merchant/stats', () => success(emptyStats())),
   http.get('*/api/v1/merchant/device', () => success(unboundDevice)),
   http.get('*/api/v1/merchant/orders', () => success({ items: [], total: 0, next_cursor: null })),

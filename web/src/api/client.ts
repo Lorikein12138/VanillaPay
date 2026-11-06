@@ -79,6 +79,14 @@ async function exportOrders(filters: OrdersQuery) {
 }
 
 export const api = {
+  subscription: () => request<Schema['SubscriptionOverview']>('/api/v1/merchant/subscription'),
+  purchase: (value: Schema['SubscriptionPurchaseRequest'], key: string) => request<Schema['SubscriptionPurchaseDTO']>('/api/v1/merchant/subscription/purchases', value, true, key),
+  purchaseDetail: (id: string) => request<Schema['SubscriptionPurchaseDTO']>(`/api/v1/merchant/subscription/purchases/${encodeURIComponent(id)}`),
+  cancelPurchase: (id: string) => request<Schema['SubscriptionPurchaseDTO']>(`/api/v1/merchant/subscription/purchases/${encodeURIComponent(id)}/cancel`, {}),
+  notifications: (filters: NonNullable<operations['get_api_v1_merchant_notifications']['parameters']['query']>) => request<Schema['PortalNotificationPage']>(`/api/v1/merchant/notifications?${queryString({ ...filters, unread_only: filters.unread_only === undefined ? undefined : String(filters.unread_only) })}`),
+  readNotifications: (value: Schema['PortalReadRequest']) => request<Schema['PortalReadResult']>('/api/v1/merchant/notifications/read', value),
+  readAnnouncement: (id: string, value: operations['post_api_v1_merchant_announcements_id_read']['requestBody']['content']['application/json']) => request<null>(`/api/v1/merchant/announcements/${encodeURIComponent(id)}/read`, value),
+  auditLogs: (filters: Pick<NonNullable<operations['get_api_v1_merchant_audit_logs']['parameters']['query']>, 'start' | 'end' | 'action' | 'result' | 'cursor' | 'limit'>) => request<Schema['AuditsPage']>(`/api/v1/merchant/audit-logs?${queryString(filters)}`),
   config: () => request<Schema['PublicConfig']>('/api/v1/public/config', undefined, false),
   legal: (kind: Schema['LegalVersion']['kind']) => request<Schema['LegalVersion']>(`/api/v1/public/legal/${kind}`, undefined, false),
   register: (value: Schema['AuthRegisterRequest']) => request<Schema['RegisteredUser']>('/api/v1/auth/register', value, false),

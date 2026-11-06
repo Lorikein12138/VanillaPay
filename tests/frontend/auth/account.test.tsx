@@ -1,3 +1,4 @@
+import { emptyNotifications } from '../merchant/notification-fixture'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
@@ -24,7 +25,7 @@ const identity = (user = baseUser): AccountSchema['SessionIdentity'] => ({ user,
 const config: AccountSchema['PublicConfig'] = { site_name: 'VanillaPay', logo_url: '', turnstile: { configured: true, site_key: 'fixture', login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, legal_revisions: { terms: 7, privacy: 9 }, home: { mode: 'default', html: null, url: null }, footer: [] }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: AccountSchema['ErrorCode'], details = {}) => HttpResponse.json({ error: { code, message: code, fields: {}, details }, request_id: crypto.randomUUID() }, { status })
-const server = setupServer(http.get('*/api/v1/public/config', () => success(config)), http.get('*/api/v1/merchant/me', () => success(identity())))
+const server = setupServer(emptyNotifications, http.get('*/api/v1/public/config', () => success(config)), http.get('*/api/v1/merchant/me', () => success(identity())))
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())
