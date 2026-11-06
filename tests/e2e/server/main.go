@@ -154,6 +154,7 @@ func run(ctx context.Context) error {
 	})
 	registerOverviewFixtures(mux, pool)
 	registerSubscriptionFixtures(mux, pool, cfg.EncryptionKey)
+	registerCheckoutFixtures(mux, pool, cfg.EncryptionKey, cfg.DataDir)
 	mux.Handle("/", httpx.NewRouter(application))
 	return application.Start(ctx, mux)
 }
