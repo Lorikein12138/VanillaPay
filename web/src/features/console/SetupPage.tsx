@@ -26,7 +26,7 @@ export function SetupPage() {
     })
   }
   return <AuthScreen title={t('console.setup')} description={t('console.setupDescription')}><FormStack onSubmit={(event) => { event.preventDefault(); void submit() }}>
-    <Notice>{t('console.initializationHelp')}</Notice>
+    <Notice tone="info">{t('console.initializationHelp')}</Notice>
     <AccountField label={t('console.initializationCode')} type="password" autoComplete="off" value={code} disabled={action.busy} onChange={(event) => setCode(event.target.value)} />
     <AccountField label={t('polish.username')} autoComplete="username" value={username} disabled={action.busy} onChange={(event) => setUsername(event.target.value)} />
     <FormHint>{t('console.validationHelp')}</FormHint>

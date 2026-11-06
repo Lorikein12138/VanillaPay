@@ -922,6 +922,7 @@
     },
     "setup": "初始化管理员",
     "setupDescription": "创建平台的第一个管理员账户。",
+    "setupMissing": "站点尚未完成 Turnstile 配置，请通过页面底部的「恢复管理端访问」修复。",
     "initializationHelp": "初始化码位于服务器启动日志中，查找 Administrator initialization code。",
     "initializationCode": "初始化码",
     "validationHelp": "用户名为 3–32 位英文字母、数字、下划线或连字符；密码为 12–128 个字符。",

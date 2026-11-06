@@ -61,6 +61,8 @@ test('initializes once, enters the shared overview and captures the responsive s
   await expect(page).toHaveURL(/\/console$/)
   await expect(page.getByRole('heading', { name: /console_admin/ })).toBeVisible()
   await shots(page, 'overview', true)
+  // Visually hidden chart data must not stretch the page below the shell (sidebar background would stop short).
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - Math.ceil(Math.max(window.innerHeight, document.getElementById('main')!.getBoundingClientRect().bottom + window.scrollY)))).toBeLessThanOrEqual(0)
   await shots(page, 'drawer', true, true)
   await page.setViewportSize({ width: 1280, height: 800 })
   await expect(page.getByRole('navigation', { name: '管理控制台' }).getByRole('link')).toHaveText(['概览'])

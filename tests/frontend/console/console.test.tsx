@@ -201,9 +201,22 @@ describe('console guards and login', () => {
     expect(screen.queryByRole('link', { name: /注册|忘记密码/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '登录' })).toBeDisabled()
   })
+  it('points administrators to recovery instead of a platform administrator when setup is required', async () => {
+    server.use(http.get('*/api/v1/public/config', () => success({ ...config, turnstile: { ...config.turnstile, configured: false } })))
+    mount()
+    expect(await screen.findByText('站点尚未完成 Turnstile 配置，请通过页面底部的「恢复管理端访问」修复。')).toBeVisible()
+    expect(screen.queryByText(/联系平台管理员/)).not.toBeInTheDocument()
+  })
 })
 
 describe('repair-only recovery', () => {
+  it.each([[true, 'Secret 已配置，留空保留原值。'], [false, '尚未配置 Secret，本次必须填写。']] as const)('describes the secret field when configured=%s', async (configured, hint) => {
+    server.use(http.post('*/api/v1/console/recovery', () => success(recovery({ security: { turnstile_site_key: 'public-site', allowed_hostname: 'pay.example.test', turnstile_secret_configured: configured } }))))
+    mount('/console/recovery')
+    await enterRecovery()
+    expect(screen.getByLabelText('Turnstile Secret')).toHaveAccessibleDescription(hint)
+    expect(screen.queryAllByRole('status').some((node) => node.textContent?.includes(hint))).toBe(false)
+  })
   it.each([401, 409])('clears invalid proof on %i without a global login redirect', async (status) => {
     const result = recovery()
     server.use(http.post('*/api/v1/console/recovery', () => success(result)), http.put('*/api/v1/console/settings/security', () => failure(status, status === 409 ? 'VERSION_CONFLICT' : 'UNAUTHENTICATED')))

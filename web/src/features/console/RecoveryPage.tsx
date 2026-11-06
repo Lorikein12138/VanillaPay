@@ -55,9 +55,8 @@ export function RecoveryPage() {
       <FormHint>{t('console.repairRemaining', { time: formatCountdown(remaining) })}</FormHint>
       <AccountField label={t('console.siteKey')} value={siteKey} disabled={action.busy} onChange={(event) => setSiteKey(event.target.value)} />
       <AccountField label={t('console.hostname')} value={hostname} disabled={action.busy} onChange={(event) => setHostname(event.target.value)} />
-      <AccountField label={t('console.secret')} type="password" autoComplete="new-password" required={!session.security.turnstile_secret_configured} value={secret} disabled={action.busy} onChange={(event) => setSecret(event.target.value)} />
-      <Notice>{t(session.security.turnstile_secret_configured ? 'console.keepSecret' : 'console.needSecret')}</Notice>
-    </> : <><Notice>{t('console.recoveryHelp')}</Notice><AccountField label={t('console.terminalCode')} type="password" autoComplete="off" value={code} disabled={action.busy} onChange={(event) => setCode(event.target.value)} /></>}
+      <AccountField label={t('console.secret')} type="password" autoComplete="new-password" required={!session.security.turnstile_secret_configured} hint={t(session.security.turnstile_secret_configured ? 'console.keepSecret' : 'console.needSecret')} value={secret} disabled={action.busy} onChange={(event) => setSecret(event.target.value)} />
+    </> : <><Notice tone="info">{t('console.recoveryHelp')}</Notice><AccountField label={t('console.terminalCode')} type="password" autoComplete="off" value={code} disabled={action.busy} onChange={(event) => setCode(event.target.value)} /></>}
     {action.error != null && <AccountError error={action.error} />}
     <Button type="submit" variant="primary" loading={action.busy} disabled={!valid}>{t(session ? 'console.repair' : 'console.continueRecovery')}</Button>
   </FormStack></AuthScreen>

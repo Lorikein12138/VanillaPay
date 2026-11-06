@@ -922,6 +922,7 @@
     },
     "setup": "Initialize administrator",
     "setupDescription": "Create the first administrator account.",
+    "setupMissing": "Turnstile is not configured yet. Use \"Recover console access\" at the bottom of the page to fix it.",
     "initializationHelp": "Find Administrator initialization code in the server startup logs.",
     "initializationCode": "Initialization code",
     "validationHelp": "Username: 3–32 ASCII letters, digits, underscores or hyphens. Password: 12–128 characters.",
