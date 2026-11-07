@@ -7,6 +7,6 @@ export const consoleNavigation = [
   { key: 'plans', path: '/console/plans', icon: Layers, enabled: true },
   { key: 'announcements', path: '/console/announcements', icon: Bell, enabled: false },
   { key: 'purchases', path: '/console/purchases', icon: CreditCard, enabled: true },
-  { key: 'settings', path: '/console/settings', icon: Settings, enabled: false },
+  { key: 'settings', path: '/console/settings', icon: Settings, enabled: true },
   { key: 'auditLogs', path: '/console/audit-logs', icon: ClipboardList, enabled: false },
 ] as const

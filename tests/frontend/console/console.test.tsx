@@ -133,7 +133,7 @@ describe('console guards and login', () => {
   it('restores an existing console session and loads only console stats', async () => {
     signedIn = true; mount()
     expect(await screen.findByRole('heading', { name: new RegExp(user.username) })).toBeVisible()
-    expect(screen.getByRole('navigation', { name: '管理控制台' }).querySelectorAll('a')).toHaveLength(5)
+    expect(screen.getByRole('navigation', { name: '管理控制台' }).querySelectorAll('a')).toHaveLength(6)
   })
   it('handles a setup race', async () => {
     let initialized = false
