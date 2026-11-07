@@ -220,7 +220,7 @@ it('uses only plan channels, byte validation and the latest subscription revisio
   expect(within(dialog).getByLabelText('到期时间')).toHaveAccessibleDescription('请将到期时间调整到未来。')
   expect(grantRequest).not.toHaveBeenCalled()
   fill(dialog, '到期时间', '2030-01-03T00:00')
-  submit(dialog, '调整订阅'); await screen.findByText('保存成功。')
+  submit(dialog, '调整订阅'); await screen.findByText('订阅已更新。')
   expect(revisions).toEqual([5, 6])
 })
 
@@ -250,7 +250,7 @@ it.each(['click', 'Enter'] as const)('rechecks a subscription expiry on %s after
   fill(dialog, '到期时间', '2030-01-03T00:00')
   expect(expiry).not.toHaveAttribute('aria-invalid')
   submit(dialog, '调整订阅')
-  await screen.findByText('保存成功。')
+  await screen.findByText('订阅已更新。')
   expect(grantRequest).toHaveBeenCalledTimes(1)
 })
 
@@ -275,16 +275,16 @@ it('creates a plan with cents and unlimited quantity, then edits with optimistic
   let dialog = await open('新建套餐')
   fill(dialog, '中文名称', '新套餐'); fill(dialog, '价格（元）', '0.01'); fill(dialog, '时长（天）', '1')
   fireEvent.click(within(dialog).getByRole('checkbox', { name: '支付宝' }))
-  submit(dialog, '新建套餐'); await screen.findByText('保存成功。')
+  submit(dialog, '新建套餐'); await screen.findByText('套餐已保存。')
   expect(writes[0]).toMatchObject({ price_cents: 1, purchase_limit: null, channels: ['alipay'] })
   fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]!)
   dialog = await screen.findByRole('dialog', { name: '编辑套餐' })
-  fill(dialog, '价格（元）', '39.99'); submit(dialog, '编辑套餐')
+  fill(dialog, '价格（元）', '39.99'); submit(dialog, '保存修改')
   await within(dialog).findByText('套餐已被修改，已刷新最新版本。请检查最新信息后重新确认。')
   expect(within(dialog).getByLabelText('价格（元）')).toHaveValue('39.99')
-  expect(within(dialog).getByRole('button', { name: '编辑套餐' })).toBeDisabled()
+  expect(within(dialog).getByRole('button', { name: '保存修改' })).toBeDisabled()
   fireEvent.click(within(dialog).getByRole('checkbox', { name: '我已检查最新套餐信息，确认按当前输入保存' }))
-  submit(dialog, '编辑套餐'); await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  submit(dialog, '保存修改'); await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(writes[1]).toMatchObject({ id: '3', revision: 2 }); expect(writes[2]).toMatchObject({ revision: 3, price_cents: 3999 })
 })
 
@@ -311,7 +311,7 @@ describe.each(['新建套餐', '编辑套餐'] as const)('%s purchase limit', (t
       fireEvent.click(within(dialog).getByRole('checkbox', { name: '支付宝' }))
     }
     fill(dialog, '限购数量', value)
-    const button = within(dialog).getByRole('button', { name: title })
+    const button = within(dialog).getByRole('button', { name: editing ? '保存修改' : title })
     if (expected === undefined) {
       expect(button).toBeDisabled()
       expect(within(dialog).getByLabelText('限购数量')).toHaveAccessibleDescription('限购数量须为 1 至 2147483647 的整数，留空表示不限。')
@@ -323,7 +323,7 @@ describe.each(['新建套餐', '编辑套餐'] as const)('%s purchase limit', (t
     }
     expect(button).toBeEnabled()
     await userEvent.click(button)
-    await screen.findByText('保存成功。')
+    await screen.findByText('套餐已保存。')
     expect(writes).toHaveLength(1)
     expect(writes[0]).toMatchObject({ purchase_limit: expected, ...(editing ? { id: '3', revision: 2 } : {}) })
   })
@@ -466,7 +466,7 @@ it('resets channels to the selected plan subset before submitting', async () => 
   fill(dialog, '套餐', '4')
   expect(within(dialog).queryByRole('checkbox', { name: '支付宝' })).toBeNull()
   expect(within(dialog).getByRole('checkbox', { name: 'QQ 钱包' })).toBeChecked()
-  submit(dialog, '调整订阅'); await screen.findByText('保存成功。')
+  submit(dialog, '调整订阅'); await screen.findByText('订阅已更新。')
 })
 
 it('refreshes a deletion conflict and requires confirmation with the new revision', async () => {

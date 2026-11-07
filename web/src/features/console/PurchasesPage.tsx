@@ -29,16 +29,19 @@ export function PurchasesPage({ filters, onFilters }: { filters: PurchaseFilters
     <RecordResults busy={query.isPending} error={query.error} retry={() => void query.refetch()} total={query.data?.pages[0]?.total}
       empty={!!query.data && !items.length} more={query.hasNextPage} loadingMore={query.isFetchingNextPage} onMore={() => void query.fetchNextPage()}>
       <Records items={items} id={(item) => item.id} label={t('manage.purchases')} columns={[
-        { label: t('manage.created'), value: (item) => <OrderTime value={item.created_at} /> },
-        { label: t('manage.merchant'), value: (item) => <RecordLink to={'/console/merchants/' + item.buyer_id}>#{item.buyer_id}</RecordLink> },
+        { label: t('manage.created'), nowrap: true, value: (item) => <OrderTime value={item.created_at} /> },
+        { label: t('manage.merchant'), nowrap: true, value: (item) => <RecordLink to={'/console/merchants/' + item.buyer_id}>#{item.buyer_id}</RecordLink> },
         { label: t('manage.plan'), value: (item) => planName(item.plan_snapshot, i18n.language) },
-        { label: t('manage.kind'), value: (item) => t('manage.kinds.' + item.purchase_kind, { defaultValue: item.purchase_kind }) },
-        { label: t('merchant.overview.amount'), value: (item) => money(item.price_cents, i18n.language) },
-        { label: t('manage.status'), value: (item) => <StatusDot tone={item.state === 'paid' ? 'ok' : item.state === 'pending' ? 'wait' : 'off'}>
+        { label: t('manage.kind'), nowrap: true, value: (item) => t('manage.kinds.' + item.purchase_kind, { defaultValue: item.purchase_kind }) },
+        { label: t('merchant.overview.amount'), nowrap: true, value: (item) => money(item.price_cents, i18n.language) },
+        { label: t('manage.status'), nowrap: true, value: (item) => <StatusDot tone={item.state === 'paid' ? 'ok' : item.state === 'pending' ? 'wait' : 'off'}>
           {t('manage.states.' + item.state, { defaultValue: item.state })}
         </StatusDot> },
-        { label: t('manage.paymentOrder'), value: (item) => item.trade_no && <RecordLink to={'/console/orders/' + item.trade_no}>{item.trade_no}</RecordLink> },
-        { label: t('manage.paidExpiry'), value: (item) => <><OrderTime value={item.paid_at} /> / <OrderTime value={item.expires_at} /></> },
+        { label: t('manage.paymentOrder'), value: (item) => item.trade_no && <span className="font-mono text-caption"><RecordLink to={'/console/orders/' + item.trade_no}>{item.trade_no}</RecordLink></span> },
+        { label: t('manage.paidExpiry'), nowrap: true, value: (item) => <span className="flex flex-col gap-0.5">
+          <span>{t('manage.paidShort')} <OrderTime value={item.paid_at} /></span>
+          <span className="text-text-3">{t('manage.expiresShort')} <OrderTime value={item.expires_at} /></span>
+        </span> },
       ]} />
     </RecordResults>
   </Page>

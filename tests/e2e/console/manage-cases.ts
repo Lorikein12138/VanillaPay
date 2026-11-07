@@ -68,7 +68,7 @@ export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
     }
     await shots(page, 'edit-plan-dialog', editPlan); await editPlan()
     const updatingPlan = page.waitForResponse((response) => response.url().endsWith('/console/plans/' + plan.id) && response.request().method() === 'PUT')
-    await page.getByRole('dialog').getByRole('button', { name: '编辑套餐' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '保存修改' }).click()
     const updatedPlan = await updatingPlan
     expect(updatedPlan.status()).toBe(200)
     const { data: edited } = await updatedPlan.json() as { data: { revision: number } }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi } from '@/api/client'
+import { StatusDot } from '@/components/StatusDot'
 import { Button } from '@/components/ui/button'
 import { DetailList } from '@/components/ui/detail-list'
 import { BackLink, Card, EmptyState, Page, PageHeader, SectionHeader } from '@/components/ui/layout'
@@ -22,11 +23,11 @@ export function MerchantDetail({ id }: { id: string }) {
     <PageHeader title={detail?.user.username ?? t('manage.merchant')}
       back={<BackLink to="/console/merchants">{t('manage.backMerchants')}</BackLink>}
       actions={detail && <>
+        <Button onClick={() => setMode('grant')}>{t('manage.adjust')}</Button>
+        <Button onClick={() => setMode('reset')}>{t('manage.reset')}</Button>
         <Button variant={detail.user.banned ? 'secondary' : 'dangerOutline'} onClick={() => setMode(detail.user.banned ? 'unban' : 'ban')}>
           {t(detail.user.banned ? 'manage.unban' : 'manage.ban')}
         </Button>
-        <Button onClick={() => setMode('reset')}>{t('manage.reset')}</Button>
-        <Button onClick={() => setMode('grant')}>{t('manage.adjust')}</Button>
       </>} />
     {notice && <Notice tone="success" onDismiss={() => setNotice('')}>{notice}</Notice>}
     <RecordResults busy={query.isPending} error={query.error} retry={() => void query.refetch()}>
@@ -46,7 +47,7 @@ export function MerchantDetail({ id }: { id: string }) {
           { label: t('manage.channels'), value: <Channels value={detail.subscription.channels} /> },
           { label: t('manage.expiry'), value: <OrderTime value={detail.subscription.expires_at} /> },
           { label: t('manage.source'), value: t('manage.sources.' + detail.subscription.source, { defaultValue: detail.subscription.source }) },
-          { label: t('manage.status'), value: t(detail.subscription.active ? 'manage.active' : 'manage.inactive') },
+          { label: t('manage.status'), value: <StatusDot tone={detail.subscription.active ? 'ok' : 'off'}>{t(detail.subscription.active ? 'manage.active' : 'manage.inactive')}</StatusDot> },
         ]} /><RecordLink to={'/console/purchases?merchant_id=' + id}>{t('manage.purchasesLink')}</RecordLink></Card>
         <Card><SectionHeader title={t('manage.device')} /><DetailList columns={2} items={[
           { label: t('manage.status'), value: <DeviceStatus device={detail.device} /> },

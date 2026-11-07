@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { FieldGrid, FormActions } from '@/components/ui/field'
 import { Card, Page, PageHeader } from '@/components/ui/layout'
-import { FormHint, FormStack } from '@/components/ui/auth-screen'
+import { FormStack } from '@/components/ui/auth-screen'
 import { RecordLink, RecordResults, Records, RecordText } from '@/components/ui/records'
 import { AccountError, AccountField, validPassword, validUsername } from '@/features/auth/account-shared'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
@@ -88,13 +88,12 @@ function CreateMerchant({ onClose }: { onClose: () => void }) {
   }
   return <Dialog title={t('manage.createMerchant')} onClose={onClose} busy={action.busy}>
     <FormStack onSubmit={(event) => { event.preventDefault(); void submit() }}>
-      <FormHint>{t('manage.validation')}</FormHint>
-      <AccountField label={t('manage.username')} value={username} autoComplete="off" disabled={action.busy}
+      <AccountField label={t('manage.username')} hint={t('manage.usernameHint')} value={username} autoComplete="off" disabled={action.busy}
         error={fieldError === 'USERNAME_TAKEN' && t('manage.USERNAME_TAKEN')} onChange={(event) => { setUsername(event.target.value); setFieldError('') }} />
       <AccountField label={t('manage.email')} value={email} type="email" required disabled={action.busy}
         error={fieldError === 'EMAIL_TAKEN' && t('manage.EMAIL_TAKEN')} onChange={(event) => { setEmail(event.target.value); setFieldError('') }} />
-      <AccountField label={t('manage.password')} value={password} type="password" autoComplete="new-password" disabled={action.busy} onChange={(event) => setPassword(event.target.value)} />
-      <AccountField label={t('manage.confirmation')} value={confirmation} type="password" autoComplete="new-password" disabled={action.busy} onChange={(event) => setConfirmation(event.target.value)} />
+      <AccountField label={t('manage.password')} hint={t('manage.passwordHint')} value={password} type="password" autoComplete="new-password" disabled={action.busy} onChange={(event) => setPassword(event.target.value)} />
+      <AccountField label={t('manage.confirmation')} error={!!confirmation && confirmation !== password && t('manage.passwordMismatch')} value={confirmation} type="password" autoComplete="new-password" disabled={action.busy} onChange={(event) => setConfirmation(event.target.value)} />
       {action.error != null && <AccountError error={action.error} />}
       <FormActions><Button onClick={onClose} disabled={action.busy}>{t('manage.cancel')}</Button>
         <Button type="submit" variant="primary" loading={action.busy} disabled={!valid}>{t('manage.createMerchant')}</Button></FormActions>

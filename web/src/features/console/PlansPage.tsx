@@ -37,7 +37,7 @@ export function PlansPage() {
         { label: t('manage.purchased'), value: (item) => item.purchased_count ?? '—' },
         { label: t('manage.remaining'), value: (item) => item.remaining_count ?? '—' },
         { label: t('manage.manage'), value: (item) => item.deleted ? t('manage.deleted') : <InlineActions>
-          <Button size="sm" variant="ghost" onClick={() => setDialog({ mode: 'edit', plan: item })}>{t('manage.edit')}</Button>
+          <Button size="sm" onClick={() => setDialog({ mode: 'edit', plan: item })}>{t('manage.edit')}</Button>
           <Button size="sm" variant="dangerOutline" onClick={() => setDialog({ mode: 'delete', plan: item })}>{t('manage.remove')}</Button>
         </InlineActions> },
       ]} />
@@ -59,11 +59,12 @@ function PlanDialog({ plan, deleting, onClose, onSuccess }: {
   const value = planInput(zh, en, price, days, selected, limit)
   const valid = (deleting || !!value) && (!conflict || reviewed) && !latest?.deleted
   const title = t(deleting ? 'manage.deletePlan' : plan ? 'manage.editPlan' : 'manage.createPlan')
+  const submitLabel = plan && !deleting ? t('manage.savePlan') : title
   async function submit() {
     if (!valid) return
     await action.run(async () => {
       try {
-        let message = t('manage.saved')
+        let message = t('manage.planSaved')
         if (deleting && plan && revision !== undefined) {
           const result = await consoleApi.deletePlan(plan.id, revision)
           message = t('manage.deletedResult', { count: result.cancelled_pending_purchases })
@@ -99,12 +100,12 @@ function PlanDialog({ plan, deleting, onClose, onSuccess }: {
         <Checkbox checked={reviewed} disabled={action.busy || !!latest?.deleted} onChange={(event) => setReviewed(event.target.checked)}>{t('manage.reviewed')}</Checkbox>
       </>}
       {!deleting && <>
-        <FormHint>{t('manage.planHint')}</FormHint><FieldGrid>
-          <AccountField label={t('manage.zhName')} value={zh} disabled={action.busy} onChange={(event) => setZh(event.target.value)} />
-          <AccountField label={t('manage.enName')} value={en} disabled={action.busy} onChange={(event) => setEn(event.target.value)} />
-          <AccountField label={t('manage.price')} inputMode="decimal" value={price} disabled={action.busy} onChange={(event) => setPrice(event.target.value)} />
-          <AccountField label={t('manage.days')} inputMode="numeric" value={days} disabled={action.busy} onChange={(event) => setDays(event.target.value)} />
-          <AccountField label={t('manage.limit')} inputMode="numeric" value={limit} disabled={action.busy}
+        <FieldGrid>
+          <AccountField label={t('manage.zhName')} hint={t('manage.nameHint')} value={zh} disabled={action.busy} onChange={(event) => setZh(event.target.value)} />
+          <AccountField label={t('manage.enName')} hint={t('manage.enNameHint')} value={en} disabled={action.busy} onChange={(event) => setEn(event.target.value)} />
+          <AccountField label={t('manage.price')} hint={t('manage.priceHint')} inputMode="decimal" value={price} disabled={action.busy} onChange={(event) => setPrice(event.target.value)} />
+          <AccountField label={t('manage.days')} hint={t('manage.daysHint')} inputMode="numeric" value={days} disabled={action.busy} onChange={(event) => setDays(event.target.value)} />
+          <AccountField label={t('manage.limit')} hint={t('manage.limitHint')} inputMode="numeric" value={limit} disabled={action.busy}
             error={!validPurchaseLimit(limit) && t('manage.limitInvalid')} onChange={(event) => setLimit(event.target.value)} />
         </FieldGrid>
         <ChannelChoices allowed={channels} value={selected} onChange={setSelected} disabled={action.busy} />
@@ -112,7 +113,7 @@ function PlanDialog({ plan, deleting, onClose, onSuccess }: {
       {deleting && plan && <FormHint>{planName(plan, i18n.language)}</FormHint>}
       {action.error != null && <AccountError error={action.error} />}
       <FormActions><Button onClick={onClose} disabled={action.busy}>{t('manage.cancel')}</Button>
-        <Button type="submit" loading={action.busy} disabled={!valid} variant={deleting ? 'dangerOutline' : 'primary'}>{title}</Button></FormActions>
+        <Button type="submit" loading={action.busy} disabled={!valid} variant={deleting ? 'dangerOutline' : 'primary'}>{submitLabel}</Button></FormActions>
     </FormStack>
   </Dialog>
 }

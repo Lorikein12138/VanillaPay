@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +8,7 @@ import { CopyButton } from '@/components/ui/copy-button'
 import { DetailList } from '@/components/ui/detail-list'
 import { BackLink, Card, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
+import { RecordLink } from '@/components/ui/records'
 import { cn } from '@/lib/utils'
 import { OrderActionDialog } from './OrderActionDialog'
 import { availableOrderActions, orderErrorKey, type OrderAction, type OrderFilters } from './orders-data'
@@ -95,8 +95,7 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
       <Summary detail={detail} />
       <Card>
         <SectionHeader title={t('merchant.orders.information')} className="mb-2" />
-        <OrderInformation detail={detail} />
-        {role === 'console' && <DetailList items={[{ label: t('manage.merchant'), value: <Link to="/console/merchants/$id" params={{ id: order.merchant_id }}>{order.merchant_username}</Link> }]} />}
+        <OrderInformation detail={detail} merchant={role === 'console' && <RecordLink to={'/console/merchants/' + order.merchant_id}>{order.merchant_username}</RecordLink>} />
       </Card>
       <Card>
         <SectionHeader title={t('merchant.orders.refundInfo')} className="mb-2" />
@@ -148,7 +147,7 @@ function SummaryItem({ label, className, children }: { label: string; className?
   )
 }
 
-function OrderInformation({ detail }: { detail: Detail }) {
+function OrderInformation({ detail, merchant }: { detail: Detail; merchant?: ReactNode }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'zh-CN'
   const order = detail.order
@@ -157,6 +156,7 @@ function OrderInformation({ detail }: { detail: Detail }) {
   return (
     <DetailList
       items={[
+        { label: t('manage.merchant'), value: merchant || null },
         { label: t('merchant.overview.product'), value: order.name },
         { label: t('merchant.orders.outTradeNo'), value: order.out_trade_no, mono: true },
         { label: t('merchant.orders.originalAmount'), value: adjusted ? money(order.original_cents, language) : null },

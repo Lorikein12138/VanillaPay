@@ -25,12 +25,12 @@ export function ChannelChoices({ allowed, value, onChange, disabled }: {
   allowed: readonly string[]; value: string[]; onChange: (value: string[]) => void; disabled: boolean
 }) {
   const { t } = useTranslation()
-  return <fieldset disabled={disabled}><legend>{t('manage.channels')}</legend><InlineActions>
+  return <fieldset disabled={disabled} className="m-0 min-w-0 border-0 p-0"><legend className="mb-1.5 p-0 text-label text-text-2">{t('manage.channels')}</legend><div className="flex flex-wrap items-center gap-x-5 gap-y-2">
     {allowed.map((channel) => <Checkbox key={channel} checked={value.includes(channel)}
       onChange={(event) => onChange(event.target.checked ? [...value, channel] : value.filter((item) => item !== channel))}>
       {t('merchant.overview.channels.' + channel, { defaultValue: channel })}
     </Checkbox>)}
-  </InlineActions></fieldset>
+  </div></fieldset>
 }
 export function Channels({ value }: { value: string[] | null }) {
   const { t } = useTranslation()

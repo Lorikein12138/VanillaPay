@@ -39,7 +39,7 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
     }
     await action.run(async () => {
       try {
-        let message = t('manage.saved')
+        let message = t('manage.granted')
         if (mode === 'ban') {
           const result = await consoleApi.banMerchant(detail.user.id, { reason: reason.trim() })
           message = t('manage.banResult', { count: result.expired_orders })
@@ -87,9 +87,9 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
       {(mode === 'ban' || mode === 'grant') && <Reason value={reason} onChange={setReason} disabled={action.busy}
         hint={t(mode === 'ban' ? 'manage.banHint' : 'manage.grantHint')} />}
       {mode === 'reset' && <>
-        <AccountField label={t('manage.newPassword')} type="password" autoComplete="new-password" value={password}
+        <AccountField label={t('manage.newPassword')} hint={t('manage.passwordHint')} type="password" autoComplete="new-password" value={password}
           disabled={action.busy} onChange={(event) => setPassword(event.target.value)} />
-        <AccountField label={t('manage.confirmation')} type="password" autoComplete="new-password" value={confirmation}
+        <AccountField label={t('manage.confirmation')} error={!!confirmation && confirmation !== password && t('manage.passwordMismatch')} type="password" autoComplete="new-password" value={confirmation}
           disabled={action.busy} onChange={(event) => setConfirmation(event.target.value)} />
       </>}
       {action.error != null && <AccountError error={action.error} />}

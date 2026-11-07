@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
 import { StatusDot } from '@/components/StatusDot'
+import { RecordLink } from '@/components/ui/records'
 import { Table, Td, Th } from '@/components/ui/table'
 import { money } from './overview-data'
 import { orderStatuses, type OrderFilters } from './orders-data'
@@ -73,7 +74,7 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
                 {link(order)}
                 <div className="mt-1 font-mono text-caption text-text-3 [overflow-wrap:anywhere]">{order.out_trade_no}</div>
               </Td>
-              {role === 'console' && <Td><Link to="/console/merchants/$id" params={{ id: order.merchant_id }}>{order.merchant_username}</Link></Td>}
+              {role === 'console' && <Td className="max-w-[160px]"><RecordLink to={'/console/merchants/' + order.merchant_id}>{order.merchant_username}</RecordLink></Td>}
               <Td className="max-w-[220px] break-words">{order.name}</Td>
               <Td className="whitespace-nowrap text-text-2"><OrderChannel channel={order.channel} /></Td>
               <Td align="right" className="whitespace-nowrap font-medium">{amount(order)}</Td>
@@ -91,7 +92,9 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
               <span className="shrink-0 font-serif text-[1.375rem] leading-none tabular-nums">{amount(order)}</span>
             </div>
             <div className="mt-2.5">{link(order)}</div>
-            {role === 'console' && <Link to="/console/merchants/$id" params={{ id: order.merchant_id }}>{order.merchant_username}</Link>}
+            {role === 'console' && <p className="m-0 mt-0.5 text-caption text-text-3 [overflow-wrap:anywhere]">
+              {t('manage.merchant')} · <RecordLink to={'/console/merchants/' + order.merchant_id}>{order.merchant_username}</RecordLink>
+            </p>}
             <p className="m-0 mt-0.5 font-mono text-caption text-text-3 [overflow-wrap:anywhere]">
               {t('merchant.orders.outTradeNo')} · {order.out_trade_no}
             </p>

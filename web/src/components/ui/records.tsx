@@ -25,13 +25,13 @@ export function FilterChip({ children, label, onClear }: { children: ReactNode; 
 /** The same data becomes a table on desktop and labelled cards on mobile. */
 export function Records<T>({ items, id, label, columns }: {
   items: T[]; id: (item: T) => string; label: string
-  columns: { label: string; value: (item: T) => ReactNode }[]
+  columns: { label: string; value: (item: T) => ReactNode; nowrap?: boolean }[]
 }) {
   return <>
     <Table caption={label} className="hidden md:block" minWidth={720}>
       <thead><tr>{columns.map((column) => <Th key={column.label}>{column.label}</Th>)}</tr></thead>
       <tbody>{items.map((item) => <tr key={id(item)}>
-        {columns.map((column) => <Td key={column.label}>{column.value(item)}</Td>)}
+        {columns.map((column) => <Td key={column.label} className={column.nowrap ? 'whitespace-nowrap' : undefined}>{column.value(item)}</Td>)}
       </tr>)}</tbody>
     </Table>
     <ul aria-label={label} className="m-0 flex list-none flex-col gap-4 p-0 md:hidden">
