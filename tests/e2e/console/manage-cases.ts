@@ -6,20 +6,26 @@ type Helpers = {
   seed: (request: APIRequestContext) => Promise<Admin>
   captcha: (page: Page, token: string) => Promise<void>
   signIn: (page: Page, admin: Admin, redirect?: string) => Promise<void>
-  control: (page: Page, name: string) => Promise<void>
 }
 /** Registered inside console.spec.ts's single serial suite: no second admin worker. */
-export function registerManagementTests({ seed, captcha, signIn, control }: Helpers) {
+export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
   async function shots(page: Page, state: string, prepare?: () => Promise<void>) {
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
-      for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
-        const saved = page.waitForResponse((response) => response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH')
-        await control(page, label)
-        expect((await saved).status()).toBe(200)
-        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      for (const theme of ['light', 'dark']) {
         if (prepare) await prepare()
-        await polishShot(page, state, !prepare, 'console-manage-shots')
+        // Preference persistence is covered by the console account tests.
+        const previous = await page.locator('html').getAttribute('data-theme')
+        try {
+          await page.evaluate((value) => { document.documentElement.dataset.theme = value }, theme)
+          await polishShot(page, state, !prepare, 'console-manage-shots')
+          await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+        } finally {
+          await page.evaluate((value) => {
+            if (value === null) delete document.documentElement.dataset.theme
+            else document.documentElement.dataset.theme = value
+          }, previous)
+        }
         if (prepare) await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click()
       }
     }

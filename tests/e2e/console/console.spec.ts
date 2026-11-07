@@ -187,4 +187,4 @@ test('changes password, revokes the session, persists preferences and enables/di
   await page.setViewportSize({ width: 360, height: 780 }); await noOverflow(page)
 })
 
-registerManagementTests({ seed, captcha, signIn, control })
+registerManagementTests({ seed, captcha, signIn })
