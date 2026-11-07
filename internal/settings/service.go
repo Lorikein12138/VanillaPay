@@ -390,12 +390,20 @@ func saveLegalRevisions(ctx context.Context, tx pgx.Tx, clean json.RawMessage, n
 		kind    string
 		content LanguageText
 	}{{"terms", value.Terms}, {"privacy", value.Privacy}} {
-		encoded, _ := json.Marshal(item.content)
 		var previous []byte
-		_ = tx.QueryRow(ctx, `SELECT content FROM legal_versions WHERE kind=$1 ORDER BY revision DESC LIMIT 1 FOR UPDATE`, item.kind).Scan(&previous)
-		if len(previous) > 0 && string(previous) == string(encoded) {
-			continue
+		err := tx.QueryRow(ctx, `SELECT content FROM legal_versions WHERE kind=$1 ORDER BY revision DESC LIMIT 1 FOR UPDATE`, item.kind).Scan(&previous)
+		if err == nil {
+			var content LanguageText
+			if err := json.Unmarshal(previous, &content); err != nil {
+				return err
+			}
+			if content == item.content {
+				continue
+			}
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return err
 		}
+		encoded, _ := json.Marshal(item.content)
 		if _, err := tx.Exec(ctx, `INSERT INTO legal_versions(kind,revision,content,published_at) VALUES($1,(SELECT COALESCE(max(revision),0)+1 FROM legal_versions WHERE kind=$1),$2,$3)`, item.kind, encoded, now); err != nil {
 			return err
 		}

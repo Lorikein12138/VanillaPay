@@ -50,7 +50,7 @@ async function settingsStateShots(page: Page, name: string) {
   if (await page.getByRole('dialog').count()) {
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
-      await polishShot(page, `settings-${name}`, false, 'console-settings-shots')
+      await polishShot(page, `settings-${name}`, false, 'console-settings-shots', 'assert-empty')
     }
     await page.keyboard.press('Escape')
     const saved = page.waitForResponse((response) => response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH')
@@ -60,7 +60,7 @@ async function settingsStateShots(page: Page, name: string) {
     await expect(page.getByRole('dialog', { name: '清除密钥' })).toBeVisible()
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
-      await polishShot(page, `settings-${name}`, false, 'console-settings-shots')
+      await polishShot(page, `settings-${name}`, false, 'console-settings-shots', 'assert-empty')
     }
     return
   }
@@ -162,11 +162,19 @@ test('manages platform settings, protects stored secrets and captures every grou
 
   await page.goto('/console/settings?group=site')
   await page.getByLabel('站点名称').fill('Conflict candidate')
+  await page.route('**/api/v1/console/settings', async (route) => {
+    const response = await route.fetch()
+    const body = await response.json() as { data: { version: number; site: { site_name: string } } }
+    body.data.version++
+    body.data.site.site_name = '另一位管理员更新的站点'
+    await route.fulfill({ response, json: body })
+  })
   await page.route('**/api/v1/console/settings/site', (route) => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'VERSION_CONFLICT', message: 'version conflict' } }) }))
   await page.getByRole('button', { name: '保存站点信息' }).click()
   await expect(page.getByLabel('我已查看最新内容')).toBeVisible()
   await settingsStateShots(page, 'version-conflict')
   await page.unroute('**/api/v1/console/settings/site')
+  await page.unroute('**/api/v1/console/settings')
 
   await page.route('**/api/v1/console/settings', async (route) => {
     const response = await route.fetch(), body = await response.json() as { data: { security: Record<string, unknown> } }
@@ -179,6 +187,7 @@ test('manages platform settings, protects stored secrets and captures every grou
   expect((await lightTheme).status()).toBe(200)
   await page.getByRole('checkbox', { name: '清除密钥' }).click()
   await expect(page.getByRole('dialog', { name: '清除密钥' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '恢复入口' })).toHaveAttribute('href', '/console/recovery')
   await settingsStateShots(page, 'clear-secret-confirmation')
   await page.getByRole('button', { name: '取消' }).click()
   await page.unroute('**/api/v1/console/settings')
@@ -188,12 +197,12 @@ test('manages platform settings, protects stored secrets and captures every grou
   await page.route('**/api/v1/console/settings/mail/test', (route) => route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ data: { delivery_id: 'e2e-delivery', state: 'queued' } }) }))
   await page.route('**/api/v1/console/settings/mail/test/*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { id: 'e2e-delivery', state: 'sent', error_code: null } }) }))
   await page.getByRole('button', { name: '发送测试邮件' }).click()
-  await expect(page.getByText('测试邮件已送达。')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByText('测试邮件已发出。')).toBeVisible({ timeout: 8000 })
   await settingsStateShots(page, 'mail-test-sent')
   await page.unroute('**/api/v1/console/settings/mail/test/*')
   await page.route('**/api/v1/console/settings/mail/test/*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { id: 'e2e-delivery', state: 'failed', error_code: 'smtp_delivery_failed' } }) }))
   await page.getByRole('button', { name: '发送测试邮件' }).click()
-  await expect(page.getByText('邮件发送失败，后台会自动重试 4 次。')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByText('邮件发送失败，后台会自动重试几次。')).toBeVisible({ timeout: 8000 })
   await settingsStateShots(page, 'mail-test-failed')
   await page.unroute('**/api/v1/console/settings/mail/test')
   await page.unroute('**/api/v1/console/settings/mail/test/*')

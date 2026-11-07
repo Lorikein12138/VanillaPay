@@ -165,12 +165,17 @@ export const consoleApi = {
   purchases: (filters: NonNullable<operations['get_api_v1_console_purchases']['parameters']['query']>, signal?: AbortSignal) => request<Schema['SubscriptionPurchasePage']>(`/api/v1/console/purchases?${queryString(filters)}`, undefined, true, undefined, 'GET', signal),
   settings: (signal?: AbortSignal) => request<Schema['Settings']>('/api/v1/console/settings', undefined, true, undefined, 'GET', signal),
   saveSettings: (group: 'site' | 'home' | 'footer_legal' | 'mail' | 'security' | 'payment' | 'billing', value: Schema['SettingsUpdateGroup']) => request<NonNullable<Schema['SettingsGroupResult']>>(`/api/v1/console/settings/${group}`, value, true, undefined, 'PUT'),
-  testMail: (recipient: string) => request<NonNullable<operations['post_api_v1_console_settings_mail_test']['responses'][202]['content']['application/json']['data']>>('/api/v1/console/settings/mail/test', { recipient }),
+  testMail: (recipient: string, signal?: AbortSignal) =>
+    request<NonNullable<operations['post_api_v1_console_settings_mail_test']['responses'][202]['content']['application/json']['data']>>(
+      '/api/v1/console/settings/mail/test', { recipient }, true, undefined, 'POST', signal,
+    ),
   mailTestStatus: (id: string, signal?: AbortSignal) => request<NonNullable<operations['get_api_v1_console_settings_mail_test_id']['responses'][200]['content']['application/json']['data']>>(`/api/v1/console/settings/mail/test/${encodeURIComponent(id)}`, undefined, true, undefined, 'GET', signal),
-  uploadLogo(file: File) {
+  uploadLogo(file: File, signal?: AbortSignal) {
     const body = new FormData()
     body.set('file', file)
-    return request<NonNullable<operations['post_api_v1_console_assets_logo']['responses'][201]['content']['application/json']['data']>>('/api/v1/console/assets/logo', body, true, undefined, 'POST')
+    return request<NonNullable<operations['post_api_v1_console_assets_logo']['responses'][201]['content']['application/json']['data']>>(
+      '/api/v1/console/assets/logo', body, true, undefined, 'POST', signal,
+    )
   },
   orderPage: (filters: OrdersQuery) => request<Schema['OrdersPage']>(`/api/v1/console/orders?${queryString(filters)}`),
   order: (tradeNo: string) => request<Schema['OrderDetail']>(`/api/v1/console/orders/${encodeURIComponent(tradeNo)}`),
