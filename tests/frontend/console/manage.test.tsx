@@ -6,6 +6,7 @@ import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
+import { api, consoleApi, onUnauthorized } from '@/api/client'
 import { createI18n } from '@/lib/i18n'
 import { bytes, planInput, validBanReason, validGrantReason, type Schema } from '@/features/console/manage-data'
 import { order, unboundDevice } from '../merchant/fixtures'
@@ -85,18 +86,32 @@ it('renders text safely, sends filters and restarts cursor pagination', async ()
     const url = new URL(request.url); calls.push(url)
     return success({ items: [{ ...merchant, id: url.searchParams.has('cursor') ? '43' : '42' }], total: 8, next_cursor: url.searchParams.has('cursor') ? null : 'next-page' })
   }))
-  const { router } = mount(), actor = userEvent.setup()
+  const pid = '1234567890123456'
+  const { router } = mount('/console/merchants?query=' + pid), actor = userEvent.setup()
   expect((await screen.findAllByText('<b>安全商户</b>')).length).toBeGreaterThan(0)
   expect(document.querySelector('b')).toBeNull()
+  expect(screen.getByLabelText('搜索')).toHaveValue(pid)
+  expect(calls[0]?.searchParams.get('query')).toBe(pid)
   await actor.click(screen.getByRole('button', { name: '加载更多' }))
   await waitFor(() => expect(calls.some((url) => url.searchParams.get('cursor') === 'next-page')).toBe(true))
+  const afterMore = calls.length
+  await actor.click(screen.getByRole('button', { name: '应用筛选' }))
+  await waitFor(() => expect(calls.length).toBeGreaterThan(afterMore))
+  expect(calls.at(-1)?.searchParams.get('query')).toBe(pid)
+  expect(calls.at(-1)?.searchParams.has('cursor')).toBe(false)
+  await actor.click(await screen.findByRole('button', { name: '加载更多' }))
+  await waitFor(() => expect(calls.at(-1)?.searchParams.get('cursor')).toBe('next-page'))
   fill(document.body, '搜索', '安全'); fill(document.body, '状态', 'true'); fill(document.body, '订阅', 'false')
   await actor.click(screen.getByRole('button', { name: '应用筛选' }))
   await waitFor(() => expect(router.state.location.search).toMatchObject({ query: '安全', banned: true, subscription_active: false }))
   await waitFor(() => expect(calls.at(-1)?.searchParams.get('query')).toBe('安全'))
   expect(calls.at(-1)?.searchParams.has('cursor')).toBe(false)
+  await actor.click(await screen.findByRole('button', { name: '加载更多' }))
+  await waitFor(() => expect(calls.at(-1)?.searchParams.get('cursor')).toBe('next-page'))
   await actor.click(screen.getByRole('button', { name: '重置筛选' }))
   await waitFor(() => expect(router.state.location.search).toEqual({}))
+  await waitFor(() => expect(calls.at(-1)?.searchParams.has('query')).toBe(false))
+  expect(calls.at(-1)?.searchParams.has('cursor')).toBe(false)
   expect(screen.getByLabelText('搜索')).toHaveValue('')
 })
 
@@ -128,11 +143,23 @@ it.each(['USERNAME_TAKEN', 'EMAIL_TAKEN'] as const)('validates merchant creation
 })
 
 it('creates a merchant, clears the dialog and navigates to the new detail', async () => {
-  server.use(http.post('*/api/v1/console/merchants', () => success(detail.user)))
+  const create = vi.spyOn(consoleApi, 'createMerchant')
+  server.use(http.post('*/api/v1/console/merchants', async ({ request }) => {
+    expect(await request.json()).toMatchObject({ email: 'shop@intranet' })
+    return success(detail.user)
+  }))
   const { router, client } = mount(), invalidate = vi.spyOn(client, 'invalidateQueries')
   const dialog = await open('新建商户'), password = crypto.randomUUID()
-  fill(dialog, '用户名', 'shop_new'); fill(dialog, '邮箱', 'new@example.test')
-  fill(dialog, '初始密码', password); fill(dialog, '确认密码', password); submit(dialog, '新建商户')
+  fill(dialog, '用户名', 'shop_new'); fill(dialog, '邮箱', 'not-an-email')
+  fill(dialog, '初始密码', password); fill(dialog, '确认密码', password)
+  const email = within(dialog).getByLabelText<HTMLInputElement>('邮箱')
+  expect(email.validity.typeMismatch).toBe(true)
+  expect(email.validationMessage).not.toBe('')
+  submit(dialog, '新建商户')
+  expect(create).not.toHaveBeenCalled()
+  fill(dialog, '邮箱', 'shop@intranet')
+  expect(email).toBeValid()
+  submit(dialog, '新建商户')
   await waitFor(() => expect(router.state.location.pathname).toBe('/console/merchants/42'))
   expect(screen.queryByLabelText('初始密码')).toBeNull()
   expect(screen.getByRole('navigation', { name: '管理控制台' }).querySelector('a[href="/console/merchants"]')).toHaveAttribute('aria-current', 'page')
@@ -169,6 +196,7 @@ it('resets a password without retaining the form after success', async () => {
 })
 
 it('uses only plan channels, byte validation and the latest subscription revision after conflict', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2029-12-31T23:59:00Z'))
   const revisions: number[] = []
   server.use(http.put('*/api/v1/console/merchants/42/subscription', async ({ request }) => {
     const body = await request.json() as Schema['SubscriptionGrantRequest']; revisions.push(body.expected_revision)
@@ -186,8 +214,44 @@ it('uses only plan channels, byte validation and the latest subscription revisio
   expect(within(dialog).getByLabelText('原因')).toHaveValue('人工开通')
   expect(within(dialog).getByLabelText('套餐')).toHaveValue('3')
   await waitFor(() => expect(within(dialog).getByRole('button', { name: '调整订阅' })).toBeEnabled())
+  clock.mockReturnValue(Date.parse('2030-01-01T00:01:00Z'))
+  const grantRequest = vi.spyOn(consoleApi, 'grantSubscription')
+  submit(dialog, '调整订阅')
+  expect(within(dialog).getByLabelText('到期时间')).toHaveAccessibleDescription('请将到期时间调整到未来。')
+  expect(grantRequest).not.toHaveBeenCalled()
+  fill(dialog, '到期时间', '2030-01-03T00:00')
   submit(dialog, '调整订阅'); await screen.findByText('保存成功。')
   expect(revisions).toEqual([5, 6])
+})
+
+it.each(['click', 'Enter'] as const)('rechecks a subscription expiry on %s after time passes in the dialog', async (method) => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2029-12-31T23:59:00Z'))
+  const grantRequest = vi.spyOn(consoleApi, 'grantSubscription')
+  server.use(http.put('*/api/v1/console/merchants/42/subscription', async ({ request }) => {
+    expect(await request.json()).toMatchObject({ expected_revision: 5, expires_at: new Date('2030-01-03T00:00').toISOString() })
+    return success(current.subscription)
+  }))
+  mount('/console/merchants/42')
+  const dialog = await grant()
+  const button = within(dialog).getByRole('button', { name: '调整订阅' })
+  const expiry = within(dialog).getByLabelText<HTMLInputElement>('到期时间')
+  const original = expiry.value
+  expect(button).toBeEnabled()
+  clock.mockReturnValue(Date.parse('2030-01-01T00:01:00Z'))
+  if (method === 'click') await userEvent.click(button)
+  else {
+    button.focus()
+    await userEvent.keyboard('{Enter}')
+  }
+  expect(expiry).toHaveAccessibleDescription('请将到期时间调整到未来。')
+  expect(expiry).toHaveValue(original)
+  expect(within(dialog).getByLabelText('原因')).toHaveValue('人工开通')
+  expect(grantRequest).not.toHaveBeenCalled()
+  fill(dialog, '到期时间', '2030-01-03T00:00')
+  expect(expiry).not.toHaveAttribute('aria-invalid')
+  submit(dialog, '调整订阅')
+  await screen.findByText('保存成功。')
+  expect(grantRequest).toHaveBeenCalledTimes(1)
 })
 
 it('refreshes plans and blocks a no-longer-available selection', async () => {
@@ -224,6 +288,47 @@ it('creates a plan with cents and unlimited quantity, then edits with optimistic
   expect(writes[1]).toMatchObject({ id: '3', revision: 2 }); expect(writes[2]).toMatchObject({ revision: 3, price_cents: 3999 })
 })
 
+describe.each(['新建套餐', '编辑套餐'] as const)('%s purchase limit', (title) => {
+  it.each([
+    ['2147483647', 2147483647],
+    ['2147483648', undefined],
+    ['', null],
+  ] as const)('validates %j and sends %j when allowed', async (value, expected) => {
+    const editing = title === '编辑套餐'
+    const writes: Schema['SubscriptionPlanCommand'][] = []
+    const save = vi.spyOn(consoleApi, 'savePlan')
+    const capture = async ({ request }: { request: Request }) => {
+      writes.push(await request.json() as Schema['SubscriptionPlanCommand'])
+      return success(currentPlan)
+    }
+    currentPlan.purchase_limit = 10
+    server.use(http.post('*/api/v1/console/plans', capture), http.put('*/api/v1/console/plans/3', capture))
+    mount('/console/plans')
+    if (editing) fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[0]!)
+    const dialog = editing ? await screen.findByRole('dialog', { name: title }) : await open(title)
+    if (!editing) {
+      fill(dialog, '中文名称', '新套餐'); fill(dialog, '价格（元）', '0.01'); fill(dialog, '时长（天）', '1')
+      fireEvent.click(within(dialog).getByRole('checkbox', { name: '支付宝' }))
+    }
+    fill(dialog, '限购数量', value)
+    const button = within(dialog).getByRole('button', { name: title })
+    if (expected === undefined) {
+      expect(button).toBeDisabled()
+      expect(within(dialog).getByLabelText('限购数量')).toHaveAccessibleDescription('限购数量须为 1 至 2147483647 的整数，留空表示不限。')
+      await userEvent.click(button)
+      fireEvent.submit(button.closest('form')!)
+      expect(save).not.toHaveBeenCalled()
+      expect(writes).toEqual([])
+      return
+    }
+    expect(button).toBeEnabled()
+    await userEvent.click(button)
+    await screen.findByText('保存成功。')
+    expect(writes).toHaveLength(1)
+    expect(writes[0]).toMatchObject({ purchase_limit: expected, ...(editing ? { id: '3', revision: 2 } : {}) })
+  })
+})
+
 it('deletes with revision and shows the cancellation count; deleted plans remain read-only', async () => {
   server.use(http.delete('*/api/v1/console/plans/3', async ({ request }) => {
     expect(await request.json()).toEqual({ revision: 2 }); currentPlan.deleted = true
@@ -235,6 +340,72 @@ it('deletes with revision and shows the cancellation count; deleted plans remain
   expect(within(dialog).getByText('删除后待支付的购买会被取消，已生效订阅保留。')).toBeInTheDocument()
   submit(dialog, '删除套餐'); await screen.findByText('已删除套餐，已取消 2 笔待支付购买。')
   expect(screen.queryByRole('button', { name: '编辑' })).toBeNull()
+})
+
+it.each([
+  ['900719925474099312345', '900719925474099312345'],
+  ['0001234567890123456', '0001234567890123456'],
+  ['%22900719925474099312345%22', '900719925474099312345'],
+])('preserves the console order URL query %s in the form, list and export', async (raw, query) => {
+  const lists: URL[] = [], exports: URL[] = []
+  server.use(http.get('*/api/v1/console/orders', ({ request }) => {
+    const url = new URL(request.url)
+    lists.push(url)
+    return success({ items: [], total: 0, next_cursor: url.searchParams.has('cursor') ? null : 'order-cursor' })
+  }), http.get('*/api/v1/console/orders/export.csv', ({ request }) => {
+    exports.push(new URL(request.url))
+    return failure('VERSION_CONFLICT')
+  }))
+  const { router } = mount('/console/orders?query=' + raw)
+  const actor = userEvent.setup()
+  expect(await screen.findByLabelText('搜索订单')).toHaveValue(query)
+  await actor.click(await screen.findByRole('button', { name: '加载更多' }))
+  await waitFor(() => expect(lists.at(-1)?.searchParams.get('cursor')).toBe('order-cursor'))
+  await actor.click(screen.getByRole('button', { name: '应用筛选' }))
+  await waitFor(() => expect(lists).toHaveLength(3))
+  expect(lists.at(-1)?.searchParams.has('cursor')).toBe(false)
+  await actor.click(screen.getByRole('button', { name: '导出 CSV' }))
+  await screen.findByRole('alert')
+  expect(exports[0]?.searchParams.get('query')).toBe(query)
+  expect(exports[0]?.searchParams.has('cursor')).toBe(false)
+  await actor.click(await screen.findByRole('button', { name: '加载更多' }))
+  await waitFor(() => expect(lists.at(-1)?.searchParams.get('cursor')).toBe('order-cursor'))
+  expect(lists.map((url) => url.searchParams.get('query'))).toEqual([query, query, query, query])
+  await actor.click(screen.getByRole('button', { name: '重置' }))
+  await waitFor(() => expect(lists).toHaveLength(5))
+  expect(lists.at(-1)?.searchParams.has('cursor')).toBe(false)
+  expect(lists.at(-1)?.searchParams.has('query')).toBe(false)
+  expect(screen.getByLabelText('搜索订单')).toHaveValue('')
+  expect(router.state.location.search).toEqual({})
+})
+
+it('clears only the console CSRF token after a console CSV 401', async () => {
+  const merchantToken = crypto.randomUUID()
+  const preferences = { locale: 'zh-CN', theme: 'system' } as const
+  const seen = { console: [] as (string | null)[], merchant: [] as (string | null)[] }
+  const unauthorized = vi.fn()
+  onUnauthorized(unauthorized)
+  server.use(http.get('*/api/v1/merchant/me', () => success({ ...admin, user: detail.user, csrf_token: merchantToken })),
+    http.get('*/api/v1/console/orders/export.csv', () => new HttpResponse(null, { status: 401 })),
+    http.patch('*/api/v1/console/preferences', ({ request }) => {
+      seen.console.push(request.headers.get('X-CSRF-Token')); return success(preferences)
+    }),
+    http.patch('*/api/v1/merchant/preferences', ({ request }) => {
+      seen.merchant.push(request.headers.get('X-CSRF-Token')); return success(preferences)
+    }))
+  try {
+    await api.me()
+    await consoleApi.me()
+    await consoleApi.preferences(preferences)
+    await expect(consoleApi.exportOrders({})).rejects.toMatchObject({ status: 401 })
+    await consoleApi.preferences(preferences)
+    await api.preferences(preferences)
+    expect(seen).toEqual({ console: [admin.csrf_token, null], merchant: [merchantToken] })
+    expect(unauthorized).toHaveBeenCalledOnce()
+  } finally {
+    api.forgetSession()
+    consoleApi.forgetSession()
+  }
 })
 
 it('renders shared console orders read-only with merchant links and role-specific export errors', async () => {

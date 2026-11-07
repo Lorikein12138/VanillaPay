@@ -16,7 +16,7 @@ import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { centsToYuan } from '@/features/merchant/collection-data'
 import { money } from '@/features/merchant/overview-data'
 import { ChannelChoices, Channels } from './ManageParts'
-import { channels, invalidateConsole, planInput, planName, type Schema } from './manage-data'
+import { channels, invalidateConsole, planInput, planName, validPurchaseLimit, type Schema } from './manage-data'
 
 type Plan = Schema['SubscriptionPlanDTO']
 export function PlansPage() {
@@ -104,7 +104,8 @@ function PlanDialog({ plan, deleting, onClose, onSuccess }: {
           <AccountField label={t('manage.enName')} value={en} disabled={action.busy} onChange={(event) => setEn(event.target.value)} />
           <AccountField label={t('manage.price')} inputMode="decimal" value={price} disabled={action.busy} onChange={(event) => setPrice(event.target.value)} />
           <AccountField label={t('manage.days')} inputMode="numeric" value={days} disabled={action.busy} onChange={(event) => setDays(event.target.value)} />
-          <AccountField label={t('manage.limit')} inputMode="numeric" value={limit} disabled={action.busy} onChange={(event) => setLimit(event.target.value)} />
+          <AccountField label={t('manage.limit')} inputMode="numeric" value={limit} disabled={action.busy}
+            error={!validPurchaseLimit(limit) && t('manage.limitInvalid')} onChange={(event) => setLimit(event.target.value)} />
         </FieldGrid>
         <ChannelChoices allowed={channels} value={selected} onChange={setSelected} disabled={action.busy} />
       </>}

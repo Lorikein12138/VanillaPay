@@ -997,6 +997,7 @@
     "adjust": "Adjust subscription",
     "plan": "Plan",
     "expiry": "Expires",
+    "expiryFuture": "Choose an expiry time in the future.",
     "source": "Source",
     "sources": {
       "none": "None",
@@ -1036,6 +1037,7 @@
     "days": "Duration (days)",
     "channels": "Channels",
     "limit": "Purchase limit",
+    "limitInvalid": "Enter a whole number from 1 to 2147483647, or leave it blank for no limit.",
     "unlimited": "Unlimited",
     "purchased": "Purchased",
     "remaining": "Remaining",

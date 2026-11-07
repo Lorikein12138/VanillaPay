@@ -31,12 +31,16 @@ export function purchaseSearch(search: Record<string, unknown>): PurchaseFilters
     merchant_id: id(search.merchant_id), plan_id: id(search.plan_id),
   }
 }
+// PostgreSQL stores the purchase limit in an integer column.
+export function validPurchaseLimit(value: string) {
+  return value === '' || (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 2147483647)
+}
 export function planInput(zh: string, en: string, price: string, days: string, selected: string[], limit: string): Schema['SubscriptionPlanCommand'] | null {
   const cents = yuanToCents(price)
   if (!zh.trim() || bytes(zh.trim()) > 300 || bytes(en.trim()) > 300 || cents === null || cents < 1 || cents > 999999999 ||
     !/^\d+$/.test(days) || Number(days) < 1 || Number(days) > 36500 ||
     !selected.length || selected.some((c) => !channels.some((known) => known === c)) ||
-    (limit !== '' && (!/^\d+$/.test(limit) || !Number.isSafeInteger(Number(limit)) || Number(limit) < 1))) return null
+    !validPurchaseLimit(limit)) return null
   return { name: { zh_CN: zh.trim(), en: en.trim() }, price_cents: cents, duration_days: Number(days), channels: selected, purchase_limit: limit ? Number(limit) : null }
 }
 export async function invalidateConsole(client: QueryClient) {

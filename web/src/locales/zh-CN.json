@@ -997,6 +997,7 @@
     "adjust": "调整订阅",
     "plan": "套餐",
     "expiry": "到期时间",
+    "expiryFuture": "请将到期时间调整到未来。",
     "source": "来源",
     "sources": {
       "none": "无",
@@ -1036,6 +1037,7 @@
     "days": "时长（天）",
     "channels": "渠道",
     "limit": "限购数量",
+    "limitInvalid": "限购数量须为 1 至 2147483647 的整数，留空表示不限。",
     "unlimited": "不限",
     "purchased": "已购",
     "remaining": "剩余",

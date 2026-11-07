@@ -21,17 +21,22 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
   const [reason, setReason] = useState(''), [password, setPassword] = useState(''), [confirmation, setConfirmation] = useState('')
   const [planId, setPlanId] = useState(''), [selected, setSelected] = useState<string[]>([])
   const [expires, setExpires] = useState(localDateInput(detail.subscription.expires_at ?? undefined))
-  const [openedAt] = useState(Date.now)
+  const [expiryError, setExpiryError] = useState(false)
   const [conflict, setConflict] = useState<'subscriptionConflict' | 'planUnavailable' | null>(null)
   const plans = useQuery({ queryKey: ['console', 'plans', false], queryFn: ({ signal }) => consoleApi.plans(false, signal), enabled: mode === 'grant' })
   const plan = plans.data?.items?.find((item) => item.id === planId && !item.deleted)
+  const expiry = Date.parse(expires)
   const valid = mode === 'unban' || (mode === 'ban' ? validBanReason(reason) :
     mode === 'reset' ? validPassword(password, confirmation) :
       !!plan && !!selected.length && selected.every((channel) => plan.channels?.includes(channel)) &&
-      validGrantReason(reason) && Number.isFinite(Date.parse(expires)) && Date.parse(expires) > openedAt)
+      validGrantReason(reason) && Number.isFinite(expiry))
   const title = t(mode === 'grant' ? 'manage.adjust' : mode === 'ban' ? 'manage.ban' : mode === 'unban' ? 'manage.unban' : 'manage.reset')
   async function submit() {
     if (!valid) return
+    if (mode === 'grant' && expiry <= Date.now()) {
+      setExpiryError(true)
+      return
+    }
     await action.run(async () => {
       try {
         let message = t('manage.saved')
@@ -45,7 +50,7 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
           message = t('manage.resetDone')
         } else {
           await consoleApi.grantSubscription(detail.user.id, {
-            plan_id: planId, expires_at: new Date(expires).toISOString(), channels: selected,
+            plan_id: planId, expires_at: new Date(expiry).toISOString(), channels: selected,
             expected_revision: detail.subscription.revision, reason: reason.trim(),
           })
         }
@@ -76,7 +81,8 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
           {plans.data?.items?.filter((item) => !item.deleted).map((item) => <option key={item.id} value={item.id}>{planName(item, i18n.language)}</option>)}
         </Choice>
         <ChannelChoices allowed={plan?.channels ?? []} value={selected} onChange={setSelected} disabled={action.busy} />
-        <AccountField label={t('manage.expiry')} type="datetime-local" step="1" value={expires} disabled={action.busy} onChange={(event) => setExpires(event.target.value)} />
+        <AccountField label={t('manage.expiry')} type="datetime-local" step="1" value={expires} disabled={action.busy}
+          error={expiryError && t('manage.expiryFuture')} onChange={(event) => { setExpires(event.target.value); setExpiryError(false) }} />
       </>}
       {(mode === 'ban' || mode === 'grant') && <Reason value={reason} onChange={setReason} disabled={action.busy}
         hint={t(mode === 'ban' ? 'manage.banHint' : 'manage.grantHint')} />}

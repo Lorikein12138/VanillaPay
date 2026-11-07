@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { hashKey, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Inbox } from 'lucide-react'
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,8 +17,10 @@ export function OrdersPage({ name, filters, onFilters, role = 'merchant' }: { ro
   const [exporting, setExporting] = useState(false)
   const exportBusy = useRef(false)
   const [exportError, setExportError] = useState<unknown>()
+  const client = useQueryClient()
+  const queryKey = [role, name, 'orders', 'list', filters]
   const orders = useInfiniteQuery({
-    queryKey: [role, name, 'orders', 'list', filters],
+    queryKey,
     // A different filter or a return from detail always starts at the first cursor.
     gcTime: 0,
     initialPageParam: undefined as string | undefined,
@@ -26,6 +28,10 @@ export function OrdersPage({ name, filters, onFilters, role = 'merchant' }: { ro
     getNextPageParam: (page) => page.next_cursor ?? undefined,
   })
   const items = orders.data?.pages.flatMap((page) => page.items ?? []) ?? []
+  function applyFilters(next: OrderFilters) {
+    if (hashKey([next]) === hashKey([filters])) void client.resetQueries({ queryKey, exact: true })
+    onFilters(next)
+  }
   async function exportCSV() {
     if (exportBusy.current) return
     exportBusy.current = true
@@ -59,7 +65,7 @@ export function OrdersPage({ name, filters, onFilters, role = 'merchant' }: { ro
       {exportError != null && (
         <Notice tone="error" onDismiss={() => setExportError(undefined)}>{t(orderErrorKey(exportError))}</Notice>
       )}
-      <OrderFilterForm key={JSON.stringify(filters)} filters={filters} onApply={onFilters} />
+      <OrderFilterForm key={JSON.stringify(filters)} filters={filters} onApply={applyFilters} />
       <section aria-label={t('merchant.orders.results')} aria-busy={orders.isPending} className="flex min-w-0 flex-col gap-4">
         {orders.isPending ? (
           <div className="flex flex-col gap-3">

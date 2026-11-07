@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
+import { hashKey, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi } from '@/api/client'
 import { Button } from '@/components/ui/button'
@@ -17,12 +17,18 @@ import { invalidateConsole, planName, useCursorList, type MerchantFilters } from
 
 export function MerchantsPage({ filters, onFilters }: { filters: MerchantFilters; onFilters: (filters: MerchantFilters) => void }) {
   const { t, i18n } = useTranslation(), [create, setCreate] = useState(false)
-  const query = useCursorList(['console', 'merchants', filters], (cursor, signal) => consoleApi.merchants({ ...filters, cursor, limit: 20 }, signal))
+  const client = useQueryClient()
+  const queryKey = ['console', 'merchants', filters]
+  const query = useCursorList(queryKey, (cursor, signal) => consoleApi.merchants({ ...filters, cursor, limit: 20 }, signal))
   const items = query.data?.pages.flatMap((page) => page.items ?? []) ?? []
+  function applyFilters(next: MerchantFilters) {
+    if (hashKey([next]) === hashKey([filters])) void client.resetQueries({ queryKey, exact: true })
+    onFilters(next)
+  }
   return <Page>
     <PageHeader title={t('manage.merchants')} description={query.data && t('manage.merchantTotal', { count: query.data.pages[0]?.total })}
       actions={<Button variant="primary" onClick={() => setCreate(true)}>{t('manage.createMerchant')}</Button>} />
-    <MerchantFiltersForm key={JSON.stringify(filters)} filters={filters} onFilters={onFilters} />
+    <MerchantFiltersForm key={JSON.stringify(filters)} filters={filters} onFilters={applyFilters} />
     <RecordResults busy={query.isPending} error={query.error} retry={() => void query.refetch()}
       more={query.hasNextPage} loadingMore={query.isFetchingNextPage} onMore={() => void query.fetchNextPage()} empty={!!query.data && !items.length}>
       <Records items={items} id={(item) => item.id} label={t('manage.merchants')} columns={[
@@ -62,7 +68,7 @@ function CreateMerchant({ onClose }: { onClose: () => void }) {
   const [username, setUsername] = useState(''), [email, setEmail] = useState('')
   const [password, setPassword] = useState(''), [confirmation, setConfirmation] = useState('')
   const [fieldError, setFieldError] = useState<'' | 'USERNAME_TAKEN' | 'EMAIL_TAKEN'>('')
-  const valid = validUsername(username) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && validPassword(password, confirmation)
+  const valid = validUsername(username) && !!email.trim() && validPassword(password, confirmation)
   async function submit() {
     if (!valid) return
     await action.run(async () => {
@@ -85,7 +91,7 @@ function CreateMerchant({ onClose }: { onClose: () => void }) {
       <FormHint>{t('manage.validation')}</FormHint>
       <AccountField label={t('manage.username')} value={username} autoComplete="off" disabled={action.busy}
         error={fieldError === 'USERNAME_TAKEN' && t('manage.USERNAME_TAKEN')} onChange={(event) => { setUsername(event.target.value); setFieldError('') }} />
-      <AccountField label={t('manage.email')} value={email} type="email" disabled={action.busy}
+      <AccountField label={t('manage.email')} value={email} type="email" required disabled={action.busy}
         error={fieldError === 'EMAIL_TAKEN' && t('manage.EMAIL_TAKEN')} onChange={(event) => { setEmail(event.target.value); setFieldError('') }} />
       <AccountField label={t('manage.password')} value={password} type="password" autoComplete="new-password" disabled={action.busy} onChange={(event) => setPassword(event.target.value)} />
       <AccountField label={t('manage.confirmation')} value={confirmation} type="password" autoComplete="new-password" disabled={action.busy} onChange={(event) => setConfirmation(event.target.value)} />
