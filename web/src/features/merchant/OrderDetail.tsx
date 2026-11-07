@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, APIError } from '@/api/client'
+import { api, APIError, consoleApi } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { DetailList } from '@/components/ui/detail-list'
 import { BackLink, Card, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
+import { RecordLink } from '@/components/ui/records'
 import { cn } from '@/lib/utils'
 import { OrderActionDialog } from './OrderActionDialog'
 import { availableOrderActions, orderErrorKey, type OrderAction, type OrderFilters } from './orders-data'
@@ -16,14 +17,14 @@ import { OrderChannel, OrderStatus, OrderTime } from './OrderParts'
 
 type Detail = components['schemas']['OrderDetail']
 
-export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo: string; filters: OrderFilters }) {
+export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { role?: 'merchant' | 'console'; name: string; tradeNo: string; filters: OrderFilters }) {
   const { t } = useTranslation()
   const client = useQueryClient()
-  const query = useQuery({ queryKey: ['merchant', name, 'order', tradeNo], queryFn: () => api.order(tradeNo) })
+  const query = useQuery({ queryKey: [role, name, 'order', tradeNo], queryFn: () => (role === 'console' ? consoleApi : api).order(tradeNo) })
   const [confirmation, setConfirmation] = useState<{ action: OrderAction; key: string; detail: Detail }>()
   const [notice, setNotice] = useState<OrderAction>()
   const detail = query.data
-  const back = <BackLink to="/orders" search={filters}>{t('merchant.orders.back')}</BackLink>
+  const back = <BackLink to={role === 'console' ? '/console/orders' : '/orders'} search={filters}>{t('merchant.orders.back')}</BackLink>
   if (query.isPending) {
     return (
       <Page className="gap-8" aria-busy="true">
@@ -48,7 +49,7 @@ export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo:
     )
   }
   const order = detail.order
-  const actions = availableOrderActions(detail)
+  const actions = role === 'console' ? [] : availableOrderActions(detail)
   async function completed() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ['merchant', name, 'order', tradeNo] }),
@@ -94,7 +95,7 @@ export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo:
       <Summary detail={detail} />
       <Card>
         <SectionHeader title={t('merchant.orders.information')} className="mb-2" />
-        <OrderInformation detail={detail} />
+        <OrderInformation detail={detail} merchant={role === 'console' && <RecordLink to={'/console/merchants/' + order.merchant_id}>{order.merchant_username}</RecordLink>} />
       </Card>
       <Card>
         <SectionHeader title={t('merchant.orders.refundInfo')} className="mb-2" />
@@ -146,7 +147,7 @@ function SummaryItem({ label, className, children }: { label: string; className?
   )
 }
 
-function OrderInformation({ detail }: { detail: Detail }) {
+function OrderInformation({ detail, merchant }: { detail: Detail; merchant?: ReactNode }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'zh-CN'
   const order = detail.order
@@ -155,6 +156,7 @@ function OrderInformation({ detail }: { detail: Detail }) {
   return (
     <DetailList
       items={[
+        { label: t('manage.merchant'), value: merchant || null },
         { label: t('merchant.overview.product'), value: order.name },
         { label: t('merchant.orders.outTradeNo'), value: order.out_trade_no, mono: true },
         { label: t('merchant.orders.originalAmount'), value: adjusted ? money(order.original_cents, language) : null },

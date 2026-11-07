@@ -31,8 +31,8 @@ export function PortalBrand({ to, tag, onClose }: { to: string; tag?: string; on
   return <Link to={to} onClick={onClose} className="flex min-h-11 items-center gap-2.5 rounded-control px-2"><LogoMark /><span className="font-serif text-xl font-medium">{t('common.brand')}</span>{tag && <PortalBrandTag>{tag}</PortalBrandTag>}</Link>
 }
 
-export function PortalNavigation({ title, items, onClose }: { title: string; items: { path: string; label: string; icon: LucideIcon }[]; onClose: () => void }) {
-  return <nav aria-label={title} className="flex flex-col gap-1">{items.map((item) => <Link key={item.path} to={item.path} onClick={onClose} activeOptions={{ exact: true }} activeProps={{ 'aria-current': 'page', className: 'bg-hover text-text' }} inactiveProps={{ className: 'text-text-2' }} className="flex min-h-11 items-center gap-3 rounded-control px-3 text-label transition-colors hover:bg-hover hover:text-text"><item.icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />{item.label}</Link>)}</nav>
+export function PortalNavigation({ title, items, onClose }: { title: string; items: { path: string; label: string; icon: LucideIcon; exact?: boolean }[]; onClose: () => void }) {
+  return <nav aria-label={title} className="flex flex-col gap-1">{items.map((item) => <Link key={item.path} to={item.path} onClick={onClose} activeOptions={{ exact: item.exact ?? true, includeSearch: false }} activeProps={{ 'aria-current': 'page', className: 'bg-hover text-text' }} inactiveProps={{ className: 'text-text-2' }} className="flex min-h-11 items-center gap-3 rounded-control px-3 text-label transition-colors hover:bg-hover hover:text-text"><item.icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />{item.label}</Link>)}</nav>
 }
 
 export function PortalUser({ name, role, to, onClose }: { name: string; role: string; to: string; onClose: () => void }) {

@@ -15,10 +15,10 @@ export function AccountError({ error }: { error: unknown }) {
   const { t } = useTranslation()
   return <Notice tone="error">{t(authErrorKey(error))}</Notice>
 }
-export function AccountField({ label, action, hint, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; action?: ReactNode; hint?: ReactNode }) {
+export function AccountField({ label, action, hint, error, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; action?: ReactNode; hint?: ReactNode; error?: ReactNode }) {
   const id = useId()
-  const input = <Input id={id} aria-describedby={hint ? `${id}-hint` : undefined} {...props} />
-  return <Field htmlFor={id} label={label} hint={hint}>{action ? <InputGroup action={action}>{input}</InputGroup> : input}</Field>
+  const input = <Input id={id} aria-invalid={!!error || undefined} aria-describedby={hint || error ? `${id}-hint` : undefined} {...props} />
+  return <Field htmlFor={id} label={label} hint={hint} error={error}>{action ? <InputGroup action={action}>{input}</InputGroup> : input}</Field>
 }
 export function validPassword(password: string, confirmation: string) { return Array.from(password).length >= 12 && Array.from(password).length <= 128 && password === confirmation }
 export function validUsername(value: string) { return /^[A-Za-z0-9_-]{3,32}$/.test(value.trim()) }

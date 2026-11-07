@@ -28,6 +28,10 @@ import { Route as MerchantSubscriptionRouteImport } from './routes/_merchant.sub
 import { Route as ConsoleIndexRouteImport } from './routes/console.index'
 import { Route as ConsoleSplatRouteImport } from './routes/console.$'
 import { Route as ConsoleAccountRouteImport } from './routes/console.account'
+import { Route as ConsoleMerchantsRouteImport } from './routes/console.merchants'
+import { Route as ConsoleOrdersRouteImport } from './routes/console.orders'
+import { Route as ConsolePlansRouteImport } from './routes/console.plans'
+import { Route as ConsolePurchasesRouteImport } from './routes/console.purchases'
 import { Route as ConsoleLoginRouteImport } from './routes/console_.login'
 import { Route as ConsoleRecoveryRouteImport } from './routes/console_.recovery'
 import { Route as ConsoleSetupRouteImport } from './routes/console_.setup'
@@ -37,6 +41,10 @@ import { Route as MerchantAccountIndexRouteImport } from './routes/_merchant.acc
 import { Route as MerchantAccountLogsRouteImport } from './routes/_merchant.account.logs'
 import { Route as MerchantOrdersIndexRouteImport } from './routes/_merchant.orders.index'
 import { Route as MerchantOrdersTradeNoRouteImport } from './routes/_merchant.orders.$tradeNo'
+import { Route as ConsoleMerchantsIndexRouteImport } from './routes/console.merchants.index'
+import { Route as ConsoleMerchantsIdRouteImport } from './routes/console.merchants.$id'
+import { Route as ConsoleOrdersIndexRouteImport } from './routes/console.orders.index'
+import { Route as ConsoleOrdersTradeNoRouteImport } from './routes/console.orders.$tradeNo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -132,6 +140,26 @@ const ConsoleAccountRoute = ConsoleAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => ConsoleRoute,
 } as any)
+const ConsoleMerchantsRoute = ConsoleMerchantsRouteImport.update({
+  id: '/merchants',
+  path: '/merchants',
+  getParentRoute: () => ConsoleRoute,
+} as any)
+const ConsoleOrdersRoute = ConsoleOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => ConsoleRoute,
+} as any)
+const ConsolePlansRoute = ConsolePlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => ConsoleRoute,
+} as any)
+const ConsolePurchasesRoute = ConsolePurchasesRouteImport.update({
+  id: '/purchases',
+  path: '/purchases',
+  getParentRoute: () => ConsoleRoute,
+} as any)
 const ConsoleLoginRoute = ConsoleLoginRouteImport.update({
   id: '/console_/login',
   path: '/console/login',
@@ -177,6 +205,26 @@ const MerchantOrdersTradeNoRoute = MerchantOrdersTradeNoRouteImport.update({
   path: '/$tradeNo',
   getParentRoute: () => MerchantOrdersRoute,
 } as any)
+const ConsoleMerchantsIndexRoute = ConsoleMerchantsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ConsoleMerchantsRoute,
+} as any)
+const ConsoleMerchantsIdRoute = ConsoleMerchantsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ConsoleMerchantsRoute,
+} as any)
+const ConsoleOrdersIndexRoute = ConsoleOrdersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ConsoleOrdersRoute,
+} as any)
+const ConsoleOrdersTradeNoRoute = ConsoleOrdersTradeNoRouteImport.update({
+  id: '/$tradeNo',
+  path: '/$tradeNo',
+  getParentRoute: () => ConsoleOrdersRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -196,6 +244,10 @@ export interface FileRoutesByFullPath {
   '/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
+  '/console/merchants': typeof ConsoleMerchantsRouteWithChildren
+  '/console/orders': typeof ConsoleOrdersRouteWithChildren
+  '/console/plans': typeof ConsolePlansRoute
+  '/console/purchases': typeof ConsolePurchasesRoute
   '/console/login': typeof ConsoleLoginRoute
   '/console/recovery': typeof ConsoleRecoveryRoute
   '/console/setup': typeof ConsoleSetupRoute
@@ -204,8 +256,12 @@ export interface FileRoutesByFullPath {
   '/console/': typeof ConsoleIndexRoute
   '/account/logs': typeof MerchantAccountLogsRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/console/merchants/$id': typeof ConsoleMerchantsIdRoute
+  '/console/orders/$tradeNo': typeof ConsoleOrdersTradeNoRoute
   '/account/': typeof MerchantAccountIndexRoute
   '/orders/': typeof MerchantOrdersIndexRoute
+  '/console/merchants/': typeof ConsoleMerchantsIndexRoute
+  '/console/orders/': typeof ConsoleOrdersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -222,6 +278,8 @@ export interface FileRoutesByTo {
   '/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
+  '/console/plans': typeof ConsolePlansRoute
+  '/console/purchases': typeof ConsolePurchasesRoute
   '/console/login': typeof ConsoleLoginRoute
   '/console/recovery': typeof ConsoleRecoveryRoute
   '/console/setup': typeof ConsoleSetupRoute
@@ -230,8 +288,12 @@ export interface FileRoutesByTo {
   '/console': typeof ConsoleIndexRoute
   '/account/logs': typeof MerchantAccountLogsRoute
   '/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/console/merchants/$id': typeof ConsoleMerchantsIdRoute
+  '/console/orders/$tradeNo': typeof ConsoleOrdersTradeNoRoute
   '/account': typeof MerchantAccountIndexRoute
   '/orders': typeof MerchantOrdersIndexRoute
+  '/console/merchants': typeof ConsoleMerchantsIndexRoute
+  '/console/orders': typeof ConsoleOrdersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -253,6 +315,10 @@ export interface FileRoutesById {
   '/_merchant/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
+  '/console/merchants': typeof ConsoleMerchantsRouteWithChildren
+  '/console/orders': typeof ConsoleOrdersRouteWithChildren
+  '/console/plans': typeof ConsolePlansRoute
+  '/console/purchases': typeof ConsolePurchasesRoute
   '/console_/login': typeof ConsoleLoginRoute
   '/console_/recovery': typeof ConsoleRecoveryRoute
   '/console_/setup': typeof ConsoleSetupRoute
@@ -261,8 +327,12 @@ export interface FileRoutesById {
   '/console/': typeof ConsoleIndexRoute
   '/_merchant/account/logs': typeof MerchantAccountLogsRoute
   '/_merchant/orders/$tradeNo': typeof MerchantOrdersTradeNoRoute
+  '/console/merchants/$id': typeof ConsoleMerchantsIdRoute
+  '/console/orders/$tradeNo': typeof ConsoleOrdersTradeNoRoute
   '/_merchant/account/': typeof MerchantAccountIndexRoute
   '/_merchant/orders/': typeof MerchantOrdersIndexRoute
+  '/console/merchants/': typeof ConsoleMerchantsIndexRoute
+  '/console/orders/': typeof ConsoleOrdersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -284,6 +354,10 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/console/$'
     | '/console/account'
+    | '/console/merchants'
+    | '/console/orders'
+    | '/console/plans'
+    | '/console/purchases'
     | '/console/login'
     | '/console/recovery'
     | '/console/setup'
@@ -292,8 +366,12 @@ export interface FileRouteTypes {
     | '/console/'
     | '/account/logs'
     | '/orders/$tradeNo'
+    | '/console/merchants/$id'
+    | '/console/orders/$tradeNo'
     | '/account/'
     | '/orders/'
+    | '/console/merchants/'
+    | '/console/orders/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -310,6 +388,8 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/console/$'
     | '/console/account'
+    | '/console/plans'
+    | '/console/purchases'
     | '/console/login'
     | '/console/recovery'
     | '/console/setup'
@@ -318,8 +398,12 @@ export interface FileRouteTypes {
     | '/console'
     | '/account/logs'
     | '/orders/$tradeNo'
+    | '/console/merchants/$id'
+    | '/console/orders/$tradeNo'
     | '/account'
     | '/orders'
+    | '/console/merchants'
+    | '/console/orders'
   id:
     | '__root__'
     | '/'
@@ -340,6 +424,10 @@ export interface FileRouteTypes {
     | '/_merchant/subscription'
     | '/console/$'
     | '/console/account'
+    | '/console/merchants'
+    | '/console/orders'
+    | '/console/plans'
+    | '/console/purchases'
     | '/console_/login'
     | '/console_/recovery'
     | '/console_/setup'
@@ -348,8 +436,12 @@ export interface FileRouteTypes {
     | '/console/'
     | '/_merchant/account/logs'
     | '/_merchant/orders/$tradeNo'
+    | '/console/merchants/$id'
+    | '/console/orders/$tradeNo'
     | '/_merchant/account/'
     | '/_merchant/orders/'
+    | '/console/merchants/'
+    | '/console/orders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -501,6 +593,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsoleAccountRouteImport
       parentRoute: typeof ConsoleRoute
     }
+    '/console/merchants': {
+      id: '/console/merchants'
+      path: '/merchants'
+      fullPath: '/console/merchants'
+      preLoaderRoute: typeof ConsoleMerchantsRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/console/orders': {
+      id: '/console/orders'
+      path: '/orders'
+      fullPath: '/console/orders'
+      preLoaderRoute: typeof ConsoleOrdersRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/console/plans': {
+      id: '/console/plans'
+      path: '/plans'
+      fullPath: '/console/plans'
+      preLoaderRoute: typeof ConsolePlansRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/console/purchases': {
+      id: '/console/purchases'
+      path: '/purchases'
+      fullPath: '/console/purchases'
+      preLoaderRoute: typeof ConsolePurchasesRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
     '/console_/login': {
       id: '/console_/login'
       path: '/console/login'
@@ -564,6 +684,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantOrdersTradeNoRouteImport
       parentRoute: typeof MerchantOrdersRoute
     }
+    '/console/merchants/': {
+      id: '/console/merchants/'
+      path: '/'
+      fullPath: '/console/merchants/'
+      preLoaderRoute: typeof ConsoleMerchantsIndexRouteImport
+      parentRoute: typeof ConsoleMerchantsRoute
+    }
+    '/console/merchants/$id': {
+      id: '/console/merchants/$id'
+      path: '/$id'
+      fullPath: '/console/merchants/$id'
+      preLoaderRoute: typeof ConsoleMerchantsIdRouteImport
+      parentRoute: typeof ConsoleMerchantsRoute
+    }
+    '/console/orders/': {
+      id: '/console/orders/'
+      path: '/'
+      fullPath: '/console/orders/'
+      preLoaderRoute: typeof ConsoleOrdersIndexRouteImport
+      parentRoute: typeof ConsoleOrdersRoute
+    }
+    '/console/orders/$tradeNo': {
+      id: '/console/orders/$tradeNo'
+      path: '/$tradeNo'
+      fullPath: '/console/orders/$tradeNo'
+      preLoaderRoute: typeof ConsoleOrdersTradeNoRouteImport
+      parentRoute: typeof ConsoleOrdersRoute
+    }
   }
 }
 
@@ -625,15 +773,50 @@ const MerchantRouteWithChildren = MerchantRoute._addFileChildren(
   MerchantRouteChildren,
 )
 
+interface ConsoleMerchantsRouteChildren {
+  ConsoleMerchantsIdRoute: typeof ConsoleMerchantsIdRoute
+  ConsoleMerchantsIndexRoute: typeof ConsoleMerchantsIndexRoute
+}
+
+const ConsoleMerchantsRouteChildren: ConsoleMerchantsRouteChildren = {
+  ConsoleMerchantsIdRoute: ConsoleMerchantsIdRoute,
+  ConsoleMerchantsIndexRoute: ConsoleMerchantsIndexRoute,
+}
+
+const ConsoleMerchantsRouteWithChildren =
+  ConsoleMerchantsRoute._addFileChildren(ConsoleMerchantsRouteChildren)
+
+interface ConsoleOrdersRouteChildren {
+  ConsoleOrdersTradeNoRoute: typeof ConsoleOrdersTradeNoRoute
+  ConsoleOrdersIndexRoute: typeof ConsoleOrdersIndexRoute
+}
+
+const ConsoleOrdersRouteChildren: ConsoleOrdersRouteChildren = {
+  ConsoleOrdersTradeNoRoute: ConsoleOrdersTradeNoRoute,
+  ConsoleOrdersIndexRoute: ConsoleOrdersIndexRoute,
+}
+
+const ConsoleOrdersRouteWithChildren = ConsoleOrdersRoute._addFileChildren(
+  ConsoleOrdersRouteChildren,
+)
+
 interface ConsoleRouteChildren {
   ConsoleSplatRoute: typeof ConsoleSplatRoute
   ConsoleAccountRoute: typeof ConsoleAccountRoute
+  ConsoleMerchantsRoute: typeof ConsoleMerchantsRouteWithChildren
+  ConsoleOrdersRoute: typeof ConsoleOrdersRouteWithChildren
+  ConsolePlansRoute: typeof ConsolePlansRoute
+  ConsolePurchasesRoute: typeof ConsolePurchasesRoute
   ConsoleIndexRoute: typeof ConsoleIndexRoute
 }
 
 const ConsoleRouteChildren: ConsoleRouteChildren = {
   ConsoleSplatRoute: ConsoleSplatRoute,
   ConsoleAccountRoute: ConsoleAccountRoute,
+  ConsoleMerchantsRoute: ConsoleMerchantsRouteWithChildren,
+  ConsoleOrdersRoute: ConsoleOrdersRouteWithChildren,
+  ConsolePlansRoute: ConsolePlansRoute,
+  ConsolePurchasesRoute: ConsolePurchasesRoute,
   ConsoleIndexRoute: ConsoleIndexRoute,
 }
 

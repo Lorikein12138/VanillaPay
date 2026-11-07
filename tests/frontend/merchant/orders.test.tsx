@@ -36,6 +36,24 @@ function mount(path = '/orders') {
 }
 
 describe('order filters and cursor pagination', () => {
+  it('keeps an unsafe integer as text in a direct order search, list and CSV export', async () => {
+    const query = '9007199254740993'
+    const lists: URL[] = [], exports: URL[] = []
+    server.use(http.get('*/api/v1/merchant/orders', ({ request }) => {
+      lists.push(new URL(request.url))
+      return success({ items: [], total: 0, next_cursor: null })
+    }), http.get('*/api/v1/merchant/orders/export.csv', ({ request }) => {
+      exports.push(new URL(request.url))
+      return failure(409, 'VERSION_CONFLICT')
+    }))
+    mount('/orders?query=' + query)
+    expect(await screen.findByLabelText('搜索订单')).toHaveValue(query)
+    await waitFor(() => expect(lists[0]?.searchParams.get('query')).toBe(query))
+    await userEvent.click(screen.getByRole('button', { name: '导出 CSV' }))
+    await screen.findByRole('alert')
+    expect(exports[0]?.searchParams.get('query')).toBe(query)
+  })
+
   it('clears unsubmitted fields when reset keeps the same empty URL', async () => {
     const { router } = mount()
     const actor = userEvent.setup()

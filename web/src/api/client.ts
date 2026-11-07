@@ -57,17 +57,17 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true,
 }
 
 type OrdersQuery = NonNullable<operations['get_api_v1_merchant_orders']['parameters']['query']>
-function queryString(value: Record<string, string | number | undefined>) {
+function queryString(value: Record<string, string | number | boolean | undefined>) {
   return new URLSearchParams(Object.entries(value).filter(([, item]) => item !== undefined && item !== '').map(([key, item]) => [key, String(item)]))
 }
 
-async function exportOrders(filters: OrdersQuery) {
+async function exportOrders(filters: OrdersQuery, role: Role = 'merchant') {
   let response: Response
-  try { response = await fetch(`/api/v1/merchant/orders/export.csv?${queryString(filters)}`, { credentials: 'include', headers: { Accept: 'text/csv' } }) }
+  try { response = await fetch(`/api/v1/${role}/orders/export.csv?${queryString(filters)}`, { credentials: 'include', headers: { Accept: 'text/csv' } }) }
   catch { throw new APIError(0) }
   if (!response.ok) {
     const envelope = await response.json().catch(() => null) as Schema['ErrorEnvelope'] | null
-    rejectResponse(response, envelope?.error)
+    rejectResponse(response, envelope?.error, true, role)
   }
   let filename = `orders-${new Date().toISOString().slice(0, 10)}.csv`
   const supplied = /filename\*?=(?:UTF-8''|"?)([^";]+)/i.exec(response.headers.get('Content-Disposition') ?? '')?.[1]
@@ -152,6 +152,20 @@ export const api = {
 
 export type ConsoleRecovery = NonNullable<operations['post_api_v1_console_recovery']['responses'][200]['content']['application/json']['data']>
 export const consoleApi = {
+  merchants: (filters: NonNullable<operations['get_api_v1_console_merchants']['parameters']['query']>, signal?: AbortSignal) => request<Schema['ConsoleMerchantPage']>(`/api/v1/console/merchants?${queryString(filters)}`, undefined, true, undefined, 'GET', signal),
+  merchant: (id: string, signal?: AbortSignal) => request<Schema['ConsoleMerchantDetail']>(`/api/v1/console/merchants/${encodeURIComponent(id)}`, undefined, true, undefined, 'GET', signal),
+  createMerchant: (value: Schema['MerchantCreateMerchant']) => request<Schema['AuthUserDTO']>('/api/v1/console/merchants', value),
+  banMerchant: (id: string, value: operations['post_api_v1_console_merchants_id_ban']['requestBody']['content']['application/json']) => request<Schema['MerchantBanResult']>(`/api/v1/console/merchants/${encodeURIComponent(id)}/ban`, value),
+  unbanMerchant: (id: string) => request<Schema['AuthUserDTO']>(`/api/v1/console/merchants/${encodeURIComponent(id)}/unban`, {}),
+  resetMerchantPassword: (id: string, value: operations['post_api_v1_console_merchants_id_reset_password']['requestBody']['content']['application/json']) => request<null>(`/api/v1/console/merchants/${encodeURIComponent(id)}/reset-password`, value),
+  grantSubscription: (id: string, value: Schema['SubscriptionGrantRequest']) => request<Schema['SubscriptionSubscriptionDTO']>(`/api/v1/console/merchants/${encodeURIComponent(id)}/subscription`, value, true, undefined, 'PUT'),
+  plans: (include_deleted = false, signal?: AbortSignal) => request<Schema['PlansPage']>(`/api/v1/console/plans?${queryString({ include_deleted })}`, undefined, true, undefined, 'GET', signal),
+  savePlan: (value: Schema['SubscriptionPlanCommand']) => request<Schema['SubscriptionPlanDTO']>(value.id ? `/api/v1/console/plans/${encodeURIComponent(value.id)}` : '/api/v1/console/plans', value, true, undefined, value.id ? 'PUT' : 'POST'),
+  deletePlan: (id: string, revision: number) => request<Schema['SubscriptionDeletedPlanResult']>(`/api/v1/console/plans/${encodeURIComponent(id)}`, { revision }, true, undefined, 'DELETE'),
+  purchases: (filters: NonNullable<operations['get_api_v1_console_purchases']['parameters']['query']>, signal?: AbortSignal) => request<Schema['SubscriptionPurchasePage']>(`/api/v1/console/purchases?${queryString(filters)}`, undefined, true, undefined, 'GET', signal),
+  orderPage: (filters: OrdersQuery) => request<Schema['OrdersPage']>(`/api/v1/console/orders?${queryString(filters)}`),
+  order: (tradeNo: string) => request<Schema['OrderDetail']>(`/api/v1/console/orders/${encodeURIComponent(tradeNo)}`),
+  exportOrders: (filters: OrdersQuery) => exportOrders(filters, 'console'),
   bootstrapStatus: () => request<NonNullable<operations['get_api_v1_console_bootstrap_status']['responses'][200]['content']['application/json']['data']>>('/api/v1/console/bootstrap-status', undefined, false),
   bootstrap: async (value: Schema['AuthBootstrapRequest']) => remember(await request<Schema['AuthSessionResult']>('/api/v1/console/bootstrap', value, false), 'console'),
   async login(value: Schema['AuthLoginRequest']) {

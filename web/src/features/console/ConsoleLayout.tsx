@@ -28,7 +28,7 @@ function ConsoleContent() {
   }
   return <PortalShell title={t('console.navigation')} open={open} onOpenChange={setOpen} menu={menu}
     logo={<PortalBrand to="/console" tag={t('console.manage')} onClose={close} />}
-    navigation={<PortalNavigation title={t('console.navigation')} items={consoleNavigation.filter((item) => item.enabled).map((item) => ({ ...item, label: t(`console.nav.${item.key}`) }))} onClose={close} />}
+    navigation={<PortalNavigation title={t('console.navigation')} items={consoleNavigation.filter((item) => item.enabled).map((item) => ({ ...item, exact: item.key === 'overview', label: t(`console.nav.${item.key}`) }))} onClose={close} />}
     userBlock={<PortalUser name={account.user.username} role={t('console.admin')} to="/console/account" onClose={close} />}
     controls={<><LanguageSwitch /><ThemeSwitch /><Button variant="ghost" loading={action.busy} disabled={account.busy} onClick={() => void logout()}><LogOut aria-hidden="true" />{t('merchant.logout')}</Button></>}
     problem={action.error != null && <AccountError error={action.error} />}><Outlet /></PortalShell>
