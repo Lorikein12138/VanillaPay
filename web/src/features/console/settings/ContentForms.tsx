@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
+import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox, Select, Textarea } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
-import { SectionHeader } from '@/components/ui/layout'
+import { Card, SectionHeader } from '@/components/ui/layout'
 import { AccountField } from '@/features/auth/account-shared'
 import { newFooterItem, type Schema as S } from '../settings-data'
 
@@ -73,10 +74,58 @@ export function FooterForm({
   }
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-3">
+        <SectionHeader as="h3" title={t('consoleSettings.footerLinks')} className="mb-0" />
+        {items.length === 0 && <p className="m-0 text-label text-text-3">{t('consoleSettings.footerEmpty')}</p>}
         {items.map((item, index) => (
-          <div key={item.id} className="space-y-4 border-b-[0.5px] border-border pb-5">
-            <FieldGrid>
+          <Card key={item.id} className="space-y-3 p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="m-0 text-label font-medium">{t('consoleSettings.footerItemNumber', { number: index + 1 })}</p>
+              <div className="flex items-center">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t('consoleSettings.moveUp')}
+                  title={t('consoleSettings.moveUp')}
+                  disabled={index === 0}
+                  onClick={() => {
+                    const next = [...items]
+                    const previous = next[index - 1]!
+                    next[index - 1] = next[index]!
+                    next[index] = previous
+                    onChange({ ...value, items: next })
+                  }}
+                >
+                  <ArrowUp aria-hidden="true" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t('consoleSettings.moveDown')}
+                  title={t('consoleSettings.moveDown')}
+                  disabled={index === items.length - 1}
+                  onClick={() => {
+                    const next = [...items]
+                    const following = next[index + 1]!
+                    next[index + 1] = next[index]!
+                    next[index] = following
+                    onChange({ ...value, items: next })
+                  }}
+                >
+                  <ArrowDown aria-hidden="true" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="danger"
+                  aria-label={t('consoleSettings.remove')}
+                  title={t('consoleSettings.remove')}
+                  onClick={() => onChange({ ...value, items: items.filter((_, i) => i !== index) })}
+                >
+                  <Trash2 aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+            <FieldGrid className="grid-cols-1 sm:grid-cols-2">
               <AccountField
                 label={t('consoleSettings.footerZh')}
                 value={item.label.zh_CN}
@@ -102,57 +151,20 @@ export function FooterForm({
                 onChange={(e) => replaceItem(index, { url: e.target.value || null })}
               />
             </FieldGrid>
-            <div className="flex flex-wrap items-center gap-2">
-              <Checkbox
-                checked={item.enabled}
-                onChange={(e) => replaceItem(index, { enabled: e.target.checked })}
-              >
-                {t('consoleSettings.enabled')}
-              </Checkbox>
-              <Button
-                size="sm"
-                disabled={index === 0}
-                onClick={() => {
-                  const next = [...items]
-                  const previous = next[index - 1]!
-                  next[index - 1] = next[index]!
-                  next[index] = previous
-                  onChange({ ...value, items: next })
-                }}
-              >
-                {t('consoleSettings.moveUp')}
-              </Button>
-              <Button
-                size="sm"
-                disabled={index === items.length - 1}
-                onClick={() => {
-                  const next = [...items]
-                  const following = next[index + 1]!
-                  next[index + 1] = next[index]!
-                  next[index] = following
-                  onChange({ ...value, items: next })
-                }}
-              >
-                {t('consoleSettings.moveDown')}
-              </Button>
-              <Button
-                size="sm"
-                variant="dangerOutline"
-                onClick={() => onChange({ ...value, items: items.filter((_, i) => i !== index) })}
-              >
-                {t('consoleSettings.remove')}
-              </Button>
-            </div>
-          </div>
+            <Checkbox checked={item.enabled} onChange={(e) => replaceItem(index, { enabled: e.target.checked })}>
+              {t('consoleSettings.enabled')}
+            </Checkbox>
+          </Card>
         ))}
+        {errors.items && <p className="m-0 text-caption text-danger">{errorText('items')}</p>}
+        <Button
+          className="self-start"
+          disabled={items.length >= 50}
+          onClick={() => onChange({ ...value, items: [...items, newFooterItem()] })}
+        >
+          {t('consoleSettings.addFooter')}
+        </Button>
       </div>
-      {errors.items && <p className="m-0 text-caption text-danger">{errorText('items')}</p>}
-      <Button
-        disabled={items.length >= 50}
-        onClick={() => onChange({ ...value, items: [...items, newFooterItem()] })}
-      >
-        {t('consoleSettings.addFooter')}
-      </Button>
       <Notice tone="info">{t('consoleSettings.legalVersionNotice')}</Notice>
       {(['terms', 'privacy'] as const).map((kind) => (
         <div key={kind} className="space-y-3">

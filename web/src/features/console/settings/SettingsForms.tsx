@@ -56,7 +56,6 @@ export function SettingsForms({
           value={groupValue(group, settings)}
           onChange={(value) => update(group, value)}
           configured={settings.mail.password_configured}
-          dirty={!!editor.drafts.mail}
           errorText={errorText}
           {...secretProps}
         />

@@ -27,7 +27,14 @@ async function control(page: Page, name: string) {
   const drawer = page.getByRole('dialog', { name: '管理控制台', exact: true })
   if (await drawer.isVisible()) await page.keyboard.press('Escape')
 }
-async function shots(page: Page, state: string, authenticated = false, drawer = false, directory = 'console-auth-shots') {
+async function shots(
+  page: Page,
+  state: string,
+  authenticated = false,
+  drawer = false,
+  directory = 'console-auth-shots',
+  passwords: 'mask' | 'assert-empty' = 'mask',
+) {
   for (const width of drawer ? [360] : [360, 1280]) {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
     for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
@@ -41,12 +48,12 @@ async function shots(page: Page, state: string, authenticated = false, drawer = 
         await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
         await page.keyboard.press('Escape')
       } else await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
-      await polishShot(page, state, !drawer, directory)
+      await polishShot(page, state, !drawer, directory, passwords)
       if (drawer) await page.keyboard.press('Escape')
     }
   }
 }
-async function settingsStateShots(page: Page, name: string, fullPage = false) {
+async function settingsStateShots(page: Page, name: string, fullPage = false, passwords: 'mask' | 'assert-empty' = 'mask') {
   if (await page.getByRole('dialog').count()) {
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
@@ -56,8 +63,8 @@ async function settingsStateShots(page: Page, name: string, fullPage = false) {
     const saved = page.waitForResponse((response) => response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH')
     await control(page, '深色')
     expect((await saved).status()).toBe(200)
-    await page.getByRole('checkbox', { name: '清除密钥' }).click()
-    await expect(page.getByRole('dialog', { name: '清除密钥' })).toBeVisible()
+    await page.getByRole('button', { name: '清除人机验证密钥' }).click()
+    await expect(page.getByRole('dialog', { name: '清除人机验证密钥' })).toBeVisible()
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
       await polishShot(page, `settings-${name}`, false, 'console-settings-shots', 'assert-empty')
@@ -69,7 +76,7 @@ async function settingsStateShots(page: Page, name: string, fullPage = false) {
     for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
       await control(page, label)
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-      await polishShot(page, `settings-${name}`, fullPage, 'console-settings-shots')
+      await polishShot(page, `settings-${name}`, fullPage, 'console-settings-shots', passwords)
     }
   }
 }
@@ -136,16 +143,18 @@ test('manages platform settings, protects stored secrets and captures every grou
   await page.getByLabel('用户名').fill('mailer')
   await page.getByLabel('发件邮箱').fill('sender@example.test')
   await page.getByLabel('发件人名称').fill('E2E Sender')
-  await page.getByLabel('邮件密码').fill('e2e-secret-value')
+  const mailPassword = page.getByLabel('邮件密码', { exact: true })
+  const replacementPassword = crypto.randomUUID()
+  await mailPassword.fill(replacementPassword)
   const firstMailSave = page.waitForResponse((response) => response.url().endsWith('/console/settings/mail') && response.request().method() === 'PUT')
   await page.getByRole('button', { name: '保存邮件设置' }).click()
   const firstMailResponse = await firstMailSave
   expect(firstMailResponse.status()).toBe(200)
   const firstMailBody = firstMailResponse.request().postDataJSON() as { value: Record<string, unknown> }
-  expect(firstMailBody.value.password).toBe('e2e-secret-value')
-  await expect(page.getByLabel('邮件密码')).toHaveValue('')
+  expect(firstMailBody.value.password).toBe(replacementPassword)
+  await expect(mailPassword).toHaveValue('')
   await page.reload()
-  await expect(page.getByLabel('邮件密码')).toHaveAccessibleDescription('已配置；留空会保留当前密钥。')
+  await expect(mailPassword).toHaveAccessibleDescription('已配置；留空会保留当前密钥。')
   await page.getByLabel('邮件服务器').fill('mail-updated.e2e.example.test')
   const secondMailSave = page.waitForResponse((response) => response.url().endsWith('/console/settings/mail') && response.request().method() === 'PUT')
   await page.getByRole('button', { name: '保存邮件设置' }).click()
@@ -157,7 +166,25 @@ test('manages platform settings, protects stored secrets and captures every grou
   for (const group of ['site', 'home', 'footer_legal', 'mail', 'security', 'payment', 'billing']) {
     await page.goto(`/console/settings?group=${group}`)
     await expect(page.locator('main')).toBeVisible()
-    await shots(page, `settings-${group}`, true, false, 'console-settings-shots')
+    if (group === 'footer_legal') {
+      await expect(page.getByText('暂无页脚链接，访客页面底部将不显示链接。')).toBeVisible()
+      await settingsStateShots(page, 'footer-empty', true)
+      const addFooter = page.getByRole('button', { name: '新增页脚项目' })
+      await addFooter.click()
+      await addFooter.click()
+      const footerLabels = page.getByLabel('中文名称', { exact: true })
+      await footerLabels.nth(0).fill('帮助中心')
+      await footerLabels.nth(1).fill('服务时间')
+      const englishLabels = page.getByLabel('英文名称', { exact: true })
+      await englishLabels.nth(0).fill('Help center')
+      await englishLabels.nth(1).fill('Support hours')
+      await page.getByLabel('说明文字', { exact: true }).nth(1).fill('周一至周五 09:00–18:00')
+      const urls = page.getByLabel('链接地址', { exact: true })
+      await urls.nth(0).fill('https://support.example.test')
+      await expect(urls.nth(1)).toBeVisible()
+      await expect(urls.nth(1)).toHaveValue('')
+    }
+    await shots(page, `settings-${group}`, true, false, 'console-settings-shots', 'assert-empty')
   }
 
   await page.goto('/console/settings?group=site')
@@ -185,11 +212,18 @@ test('manages platform settings, protects stored secrets and captures every grou
   const lightTheme = page.waitForResponse((response) => response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH')
   await control(page, '浅色')
   expect((await lightTheme).status()).toBe(200)
-  await page.getByRole('checkbox', { name: '清除密钥' }).click()
-  await expect(page.getByRole('dialog', { name: '清除密钥' })).toBeVisible()
+  await page.getByRole('button', { name: '清除人机验证密钥' }).click()
+  await expect(page.getByRole('dialog', { name: '清除人机验证密钥' })).toBeVisible()
   await expect(page.getByRole('link', { name: '恢复入口' })).toHaveAttribute('href', '/console/recovery')
   await settingsStateShots(page, 'clear-secret-confirmation')
-  await page.getByRole('button', { name: '取消' }).click()
+  await page.getByRole('button', { name: '确认清除' }).click()
+  await expect(page.getByPlaceholder('保存后将清除')).toBeDisabled()
+  await expect(page.getByRole('button', { name: '撤销清除' })).toBeVisible()
+  await settingsStateShots(page, 'secret-pending-clear', true, 'assert-empty')
+  await page.getByRole('button', { name: '撤销清除' }).click()
+  await page.getByRole('checkbox', { name: '限制注册邮箱域名' }).check()
+  await page.getByLabel('允许的邮箱域名（每行一个）').fill('example.test\nshop.example.test')
+  await settingsStateShots(page, 'security-restricted', true)
   await page.unroute('**/api/v1/console/settings')
 
   await page.goto('/console/settings?group=mail')
@@ -197,17 +231,23 @@ test('manages platform settings, protects stored secrets and captures every grou
   await page.route('**/api/v1/console/settings/mail/test', (route) => route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ data: { delivery_id: 'e2e-delivery', state: 'queued' } }) }))
   await page.route('**/api/v1/console/settings/mail/test/*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { id: 'e2e-delivery', state: 'sent', error_code: null } }) }))
   await page.getByRole('button', { name: '发送测试邮件' }).click()
-  await expect(page.getByText('测试邮件已发出。')).toBeVisible({ timeout: 8000 })
-  await settingsStateShots(page, 'mail-test-sent')
+  const mailTest = page.getByRole('region', { name: '测试邮件' })
+  const mailSent = mailTest.getByText('测试邮件已发出。', { exact: true })
+  const mailFailed = mailTest.getByText('邮件发送失败，后台会自动重试几次。', { exact: true })
+  await expect(mailSent).toBeVisible({ timeout: 8000 })
+  await expect(mailFailed).toHaveCount(0)
+  await settingsStateShots(page, 'mail-test-sent', true, 'assert-empty')
   await page.unroute('**/api/v1/console/settings/mail/test/*')
   await page.route('**/api/v1/console/settings/mail/test/*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { id: 'e2e-delivery', state: 'failed', error_code: 'smtp_delivery_failed' } }) }))
   await page.getByRole('button', { name: '发送测试邮件' }).click()
-  await expect(page.getByText('邮件发送失败，后台会自动重试几次。')).toBeVisible({ timeout: 8000 })
-  await settingsStateShots(page, 'mail-test-failed')
+  await expect(mailFailed).toBeVisible({ timeout: 8000 })
+  await expect(mailSent).toHaveCount(0)
+  await settingsStateShots(page, 'mail-test-failed', true, 'assert-empty')
   await page.unroute('**/api/v1/console/settings/mail/test')
   await page.unroute('**/api/v1/console/settings/mail/test/*')
 
-  await page.getByRole('checkbox', { name: '清除密钥' }).click()
+  await page.reload()
+  await page.getByRole('button', { name: '清除邮件密码' }).click()
   await page.getByRole('button', { name: '确认清除' }).click()
   await page.route('**/api/v1/console/settings', async (route) => {
     const response = await route.fetch()
@@ -224,18 +264,29 @@ test('manages platform settings, protects stored secrets and captures every grou
   await expect(page.getByLabel('我已查看最新内容')).toBeVisible()
   await expect(page.getByText('已配置', { exact: true })).toBeVisible()
   await expect(saveMail).toBeDisabled()
-  await settingsStateShots(page, 'secret-version-conflict', true)
+  await settingsStateShots(page, 'secret-version-conflict', true, 'assert-empty')
   await page.unroute('**/api/v1/console/settings/mail')
   await page.unroute('**/api/v1/console/settings')
 
   await page.route('**/api/v1/console/settings', async (route) => {
     const response = await route.fetch(), body = await response.json() as { data: { billing: Record<string, unknown> } }
-    body.data.billing.credential_valid = false
+    Object.assign(body.data.billing, {
+      credential_valid: false,
+      merchant_id: 51,
+      merchant_pid: '1000000000000051',
+      key_configured: true,
+    })
     await route.fulfill({ response, json: body })
   })
   await page.goto('/console/settings?group=billing')
   await expect(page.getByText('订阅收款当前不可用，请重新填写商户号和密钥。')).toBeVisible()
-  await settingsStateShots(page, 'billing-invalid')
+  await expect(page.getByLabel('商户号')).toHaveAccessibleDescription('已关联商户 #51')
+  await expect(page.getByRole('link', { name: '#51' })).toHaveAttribute('href', '/console/merchants/51')
+  await expect(page.getByLabel('商户密钥')).toHaveAccessibleDescription(
+    '已配置；留空会保留当前密钥。 需先清空商户号，才能清除已配置的密钥。',
+  )
+  await expect(page.getByRole('button', { name: '清除商户密钥' })).toHaveCount(0)
+  await settingsStateShots(page, 'billing-invalid', false, 'assert-empty')
   await page.unroute('**/api/v1/console/settings')
 
   await page.goto('/console/settings?group=site')

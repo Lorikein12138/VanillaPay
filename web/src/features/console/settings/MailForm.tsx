@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
-import { SectionHeader } from '@/components/ui/layout'
+import { Card, SectionHeader } from '@/components/ui/layout'
 import { AccountField } from '@/features/auth/account-shared'
 import type { SettingsDrafts } from '../settings-data'
 import { SecretField, type SecretProps } from './SecretField'
@@ -13,7 +13,6 @@ import { useMailTest } from './useMailTest'
 export function MailForm({
   value,
   configured,
-  dirty,
   secret,
   onSecret,
   onChange,
@@ -21,20 +20,11 @@ export function MailForm({
 }: SecretProps & {
   value: SettingsDrafts['mail']
   configured: boolean
-  dirty: boolean
   onChange: (value: SettingsDrafts['mail']) => void
   errorText: (key: string) => string | undefined
 }) {
   const { t } = useTranslation()
-  const [recipient, setRecipient] = useState('')
-  const { state, send } = useMailTest()
   const patch = (fields: Partial<SettingsDrafts['mail']>) => onChange({ ...value, ...fields })
-  const messages = {
-    queued: 'mailQueued',
-    sent: 'mailSent',
-    failed: 'mailFailed',
-    timeout: 'mailTimeout',
-  } as const
   return (
     <div className="space-y-5">
       <FieldGrid>
@@ -87,34 +77,48 @@ export function MailForm({
         secret={secret}
         onSecret={onSecret}
       />
-      <SectionHeader
-        as="h3"
-        title={t('consoleSettings.testMail')}
-        description={t('consoleSettings.testMailSavedConfig')}
-      />
-      <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-        <div className="min-w-0 flex-1">
+    </div>
+  )
+}
+
+export function MailTestCard({ dirty, busy }: { dirty: boolean; busy: boolean }) {
+  const { t } = useTranslation()
+  const [recipient, setRecipient] = useState('')
+  const { state, send } = useMailTest()
+  const messages = {
+    queued: 'mailQueued',
+    sent: 'mailSent',
+    failed: 'mailFailed',
+    timeout: 'mailTimeout',
+  } as const
+  return (
+    <Card aria-label={t('consoleSettings.testMail')}>
+      <SectionHeader title={t('consoleSettings.testMail')} description={t('consoleSettings.testMailSavedConfig')} />
+      <fieldset disabled={busy} className="m-0 min-w-0 space-y-3 border-0 p-0">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
           <Input
+            className="min-w-0 sm:flex-1"
             type="email"
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
+            aria-label={t('consoleSettings.recipient')}
             placeholder={t('consoleSettings.recipient')}
           />
+          <Button
+            variant="primary"
+            disabled={dirty || state === 'queued' || !recipient.includes('@')}
+            onClick={() => void send(recipient)}
+          >
+            {t('consoleSettings.sendTest')}
+          </Button>
         </div>
-        <Button
-          variant="primary"
-          disabled={dirty || state === 'queued' || !recipient.includes('@')}
-          onClick={() => void send(recipient)}
-        >
-          {t('consoleSettings.sendTest')}
-        </Button>
-      </div>
-      {dirty && <p className="m-0 text-caption text-text-3">{t('consoleSettings.saveBeforeTest')}</p>}
-      {state !== 'idle' && (
-        <Notice tone={state === 'sent' ? 'success' : state === 'failed' ? 'error' : 'info'}>
-          {t(`consoleSettings.${messages[state]}`)}
-        </Notice>
-      )}
-    </div>
+        {dirty && <p className="m-0 text-caption text-text-3">{t('consoleSettings.saveBeforeTest')}</p>}
+        {state !== 'idle' && (
+          <Notice tone={state === 'sent' ? 'success' : state === 'failed' ? 'error' : 'info'}>
+            {t(`consoleSettings.${messages[state]}`)}
+          </Notice>
+        )}
+      </fieldset>
+    </Card>
   )
 }

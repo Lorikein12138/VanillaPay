@@ -173,7 +173,7 @@ describe('console settings page', () => {
     )
     const actor = userEvent.setup()
     mount('/console/settings?group=mail')
-    await actor.click(await screen.findByRole('checkbox', { name: '清除密钥' }))
+    await actor.click(await screen.findByRole('button', { name: '清除邮件密码' }))
     await actor.click(screen.getByRole('button', { name: '确认清除' }))
     const save = screen.getByRole('button', { name: '保存邮件设置' })
     await actor.click(save)
@@ -441,8 +441,12 @@ describe('console settings page', () => {
       if (operation === 'replace') {
         fireEvent.change(password, { target: { value: replacement } })
       } else {
-        await actor.click(screen.getByRole('checkbox', { name: '清除密钥' }))
-        await actor.click(screen.getByRole('button', { name: '确认清除' }))
+        await actor.click(screen.getByRole('button', { name: '清除邮件密码' }))
+        const dialog = screen.getByRole('dialog', { name: '清除邮件密码' })
+        await actor.click(within(dialog).getByRole('button', { name: '确认清除' }))
+        expect(password).toBeDisabled()
+        expect(password).toHaveAttribute('placeholder', '保存后将清除')
+        expect(password).toHaveAccessibleDescription('保存后将清除当前邮件密码。')
       }
       await actor.type(screen.getByPlaceholderText('收件人邮箱'), 'ops@example.test')
       const send = screen.getByRole('button', { name: '发送测试邮件' })
@@ -465,6 +469,58 @@ describe('console settings page', () => {
       expect(screen.queryByRole('dialog', { name: '离开系统设置？' })).not.toBeInTheDocument()
     },
   )
+
+  it('omits the password from a save after undoing a confirmed clear', async () => {
+    const bodies = recordSaves()
+    const actor = userEvent.setup()
+    mount('/console/settings?group=mail')
+    const password = await screen.findByLabelText('邮件密码')
+    await actor.click(screen.getByRole('button', { name: '清除邮件密码' }))
+    await actor.click(screen.getByRole('button', { name: '确认清除' }))
+    await actor.click(screen.getByRole('button', { name: '撤销清除' }))
+    expect(password).toBeEnabled()
+    expect(password).toHaveAccessibleDescription('已配置；留空会保留当前密钥。')
+    fireEvent.change(screen.getByLabelText('邮件服务器'), { target: { value: 'smtp.changed.test' } })
+    await actor.click(screen.getByRole('button', { name: '保存邮件设置' }))
+    await screen.findByText('邮件发送设置已保存。')
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0]?.value).not.toHaveProperty('password')
+  })
+
+  it('retains and submits domains when the restriction is hidden and shown again', async () => {
+    const bodies = recordSaves()
+    const actor = userEvent.setup()
+    const domains = ['example.test', 'shop.example.test']
+    mount('/console/settings?group=security')
+    const restriction = await screen.findByRole('checkbox', { name: '限制注册邮箱域名' })
+    const domainLabel = '允许的邮箱域名（每行一个）'
+    expect(screen.queryByLabelText(domainLabel)).not.toBeInTheDocument()
+    await actor.click(restriction)
+    fireEvent.change(screen.getByLabelText(domainLabel), { target: { value: domains.join('\n') } })
+    await actor.click(restriction)
+    expect(screen.queryByLabelText(domainLabel)).not.toBeInTheDocument()
+    const save = screen.getByRole('button', { name: '保存安全设置' })
+    await actor.click(save)
+    await waitFor(() => expect(bodies).toHaveLength(1))
+    await waitFor(() => expect(restriction).toBeEnabled())
+    expect(bodies[0]?.value).toMatchObject({ restrict_email_domains: false, email_domains: domains })
+    await actor.click(restriction)
+    expect(screen.getByLabelText(domainLabel)).toHaveValue(domains.join('\n'))
+    await actor.click(save)
+    await waitFor(() => expect(bodies).toHaveLength(2))
+    expect(bodies[1]?.value).toMatchObject({ restrict_email_domains: true, email_domains: domains })
+  })
+
+  it('shows the empty footer state until a link is added', async () => {
+    const actor = userEvent.setup()
+    mount('/console/settings?group=footer_legal')
+    expect(await screen.findByRole('heading', { name: '页脚链接' })).toBeVisible()
+    const message = '暂无页脚链接，访客页面底部将不显示链接。'
+    expect(screen.getByText(message)).toBeVisible()
+    await actor.click(screen.getByRole('button', { name: '新增页脚项目' }))
+    expect(screen.queryByText(message)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('链接地址')).toBeVisible()
+  })
 
   it('falls back to the site group for an invalid search value', async () => {
     mount('/console/settings?group=unknown')

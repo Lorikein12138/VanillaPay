@@ -11,6 +11,7 @@ import { AccountError } from '@/features/auth/account-shared'
 import { settingsGroups, type SettingsGroup } from './settings-data'
 import { SettingsForms } from './settings/SettingsForms'
 import { LatestSettings } from './settings/LatestSettings'
+import { MailTestCard } from './settings/MailForm'
 import { useSettingsEditor } from './settings/useSettingsEditor'
 
 const label = (group: SettingsGroup) => (group === 'footer_legal' ? 'footer' : group)
@@ -85,8 +86,8 @@ export function ConsoleSettingsPage({
             </button>
           ))}
         </nav>
-        <div className="min-w-0">
-          <div className="mb-4 lg:hidden">
+        <div className="flex min-w-0 flex-col gap-5">
+          <div className="lg:hidden">
             <Select
               aria-label={t('consoleSettings.groupsLabel')}
               value={group}
@@ -145,6 +146,7 @@ export function ConsoleSettingsPage({
               </FormActions>
             </fieldset>
           </Card>
+          {group === 'mail' && <MailTestCard dirty={!!drafts.mail} busy={busy} />}
         </div>
       </div>
       {blocker.status === 'blocked' && (

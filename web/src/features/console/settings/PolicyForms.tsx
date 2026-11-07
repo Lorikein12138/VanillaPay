@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
+import { FormError } from '@/components/FormError'
 import { Checkbox, Select, Textarea } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
@@ -24,6 +25,7 @@ export function SecurityForm({
 }) {
   const { t } = useTranslation(),
     [domains, setDomains] = useState((value.email_domains ?? []).join('\n'))
+  const domainError = errorText('email_domains')
   return (
     <div className="space-y-5">
       <FieldGrid>
@@ -47,26 +49,31 @@ export function SecurityForm({
         secret={secret}
         onSecret={onSecret}
       />
-      <Checkbox
-        checked={value.restrict_email_domains}
-        onChange={(e) => onChange({ ...value, restrict_email_domains: e.target.checked })}
-      >
-        {t('consoleSettings.restrictDomains')}
-      </Checkbox>
-      <Field label={t('consoleSettings.emailDomains')} htmlFor="domains" error={errorText('email_domains')}>
-        <Textarea
-          id="domains"
-          value={
-            settingsEqual(normalizeDomains(domains), value.email_domains)
-              ? domains
-              : (value.email_domains ?? []).join('\n')
-          }
-          onChange={(e) => {
-            setDomains(e.target.value)
-            onChange({ ...value, email_domains: normalizeDomains(e.target.value) })
-          }}
-        />
-      </Field>
+      <div className="space-y-2">
+        <Checkbox
+          checked={value.restrict_email_domains}
+          onChange={(e) => onChange({ ...value, restrict_email_domains: e.target.checked })}
+        >
+          {t('consoleSettings.restrictDomains')}
+        </Checkbox>
+        {value.restrict_email_domains ? (
+          <Field label={t('consoleSettings.emailDomains')} htmlFor="domains" error={domainError}>
+            <Textarea
+              id="domains"
+              aria-describedby={domainError ? 'domains-hint' : undefined}
+              value={
+                settingsEqual(normalizeDomains(domains), value.email_domains)
+                  ? domains
+                  : (value.email_domains ?? []).join('\n')
+              }
+              onChange={(e) => {
+                setDomains(e.target.value)
+                onChange({ ...value, email_domains: normalizeDomains(e.target.value) })
+              }}
+            />
+          </Field>
+        ) : domainError && <FormError>{domainError}</FormError>}
+      </div>
       {(['zh_CN', 'en'] as const).map((lang) => (
         <AccountField
           key={lang}
@@ -176,21 +183,25 @@ export function BillingForm({
   return (
     <div className="space-y-5">
       {!settings.credential_valid && <Notice tone="warning">{t('consoleSettings.billingInvalid')}</Notice>}
-      {settings.merchant_id != null && (
-        <p className="m-0 text-label">
-          <Link
-            className="text-accent-text underline"
-            to="/console/merchants/$id"
-            params={{ id: String(settings.merchant_id) }}
-          >
-            {t('consoleSettings.billingMerchant', { id: settings.merchant_id })}
-          </Link>
-        </p>
-      )}
       <AccountField
         label={t('consoleSettings.billingPid')}
         value={value.merchant_pid}
         maxLength={16}
+        hint={settings.merchant_id != null && (
+          <Trans
+            i18nKey="consoleSettings.billingMerchant"
+            values={{ id: settings.merchant_id }}
+            components={{
+              merchant: (
+                <Link
+                  className="text-accent-text underline"
+                  to="/console/merchants/$id"
+                  params={{ id: String(settings.merchant_id) }}
+                />
+              ),
+            }}
+          />
+        )}
         error={errorText('merchant_pid')}
         onChange={(e) => onChange({ ...value, merchant_pid: e.target.value })}
       />
@@ -200,11 +211,11 @@ export function BillingForm({
         secret={secret}
         onSecret={onSecret}
         allowClear={!value.merchant_pid}
+        clearUnavailableHint={settings.key_configured && value.merchant_pid
+          ? t('consoleSettings.billingClearNeedsPid')
+          : undefined}
         error={errorText('merchant_key')}
       />
-      {settings.key_configured && value.merchant_pid && (
-        <p className="m-0 text-caption text-text-3">{t('consoleSettings.billingClearNeedsPid')}</p>
-      )}
     </div>
   )
 }
