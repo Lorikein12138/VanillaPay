@@ -2,7 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { Download, Inbox } from 'lucide-react'
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '@/api/client'
+import { api, consoleApi } from '@/api/client'
 import { FormError } from '@/components/FormError'
 import { Button } from '@/components/ui/button'
 import { Field, FieldGrid, FormActions } from '@/components/ui/field'
@@ -12,17 +12,17 @@ import { Notice } from '@/components/ui/notice'
 import { localDateInput, orderChannels, orderErrorKey, orderStatuses, type OrderFilters } from './orders-data'
 import { OrderRows } from './OrderParts'
 
-export function OrdersPage({ name, filters, onFilters }: { name: string; filters: OrderFilters; onFilters: (value: OrderFilters) => void }) {
+export function OrdersPage({ name, filters, onFilters, role = 'merchant' }: { role?: 'merchant' | 'console'; name: string; filters: OrderFilters; onFilters: (value: OrderFilters) => void }) {
   const { t } = useTranslation()
   const [exporting, setExporting] = useState(false)
   const exportBusy = useRef(false)
   const [exportError, setExportError] = useState<unknown>()
   const orders = useInfiniteQuery({
-    queryKey: ['merchant', name, 'orders', 'list', filters],
+    queryKey: [role, name, 'orders', 'list', filters],
     // A different filter or a return from detail always starts at the first cursor.
     gcTime: 0,
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => api.orderPage({ ...filters, limit: 20, cursor: pageParam }),
+    queryFn: ({ pageParam }) => (role === 'console' ? consoleApi : api).orderPage({ ...filters, limit: 20, cursor: pageParam }),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
   })
   const items = orders.data?.pages.flatMap((page) => page.items ?? []) ?? []
@@ -32,7 +32,7 @@ export function OrdersPage({ name, filters, onFilters }: { name: string; filters
     setExporting(true)
     setExportError(undefined)
     try {
-      const { blob, filename } = await api.exportOrders(filters)
+      const { blob, filename } = await (role === 'console' ? consoleApi : api).exportOrders(filters)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -84,7 +84,7 @@ export function OrdersPage({ name, filters, onFilters }: { name: string; filters
               </Notice>
             )}
             {orders.data && (items.length ? (
-              <OrderRows orders={items} filters={filters} />
+              <OrderRows orders={items} filters={filters} role={role} />
             ) : (
               <EmptyState icon={<Inbox strokeWidth={1.5} />} title={t('merchant.orders.empty')} />
             ))}

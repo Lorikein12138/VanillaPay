@@ -1,7 +1,8 @@
+import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, APIError } from '@/api/client'
+import { api, APIError, consoleApi } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
@@ -16,14 +17,14 @@ import { OrderChannel, OrderStatus, OrderTime } from './OrderParts'
 
 type Detail = components['schemas']['OrderDetail']
 
-export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo: string; filters: OrderFilters }) {
+export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { role?: 'merchant' | 'console'; name: string; tradeNo: string; filters: OrderFilters }) {
   const { t } = useTranslation()
   const client = useQueryClient()
-  const query = useQuery({ queryKey: ['merchant', name, 'order', tradeNo], queryFn: () => api.order(tradeNo) })
+  const query = useQuery({ queryKey: [role, name, 'order', tradeNo], queryFn: () => (role === 'console' ? consoleApi : api).order(tradeNo) })
   const [confirmation, setConfirmation] = useState<{ action: OrderAction; key: string; detail: Detail }>()
   const [notice, setNotice] = useState<OrderAction>()
   const detail = query.data
-  const back = <BackLink to="/orders" search={filters}>{t('merchant.orders.back')}</BackLink>
+  const back = <BackLink to={role === 'console' ? '/console/orders' : '/orders'} search={filters}>{t('merchant.orders.back')}</BackLink>
   if (query.isPending) {
     return (
       <Page className="gap-8" aria-busy="true">
@@ -48,7 +49,7 @@ export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo:
     )
   }
   const order = detail.order
-  const actions = availableOrderActions(detail)
+  const actions = role === 'console' ? [] : availableOrderActions(detail)
   async function completed() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ['merchant', name, 'order', tradeNo] }),
@@ -95,6 +96,7 @@ export function OrderDetail({ name, tradeNo, filters }: { name: string; tradeNo:
       <Card>
         <SectionHeader title={t('merchant.orders.information')} className="mb-2" />
         <OrderInformation detail={detail} />
+        {role === 'console' && <DetailList items={[{ label: t('manage.merchant'), value: <Link to="/console/merchants/$id" params={{ id: order.merchant_id }}>{order.merchant_username}</Link> }]} />}
       </Card>
       <Card>
         <SectionHeader title={t('merchant.orders.refundInfo')} className="mb-2" />

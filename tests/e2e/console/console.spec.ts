@@ -1,3 +1,4 @@
+import { registerManagementTests } from './manage-cases'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import type { ConsoleRecovery } from '../../../web/src/api/client'
 import { login, noOverflow, polishShot, totp } from '../merchant/fixtures'
@@ -65,7 +66,7 @@ test('initializes once, enters the shared overview and captures the responsive s
   expect(await page.evaluate(() => document.documentElement.scrollHeight - Math.ceil(Math.max(window.innerHeight, document.getElementById('main')!.getBoundingClientRect().bottom + window.scrollY)))).toBeLessThanOrEqual(0)
   await shots(page, 'drawer', true, true)
   await page.setViewportSize({ width: 1280, height: 800 })
-  await expect(page.getByRole('navigation', { name: '管理控制台' }).getByRole('link')).toHaveText(['概览'])
+  await expect(page.getByRole('navigation', { name: '管理控制台' }).getByRole('link')).toHaveText(['概览', '商户', '订单', '套餐', '购买记录'])
   await control(page, '退出登录')
   await expect(page).toHaveURL(/\/console\/login$/)
   await page.goto('/console/setup')
@@ -74,7 +75,7 @@ test('initializes once, enters the shared overview and captures the responsive s
 
 test('shares login, preserves console redirect, isolates role guards, and offers recovery when unconfigured', async ({ page, request }) => {
   const admin = await seed(request); await captcha(page, admin.turnstileToken)
-  await page.goto('/console/orders?state=paid')
+  await page.goto('/console/not-implemented?state=paid')
   await expect(page).toHaveURL(/\/console\/login\?redirect=/)
   await shots(page, 'login')
   await page.route('**/api/v1/public/config', async (route) => {
@@ -89,7 +90,7 @@ test('shares login, preserves console redirect, isolates role guards, and offers
   await shots(page, 'turnstile-unconfigured')
   await page.unroute('**/api/v1/public/config'); await page.reload()
   await login(page, { ...admin, pid: '' })
-  await expect(page).toHaveURL(/\/console\/orders\?state=paid$/)
+  await expect(page).toHaveURL(/\/console\/not-implemented\?state=paid$/)
   await expect(page.getByText('页面不存在', { exact: true })).toBeVisible()
   await expect(page.getByRole('navigation', { name: '管理控制台' })).toBeVisible()
   await page.goto('/dashboard')
@@ -185,3 +186,5 @@ test('changes password, revokes the session, persists preferences and enables/di
   await expect(page.getByRole('button', { name: '开启两步验证', exact: true })).toBeVisible()
   await page.setViewportSize({ width: 360, height: 780 }); await noOverflow(page)
 })
+
+registerManagementTests({ seed, captcha, signIn, control })

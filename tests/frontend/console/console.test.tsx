@@ -108,10 +108,10 @@ describe('role-scoped CSRF', () => {
 describe('console guards and login', () => {
   it.each([401, 403])('redirects console %i to console login with a safe redirect', async (status) => {
     server.use(http.get('*/api/v1/console/me', () => failure(status, status === 403 ? 'FORBIDDEN' : 'UNAUTHENTICATED')))
-    const { router } = mount('/console/orders?state=paid')
+    const { router } = mount('/console/not-implemented?state=paid')
     await screen.findByRole('heading', { name: '管理员登录' })
     expect(router.state.location.pathname).toBe('/console/login')
-    expect(router.state.location.search).toMatchObject({ redirect: '/console/orders?state=paid' })
+    expect(router.state.location.search).toMatchObject({ redirect: '/console/not-implemented?state=paid' })
     expect(screen.queryByRole('navigation', { name: '管理控制台' })).not.toBeInTheDocument()
   })
   it.each([401, 403])('redirects merchant %i to merchant login', async (status) => {
@@ -133,7 +133,7 @@ describe('console guards and login', () => {
   it('restores an existing console session and loads only console stats', async () => {
     signedIn = true; mount()
     expect(await screen.findByRole('heading', { name: new RegExp(user.username) })).toBeVisible()
-    expect(screen.getByRole('navigation', { name: '管理控制台' }).querySelectorAll('a')).toHaveLength(1)
+    expect(screen.getByRole('navigation', { name: '管理控制台' }).querySelectorAll('a')).toHaveLength(5)
   })
   it('handles a setup race', async () => {
     let initialized = false
@@ -185,12 +185,12 @@ describe('console guards and login', () => {
         expect(mode === 'totp' ? body.recovery_code : body.totp_code).toBeUndefined()
         signedIn = true; return success(session)
       }))
-    const { router } = mount('/console/login?redirect=%2Fconsole%2Forders')
+    const { router } = mount('/console/login?redirect=%2Fconsole%2Fnot-implemented')
     const actor = await enterLogin()
     if (mode === 'recovery') await actor.click(await screen.findByRole('button', { name: '恢复码' }))
     await actor.type(await screen.findByLabelText(mode === 'totp' ? '动态验证码' : '恢复码'), mode === 'totp' ? String(100000 + Math.floor(Math.random() * 900000)) : crypto.randomUUID())
     await actor.click(screen.getByRole('button', { name: '验证并登录' }))
-    await waitFor(() => expect(router.state.location.pathname).toBe('/console/orders'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/console/not-implemented'))
     expect(await screen.findByText('页面不存在')).toBeVisible()
     expect(screen.getByRole('navigation', { name: '管理控制台' })).toBeVisible()
   })

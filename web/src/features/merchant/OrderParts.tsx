@@ -38,13 +38,13 @@ export function formatOrderTime(value: string | null, language: string | undefin
 
 type Order = components['schemas']['PortalOrderDTO']
 
-export function OrderRows({ orders, filters }: { orders: Order[]; filters: OrderFilters }) {
+export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Order[]; filters: OrderFilters; role?: 'merchant' | 'console' }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'zh-CN'
   const amount = (order: Order) => money(order.actual_cents ?? order.original_cents, language)
   const link = (order: Order) => (
     <Link
-      to="/orders/$tradeNo"
+      to={role === 'console' ? '/console/orders/$tradeNo' : '/orders/$tradeNo'}
       params={{ tradeNo: order.trade_no }}
       search={filters}
       className="font-mono text-[13px] text-text underline decoration-border-strong underline-offset-4 [overflow-wrap:anywhere] hover:text-accent-text hover:decoration-current"
@@ -58,6 +58,7 @@ export function OrderRows({ orders, filters }: { orders: Order[]; filters: Order
         <thead>
           <tr>
             <Th>{t('merchant.overview.tradeNo')}</Th>
+            {role === 'console' && <Th>{t('manage.merchant')}</Th>}
             <Th>{t('merchant.overview.product')}</Th>
             <Th>{t('merchant.overview.channel')}</Th>
             <Th align="right">{t('merchant.overview.amount')}</Th>
@@ -72,6 +73,7 @@ export function OrderRows({ orders, filters }: { orders: Order[]; filters: Order
                 {link(order)}
                 <div className="mt-1 font-mono text-caption text-text-3 [overflow-wrap:anywhere]">{order.out_trade_no}</div>
               </Td>
+              {role === 'console' && <Td><Link to="/console/merchants/$id" params={{ id: order.merchant_id }}>{order.merchant_username}</Link></Td>}
               <Td className="max-w-[220px] break-words">{order.name}</Td>
               <Td className="whitespace-nowrap text-text-2"><OrderChannel channel={order.channel} /></Td>
               <Td align="right" className="whitespace-nowrap font-medium">{amount(order)}</Td>
@@ -89,6 +91,7 @@ export function OrderRows({ orders, filters }: { orders: Order[]; filters: Order
               <span className="shrink-0 font-serif text-[1.375rem] leading-none tabular-nums">{amount(order)}</span>
             </div>
             <div className="mt-2.5">{link(order)}</div>
+            {role === 'console' && <Link to="/console/merchants/$id" params={{ id: order.merchant_id }}>{order.merchant_username}</Link>}
             <p className="m-0 mt-0.5 font-mono text-caption text-text-3 [overflow-wrap:anywhere]">
               {t('merchant.orders.outTradeNo')} · {order.out_trade_no}
             </p>
