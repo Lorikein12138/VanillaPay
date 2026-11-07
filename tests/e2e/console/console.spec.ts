@@ -1,5 +1,6 @@
 import { registerManagementTests } from './manage-cases'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import QRCode from 'qrcode'
 import type { ConsoleRecovery } from '../../../web/src/api/client'
 import { login, noOverflow, polishShot, totp } from '../merchant/fixtures'
 
@@ -26,7 +27,7 @@ async function control(page: Page, name: string) {
   const drawer = page.getByRole('dialog', { name: '管理控制台', exact: true })
   if (await drawer.isVisible()) await page.keyboard.press('Escape')
 }
-async function shots(page: Page, state: string, authenticated = false, drawer = false) {
+async function shots(page: Page, state: string, authenticated = false, drawer = false, directory = 'console-auth-shots') {
   for (const width of drawer ? [360] : [360, 1280]) {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
     for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
@@ -40,8 +41,35 @@ async function shots(page: Page, state: string, authenticated = false, drawer = 
         await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
         await page.keyboard.press('Escape')
       } else await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
-      await polishShot(page, state, !drawer, 'console-auth-shots')
+      await polishShot(page, state, !drawer, directory)
       if (drawer) await page.keyboard.press('Escape')
+    }
+  }
+}
+async function settingsStateShots(page: Page, name: string, fullPage = false) {
+  if (await page.getByRole('dialog').count()) {
+    for (const width of [360, 1280]) {
+      await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
+      await polishShot(page, `settings-${name}`, false, 'console-settings-shots', 'assert-empty')
+    }
+    await page.keyboard.press('Escape')
+    const saved = page.waitForResponse((response) => response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH')
+    await control(page, '深色')
+    expect((await saved).status()).toBe(200)
+    await page.getByRole('checkbox', { name: '清除密钥' }).click()
+    await expect(page.getByRole('dialog', { name: '清除密钥' })).toBeVisible()
+    for (const width of [360, 1280]) {
+      await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
+      await polishShot(page, `settings-${name}`, false, 'console-settings-shots', 'assert-empty')
+    }
+    return
+  }
+  for (const width of [360, 1280]) {
+    await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
+    for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
+      await control(page, label)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      await polishShot(page, `settings-${name}`, fullPage, 'console-settings-shots')
     }
   }
 }
@@ -66,11 +94,161 @@ test('initializes once, enters the shared overview and captures the responsive s
   expect(await page.evaluate(() => document.documentElement.scrollHeight - Math.ceil(Math.max(window.innerHeight, document.getElementById('main')!.getBoundingClientRect().bottom + window.scrollY)))).toBeLessThanOrEqual(0)
   await shots(page, 'drawer', true, true)
   await page.setViewportSize({ width: 1280, height: 800 })
-  await expect(page.getByRole('navigation', { name: '管理控制台' }).getByRole('link')).toHaveText(['概览', '商户', '订单', '套餐', '购买记录'])
+  await expect(page.getByRole('navigation', { name: '管理控制台' }).getByRole('link')).toHaveText(['概览', '商户', '订单', '套餐', '购买记录', '系统设置'])
   await control(page, '退出登录')
   await expect(page).toHaveURL(/\/console\/login$/)
   await page.goto('/console/setup')
   await expect(page).toHaveURL(/\/console\/login\?notice=initialized$/)
+})
+
+test('manages platform settings, protects stored secrets and captures every group', async ({ page, request }) => {
+  test.setTimeout(120000)
+  const admin = await seed(request); await captcha(page, admin.turnstileToken)
+  await signIn(page, admin, '/console/settings')
+  await expect(page.getByRole('heading', { name: '站点信息', exact: true })).toBeVisible()
+  await page.getByLabel('站点名称').fill('VanillaPay E2E')
+  const siteSave = page.waitForResponse((response) => response.url().endsWith('/console/settings/site') && response.request().method() === 'PUT')
+  await page.getByRole('button', { name: '保存站点信息' }).click()
+  expect((await siteSave).status()).toBe(200)
+  await page.reload()
+  await expect(page.getByLabel('站点名称')).toHaveValue('VanillaPay E2E')
+
+  const logoUpload = page.waitForResponse((response) => response.url().endsWith('/console/assets/logo') && response.request().method() === 'POST')
+  const logoPNG = await QRCode.toBuffer('https://vanillapay.example.test/logo', { width: 64 })
+  await page.locator('#logo-file').setInputFiles({
+    name: 'platform-logo.png',
+    mimeType: 'image/png',
+    buffer: logoPNG,
+  })
+  const logoResponse = await logoUpload
+  expect(logoResponse.status()).toBe(201)
+  const logoAsset = (await logoResponse.json() as { data: { asset_id: string } }).data.asset_id
+  await expect(page.getByRole('img', { name: '站点标识' })).toBeVisible()
+  const logoSave = page.waitForResponse((response) => response.url().endsWith('/console/settings/site') && response.request().method() === 'PUT')
+  await page.getByRole('button', { name: '保存站点信息' }).click()
+  expect((await logoSave).status()).toBe(200)
+  await page.reload()
+  await expect(page.locator(`img[src="/media/${logoAsset}"]`)).toBeVisible()
+
+  await page.goto('/console/settings?group=mail')
+  await page.getByLabel('邮件服务器').fill('mail.e2e.example.test')
+  await page.getByLabel('端口').fill('465')
+  await page.getByLabel('用户名').fill('mailer')
+  await page.getByLabel('发件邮箱').fill('sender@example.test')
+  await page.getByLabel('发件人名称').fill('E2E Sender')
+  await page.getByLabel('邮件密码').fill('e2e-secret-value')
+  const firstMailSave = page.waitForResponse((response) => response.url().endsWith('/console/settings/mail') && response.request().method() === 'PUT')
+  await page.getByRole('button', { name: '保存邮件设置' }).click()
+  const firstMailResponse = await firstMailSave
+  expect(firstMailResponse.status()).toBe(200)
+  const firstMailBody = firstMailResponse.request().postDataJSON() as { value: Record<string, unknown> }
+  expect(firstMailBody.value.password).toBe('e2e-secret-value')
+  await expect(page.getByLabel('邮件密码')).toHaveValue('')
+  await page.reload()
+  await expect(page.getByLabel('邮件密码')).toHaveAccessibleDescription('已配置；留空会保留当前密钥。')
+  await page.getByLabel('邮件服务器').fill('mail-updated.e2e.example.test')
+  const secondMailSave = page.waitForResponse((response) => response.url().endsWith('/console/settings/mail') && response.request().method() === 'PUT')
+  await page.getByRole('button', { name: '保存邮件设置' }).click()
+  const secondMailResponse = await secondMailSave
+  expect(secondMailResponse.status()).toBe(200)
+  const secondMailBody = secondMailResponse.request().postDataJSON() as { value: Record<string, unknown> }
+  expect(secondMailBody.value).not.toHaveProperty('password')
+
+  for (const group of ['site', 'home', 'footer_legal', 'mail', 'security', 'payment', 'billing']) {
+    await page.goto(`/console/settings?group=${group}`)
+    await expect(page.locator('main')).toBeVisible()
+    await shots(page, `settings-${group}`, true, false, 'console-settings-shots')
+  }
+
+  await page.goto('/console/settings?group=site')
+  await page.getByLabel('站点名称').fill('Conflict candidate')
+  await page.route('**/api/v1/console/settings', async (route) => {
+    const response = await route.fetch()
+    const body = await response.json() as { data: { version: number; site: { site_name: string } } }
+    body.data.version++
+    body.data.site.site_name = '另一位管理员更新的站点'
+    await route.fulfill({ response, json: body })
+  })
+  await page.route('**/api/v1/console/settings/site', (route) => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'VERSION_CONFLICT', message: 'version conflict' } }) }))
+  await page.getByRole('button', { name: '保存站点信息' }).click()
+  await expect(page.getByLabel('我已查看最新内容')).toBeVisible()
+  await settingsStateShots(page, 'version-conflict')
+  await page.unroute('**/api/v1/console/settings/site')
+  await page.unroute('**/api/v1/console/settings')
+
+  await page.route('**/api/v1/console/settings', async (route) => {
+    const response = await route.fetch(), body = await response.json() as { data: { security: Record<string, unknown> } }
+    body.data.security.secret_configured = true
+    await route.fulfill({ response, json: body })
+  })
+  await page.goto('/console/settings?group=security')
+  const lightTheme = page.waitForResponse((response) => response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH')
+  await control(page, '浅色')
+  expect((await lightTheme).status()).toBe(200)
+  await page.getByRole('checkbox', { name: '清除密钥' }).click()
+  await expect(page.getByRole('dialog', { name: '清除密钥' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '恢复入口' })).toHaveAttribute('href', '/console/recovery')
+  await settingsStateShots(page, 'clear-secret-confirmation')
+  await page.getByRole('button', { name: '取消' }).click()
+  await page.unroute('**/api/v1/console/settings')
+
+  await page.goto('/console/settings?group=mail')
+  await page.getByPlaceholder('收件人邮箱').fill('ops@example.test')
+  await page.route('**/api/v1/console/settings/mail/test', (route) => route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ data: { delivery_id: 'e2e-delivery', state: 'queued' } }) }))
+  await page.route('**/api/v1/console/settings/mail/test/*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { id: 'e2e-delivery', state: 'sent', error_code: null } }) }))
+  await page.getByRole('button', { name: '发送测试邮件' }).click()
+  await expect(page.getByText('测试邮件已发出。')).toBeVisible({ timeout: 8000 })
+  await settingsStateShots(page, 'mail-test-sent')
+  await page.unroute('**/api/v1/console/settings/mail/test/*')
+  await page.route('**/api/v1/console/settings/mail/test/*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { id: 'e2e-delivery', state: 'failed', error_code: 'smtp_delivery_failed' } }) }))
+  await page.getByRole('button', { name: '发送测试邮件' }).click()
+  await expect(page.getByText('邮件发送失败，后台会自动重试几次。')).toBeVisible({ timeout: 8000 })
+  await settingsStateShots(page, 'mail-test-failed')
+  await page.unroute('**/api/v1/console/settings/mail/test')
+  await page.unroute('**/api/v1/console/settings/mail/test/*')
+
+  await page.getByRole('checkbox', { name: '清除密钥' }).click()
+  await page.getByRole('button', { name: '确认清除' }).click()
+  await page.route('**/api/v1/console/settings', async (route) => {
+    const response = await route.fetch()
+    const body = await response.json() as { data: { version: number } }
+    body.data.version++
+    await route.fulfill({ response, json: body })
+  })
+  await page.route('**/api/v1/console/settings/mail', (route) => route.fulfill({
+    status: 409,
+    json: { error: { code: 'VERSION_CONFLICT', message: 'version conflict' } },
+  }))
+  const saveMail = page.getByRole('button', { name: '保存邮件设置' })
+  await saveMail.click()
+  await expect(page.getByLabel('我已查看最新内容')).toBeVisible()
+  await expect(page.getByText('已配置', { exact: true })).toBeVisible()
+  await expect(saveMail).toBeDisabled()
+  await settingsStateShots(page, 'secret-version-conflict', true)
+  await page.unroute('**/api/v1/console/settings/mail')
+  await page.unroute('**/api/v1/console/settings')
+
+  await page.route('**/api/v1/console/settings', async (route) => {
+    const response = await route.fetch(), body = await response.json() as { data: { billing: Record<string, unknown> } }
+    body.data.billing.credential_valid = false
+    await route.fulfill({ response, json: body })
+  })
+  await page.goto('/console/settings?group=billing')
+  await expect(page.getByText('订阅收款当前不可用，请重新填写商户号和密钥。')).toBeVisible()
+  await settingsStateShots(page, 'billing-invalid')
+  await page.unroute('**/api/v1/console/settings')
+
+  await page.goto('/console/settings?group=site')
+  await page.getByRole('button', { name: '移除标识' }).click()
+  await expect(page.getByRole('img', { name: '站点标识' })).toHaveCount(0)
+  await settingsStateShots(page, 'logo-removed')
+  const removeLogoSave = page.waitForResponse((response) =>
+    response.url().endsWith('/console/settings/site') && response.request().method() === 'PUT',
+  )
+  await page.getByRole('button', { name: '保存站点信息' }).click()
+  const removalResponse = await removeLogoSave
+  expect(removalResponse.status()).toBe(200)
+  expect(removalResponse.request().postDataJSON()).toMatchObject({ value: { logo_asset_id: null } })
 })
 
 test('shares login, preserves console redirect, isolates role guards, and offers recovery when unconfigured', async ({ page, request }) => {

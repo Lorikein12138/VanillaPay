@@ -32,6 +32,7 @@ import { Route as ConsoleMerchantsRouteImport } from './routes/console.merchants
 import { Route as ConsoleOrdersRouteImport } from './routes/console.orders'
 import { Route as ConsolePlansRouteImport } from './routes/console.plans'
 import { Route as ConsolePurchasesRouteImport } from './routes/console.purchases'
+import { Route as ConsoleSettingsRouteImport } from './routes/console.settings'
 import { Route as ConsoleLoginRouteImport } from './routes/console_.login'
 import { Route as ConsoleRecoveryRouteImport } from './routes/console_.recovery'
 import { Route as ConsoleSetupRouteImport } from './routes/console_.setup'
@@ -160,6 +161,11 @@ const ConsolePurchasesRoute = ConsolePurchasesRouteImport.update({
   path: '/purchases',
   getParentRoute: () => ConsoleRoute,
 } as any)
+const ConsoleSettingsRoute = ConsoleSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ConsoleRoute,
+} as any)
 const ConsoleLoginRoute = ConsoleLoginRouteImport.update({
   id: '/console_/login',
   path: '/console/login',
@@ -248,6 +254,7 @@ export interface FileRoutesByFullPath {
   '/console/orders': typeof ConsoleOrdersRouteWithChildren
   '/console/plans': typeof ConsolePlansRoute
   '/console/purchases': typeof ConsolePurchasesRoute
+  '/console/settings': typeof ConsoleSettingsRoute
   '/console/login': typeof ConsoleLoginRoute
   '/console/recovery': typeof ConsoleRecoveryRoute
   '/console/setup': typeof ConsoleSetupRoute
@@ -280,6 +287,7 @@ export interface FileRoutesByTo {
   '/console/account': typeof ConsoleAccountRoute
   '/console/plans': typeof ConsolePlansRoute
   '/console/purchases': typeof ConsolePurchasesRoute
+  '/console/settings': typeof ConsoleSettingsRoute
   '/console/login': typeof ConsoleLoginRoute
   '/console/recovery': typeof ConsoleRecoveryRoute
   '/console/setup': typeof ConsoleSetupRoute
@@ -319,6 +327,7 @@ export interface FileRoutesById {
   '/console/orders': typeof ConsoleOrdersRouteWithChildren
   '/console/plans': typeof ConsolePlansRoute
   '/console/purchases': typeof ConsolePurchasesRoute
+  '/console/settings': typeof ConsoleSettingsRoute
   '/console_/login': typeof ConsoleLoginRoute
   '/console_/recovery': typeof ConsoleRecoveryRoute
   '/console_/setup': typeof ConsoleSetupRoute
@@ -358,6 +367,7 @@ export interface FileRouteTypes {
     | '/console/orders'
     | '/console/plans'
     | '/console/purchases'
+    | '/console/settings'
     | '/console/login'
     | '/console/recovery'
     | '/console/setup'
@@ -390,6 +400,7 @@ export interface FileRouteTypes {
     | '/console/account'
     | '/console/plans'
     | '/console/purchases'
+    | '/console/settings'
     | '/console/login'
     | '/console/recovery'
     | '/console/setup'
@@ -428,6 +439,7 @@ export interface FileRouteTypes {
     | '/console/orders'
     | '/console/plans'
     | '/console/purchases'
+    | '/console/settings'
     | '/console_/login'
     | '/console_/recovery'
     | '/console_/setup'
@@ -621,6 +633,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsolePurchasesRouteImport
       parentRoute: typeof ConsoleRoute
     }
+    '/console/settings': {
+      id: '/console/settings'
+      path: '/settings'
+      fullPath: '/console/settings'
+      preLoaderRoute: typeof ConsoleSettingsRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
     '/console_/login': {
       id: '/console_/login'
       path: '/console/login'
@@ -807,6 +826,7 @@ interface ConsoleRouteChildren {
   ConsoleOrdersRoute: typeof ConsoleOrdersRouteWithChildren
   ConsolePlansRoute: typeof ConsolePlansRoute
   ConsolePurchasesRoute: typeof ConsolePurchasesRoute
+  ConsoleSettingsRoute: typeof ConsoleSettingsRoute
   ConsoleIndexRoute: typeof ConsoleIndexRoute
 }
 
@@ -817,6 +837,7 @@ const ConsoleRouteChildren: ConsoleRouteChildren = {
   ConsoleOrdersRoute: ConsoleOrdersRouteWithChildren,
   ConsolePlansRoute: ConsolePlansRoute,
   ConsolePurchasesRoute: ConsolePurchasesRoute,
+  ConsoleSettingsRoute: ConsoleSettingsRoute,
   ConsoleIndexRoute: ConsoleIndexRoute,
 }
 
