@@ -47,18 +47,13 @@ func (h *Handler) Legal(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	actor, _ := platform.ActorFromContext(r.Context())
-	groups, err := h.Service.GetGroup(r.Context(), actor)
+	row, err := h.Service.GetGroup(r.Context(), actor)
 	if err != nil {
 		settingsResult(w, r, nil, err, http.StatusOK)
 		return
 	}
-	var version int64
-	err = h.Service.pool.QueryRow(r.Context(), `SELECT version FROM site_settings WHERE singleton=true`).Scan(&version)
-	if err != nil {
-		settingsResult(w, r, nil, err, http.StatusOK)
-		return
-	}
-	settingsResult(w, r, map[string]any{"version": version, "site": groups["site"], "home": groups["home"], "footer_legal": groups["footer_legal"], "mail": groups["mail"], "security": groups["security"], "payment": groups["payment"], "billing": groups["billing"]}, nil, http.StatusOK)
+	groups := row.Groups
+	settingsResult(w, r, map[string]any{"version": row.Version, "site": groups["site"], "home": groups["home"], "footer_legal": groups["footer_legal"], "mail": groups["mail"], "security": groups["security"], "payment": groups["payment"], "billing": groups["billing"]}, nil, http.StatusOK)
 }
 func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	var req UpdateGroup

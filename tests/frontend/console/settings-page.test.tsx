@@ -157,6 +157,102 @@ function mount(path = '/console/settings') {
 }
 
 describe('console settings page', () => {
+  it('requires review after another administrator replaces the password queued for clearing', async () => {
+    const bodies = recordSaves()
+    let rejected: S['SettingsUpdateGroup'] | undefined
+    server.use(
+      http.put(
+        '*/api/v1/console/settings/mail',
+        async ({ request }) => {
+          rejected = (await request.json()) as S['SettingsUpdateGroup']
+          current.version++
+          return conflictResponse()
+        },
+        { once: true },
+      ),
+    )
+    const actor = userEvent.setup()
+    mount('/console/settings?group=mail')
+    await actor.click(await screen.findByRole('checkbox', { name: '清除密钥' }))
+    await actor.click(screen.getByRole('button', { name: '确认清除' }))
+    const save = screen.getByRole('button', { name: '保存邮件设置' })
+    await actor.click(save)
+
+    const review = await screen.findByLabelText('我已查看最新内容')
+    expect(rejected).toMatchObject({ expected_version: 12, value: { password: null } })
+    expect(screen.getByText('已配置', { exact: true })).toBeVisible()
+    expect(save).toBeDisabled()
+    await actor.click(save)
+    expect(bodies).toHaveLength(0)
+
+    await actor.click(review)
+    await actor.click(save)
+    await screen.findByText('邮件发送设置已保存。')
+    expect(bodies).toMatchObject([{ expected_version: 13, value: { password: null } }])
+  })
+
+  it('flags a pending secret replacement on focus while an unchanged ordinary group can save', async () => {
+    const bodies = recordSaves()
+    const actor = userEvent.setup()
+    mount()
+    fireEvent.change(await screen.findByLabelText('站点名称'), { target: { value: 'Site draft' } })
+    await actor.click(groupButton('邮件发送'))
+    const password = screen.getByLabelText('邮件密码')
+    fireEvent.change(password, { target: { value: crypto.randomUUID() } })
+
+    current.version++
+    current.mail.password_configured = false
+    current.mail.masked_password = ''
+    act(() => {
+      focusManager.setFocused(false)
+      focusManager.setFocused(true)
+    })
+    await screen.findByLabelText('我已查看最新内容')
+    expect(password).toHaveAccessibleDescription('尚未配置。')
+    expect(screen.getByRole('button', { name: '保存邮件设置' })).toBeDisabled()
+    fireEvent.change(password, { target: { value: crypto.randomUUID() } })
+    expect(screen.getByRole('button', { name: '保存邮件设置' })).toBeDisabled()
+
+    await actor.click(groupButton('站点信息 有未保存修改'))
+    expect(screen.queryByLabelText('我已查看最新内容')).not.toBeInTheDocument()
+    await actor.click(screen.getByRole('button', { name: '保存站点信息' }))
+    await screen.findByText('站点信息已保存。')
+    expect(bodies).toMatchObject([{ expected_version: 13, value: { site_name: 'Site draft' } }])
+    await actor.click(groupButton('邮件发送 有未保存修改'))
+    expect(screen.getByLabelText('我已查看最新内容')).not.toBeChecked()
+    expect(screen.getByRole('button', { name: '保存邮件设置' })).toBeDisabled()
+  })
+
+  it('points invalid URL escapes at the affected link and gives a specific fallback for server validation', async () => {
+    const actor = userEvent.setup()
+    let puts = 0
+    server.use(
+      http.put('*/api/v1/console/settings/footer_legal', () => {
+        puts++
+        return HttpResponse.json({ error: { code: 'VALIDATION_ERROR' } }, { status: 400 })
+      }),
+    )
+    current.footer_legal.items = [
+      { ...newFooterItem(), label: { zh_CN: '帮助', en: '' }, url: 'https://example.test/help' },
+      { ...newFooterItem(), label: { zh_CN: '支持', en: '' }, url: 'mailto:ops@example.test' },
+    ]
+    mount('/console/settings?group=footer_legal')
+    const [first, second] = await screen.findAllByLabelText('链接地址')
+    const save = screen.getByRole('button', { name: '保存页脚与协议' })
+    fireEvent.change(second!, { target: { value: 'https://example.test/docs/%zz' } })
+    await actor.click(save)
+    expect(second).toHaveAccessibleDescription('请检查页脚链接格式。')
+    expect(first).not.toHaveAccessibleDescription()
+    expect(screen.getAllByLabelText('中文名称')[1]).not.toHaveAccessibleDescription()
+    expect(puts).toBe(0)
+
+    fireEvent.change(second!, { target: { value: 'https://example.test/docs/%E4%B8%AD' } })
+    await actor.click(save)
+    expect(await screen.findByText('请检查页脚链接格式。')).toBeVisible()
+    expect(second).toHaveValue('https://example.test/docs/%E4%B8%AD')
+    expect(puts).toBe(1)
+  })
+
   it('after a site conflict saves an untouched security group with the latest values', async () => {
     const bodies = recordSaves()
     let rejected: S['SettingsUpdateGroup'] | undefined
@@ -599,6 +695,29 @@ describe('settings logo upload', () => {
     })
     vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(16)
     vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(16)
+  })
+
+  it('cancels a pending replacement when removing the logo and saves null', async () => {
+    current.site.logo_asset_id = 'existing-logo'
+    const pending = deferred<Awaited<ReturnType<typeof consoleApi.uploadLogo>>>()
+    const upload = vi.spyOn(consoleApi, 'uploadLogo').mockReturnValue(pending.promise)
+    const bodies = recordSaves()
+    const actor = userEvent.setup()
+    mount()
+    expect(await screen.findByRole('img', { name: '站点标识' })).toHaveAttribute('src', '/media/existing-logo')
+    await actor.upload(screen.getByLabelText('站点标识'), file())
+    await waitFor(() => expect(upload).toHaveBeenCalledOnce())
+    await actor.click(screen.getByRole('button', { name: '移除标识' }))
+    expect(upload.mock.calls[0]?.[1]?.aborted).toBe(true)
+    expect(screen.queryByRole('img', { name: '站点标识' })).not.toBeInTheDocument()
+    await act(async () => {
+      pending.resolve({ asset_id: 'obsolete-logo', url: '/media/obsolete-logo' })
+      await pending.promise
+    })
+    expect(screen.queryByRole('img', { name: '站点标识' })).not.toBeInTheDocument()
+    await actor.click(screen.getByRole('button', { name: '保存站点信息' }))
+    await screen.findByText('站点信息已保存。')
+    expect(bodies).toMatchObject([{ value: { logo_asset_id: null } }])
   })
 
   it('adds only the asset ID when the site name changes during upload', async () => {

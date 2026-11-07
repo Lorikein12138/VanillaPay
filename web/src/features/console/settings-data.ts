@@ -76,6 +76,7 @@ function publicURL(value: string, protocols: string[]) {
 }
 
 function validFooterURL(value: string) {
+  if (/%(?![\da-f]{2})/i.test(value)) return false
   if (value.includes('#') || Array.from(value).some((char) => char.charCodeAt(0) < 32 || char === '\x7f'))
     return false
   if (/^mailto:/i.test(value)) return /^mailto:(?!\/)[^?]+(?:\?.*)?$/i.test(value)
@@ -121,10 +122,10 @@ export function validateSettingsGroup(
         !item.label.zh_CN.trim() ||
         Array.from(item.label.zh_CN).length > 80 ||
         Array.from(item.label.en).length > 80 ||
-        Array.from(item.text).length > 1000 ||
-        (item.url !== null && !validFooterURL(item.url))
+        Array.from(item.text).length > 1000
       )
         errors[`item_${index}`] = 'footer_item'
+      if (item.url !== null && !validFooterURL(item.url)) errors[`item_url_${index}`] = 'footer_url'
       ids.add(item.id)
     })
     for (const kind of ['terms', 'privacy'] as const) {

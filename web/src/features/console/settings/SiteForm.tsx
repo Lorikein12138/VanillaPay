@@ -91,6 +91,14 @@ export function SiteForm({
     }
   }
 
+  function removeLogo() {
+    active.current?.abort()
+    active.current = null
+    setUploading(false)
+    setUploadError('')
+    update({ logo_asset_id: null })
+  }
+
   return (
     <div className="space-y-5">
       <AccountField
@@ -115,7 +123,7 @@ export function SiteForm({
             src={`/media/${encodeURIComponent(value.logo_asset_id)}`}
             alt={t('consoleSettings.logo')}
           />
-          <Button onClick={() => update({ logo_asset_id: null })}>{t('consoleSettings.removeLogo')}</Button>
+          <Button onClick={removeLogo}>{t('consoleSettings.removeLogo')}</Button>
         </div>
       )}
     </div>

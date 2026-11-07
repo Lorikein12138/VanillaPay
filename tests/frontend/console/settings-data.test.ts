@@ -95,8 +95,13 @@ describe('console settings form data', () => {
     ]
     expect(validateSettingsGroup('footer_legal', draft.footer_legal)).toEqual({})
     draft.footer_legal.items[0]!.url = 'mailto:support@vanillapay.test\r\nBcc:attacker@example.test'
-    expect(validateSettingsGroup('footer_legal', draft.footer_legal)).toHaveProperty('item_0')
-    for (const url of ['https://example.test/path', 'mailto:ops@example.test?subject=Help']) {
+    expect(validateSettingsGroup('footer_legal', draft.footer_legal)).toHaveProperty('item_url_0', 'footer_url')
+    for (const url of [
+      'https://example.test/path',
+      'mailto:ops@example.test?subject=Help',
+      'https://example.test/docs/%25',
+      'https://example.test/docs/%E4%B8%AD',
+    ]) {
       draft.footer_legal.items[0]!.url = url
       expect(validateSettingsGroup('footer_legal', draft.footer_legal)).toEqual({})
     }
@@ -105,9 +110,12 @@ describe('console settings form data', () => {
       'mailto:ops@example.test#',
       'mailto:',
       'https:///path',
+      'https://example.test/docs/%zz',
+      'https://example.test/docs/%a',
+      'mailto:ops@example.test?subject=%zz',
     ]) {
       draft.footer_legal.items[0]!.url = url
-      expect(validateSettingsGroup('footer_legal', draft.footer_legal)).toHaveProperty('item_0')
+      expect(validateSettingsGroup('footer_legal', draft.footer_legal)).toEqual({ item_url_0: 'footer_url' })
     }
     expect(normalizeDomains(' Example.COM \n\nSHOP.example ')).toEqual(['example.com', 'shop.example'])
   })

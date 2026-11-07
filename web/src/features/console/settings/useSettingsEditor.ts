@@ -17,6 +17,7 @@ import {
 type SecretEdit = { kind: 'replace'; value: string } | { kind: 'clear' }
 type Draft<K extends SettingsGroup> = {
   baseline: SettingsDrafts[K]
+  baselineVersion: number
   value: SettingsDrafts[K]
   secret?: SecretEdit
 }
@@ -24,6 +25,12 @@ type Drafts = { [K in SettingsGroup]?: Draft<K> }
 
 const secretFields = { mail: 'password', security: 'turnstile_secret', billing: 'merchant_key' } as const
 const queryKey = ['console', 'settings'] as const
+
+function hasConflict(entry: Draft<SettingsGroup>, value: SettingsDrafts[SettingsGroup], version: number) {
+  return (
+    !settingsEqual(entry.baseline, value) || (entry.secret !== undefined && version > entry.baselineVersion)
+  )
+}
 
 // Keep the admin's edits while adopting fields changed only on the server.
 // Arrays are edited as a unit (including footer order and the domain list).
@@ -62,7 +69,7 @@ export function useSettingsEditor(group: SettingsGroup) {
   const conflicts = settings
     ? settingsGroups.filter((key) => {
         const entry = drafts[key]
-        return entry && !settingsEqual(entry.baseline, writableGroup(settings, key))
+        return entry && hasConflict(entry, writableGroup(settings, key), settings.version)
       })
     : []
   const conflict = conflicts.includes(group)
@@ -82,9 +89,13 @@ export function useSettingsEditor(group: SettingsGroup) {
     const serverValue = writableGroup(current, key)
     setDrafts((previous) => {
       const existing = previous[key]
-      const baseline =
-        existing && !settingsEqual(existing.baseline, serverValue) ? existing.baseline : serverValue
-      const next = change({ baseline, value: existing?.value ?? serverValue, secret: existing?.secret })
+      const next = change({
+        ...existing,
+        ...(existing && hasConflict(existing, serverValue, current.version)
+          ? { baseline: existing.baseline, baselineVersion: existing.baselineVersion }
+          : { baseline: serverValue, baselineVersion: current.version }),
+        value: existing?.value ?? serverValue,
+      })
       return { ...previous, [key]: next.secret || !settingsEqual(next.value, next.baseline) ? next : undefined }
     })
   }
@@ -98,14 +109,17 @@ export function useSettingsEditor(group: SettingsGroup) {
   }
 
   function updateSecret(value: string | null) {
+    if (!settings) return
     edit(group, (entry) => ({
       ...entry,
+      // A background GET may reach the cache before its configuration status is rendered.
+      baselineVersion: Math.min(entry.baselineVersion, settings.version),
       secret: value === null ? { kind: 'clear' } : value ? { kind: 'replace', value } : undefined,
     }))
   }
 
   function acknowledge() {
-    if (!draft || !latest || !conflict || lock.current) return
+    if (!draft || !latest || !settings || !conflict || lock.current) return
     // The home mode and its two mutually exclusive payload fields travel together.
     const value =
       group === 'home' && !settingsEqual(draft.value, draft.baseline)
@@ -115,7 +129,7 @@ export function useSettingsEditor(group: SettingsGroup) {
       ...previous,
       [group]:
         draft.secret || !settingsEqual(value, latest)
-          ? { baseline: latest, value, secret: draft.secret }
+          ? { baseline: latest, baselineVersion: settings.version, value, secret: draft.secret }
           : undefined,
     }))
     clearErrors()
@@ -194,6 +208,13 @@ export function useSettingsEditor(group: SettingsGroup) {
         cause.problem?.code === 'BILLING_CREDENTIAL_STALE'
       ) {
         setFieldErrors({ merchant_pid: 'billing_stale', merchant_key: 'billing_stale' })
+      } else if (
+        group === 'footer_legal' &&
+        cause instanceof APIError &&
+        cause.status === 400 &&
+        cause.problem?.code === 'VALIDATION_ERROR'
+      ) {
+        setFieldErrors({ footer_legal: 'footer_url' })
       } else {
         setError(cause)
       }

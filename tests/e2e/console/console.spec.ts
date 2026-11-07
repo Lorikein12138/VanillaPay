@@ -46,7 +46,7 @@ async function shots(page: Page, state: string, authenticated = false, drawer = 
     }
   }
 }
-async function settingsStateShots(page: Page, name: string) {
+async function settingsStateShots(page: Page, name: string, fullPage = false) {
   if (await page.getByRole('dialog').count()) {
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
@@ -69,7 +69,7 @@ async function settingsStateShots(page: Page, name: string) {
     for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
       await control(page, label)
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-      await polishShot(page, `settings-${name}`, false, 'console-settings-shots')
+      await polishShot(page, `settings-${name}`, fullPage, 'console-settings-shots')
     }
   }
 }
@@ -207,6 +207,27 @@ test('manages platform settings, protects stored secrets and captures every grou
   await page.unroute('**/api/v1/console/settings/mail/test')
   await page.unroute('**/api/v1/console/settings/mail/test/*')
 
+  await page.getByRole('checkbox', { name: '清除密钥' }).click()
+  await page.getByRole('button', { name: '确认清除' }).click()
+  await page.route('**/api/v1/console/settings', async (route) => {
+    const response = await route.fetch()
+    const body = await response.json() as { data: { version: number } }
+    body.data.version++
+    await route.fulfill({ response, json: body })
+  })
+  await page.route('**/api/v1/console/settings/mail', (route) => route.fulfill({
+    status: 409,
+    json: { error: { code: 'VERSION_CONFLICT', message: 'version conflict' } },
+  }))
+  const saveMail = page.getByRole('button', { name: '保存邮件设置' })
+  await saveMail.click()
+  await expect(page.getByLabel('我已查看最新内容')).toBeVisible()
+  await expect(page.getByText('已配置', { exact: true })).toBeVisible()
+  await expect(saveMail).toBeDisabled()
+  await settingsStateShots(page, 'secret-version-conflict', true)
+  await page.unroute('**/api/v1/console/settings/mail')
+  await page.unroute('**/api/v1/console/settings')
+
   await page.route('**/api/v1/console/settings', async (route) => {
     const response = await route.fetch(), body = await response.json() as { data: { billing: Record<string, unknown> } }
     body.data.billing.credential_valid = false
@@ -215,6 +236,19 @@ test('manages platform settings, protects stored secrets and captures every grou
   await page.goto('/console/settings?group=billing')
   await expect(page.getByText('订阅收款当前不可用，请重新填写商户号和密钥。')).toBeVisible()
   await settingsStateShots(page, 'billing-invalid')
+  await page.unroute('**/api/v1/console/settings')
+
+  await page.goto('/console/settings?group=site')
+  await page.getByRole('button', { name: '移除标识' }).click()
+  await expect(page.getByRole('img', { name: '站点标识' })).toHaveCount(0)
+  await settingsStateShots(page, 'logo-removed')
+  const removeLogoSave = page.waitForResponse((response) =>
+    response.url().endsWith('/console/settings/site') && response.request().method() === 'PUT',
+  )
+  await page.getByRole('button', { name: '保存站点信息' }).click()
+  const removalResponse = await removeLogoSave
+  expect(removalResponse.status()).toBe(200)
+  expect(removalResponse.request().postDataJSON()).toMatchObject({ value: { logo_asset_id: null } })
 })
 
 test('shares login, preserves console redirect, isolates role guards, and offers recovery when unconfigured', async ({ page, request }) => {

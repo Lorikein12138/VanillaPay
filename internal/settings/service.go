@@ -38,26 +38,32 @@ func NewService(pool *pgxpool.Pool, key [32]byte, clock platform.Clock, random i
 	return &Service{pool: pool, key: key, clock: clock, random: random, publicBaseURL: publicBaseURL, dataDir: dataDir}
 }
 
-func (s *Service) GetGroup(ctx context.Context, actor platform.Actor) (map[string]json.RawMessage, error) {
+func (s *Service) GetGroup(ctx context.Context, actor platform.Actor) (SettingsRow, error) {
 	if actor.Role != "admin" {
-		return nil, &platform.Error{Code: "FORBIDDEN", HTTPStatus: 403}
+		return SettingsRow{}, &platform.Error{Code: "FORBIDDEN", HTTPStatus: 403}
 	}
-	row, err := (Repository{DB: s.pool}).Get(ctx)
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return nil, err
+		return SettingsRow{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	row, err := (Repository{DB: tx}).Get(ctx)
+	if err != nil {
+		return SettingsRow{}, err
 	}
 	result := row.Groups
 	for name, secretField := range map[string]string{"smtp_password": "password", "turnstile_secret": "turnstile_secret", "billing_key": "merchant_key"} {
 		var encrypted []byte
-		err := s.pool.QueryRow(ctx, `SELECT encrypted_value FROM secret_settings WHERE name=$1`, name).Scan(&encrypted)
+		err := tx.QueryRow(ctx, `SELECT encrypted_value FROM secret_settings WHERE name=$1`, name).Scan(&encrypted)
 		configured := err == nil && len(encrypted) > 0
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, err
+			return SettingsRow{}, err
 		}
 		group := secretGroup(name)
 		object := map[string]any{}
 		if err := json.Unmarshal(result[group], &object); err != nil {
-			return nil, err
+			return SettingsRow{}, err
 		}
 		delete(object, secretField)
 		switch name {
@@ -81,7 +87,7 @@ func (s *Service) GetGroup(ctx context.Context, actor platform.Actor) (map[strin
 			var merchantID *int64
 			var id int64
 			if billing.PID != "" {
-				if err := s.pool.QueryRow(ctx, `SELECT id FROM merchants WHERE pid=$1`, billing.PID).Scan(&id); err == nil {
+				if err := tx.QueryRow(ctx, `SELECT id FROM merchants WHERE pid=$1`, billing.PID).Scan(&id); err == nil {
 					merchantID = &id
 				}
 			}
@@ -89,10 +95,10 @@ func (s *Service) GetGroup(ctx context.Context, actor platform.Actor) (map[strin
 			var valid bool
 			if configured && merchantID != nil {
 				var cipher []byte
-				if s.pool.QueryRow(ctx, `SELECT key_cipher FROM merchants WHERE id=$1 AND banned_at IS NULL`, *merchantID).Scan(&cipher) == nil {
+				if tx.QueryRow(ctx, `SELECT key_cipher FROM merchants WHERE id=$1 AND banned_at IS NULL`, *merchantID).Scan(&cipher) == nil {
 					plain, decErr := platform.Decrypt(s.key[:], cipher)
-					secret, secErr := s.Secret(ctx, "billing_key")
-					valid = secErr == nil && decErr == nil && constantEqual(secret, string(plain))
+					secret, secErr := platform.Decrypt(s.key[:], encrypted)
+					valid = secErr == nil && decErr == nil && constantEqual(string(secret), string(plain))
 				}
 			}
 			object["credential_valid"] = valid
@@ -100,7 +106,10 @@ func (s *Service) GetGroup(ctx context.Context, actor platform.Actor) (map[strin
 		encoded, _ := json.Marshal(object)
 		result[group] = encoded
 	}
-	return result, nil
+	if err := tx.Commit(ctx); err != nil {
+		return SettingsRow{}, err
+	}
+	return row, nil
 }
 
 func secretGroup(name string) string {

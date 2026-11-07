@@ -98,7 +98,7 @@ export function FooterForm({
               <AccountField
                 label={t('consoleSettings.footerUrl')}
                 value={item.url ?? ''}
-                error={errorText(`item_${index}`)}
+                error={errorText(`item_url_${index}`)}
                 onChange={(e) => replaceItem(index, { url: e.target.value || null })}
               />
             </FieldGrid>

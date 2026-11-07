@@ -122,6 +122,9 @@ export function ConsoleSettingsPage({
                 </>
               )}
               {Boolean(editor.error) && <AccountError error={editor.error} />}
+              {group === 'footer_legal' && editor.fieldErrors.footer_legal && (
+                <Notice tone="error">{t('consoleSettings.errors.footer_url')}</Notice>
+              )}
               {editor.oversize && <Notice tone="error">{t('consoleSettings.requestTooLarge')}</Notice>}
               <SettingsForms
                 key={group}
