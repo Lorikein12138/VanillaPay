@@ -11,7 +11,9 @@ export const bytes = (value: string) => new TextEncoder().encode(value).length
 export const validBanReason = (value: string) => Array.from(value.trim()).length >= 1 && Array.from(value.trim()).length <= 500
 export const validGrantReason = (value: string) => !!value.trim() && bytes(value.trim()) <= 500
 export function planName(plan: Schema['SubscriptionPlanDTO'] | null, language: string) {
-  return plan ? (language.startsWith('zh') ? plan.name.zh_CN : plan.name.en || plan.name.zh_CN) : ''
+  const name = plan?.name
+  if (!name) return ''
+  return language.startsWith('zh') ? name.zh_CN : name.en || name.zh_CN
 }
 export function merchantSearch(search: Record<string, unknown>): MerchantFilters {
   return {

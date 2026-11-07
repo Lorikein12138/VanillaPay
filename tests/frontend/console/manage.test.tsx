@@ -100,6 +100,16 @@ it('renders text safely, sends filters and restarts cursor pagination', async ()
   expect(screen.getByLabelText('搜索')).toHaveValue('')
 })
 
+it.each(['/console/merchants', '/console/merchants/42'])('renders a subscription snapshot without a plan name on %s', async (path) => {
+  const subscription = { ...detail.subscription, plan: { channels: ['alipay'] } }
+  server.use(
+    http.get('*/api/v1/console/merchants', () => success({ items: [{ ...merchant, subscription }], total: 1, next_cursor: null })),
+    http.get('*/api/v1/console/merchants/42', () => success({ ...detail, subscription })),
+  )
+  mount(path)
+  expect((await screen.findAllByText('无套餐')).length).toBeGreaterThan(0)
+})
+
 it.each(['USERNAME_TAKEN', 'EMAIL_TAKEN'] as const)('validates merchant creation and maps %s to a field', async (code) => {
   let sent = 0
   server.use(http.post('*/api/v1/console/merchants', ({ request }) => {
