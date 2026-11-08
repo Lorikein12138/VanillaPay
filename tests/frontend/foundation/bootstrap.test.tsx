@@ -1,11 +1,17 @@
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { setupServer } from 'msw/node'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { createI18n } from '@/lib/i18n'
 import { initTheme } from '@/lib/theme'
+import { publicConfigHandler } from '../public-config-fixture'
+
+const server = setupServer(publicConfigHandler)
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
+afterAll(() => server.close())
 
 const zhTitle = '用自己的收款码，收得清清楚楚'
 const enTitle = 'Collect with your own payment codes, and know exactly what arrived'

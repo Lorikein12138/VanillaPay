@@ -92,6 +92,8 @@ for (const signedIn of [false, true]) {
       await page.goto('/login')
       await login(page, account)
       await expect(page).toHaveURL(/\/dashboard$/)
+      // Finish the first dashboard render before observing script loads of the gated reload.
+      await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
     }
     let release: () => void = () => { throw new Error('uninitialized response gate') }
     const gate = new Promise<void>((resolve) => { release = resolve })

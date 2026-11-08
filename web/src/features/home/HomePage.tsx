@@ -1,8 +1,11 @@
 import { buttonVariants } from '@/components/ui/button'
 import { ArrowDown, BellRing, ChartColumn, CodeXml, CreditCard, QrCode, ShieldCheck, ShoppingCart, Smartphone, Target, type LucideIcon } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { LogoMark } from '@/components/Logo'
+import { PublicFooter } from '@/components/PublicFooter'
+import { useSiteBrand } from '@/components/SiteBrand'
 import { TopBar } from '@/components/TopBar'
+import { parsePublicURL, usePublicConfig } from '@/lib/public-config'
 
 const featureIcons = {
   matching: Target,
@@ -26,6 +29,56 @@ const navLinkClass =
   'hidden h-10 items-center rounded-control px-3 text-label text-text-2 transition-colors hover:bg-hover hover:text-text md:inline-flex'
 
 export function HomePage() {
+  const { t } = useTranslation()
+  const config = usePublicConfig()
+  const { name } = useSiteBrand()
+  const home = config.isError ? undefined : config.data?.home
+  const destination = home?.mode === 'url' ? parsePublicURL(home.url) : undefined
+
+  if (config.isPending) {
+    return (
+      <main id="main" className="grid min-h-dvh place-items-center px-4 text-label text-text-2">
+        <p role="status">{t('polish.loading')}</p>
+      </main>
+    )
+  }
+  if (home?.mode === 'html' && home.html != null) {
+    return (
+      <main id="main">
+        <iframe
+          title={name}
+          className="block h-dvh w-full border-0"
+          srcDoc={home.html}
+          sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+        />
+      </main>
+    )
+  }
+  if (destination?.protocol === 'https:') return <HomeRedirect url={destination.href} />
+  return <DefaultHome />
+}
+
+function HomeRedirect({ url }: { url: string }) {
+  const { t } = useTranslation()
+  const lastDestination = useRef<string>(null)
+  useEffect(() => {
+    if (lastDestination.current === url) return
+    lastDestination.current = url
+    try {
+      location.replace(url)
+    } catch {
+      // The manual link remains usable if the browser blocks programmatic navigation.
+    }
+  }, [url])
+  return (
+    <main id="main" className="grid min-h-dvh place-content-center gap-2 px-4 text-center">
+      <p role="status" className="m-0 text-label text-text-2">{t('home.redirecting')}</p>
+      <a href={url} className={buttonVariants({ variant: 'link' })}>{t('home.continueToDestination')}</a>
+    </main>
+  )
+}
+
+function DefaultHome() {
   const { t } = useTranslation()
 
   return (
@@ -125,12 +178,7 @@ export function HomePage() {
         </section>
       </main>
 
-      <footer className="border-t-[0.5px] border-border">
-        <div className="mx-auto flex max-w-[1200px] items-center gap-2.5 px-4 py-10 text-[13px] text-text-2 sm:px-6">
-          <LogoMark className="size-5" />
-          <span>{t('common.brand')}</span>
-        </div>
-      </footer>
+      <PublicFooter />
     </>
   )
 }

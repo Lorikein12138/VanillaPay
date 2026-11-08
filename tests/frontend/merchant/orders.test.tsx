@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import { publicConfigHandler } from '../public-config-fixture'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
@@ -21,7 +22,7 @@ function detail(status = 'pending', channel: string | null = 'alipay'): Schema['
 }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: Schema['ErrorCode']) => HttpResponse.json({ error: { code, fields: {}, details: {}, message: code }, request_id: crypto.randomUUID() }, { status })
-const server = setupServer(emptyNotifications,
+const server = setupServer(emptyNotifications, publicConfigHandler,
   http.get('*/api/v1/merchant/me', () => success(identity)),
   http.get('*/api/v1/merchant/orders', () => success({ items: [], total: 0, next_cursor: null })),
 )

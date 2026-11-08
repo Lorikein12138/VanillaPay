@@ -130,6 +130,14 @@ func run(ctx context.Context) error {
 		ON CONFLICT (kind,revision) DO NOTHING`); err != nil {
 		return err
 	}
+	// A whole-group footer PUT needs both Chinese legal texts. Mirror the seeded
+	// revisions in an uninitialized fixture so the browser test can restore it via PUT.
+	if _, err := pool.Exec(ctx, `UPDATE site_settings SET footer_legal = footer_legal || jsonb_build_object(
+		'terms', (SELECT content FROM legal_versions WHERE kind='terms' AND revision=1),
+		'privacy', (SELECT content FROM legal_versions WHERE kind='privacy' AND revision=1))
+		WHERE singleton AND footer_legal #>> '{terms,zh_CN}' = '' AND footer_legal #>> '{privacy,zh_CN}' = ''`); err != nil {
+		return err
+	}
 	mux := http.NewServeMux()
 	inbox.register(mux)
 	mux.HandleFunc("POST /__e2e/merchant", func(w http.ResponseWriter, r *http.Request) {

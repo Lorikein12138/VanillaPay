@@ -1,6 +1,6 @@
 import { emptyNotifications } from '../merchant/notification-fixture'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -71,7 +71,7 @@ describe('public account flows', () => {
     const secret = crypto.randomUUID(); fill('新密码', secret); fill('确认新密码', secret)
     fill('邮箱验证码', '123456')
     fireEvent.click(screen.getByRole('checkbox', { name: '我同意服务条款' })); fireEvent.click(screen.getByRole('checkbox', { name: '我同意隐私政策' }))
-    expect(screen.getByRole('link', { name: '服务条款' })).toHaveAttribute('target', '_blank')
+    expect(within(screen.getByRole('form', { name: '注册商户' })).getByRole('link', { name: '服务条款' })).toHaveAttribute('target', '_blank')
     fireEvent.click(screen.getByRole('button', { name: '完成验证' }))
     fireEvent.click(screen.getByRole('button', { name: '获取邮箱验证码' }))
     await screen.findByText('0:03')

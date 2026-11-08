@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import { publicConfigHandler } from '../public-config-fixture'
 import { useState, type ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { APIError, api, onUnauthorized } from '@/api/client'
@@ -20,7 +21,14 @@ const identity: Schema['SessionIdentity'] = { user, csrf_token: crypto.randomUUI
 const device: Schema['DeviceDeviceDTO'] = { id: null, name: null, app_version: null, bound: false, online: false, last_seen_at: null, offline_at: null, heartbeat_interval_seconds: 30, offline_threshold_seconds: 90 }
 const settings: Schema['SettingsCollectionSettings'] = { version: 1, order_ttl_seconds: null, float_limit_cents: null, float_direction: null, bounds: { ttl_max_seconds: 600, float_min_cents: 1, float_max_cents: 50 }, effective: { order_ttl_seconds: 300, float_limit_cents: 10, float_direction: 'up' } }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
-const server = setupServer(emptyNotifications, http.get('*/api/v1/merchant/me', () => success(identity)), http.get('*/api/v1/merchant/device', () => success(device)), http.get('*/api/v1/merchant/receipts', () => success({ items: [], total: 0, next_cursor: null })), http.get('*/api/v1/merchant/collection', () => success({ codes: [], settings, device })), http.get('*/api/v1/merchant/collection/codes', () => success({ codes: [] })))
+const server = setupServer(
+  emptyNotifications, publicConfigHandler,
+  http.get('*/api/v1/merchant/me', () => success(identity)),
+  http.get('*/api/v1/merchant/device', () => success(device)),
+  http.get('*/api/v1/merchant/receipts', () => success({ items: [], total: 0, next_cursor: null })),
+  http.get('*/api/v1/merchant/collection', () => success({ codes: [], settings, device })),
+  http.get('*/api/v1/merchant/collection/codes', () => success({ codes: [] })),
+)
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())

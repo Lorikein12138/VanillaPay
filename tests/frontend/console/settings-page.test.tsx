@@ -12,6 +12,7 @@ import { createAppRouter } from '@/app/router'
 import { byteLength, newFooterItem, type SettingsGroup } from '@/features/console/settings-data'
 import { createI18n } from '@/lib/i18n'
 import { setupServer } from 'msw/node'
+import { defaultPublicConfig } from '../public-config-fixture'
 
 type S = components['schemas']
 const settings: S['Settings'] = {
@@ -157,6 +158,27 @@ function mount(path = '/console/settings') {
 }
 
 describe('console settings page', () => {
+  it.each([
+    ['site', '保存站点信息', '站点信息已保存。'],
+    ['home', '保存首页设置', '首页设置已保存。'],
+    ['footer_legal', '保存页脚与协议', '页脚与协议已保存。'],
+  ] as const)('refreshes the shared public config after saving %s', async (group, button, saved) => {
+    const bodies = recordSaves()
+    const versions: number[] = []
+    server.use(http.get('*/api/v1/public/config', () => {
+      versions.push(current.version)
+      return success({ ...defaultPublicConfig, site_name: `Platform ${current.version}` })
+    }))
+    mount(`/console/settings?group=${group}`)
+    await waitFor(() => expect(document.title).toBe('Platform 12'))
+    const save = await screen.findByRole('button', { name: button })
+    fireEvent.click(save)
+    expect(await screen.findByText(saved)).toBeVisible()
+    await waitFor(() => expect(document.title).toBe('Platform 13'))
+    expect(versions).toEqual([12, 13])
+    expect(bodies).toHaveLength(1)
+  })
+
   it('requires review after another administrator replaces the password queued for clearing', async () => {
     const bodies = recordSaves()
     let rejected: S['SettingsUpdateGroup'] | undefined

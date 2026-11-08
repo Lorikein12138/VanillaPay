@@ -9,6 +9,7 @@ import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { PopupAnnouncements } from '@/features/merchant/NotificationsPage'
 import { createI18n } from '@/lib/i18n'
+import { publicConfigHandler } from '../public-config-fixture'
 
 type S = components['schemas']
 const admin: S['SessionIdentity'] = {
@@ -36,6 +37,7 @@ const page = <T,>(items: T[], next_cursor: string | null = null) => ({ items, ne
 const conflict = () => HttpResponse.json({ error: { code: 'VERSION_CONFLICT' } }, { status: 409 })
 let items: S['PortalAnnouncementDTO'][]
 const server = setupServer(
+  publicConfigHandler,
   http.get('*/api/v1/console/me', () => data(admin)),
   http.get(notices, () => data(page(items))),
 )

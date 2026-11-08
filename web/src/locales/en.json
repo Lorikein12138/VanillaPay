@@ -1,7 +1,7 @@
 {
   "common": {
     "brand": "VanillaPay",
-    "home": "VanillaPay home",
+    "home": "{{name}} home",
     "skipToContent": "Skip to main content",
     "backHome": "Back to home"
   },
@@ -18,6 +18,8 @@
     "dark": "Dark"
   },
   "home": {
+    "redirecting": "Redirecting…",
+    "continueToDestination": "Continue if you are not redirected automatically",
     "nav": {
       "label": "On this page",
       "features": "Features",
@@ -377,7 +379,7 @@
     "loading": "Loading…",
     "notPublishedYet": "Not published yet",
     "revision": "Revision",
-    "vanillapayAccountServices": "VanillaPay · Account services",
+    "siteAccountServices": "{{name}} · Account services",
     "manageEveryPaymentWithYourOwnQr": "Manage every payment with your own QR codes. Protect your account and your business.",
     "backToSignIn": "Back to sign in",
     "createAMerchantAccount": "Create a merchant account",
