@@ -3340,21 +3340,27 @@ paths:
             format: date-time
         - name: action
           in: query
+          description: 按操作名称精确筛选
           schema:
             type: string
         - name: result
           in: query
+          description: 按操作结果精确筛选
           schema:
             type: string
         - name: merchant_id
           in: query
+          description: 按商户 ID 精确筛选
           schema:
             type: integer
             format: int64
+            minimum: 1
         - name: actor_role
           in: query
+          description: 按操作者角色精确筛选
           schema:
             type: string
+            enum: [merchant, admin, system, device]
   /api/v1/merchant/receipts:
     get:
       operationId: get_api_v1_merchant_receipts

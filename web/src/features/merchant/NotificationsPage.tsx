@@ -70,8 +70,16 @@ function AnnouncementDialog({ name, item, onSkip }: { name: string; item: compon
     })
   }
   const language = i18n.resolvedLanguage ?? 'zh-CN'
-  return <Dialog title={localized(item.title, language)} description={t('notifications.announcement')} busy={action.busy} onClose={onSkip} footer={<Button variant="primary" loading={action.busy} onClick={() => { void acknowledge() }}>{t('notifications.acknowledge')}</Button>}>
-    <div className="whitespace-pre-wrap break-words text-label leading-relaxed text-text-2">{localized(item.body, language)}</div>
+  return <Dialog
+    title={localized(item.title, language) || item.title.zh_CN}
+    description={t('notifications.announcement')}
+    busy={action.busy}
+    onClose={onSkip}
+    footer={<Button variant="primary" loading={action.busy} onClick={() => void acknowledge()}>{t('notifications.acknowledge')}</Button>}
+  >
+    <div className="whitespace-pre-wrap break-words text-label leading-relaxed text-text-2">
+      {localized(item.body, language) || item.body.zh_CN}
+    </div>
     <p className="mt-5 text-caption text-text-3"><OrderTime value={item.published_at} /></p>
     {action.error != null && <Notice tone="error">{t('notifications.readFailed')}</Notice>}
   </Dialog>

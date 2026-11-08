@@ -5,8 +5,8 @@ export const consoleNavigation = [
   { key: 'merchants', path: '/console/merchants', icon: Store, enabled: true },
   { key: 'orders', path: '/console/orders', icon: ShoppingBag, enabled: true },
   { key: 'plans', path: '/console/plans', icon: Layers, enabled: true },
-  { key: 'announcements', path: '/console/announcements', icon: Bell, enabled: false },
+  { key: 'announcements', path: '/console/announcements', icon: Bell, enabled: true },
   { key: 'purchases', path: '/console/purchases', icon: CreditCard, enabled: true },
   { key: 'settings', path: '/console/settings', icon: Settings, enabled: true },
-  { key: 'auditLogs', path: '/console/audit-logs', icon: ClipboardList, enabled: false },
+  { key: 'auditLogs', path: '/console/audit-logs', icon: ClipboardList, enabled: true },
 ] as const

@@ -28,6 +28,8 @@ import { Route as MerchantSubscriptionRouteImport } from './routes/_merchant.sub
 import { Route as ConsoleIndexRouteImport } from './routes/console.index'
 import { Route as ConsoleSplatRouteImport } from './routes/console.$'
 import { Route as ConsoleAccountRouteImport } from './routes/console.account'
+import { Route as ConsoleAnnouncementsRouteImport } from './routes/console.announcements'
+import { Route as ConsoleAuditLogsRouteImport } from './routes/console.audit-logs'
 import { Route as ConsoleMerchantsRouteImport } from './routes/console.merchants'
 import { Route as ConsoleOrdersRouteImport } from './routes/console.orders'
 import { Route as ConsolePlansRouteImport } from './routes/console.plans'
@@ -141,6 +143,16 @@ const ConsoleAccountRoute = ConsoleAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => ConsoleRoute,
 } as any)
+const ConsoleAnnouncementsRoute = ConsoleAnnouncementsRouteImport.update({
+  id: '/announcements',
+  path: '/announcements',
+  getParentRoute: () => ConsoleRoute,
+} as any)
+const ConsoleAuditLogsRoute = ConsoleAuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
+  getParentRoute: () => ConsoleRoute,
+} as any)
 const ConsoleMerchantsRoute = ConsoleMerchantsRouteImport.update({
   id: '/merchants',
   path: '/merchants',
@@ -250,6 +262,8 @@ export interface FileRoutesByFullPath {
   '/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
+  '/console/announcements': typeof ConsoleAnnouncementsRoute
+  '/console/audit-logs': typeof ConsoleAuditLogsRoute
   '/console/merchants': typeof ConsoleMerchantsRouteWithChildren
   '/console/orders': typeof ConsoleOrdersRouteWithChildren
   '/console/plans': typeof ConsolePlansRoute
@@ -285,6 +299,8 @@ export interface FileRoutesByTo {
   '/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
+  '/console/announcements': typeof ConsoleAnnouncementsRoute
+  '/console/audit-logs': typeof ConsoleAuditLogsRoute
   '/console/plans': typeof ConsolePlansRoute
   '/console/purchases': typeof ConsolePurchasesRoute
   '/console/settings': typeof ConsoleSettingsRoute
@@ -323,6 +339,8 @@ export interface FileRoutesById {
   '/_merchant/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
+  '/console/announcements': typeof ConsoleAnnouncementsRoute
+  '/console/audit-logs': typeof ConsoleAuditLogsRoute
   '/console/merchants': typeof ConsoleMerchantsRouteWithChildren
   '/console/orders': typeof ConsoleOrdersRouteWithChildren
   '/console/plans': typeof ConsolePlansRoute
@@ -363,6 +381,8 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/console/$'
     | '/console/account'
+    | '/console/announcements'
+    | '/console/audit-logs'
     | '/console/merchants'
     | '/console/orders'
     | '/console/plans'
@@ -398,6 +418,8 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/console/$'
     | '/console/account'
+    | '/console/announcements'
+    | '/console/audit-logs'
     | '/console/plans'
     | '/console/purchases'
     | '/console/settings'
@@ -435,6 +457,8 @@ export interface FileRouteTypes {
     | '/_merchant/subscription'
     | '/console/$'
     | '/console/account'
+    | '/console/announcements'
+    | '/console/audit-logs'
     | '/console/merchants'
     | '/console/orders'
     | '/console/plans'
@@ -603,6 +627,20 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/console/account'
       preLoaderRoute: typeof ConsoleAccountRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/console/announcements': {
+      id: '/console/announcements'
+      path: '/announcements'
+      fullPath: '/console/announcements'
+      preLoaderRoute: typeof ConsoleAnnouncementsRouteImport
+      parentRoute: typeof ConsoleRoute
+    }
+    '/console/audit-logs': {
+      id: '/console/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/console/audit-logs'
+      preLoaderRoute: typeof ConsoleAuditLogsRouteImport
       parentRoute: typeof ConsoleRoute
     }
     '/console/merchants': {
@@ -822,6 +860,8 @@ const ConsoleOrdersRouteWithChildren = ConsoleOrdersRoute._addFileChildren(
 interface ConsoleRouteChildren {
   ConsoleSplatRoute: typeof ConsoleSplatRoute
   ConsoleAccountRoute: typeof ConsoleAccountRoute
+  ConsoleAnnouncementsRoute: typeof ConsoleAnnouncementsRoute
+  ConsoleAuditLogsRoute: typeof ConsoleAuditLogsRoute
   ConsoleMerchantsRoute: typeof ConsoleMerchantsRouteWithChildren
   ConsoleOrdersRoute: typeof ConsoleOrdersRouteWithChildren
   ConsolePlansRoute: typeof ConsolePlansRoute
@@ -833,6 +873,8 @@ interface ConsoleRouteChildren {
 const ConsoleRouteChildren: ConsoleRouteChildren = {
   ConsoleSplatRoute: ConsoleSplatRoute,
   ConsoleAccountRoute: ConsoleAccountRoute,
+  ConsoleAnnouncementsRoute: ConsoleAnnouncementsRoute,
+  ConsoleAuditLogsRoute: ConsoleAuditLogsRoute,
   ConsoleMerchantsRoute: ConsoleMerchantsRouteWithChildren,
   ConsoleOrdersRoute: ConsoleOrdersRouteWithChildren,
   ConsolePlansRoute: ConsolePlansRoute,

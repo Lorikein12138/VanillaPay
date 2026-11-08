@@ -57,6 +57,9 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true,
 }
 
 type OrdersQuery = NonNullable<operations['get_api_v1_merchant_orders']['parameters']['query']>
+type AuditQuery = NonNullable<operations['get_api_v1_console_audit_logs']['parameters']['query']>
+// Keep the int64 ID as decimal text through URL serialization.
+export type ConsoleAuditQuery = Omit<AuditQuery, 'merchant_id'> & { merchant_id?: string }
 function queryString(value: Record<string, string | number | boolean | undefined>) {
   return new URLSearchParams(Object.entries(value).filter(([, item]) => item !== undefined && item !== '').map(([key, item]) => [key, String(item)]))
 }
@@ -152,6 +155,16 @@ export const api = {
 
 export type ConsoleRecovery = NonNullable<operations['post_api_v1_console_recovery']['responses'][200]['content']['application/json']['data']>
 export const consoleApi = {
+  auditLogs: (filters: ConsoleAuditQuery, signal?: AbortSignal) =>
+    request<Schema['AuditsPage']>(`/api/v1/console/audit-logs?${queryString(filters)}`, undefined, true, undefined, 'GET', signal),
+  announcements: (filters: NonNullable<operations['get_api_v1_console_announcements']['parameters']['query']>, signal?: AbortSignal) =>
+    request<Schema['AnnouncementsPage']>(`/api/v1/console/announcements?${queryString(filters)}`, undefined, true, undefined, 'GET', signal),
+  publishAnnouncement: (value: Pick<Schema['PortalAnnouncementCommand'], 'title' | 'body' | 'popup'>) =>
+    request<Schema['PortalAnnouncementDTO']>('/api/v1/console/announcements', value),
+  updateAnnouncement: (id: string, value: Pick<Schema['PortalAnnouncementCommand'], 'title' | 'body' | 'popup'> & { revision: number }) =>
+    request<Schema['PortalAnnouncementDTO']>(`/api/v1/console/announcements/${encodeURIComponent(id)}`, value, true, undefined, 'PUT'),
+  deleteAnnouncement: (id: string, value: operations['delete_api_v1_console_announcements_id']['requestBody']['content']['application/json']) =>
+    request<null>(`/api/v1/console/announcements/${encodeURIComponent(id)}`, value, true, undefined, 'DELETE'),
   merchants: (filters: NonNullable<operations['get_api_v1_console_merchants']['parameters']['query']>, signal?: AbortSignal) => request<Schema['ConsoleMerchantPage']>(`/api/v1/console/merchants?${queryString(filters)}`, undefined, true, undefined, 'GET', signal),
   merchant: (id: string, signal?: AbortSignal) => request<Schema['ConsoleMerchantDetail']>(`/api/v1/console/merchants/${encodeURIComponent(id)}`, undefined, true, undefined, 'GET', signal),
   createMerchant: (value: Schema['MerchantCreateMerchant']) => request<Schema['AuthUserDTO']>('/api/v1/console/merchants', value),

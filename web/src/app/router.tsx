@@ -3,23 +3,33 @@ import { routeTree } from '@/routeTree.gen'
 import { onUnauthorized } from '@/api/client'
 import { consoleSafePath, safePath } from '@/lib/redirect'
 
+function searchText(value: string) {
+  if (value.startsWith('"')) {
+    try {
+      const decoded: unknown = JSON.parse(value)
+      if (typeof decoded === 'string') return decoded
+    } catch { /* Preserve literal quotes in search terms. */ }
+  }
+  return value
+}
+
 function parseSearch(search: string) {
   const params = new URLSearchParams(search)
   const queries = params.getAll('query')
-  if (!queries.length) return defaultParseSearch(search)
+  const merchantIds = params.getAll('merchant_id')
+  if (!queries.length && !merchantIds.length) return defaultParseSearch(search)
 
   // Keep search terms out of the router's number and JSON coercion.
   params.delete('query')
+  params.delete('merchant_id')
   const parsed: Record<string, unknown> = defaultParseSearch(params.toString())
-  if (queries.length !== 1) return parsed
-  const query = queries[0]!
-  parsed.query = query
-  if (query.startsWith('"')) {
-    try {
-      const decoded: unknown = JSON.parse(query)
-      if (typeof decoded === 'string') parsed.query = decoded
-    } catch { /* Preserve literal quotes in search terms. */ }
+  // Preserve exact int64 IDs and leave non-decimal syntax for the audit validator to reject.
+  if (merchantIds.length === 1) {
+    const id = searchText(merchantIds[0]!)
+    const numeric = Number(id)
+    parsed.merchant_id = Number.isSafeInteger(numeric) && String(numeric) === id ? numeric : id
   }
+  if (queries.length === 1) parsed.query = searchText(queries[0]!)
   return parsed
 }
 

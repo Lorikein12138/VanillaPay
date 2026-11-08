@@ -1,5 +1,5 @@
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -133,7 +133,8 @@ describe('console guards and login', () => {
   it('restores an existing console session and loads only console stats', async () => {
     signedIn = true; mount()
     expect(await screen.findByRole('heading', { name: new RegExp(user.username) })).toBeVisible()
-    expect(screen.getByRole('navigation', { name: '管理控制台' }).querySelectorAll('a')).toHaveLength(6)
+    const links = within(screen.getByRole('navigation', { name: '管理控制台' })).getAllByRole('link')
+    expect(links.map((link) => link.textContent)).toEqual(['概览', '商户', '订单', '套餐', '公告', '购买记录', '系统设置', '审计日志'])
   })
   it('handles a setup race', async () => {
     let initialized = false
