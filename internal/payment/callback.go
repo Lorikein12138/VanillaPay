@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -244,7 +245,7 @@ func (s *Service) ReplayCallback(ctx context.Context, actor platform.Actor, trad
 		if state == "pending" || state == "running" {
 			return apiErr("CALLBACK_PENDING", 409)
 		}
-		if generation >= 2147483647 {
+		if generation >= math.MaxInt32 {
 			return apiErr("VERSION_CONFLICT", 409)
 		}
 		publicID, err := randomOpaque(s.random, 18)

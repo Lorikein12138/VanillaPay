@@ -3,7 +3,6 @@ package portal
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -83,19 +82,21 @@ func (h *Handler) Notifications(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
-	var req ReadRequest
-	if !portalDecode(w, r, &req) {
+	var body MarkNotificationsReadRequest
+	if !portalDecode(w, r, &body) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
+	req := ReadRequest{All: body.All}
+	if body.IDs != nil {
+		req.IDs = *body.IDs
+	}
 	result, err := h.Service.MarkRead(r.Context(), actor, req)
 	portalWrite(w, r, result, err, 200)
 }
 
 func (h *Handler) MarkAnnouncementRead(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Revision int64 `json:"revision"`
-	}
+	var req AnnouncementRevisionRequest
 	if !portalDecode(w, r, &req) {
 		return
 	}
@@ -133,9 +134,7 @@ func (h *Handler) SaveAnnouncement(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteAnnouncement(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Revision int64 `json:"revision"`
-	}
+	var req AnnouncementRevisionRequest
 	if !portalDecode(w, r, &req) {
 		return
 	}
@@ -215,11 +214,8 @@ func parseLimitQuery(raw string) (int, error) {
 }
 
 func portalDecode(w http.ResponseWriter, r *http.Request, dst any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(dst) != nil || decoder.Decode(new(any)) != io.EOF {
-		portalWrite(w, r, nil, apiError("VALIDATION_ERROR", 400), 400)
+	if err := platform.DecodeJSONBody(w, r, 1<<20, dst); err != nil {
+		portalWrite(w, r, nil, err, 400)
 		return false
 	}
 	return true
@@ -231,14 +227,18 @@ func portalWrite(w http.ResponseWriter, r *http.Request, data any, err error, su
 	if err != nil {
 		status = http.StatusInternalServerError
 		code := "INTERNAL_ERROR"
+		fields := map[string]string{}
 		var api *platform.Error
 		if errors.As(err, &api) {
 			code = api.Code
+			if api.Fields != nil {
+				fields = api.Fields
+			}
 			if api.HTTPStatus != 0 {
 				status = api.HTTPStatus
 			}
 		}
-		body = map[string]any{"error": map[string]any{"code": code, "message": code, "fields": map[string]string{}, "details": map[string]any{}}, "request_id": middleware.GetReqID(r.Context())}
+		body = map[string]any{"error": map[string]any{"code": code, "message": code, "fields": fields, "details": map[string]any{}}, "request_id": middleware.GetReqID(r.Context())}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")

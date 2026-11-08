@@ -175,7 +175,7 @@ func TestDB_PaymentAmountTTLAndOrderSnapshots(t *testing.T) {
 	t.Run("V30.B.r03/v01", func(t *testing.T) {
 		merchant := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 		merchantTTL := 600
-		if _, err := application.Services.Settings.SaveCollection(t.Context(), merchant, settings.SaveCollectionRequest{OrderTTLSeconds: &merchantTTL}); err != nil {
+		if _, err := application.Services.Settings.SaveCollection(t.Context(), merchant, settings.SaveCollectionRequest{ExpectedVersion: 1, OrderTTLSeconds: &merchantTTL}); err != nil {
 			t.Fatalf("set merchant TTL: %v", err)
 		}
 		call := submit("ttl-call-overrides-merchant", "1.01", "", "call TTL", "900")
@@ -203,7 +203,12 @@ func TestDB_PaymentAmountTTLAndOrderSnapshots(t *testing.T) {
 	})
 	t.Run("V30.B.r04/v01", func(t *testing.T) {
 		tooLong := 1801
-		if _, err := application.Services.Settings.SaveCollection(t.Context(), platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}, settings.SaveCollectionRequest{OrderTTLSeconds: &tooLong}); errorCode(err) != "TTL_OUT_OF_RANGE" {
+		actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
+		current, err := application.Services.Settings.GetCollection(t.Context(), actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := application.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{ExpectedVersion: current.Version, OrderTTLSeconds: &tooLong}); errorCode(err) != "TTL_OUT_OF_RANGE" {
 			t.Fatalf("merchant setting above max error=%v, want TTL_OUT_OF_RANGE", err)
 		}
 		response := submit("ttl-above-max", "1.03", "", "too long", "1801")

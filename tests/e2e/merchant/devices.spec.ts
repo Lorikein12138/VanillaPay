@@ -2,6 +2,7 @@ import { generateKeyPairSync } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
 import type { APIRequestContext, Page } from '@playwright/test'
+import type { components } from '../../../web/src/api/schema'
 import { expect, login, noOverflow, test, clickControl, polishShot } from './fixtures'
 
 async function shot(page: Page, name: string) {
@@ -67,6 +68,23 @@ test('uploads and replaces collection codes, toggles availability and saves boun
   await expect(page.getByRole('status').filter({ hasText: '收款设置已保存' })).toBeVisible()
   const effective = page.getByRole('heading', { name: '收款设置', exact: true }).locator('..').locator('..').locator('..').locator('dl')
   await expect(effective).toContainText('120 秒'); await expect(effective).toContainText('0.29'); await expect(effective).toContainText('向下浮动')
+
+  const identity = await page.request.get('/api/v1/merchant/me')
+  const { data: { csrf_token } } = await identity.json() as { data: components['schemas']['SessionIdentity'] }
+  const collection = await page.request.get('/api/v1/merchant/collection')
+  const { data: { settings } } = await collection.json() as { data: components['schemas']['Collection'] }
+  const updated = await page.request.put('/api/v1/merchant/collection/settings', {
+    headers: { Origin: new URL(page.url()).origin, 'X-CSRF-Token': csrf_token },
+    data: { expected_version: settings.version, order_ttl_seconds: 180, float_limit_cents: 29, float_direction: 'down' },
+  })
+  expect(updated.status()).toBe(200)
+  await page.getByLabel('订单有效期（秒）', { exact: true }).fill('240')
+  await page.getByRole('button', { name: '保存收款设置' }).click()
+  await page.getByRole('button', { name: '确认保存', exact: true }).click()
+  const conflict = page.getByText('设置已被其他会话修改，已载入最新值，请确认后再保存。')
+  await expect(conflict).toBeVisible()
+  await expect(page.getByLabel('订单有效期（秒）', { exact: true })).toHaveValue('180')
+  await polishShot(page, 'collection-version-conflict', true, 'contract-backend-fixes-shots')
 })
 
 test('redeems a real binding code, reports receipts, opens a matched order and revokes the device', async ({ page, account, request }) => {

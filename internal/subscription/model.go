@@ -96,3 +96,25 @@ type PurchasePage struct {
 	NextCursor *string            `json:"next_cursor"`
 	Total      int64              `json:"total"`
 }
+
+type SavePlanRequest struct {
+	ID            string        `json:"id,omitempty"`
+	Revision      int64         `json:"revision,omitempty"`
+	Name          LocalizedName `json:"name"`
+	PriceCents    int64         `json:"price_cents"`
+	DurationDays  int           `json:"duration_days"`
+	Channels      *[]string     `json:"channels"`
+	PurchaseLimit *int          `json:"purchase_limit"`
+}
+
+type DeletePlanRequest struct {
+	Revision int64 `json:"revision"`
+}
+
+type GrantSubscriptionRequest struct {
+	PlanID           string    `json:"plan_id"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	Channels         *[]string `json:"channels"`
+	ExpectedRevision int64     `json:"expected_revision"`
+	Reason           string    `json:"reason"`
+}

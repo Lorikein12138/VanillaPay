@@ -39,7 +39,7 @@ func TestDB_CollectionBoundsResetAuditsAffectedMerchantsAndRollsBackOnAuditFailu
 		case 2:
 			ttl = 300
 		}
-		if _, err := application.Services.Settings.SaveCollection(ctx, actor, settingsservice.SaveCollectionRequest{OrderTTLSeconds: &ttl, FloatLimitCents: &floatLimit}); err != nil {
+		if _, err := application.Services.Settings.SaveCollection(ctx, actor, settingsservice.SaveCollectionRequest{ExpectedVersion: 1, OrderTTLSeconds: &ttl, FloatLimitCents: &floatLimit}); err != nil {
 			t.Fatalf("prepare historical collection overrides for merchant %d: %v", merchantID, err)
 		}
 	}

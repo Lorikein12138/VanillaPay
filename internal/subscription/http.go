@@ -3,7 +3,6 @@ package subscription
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -161,9 +160,14 @@ func (h *Handler) ConsolePlans(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, map[string]any{"items": items, "next_cursor": nil, "total": len(items)}, err, 200)
 }
 func (h *Handler) SavePlan(w http.ResponseWriter, r *http.Request) {
-	var req PlanCommand
-	if !subDecode(w, r, &req) {
+	var body SavePlanRequest
+	if !subDecode(w, r, &body) {
 		return
+	}
+	req := PlanCommand{ID: body.ID, Revision: body.Revision, Name: body.Name, PriceCents: body.PriceCents,
+		DurationDays: body.DurationDays, PurchaseLimit: body.PurchaseLimit}
+	if body.Channels != nil {
+		req.Channels = *body.Channels
 	}
 	if id := chi.URLParam(r, "id"); id != "" {
 		req.ID = id
@@ -177,9 +181,7 @@ func (h *Handler) SavePlan(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, result, err, status)
 }
 func (h *Handler) DeletePlan(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Revision int64 `json:"revision"`
-	}
+	var req DeletePlanRequest
 	if !subDecode(w, r, &req) {
 		return
 	}
@@ -188,8 +190,8 @@ func (h *Handler) DeletePlan(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, result, err, 200)
 }
 func (h *Handler) Grant(w http.ResponseWriter, r *http.Request) {
-	var req GrantRequest
-	if !subDecode(w, r, &req) {
+	var body GrantSubscriptionRequest
+	if !subDecode(w, r, &body) {
 		return
 	}
 	merchantID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -198,16 +200,17 @@ func (h *Handler) Grant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
+	req := GrantRequest{PlanID: body.PlanID, ExpiresAt: body.ExpiresAt, ExpectedRevision: body.ExpectedRevision, Reason: body.Reason}
+	if body.Channels != nil {
+		req.Channels = *body.Channels
+	}
 	result, err := h.Service.Grant(r.Context(), actor, merchantID, req)
 	subWrite(w, r, result, err, 200)
 }
 
 func subDecode(w http.ResponseWriter, r *http.Request, target any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if dec.Decode(target) != nil || dec.Decode(new(any)) != io.EOF {
-		subWrite(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, 400)
+	if err := platform.DecodeJSONBody(w, r, 1<<20, target); err != nil {
+		subWrite(w, r, nil, err, 400)
 		return false
 	}
 	return true
@@ -220,15 +223,19 @@ func subWrite(w http.ResponseWriter, r *http.Request, data any, err error, statu
 	if err != nil {
 		status = 500
 		code := "INTERNAL_ERROR"
+		fields := map[string]string{}
 		var api *platform.Error
 		if errors.As(err, &api) {
 			code = api.Code
+			if api.Fields != nil {
+				fields = api.Fields
+			}
 			if api.HTTPStatus > 0 {
 				status = api.HTTPStatus
 			}
 		}
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": map[string]string{}, "details": map[string]any{}}, "request_id": id})
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": fields, "details": map[string]any{}}, "request_id": id})
 		return
 	}
 	w.WriteHeader(status)

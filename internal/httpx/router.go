@@ -137,12 +137,22 @@ func apiAuthentication(a *app.App) func(http.Handler) http.Handler {
 				authService = a.Services.Auth
 			}
 			if path == "/auth/email-codes" && r.Method == http.MethodPost {
-				body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
-				r.Body = io.NopCloser(bytes.NewReader(body))
-				var request struct {
-					Purpose string `json:"purpose"`
+				if r.Body == nil {
+					writeAPIError(w, r, http.StatusBadRequest, "VALIDATION_ERROR")
+					return
 				}
-				if err == nil && json.Unmarshal(body, &request) == nil && merchantEmailCodePurpose(request.Purpose) {
+				body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+				if err != nil {
+					writeAPIError(w, r, http.StatusBadRequest, "VALIDATION_ERROR")
+					return
+				}
+				var request auth.EmailCodeRequest
+				if err := platform.DecodeStrictJSON(bytes.NewReader(body), &request); err != nil {
+					writePlatformError(w, r, err)
+					return
+				}
+				r.Body = io.NopCloser(bytes.NewReader(body))
+				if merchantEmailCodePurpose(request.Purpose) {
 					RequireMerchant(authService, next).ServeHTTP(w, r)
 					return
 				}

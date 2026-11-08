@@ -296,9 +296,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	httpJSON(w, r, dto, err, 200)
 }
 func (h *Handler) SelectCheckoutChannel(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Channel string `json:"channel"`
-	}
+	var req CheckoutChannelRequest
 	if decodePaymentJSON(w, r, &req) != nil {
 		return
 	}
@@ -551,15 +549,12 @@ func (h *Handler) Supplement(w http.ResponseWriter, r *http.Request) {
 	httpJSON(w, r, order, err, 200)
 }
 func (h *Handler) MarkRefunded(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Confirm bool   `json:"confirm"`
-		Reason  string `json:"reason"`
-	}
+	var req MarkRefundedRequest
 	if decodePaymentJSON(w, r, &req) != nil {
 		return
 	}
 	if !req.Confirm {
-		httpJSON(w, r, nil, apiErr("VALIDATION_ERROR", 400), 200)
+		httpJSON(w, r, nil, platform.InvalidJSONField("confirm"), 200)
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -589,40 +584,23 @@ func (h *Handler) orderResponse(r *http.Request, actor platform.Actor, trade str
 	return detail["order"], nil
 }
 func (h *Handler) ResolveRefund(w http.ResponseWriter, r *http.Request) {
-	var req RefundResolution
-	if decodePaymentJSON(w, r, &req) != nil {
+	var body RefundResolution
+	if decodePaymentJSON(w, r, &body) != nil {
+		return
+	}
+	if body.Action == "mark_refunded" && !body.Confirm {
+		httpJSON(w, r, nil, platform.InvalidJSONField("confirm"), 200)
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
 	refundID := chi.URLParam(r, "id")
-	err := h.Service.ResolveRefund(r.Context(), actor, refundID, req)
-	var data any
-	if err == nil {
-		var dto RefundDTO
-		var outNo, reason, handledBy pgtype.Text
-		var handledAt pgtype.Timestamptz
-		err = h.Service.pool.QueryRow(r.Context(), `SELECT r.public_id,o.trade_no,r.out_refund_no,r.requested_cents,r.status,r.reason,r.requested_at,r.handled_at,r.handled_by::text FROM refunds r JOIN orders o ON o.id=r.order_id WHERE r.public_id=$1 AND o.merchant_id=$2`, refundID, actor.MerchantID).Scan(&dto.ID, &dto.TradeNo, &outNo, &dto.AmountCents, &dto.Status, &reason, &dto.RequestedAt, &handledAt, &handledBy)
-		if err == nil {
-			if outNo.Valid {
-				value := outNo.String
-				dto.OutRefundNo = &value
-			}
-			if reason.Valid {
-				value := reason.String
-				dto.Reason = &value
-			}
-			if handledAt.Valid {
-				value := handledAt.Time
-				dto.HandledAt = &value
-			}
-			if handledBy.Valid {
-				value := handledBy.String
-				dto.HandledBy = &value
-			}
-			data = dto
-		}
+	key := r.Header.Get("Idempotency-Key")
+	if key == "" {
+		httpJSON(w, r, nil, apiErr("VALIDATION_ERROR", 400), 200)
+		return
 	}
-	httpJSON(w, r, data, err, 200)
+	dto, err := h.Service.ResolveRefundIdempotent(r.Context(), actor, refundID, body, key)
+	httpJSON(w, r, dto, err, 200)
 }
 func (h *Handler) CallbackReplay(w http.ResponseWriter, r *http.Request) {
 	var req struct{}
@@ -717,19 +695,11 @@ func parseProtocolParams(r *http.Request) (url.Values, error) {
 	return query, nil
 }
 func decodePaymentJSON(w http.ResponseWriter, r *http.Request, dst any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
-	d := json.NewDecoder(r.Body)
-	d.DisallowUnknownFields()
-	if err := d.Decode(dst); err != nil {
-		httpJSON(w, r, nil, apiErr("VALIDATION_ERROR", 400), 200)
-		return err
+	err := platform.DecodeJSONBody(w, r, 64<<10, dst)
+	if err != nil {
+		httpJSON(w, r, nil, err, 200)
 	}
-	if d.Decode(new(any)) != io.EOF {
-		err := errors.New("invalid trailing JSON")
-		httpJSON(w, r, nil, apiErr("VALIDATION_ERROR", 400), 200)
-		return err
-	}
-	return nil
+	return err
 }
 func httpJSON(w http.ResponseWriter, r *http.Request, data any, err error, status int) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -739,8 +709,12 @@ func httpJSON(w http.ResponseWriter, r *http.Request, data any, err error, statu
 	if err != nil {
 		var api *platform.Error
 		code := "INTERNAL_ERROR"
+		fields := map[string]string{}
 		if errors.As(err, &api) {
 			code = api.Code
+			if api.Fields != nil {
+				fields = api.Fields
+			}
 			if api.HTTPStatus > 0 {
 				status = api.HTTPStatus
 			} else {
@@ -750,7 +724,7 @@ func httpJSON(w http.ResponseWriter, r *http.Request, data any, err error, statu
 			status = 500
 		}
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": map[string]string{}, "details": map[string]any{}}, "request_id": id})
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": fields, "details": map[string]any{}}, "request_id": id})
 		return
 	}
 	w.WriteHeader(status)

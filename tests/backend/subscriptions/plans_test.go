@@ -3,6 +3,7 @@ package subscriptions
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"vanillapay/internal/platform"
@@ -33,6 +34,26 @@ func TestDB_PlanRevisionConflictAndSoftDeletePreserveHistory(t *testing.T) {
 	}
 	if _, err := application.Services.Subscription.SavePlan(ctx, admin, update); err == nil {
 		t.Fatal("soft-deleted plan was mutable")
+	}
+}
+
+func TestDB_PlanPurchaseLimitFitsPostgresInteger(t *testing.T) {
+	service := testsupport.NewDatabase(t).NewApplication(t).Services.Subscription
+	admin := platform.Actor{Role: "admin", SubjectID: 1}
+	command := subscription.PlanCommand{Name: subscription.LocalizedName{ZhCN: "限购"}, PriceCents: 100, DurationDays: 30,
+		Channels: []string{"alipay"}, PurchaseLimit: new(math.MaxInt32)}
+	plan, err := service.SavePlan(t.Context(), admin, command)
+	if err != nil || plan.PurchaseLimit == nil || *plan.PurchaseLimit != math.MaxInt32 {
+		t.Fatalf("max purchase limit: %#v, %v", plan.PurchaseLimit, err)
+	}
+	command.PurchaseLimit = new(math.MaxInt32 + 1)
+	for _, id := range []string{"", plan.ID} {
+		command.ID, command.Revision = id, plan.Revision
+		_, err := service.SavePlan(t.Context(), admin, command)
+		var problem *platform.Error
+		if !errors.As(err, &problem) || problem.Code != "VALIDATION_ERROR" || problem.HTTPStatus != 400 || problem.Fields["purchase_limit"] == "" {
+			t.Fatalf("overflow plan %q: %#v", id, err)
+		}
 	}
 }
 

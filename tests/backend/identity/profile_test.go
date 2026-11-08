@@ -118,7 +118,11 @@ func TestHTTP_ProfileSecurity(t *testing.T) {
 		missing := fixture.Request(t, http.MethodPatch, "/api/v1/merchant/profile/email", map[string]any{
 			"email": newEmail, "old_email_code": oldEmailCode, "totp_code": totpCode(t, setupDTO.Secret, db.Clock.Now()),
 		}, client)
-		assertIdentityError(t, missing, "INVALID_CODE", "email change requires both email proofs")
+		assertIdentityError(t, missing, "VALIDATION_ERROR", "missing new email proof is rejected at the boundary")
+		empty := fixture.Request(t, http.MethodPatch, "/api/v1/merchant/profile/email", map[string]any{
+			"email": newEmail, "old_email_code": oldEmailCode, "new_email_code": "", "totp_code": totpCode(t, setupDTO.Secret, db.Clock.Now()),
+		}, client)
+		assertIdentityError(t, empty, "INVALID_CODE", "email change requires both email proofs")
 	})
 	t.Run("V10.B.r02/v02", func(t *testing.T) {
 		swapped := fixture.Request(t, http.MethodPatch, "/api/v1/merchant/profile/email", map[string]any{

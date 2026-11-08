@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -14,19 +13,21 @@ import (
 )
 
 type overviewOrder struct {
-	TradeNo       string     `json:"trade_no"`
-	OutTradeNo    string     `json:"out_trade_no"`
-	Name          string     `json:"name"`
-	Channel       *string    `json:"channel"`
-	Status        string     `json:"status"`
-	OriginalCents int64      `json:"original_cents"`
-	ActualCents   *int64     `json:"actual_cents"`
-	CreatedAt     time.Time  `json:"created_at"`
-	PaidAt        *time.Time `json:"paid_at"`
-	NotifyURL     *string    `json:"notify_url"`
-	ReturnURL     *string    `json:"return_url"`
-	CallbackState string     `json:"callback_state"`
-	RefundPending bool       `json:"refund_pending"`
+	TradeNo            string     `json:"trade_no"`
+	OutTradeNo         string     `json:"out_trade_no,omitempty"`
+	Name               string     `json:"name"`
+	Channel            *string    `json:"channel,omitempty"`
+	Status             string     `json:"status"`
+	OriginalCents      int64      `json:"original_cents"`
+	ActualCents        *int64     `json:"actual_cents,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	PaidAt             *time.Time `json:"paid_at,omitempty"`
+	NotifyURL          *string    `json:"notify_url,omitempty"`
+	ReturnURL          *string    `json:"return_url,omitempty"`
+	CallbackState      string     `json:"callback_state,omitempty"`
+	CallbackGeneration int        `json:"callback_generation,omitempty"`
+	AllowedChannels    []string   `json:"allowed_channels_snapshot,omitempty"`
+	RefundPending      bool       `json:"refund_pending,omitempty"`
 }
 
 // Only registered by the loopback E2E executable, never the production router.
@@ -36,7 +37,7 @@ func registerOverviewFixtures(mux *http.ServeMux, pool *pgxpool.Pool) {
 			PID    string          `json:"pid"`
 			Orders []overviewOrder `json:"orders"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&input) != nil || len(input.Orders) == 0 || len(input.Orders) > 100 {
+		if platform.DecodeJSONBody(w, r, 65536, &input) != nil || len(input.Orders) == 0 || len(input.Orders) > 100 {
 			http.Error(w, "invalid order fixtures", http.StatusBadRequest)
 			return
 		}
@@ -52,7 +53,7 @@ func registerOverviewFixtures(mux *http.ServeMux, pool *pgxpool.Pool) {
 			State string `json:"state"`
 			Name  string `json:"name"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&input) != nil || (input.State != "unbound" && input.State != "online" && input.State != "offline") {
+		if platform.DecodeJSONBody(w, r, 1024, &input) != nil || (input.State != "unbound" && input.State != "online" && input.State != "offline") {
 			http.Error(w, "invalid device fixture", http.StatusBadRequest)
 			return
 		}
@@ -88,7 +89,11 @@ func seedOverviewOrders(ctx context.Context, pool *pgxpool.Pool, pid string, ord
 			outTrade = order.TradeNo
 		}
 		var orderID int64
-		err := tx.QueryRow(ctx, `INSERT INTO orders(trade_no,out_trade_no,merchant_id,merchant_username_snapshot,purpose,protocol,name,channel,status,original_cents,actual_cents,created_at,paid_at,refunded_at,expires_at,notify_url,return_url,allowed_channels_snapshot) VALUES($1,$2,$3,$4,'external','v1',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`, order.TradeNo, outTrade, merchantID, username, order.Name, order.Channel, order.Status, order.OriginalCents, order.ActualCents, order.CreatedAt, order.PaidAt, refundedAt, order.CreatedAt.AddDate(0, 3, 0), order.NotifyURL, order.ReturnURL, []string{"alipay", "wxpay", "qqpay"}).Scan(&orderID)
+		channels := order.AllowedChannels
+		if channels == nil {
+			channels = []string{"alipay", "wxpay", "qqpay"}
+		}
+		err := tx.QueryRow(ctx, `INSERT INTO orders(trade_no,out_trade_no,merchant_id,merchant_username_snapshot,purpose,protocol,name,channel,status,original_cents,actual_cents,created_at,paid_at,refunded_at,expires_at,notify_url,return_url,allowed_channels_snapshot) VALUES($1,$2,$3,$4,'external','v1',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`, order.TradeNo, outTrade, merchantID, username, order.Name, order.Channel, order.Status, order.OriginalCents, order.ActualCents, order.CreatedAt, order.PaidAt, refundedAt, order.CreatedAt.AddDate(0, 3, 0), order.NotifyURL, order.ReturnURL, channels).Scan(&orderID)
 		if err != nil {
 			return err
 		}
@@ -99,7 +104,7 @@ func seedOverviewOrders(ctx context.Context, pool *pgxpool.Pool, pid string, ord
 		}
 		if order.CallbackState != "" {
 			var eventID int64
-			err := tx.QueryRow(ctx, `INSERT INTO callback_events(public_id,order_id,generation,state,attempt_count,payload_snapshot) VALUES($1,$2,1,$3,1,jsonb_build_object('trade_no',$4::text)) RETURNING id`, order.TradeNo+"-callback", orderID, order.CallbackState, order.TradeNo).Scan(&eventID)
+			err := tx.QueryRow(ctx, `INSERT INTO callback_events(public_id,order_id,generation,state,attempt_count,payload_snapshot) VALUES($1,$2,$3,$4,1,jsonb_build_object('trade_no',$5::text)) RETURNING id`, order.TradeNo+"-callback", orderID, max(1, order.CallbackGeneration), order.CallbackState, order.TradeNo).Scan(&eventID)
 			if err != nil {
 				return err
 			}

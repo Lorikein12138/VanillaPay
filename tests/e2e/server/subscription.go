@@ -21,9 +21,9 @@ func registerSubscriptionFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [3
 	mux.HandleFunc("POST /__e2e/subscription", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			PID    string `json:"pid"`
-			Active bool   `json:"active"`
+			Active bool   `json:"active,omitempty"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&input) != nil {
+		if platform.DecodeJSONBody(w, r, 2048, &input) != nil {
 			http.Error(w, "invalid subscription fixture", http.StatusBadRequest)
 			return
 		}
@@ -66,10 +66,10 @@ func registerSubscriptionFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [3
 	mux.HandleFunc("POST /__e2e/notifications", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			PID        string `json:"pid"`
-			TradeNo    string `json:"trade_no"`
-			UnsafeText bool   `json:"unsafe_text"`
+			TradeNo    string `json:"trade_no,omitempty"`
+			UnsafeText bool   `json:"unsafe_text,omitempty"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&input) != nil {
+		if platform.DecodeJSONBody(w, r, 2048, &input) != nil {
 			http.Error(w, "invalid notification fixture", http.StatusBadRequest)
 			return
 		}
@@ -105,9 +105,9 @@ func registerSubscriptionFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [3
 	mux.HandleFunc("POST /__e2e/announcements", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			PID        string `json:"pid"`
-			UnsafeText bool   `json:"unsafe_text"`
+			UnsafeText bool   `json:"unsafe_text,omitempty"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&input) != nil {
+		if platform.DecodeJSONBody(w, r, 2048, &input) != nil {
 			http.Error(w, "invalid announcement fixture", http.StatusBadRequest)
 			return
 		}

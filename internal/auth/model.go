@@ -147,7 +147,7 @@ type TOTPConfirm struct {
 
 type FactorProof struct {
 	Password  string `json:"password"`
-	TOTPCode  string `json:"totp_code"`
+	TOTPCode  string `json:"totp_code,omitempty"`
 	EmailCode string `json:"email_code,omitempty"`
 }
 
@@ -311,4 +311,42 @@ func verifyTOTP(code, secret string, now time.Time) (int64, bool) {
 		}
 	}
 	return 0, false
+}
+
+type RecoveryRequest struct {
+	RecoveryCode string `json:"recovery_code"`
+}
+
+type ChangeUsernameRequest struct {
+	Username string        `json:"username"`
+	Proof    SecurityProof `json:"security_proof"`
+}
+
+type ChangeEmailRequest struct {
+	Email        string `json:"email"`
+	OldEmailCode string `json:"old_email_code"`
+	NewEmailCode string `json:"new_email_code"`
+	TOTPCode     string `json:"totp_code,omitempty"`
+}
+
+type ChangePasswordRequest struct {
+	Password             string        `json:"password"`
+	PasswordConfirmation string        `json:"password_confirmation"`
+	Proof                SecurityProof `json:"security_proof"`
+}
+
+type PreferencesRequest struct {
+	Locale string `json:"locale,omitempty"`
+	Theme  string `json:"theme,omitempty"`
+}
+
+type TOTPSetupRequest struct {
+	Password string `json:"password"`
+}
+
+type AdminPasswordRequest struct {
+	CurrentPassword      string `json:"current_password"`
+	Password             string `json:"password"`
+	PasswordConfirmation string `json:"password_confirmation"`
+	TOTPCode             string `json:"totp_code,omitempty"`
 }

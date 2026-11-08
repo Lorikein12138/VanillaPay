@@ -72,7 +72,10 @@ func TestHTTP_IntegrationKeyLifecycle(t *testing.T) {
 	}
 
 	t.Run("V14.B.r01/v01", func(t *testing.T) {
-		response := fixture.Request(t, http.MethodPost, "/api/v1/merchant/integration/reset-key", map[string]any{"security_proof": map[string]string{}}, client)
+		const path = "/api/v1/merchant/integration/reset-key"
+		missing := fixture.Request(t, http.MethodPost, path, map[string]any{"security_proof": map[string]string{}}, client)
+		assertIdentityError(t, missing, "VALIDATION_ERROR", "merchant KEY reset with missing email code field")
+		response := fixture.Request(t, http.MethodPost, path, map[string]any{"security_proof": map[string]string{"email_code": ""}}, client)
 		assertIdentityError(t, response, "INVALID_CODE", "merchant KEY reset without email proof")
 		var version int
 		if err := db.Pool.QueryRow(t.Context(), `SELECT key_version FROM merchants WHERE id=$1`, merchantID).Scan(&version); err != nil || version != 1 {
@@ -93,9 +96,22 @@ func TestHTTP_IntegrationKeyLifecycle(t *testing.T) {
 			KeyVersion int    `json:"key_version"`
 		}
 		if err := json.Unmarshal(data, &result); err != nil || result.PID != pid || result.Key == "" || result.Key == oldKey || result.KeyVersion != 2 {
-			t.Fatalf("rotated integration credential = %#v err=%v", result, err)
+			t.Fatalf("rotation did not issue a new credential for the merchant at version 2: %v", err)
 		}
 		rotatedKey = result.Key
+		audits := fixture.Request(t, http.MethodGet, "/api/v1/merchant/audit-logs?action=merchant.reset_key", nil, client)
+		var page struct {
+			Items []struct {
+				Action   string `json:"action"`
+				Metadata struct {
+					KeyVersion int `json:"key_version"`
+				} `json:"safe_metadata"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal(assertIdentityResponse(t, audits, http.StatusOK, "read key rotation audit"), &page); err != nil ||
+			len(page.Items) != 1 || page.Items[0].Action != "merchant.reset_key" || page.Items[0].Metadata.KeyVersion != result.KeyVersion {
+			t.Fatalf("rotation audit missing numeric key version: %v", err)
+		}
 	})
 
 	protocolValues := func(outTradeNo string) url.Values {

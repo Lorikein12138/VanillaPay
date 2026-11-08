@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -55,9 +54,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *Handler) consoleRecovery(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RecoveryCode string `json:"recovery_code"`
-	}
+	var req RecoveryRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -185,15 +182,8 @@ func (h *Handler) csrfCookieName(role string) string {
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		writeResult(w, r, nil, appError("VALIDATION_ERROR", 400), http.StatusBadRequest)
-		return false
-	}
-	if err := dec.Decode(new(any)); !errors.Is(err, io.EOF) {
-		writeResult(w, r, nil, appError("VALIDATION_ERROR", 400), http.StatusBadRequest)
+	if err := platform.DecodeJSONBody(w, r, 1<<20, dst); err != nil {
+		writeResult(w, r, nil, err, http.StatusBadRequest)
 		return false
 	}
 	return true

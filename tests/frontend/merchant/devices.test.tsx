@@ -189,14 +189,16 @@ describe('collection bounds and cache invalidation', () => {
     await userEvent.click(screen.getByRole('button', { name: '保存收款设置' }))
     await userEvent.click(screen.getByRole('button', { name: '确认保存' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(payload).toEqual({ order_ttl_seconds: null, float_limit_cents: 29, float_direction: null })
+    expect(payload).toEqual({ expected_version: settings.version, order_ttl_seconds: null, float_limit_cents: 29, float_direction: null })
     expect(csrf).toBe(identity.csrf_token)
     expect(client.getQueryState(['merchant', user.username, 'stats', { days: 7 }])?.isInvalidated).toBe(true)
   })
   it('reloads changed settings after 409 and keeps the conflict notice visible', async () => {
-    let changed = false
-    server.use(http.get('*/api/v1/merchant/collection', () => success({ codes: [], device, settings: changed ? { ...settings, version: 2, float_limit_cents: 15 } : settings })), http.put('*/api/v1/merchant/collection/settings', () => {
-      changed = true
+    const versions: number[] = []
+    server.use(http.get('*/api/v1/merchant/collection', () => success({ codes: [], device, settings: versions.length ? { ...settings, version: 2, float_limit_cents: 15 } : settings })), http.put('*/api/v1/merchant/collection/settings', async ({ request }) => {
+      const body = await request.json() as Schema['SettingsSaveCollectionRequest']
+      versions.push(body.expected_version)
+      if (versions.length > 1) return success({ ...settings, version: 3, float_limit_cents: 15 })
       return HttpResponse.json({ error: { code: 'VERSION_CONFLICT', fields: {}, details: {}, message: '' } }, { status: 409 })
     }))
     mount('/codes')
@@ -204,8 +206,12 @@ describe('collection bounds and cache invalidation', () => {
     await userEvent.click(screen.getByRole('button', { name: '保存收款设置' }))
     await userEvent.click(screen.getByRole('button', { name: '确认保存' }))
     await waitFor(() => expect(screen.getByLabelText('浮动上限（元）')).toHaveValue('0.15'))
-    expect(screen.getByRole('status')).toHaveTextContent('设置版本已变化')
+    expect(screen.getByText('设置已被其他会话修改，已载入最新值，请确认后再保存。')).toBeVisible()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(versions).toEqual([settings.version])
+    await userEvent.click(screen.getByRole('button', { name: '保存收款设置' }))
+    await userEvent.click(screen.getByRole('button', { name: '确认保存' }))
+    await waitFor(() => expect(versions).toEqual([settings.version, 2]))
   })
   it.each(['toggle', 'unbind', 'binding', 'reset', 'rsa', 'whitelist'] as const)('invalidates merchant stats after the actual %s write flow', async (kind) => {
     const integration: Schema['Integration'] = { pid: user.pid!, key: crypto.randomUUID(), key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '' }, v2: { submit: '', create: '', query: '', refund: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } }

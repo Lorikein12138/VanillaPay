@@ -124,25 +124,49 @@ func secretGroup(name string) string {
 }
 
 func (s *Service) UpdateGroup(ctx context.Context, actor platform.Actor, group string, req UpdateGroup) (GroupResult, error) {
+	prepared, err := prepareUpdateGroup(actor, group, req)
+	if err != nil {
+		return GroupResult{}, err
+	}
+	return s.updatePreparedGroup(ctx, actor, group, req.ExpectedVersion, prepared)
+}
+
+type preparedGroupUpdate struct {
+	value          json.RawMessage
+	secrets        map[string]json.RawMessage
+	recovery       *RecoverySecurityRequest
+	recoverySecret json.RawMessage
+}
+
+func prepareUpdateGroup(actor platform.Actor, group string, req UpdateGroup) (preparedGroupUpdate, error) {
 	if actor.RecoveryOnly {
 		if group != "security" {
-			return GroupResult{}, &platform.Error{Code: "FORBIDDEN", HTTPStatus: 403}
+			return preparedGroupUpdate{}, &platform.Error{Code: "FORBIDDEN", HTTPStatus: 403}
 		}
-		return s.updateRecoverySecurity(ctx, actor, req)
+		return prepareRecoveryUpdate(actor, req)
 	}
 	if actor.Role != "admin" {
-		return GroupResult{}, &platform.Error{Code: "FORBIDDEN", HTTPStatus: 403}
+		return preparedGroupUpdate{}, &platform.Error{Code: "FORBIDDEN", HTTPStatus: 403}
 	}
 	if req.ExpectedVersion < 1 {
-		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+		return preparedGroupUpdate{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
 	clean, secrets, err := ValidateGroup(group, req.Value)
 	if err != nil {
-		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+		var validation *platform.Error
+		if errors.As(err, &validation) {
+			return preparedGroupUpdate{}, validation
+		}
+		return preparedGroupUpdate{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
-	if group != "site" && group != "home" && group != "footer_legal" && group != "mail" && group != "security" && group != "payment" && group != "billing" {
-		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+	return preparedGroupUpdate{value: clean, secrets: secrets}, nil
+}
+
+func (s *Service) updatePreparedGroup(ctx context.Context, actor platform.Actor, group string, expectedVersion int64, prepared preparedGroupUpdate) (GroupResult, error) {
+	if prepared.recovery != nil {
+		return s.updateRecoverySecurity(ctx, actor, expectedVersion, *prepared.recovery, prepared.recoverySecret)
 	}
+	clean, secrets := prepared.value, prepared.secrets
 	ids, err := s.merchantIDs(ctx)
 	if err != nil {
 		return GroupResult{}, err
@@ -156,7 +180,7 @@ func (s *Service) UpdateGroup(ctx context.Context, actor platform.Actor, group s
 		if err := tx.QueryRow(ctx, `SELECT version FROM site_settings WHERE singleton=true FOR UPDATE`).Scan(&current); err != nil {
 			return err
 		}
-		if current != req.ExpectedVersion {
+		if current != expectedVersion {
 			return &platform.Error{Code: "VERSION_CONFLICT", HTTPStatus: 409}
 		}
 		if group == "billing" {
@@ -242,30 +266,27 @@ func updateSettingsGroupTx(ctx context.Context, tx pgx.Tx, group string, clean j
 	return tx.QueryRow(ctx, query, clean, now, version).Scan(updated)
 }
 
-func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Actor, req UpdateGroup) (GroupResult, error) {
+func prepareRecoveryUpdate(actor platform.Actor, req UpdateGroup) (preparedGroupUpdate, error) {
 	if actor.Role != "admin" || actor.SubjectID != 1 || actor.RecoveryChallengeID <= 0 || req.ExpectedVersion < 1 || len(req.Value) == 0 || len(req.Value) > 16<<10 {
-		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+		return preparedGroupUpdate{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
-	var input map[string]json.RawMessage
-	if err := json.Unmarshal(req.Value, &input); err != nil || input == nil {
-		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+	var input RecoverySecurityRequest
+	if err := decodeGroup(req.Value, &input); err != nil {
+		return preparedGroupUpdate{}, err
 	}
-	for field := range input {
-		if field != "turnstile_site_key" && field != "allowed_hostname" && field != "turnstile_secret" {
-			return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
-		}
+	if strings.TrimSpace(input.SiteKey) == "" || strings.TrimSpace(input.Hostname) == "" {
+		return preparedGroupUpdate{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
-	var siteKey, hostname string
-	if json.Unmarshal(input["turnstile_site_key"], &siteKey) != nil || json.Unmarshal(input["allowed_hostname"], &hostname) != nil || strings.TrimSpace(siteKey) == "" || strings.TrimSpace(hostname) == "" {
-		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+	secret := groupField(req.Value, "turnstile_secret")
+	if secret != nil && strings.TrimSpace(input.Secret) == "" {
+		return preparedGroupUpdate{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
-	secret, replacesSecret := input["turnstile_secret"]
-	if replacesSecret {
-		var value string
-		if json.Unmarshal(secret, &value) != nil || strings.TrimSpace(value) == "" {
-			return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
-		}
-	}
+	return preparedGroupUpdate{recovery: &input, recoverySecret: secret}, nil
+}
+
+func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Actor, expectedVersion int64, input RecoverySecurityRequest, secret json.RawMessage) (GroupResult, error) {
+	siteKey, hostname := input.SiteKey, input.Hostname
+	replacesSecret := secret != nil
 	ids, err := s.merchantIDs(ctx)
 	if err != nil {
 		return GroupResult{}, err
@@ -280,15 +301,15 @@ func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Act
 		if err := tx.QueryRow(ctx, `SELECT version,security FROM site_settings WHERE singleton=true FOR UPDATE`).Scan(&current, &currentSecurity); err != nil {
 			return err
 		}
-		if current != req.ExpectedVersion {
+		if current != expectedVersion {
 			return &platform.Error{Code: "VERSION_CONFLICT", HTTPStatus: 409}
 		}
 		var merged map[string]json.RawMessage
 		if err := json.Unmarshal(currentSecurity, &merged); err != nil || merged == nil {
 			return errors.New("stored security settings are invalid")
 		}
-		merged["turnstile_site_key"] = append(json.RawMessage(nil), input["turnstile_site_key"]...)
-		merged["allowed_hostname"] = append(json.RawMessage(nil), input["allowed_hostname"]...)
+		merged["turnstile_site_key"] = marshal(siteKey)
+		merged["allowed_hostname"] = marshal(hostname)
 		if replacesSecret {
 			merged["turnstile_secret"] = append(json.RawMessage(nil), secret...)
 		}
@@ -505,6 +526,9 @@ func (s *Service) SaveCollection(ctx context.Context, actor platform.Actor, req 
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
 		return CollectionSettings{}, &platform.Error{Code: "UNAUTHENTICATED", HTTPStatus: 401}
 	}
+	if req.ExpectedVersion < 0 {
+		return CollectionSettings{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+	}
 	if req.OrderTTLSeconds != nil && (*req.OrderTTLSeconds < 60 || *req.OrderTTLSeconds > 86400) || req.FloatLimitCents != nil && (*req.FloatLimitCents < 0 || *req.FloatLimitCents > 999) || req.FloatDirection != nil && *req.FloatDirection != "up" && *req.FloatDirection != "down" {
 		return CollectionSettings{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
@@ -512,6 +536,15 @@ func (s *Service) SaveCollection(ctx context.Context, actor platform.Actor, req 
 	err := sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{actor.MerchantID}, false); err != nil {
 			return err
+		}
+		// GetCollection exposes version zero until the first settings row exists.
+		var currentVersion int64
+		err := tx.QueryRow(ctx, `SELECT version FROM merchant_collection_settings WHERE merchant_id=$1`, actor.MerchantID).Scan(&currentVersion)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if currentVersion != req.ExpectedVersion {
+			return &platform.Error{Code: "VERSION_CONFLICT", HTTPStatus: 409}
 		}
 		var global GroupBounds
 		var raw []byte

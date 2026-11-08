@@ -183,3 +183,12 @@ type V2Request struct {
 	PublicKey *rsa.PublicKey
 	Now       time.Time
 }
+
+type CheckoutChannelRequest struct {
+	Channel string `json:"channel"`
+}
+
+type MarkRefundedRequest struct {
+	Confirm bool   `json:"confirm"`
+	Reason  string `json:"reason"`
+}

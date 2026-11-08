@@ -24,7 +24,21 @@ type sessionProof struct {
 
 func TestHTTP_OpenAPISecurityMatrix(t *testing.T) {
 	fixture, proofs := securityFixture(t)
+	// Keep a valid token for the wrong-credential tests on session routes.
+	// Bind another device for the revoked-token case, then restore an active one.
+	revokedDeviceToken := fixture.DeviceToken
+	revoked := fixture.Request(t, http.MethodDelete, "/api/v1/merchant/device", map[string]bool{"confirm": true}, "merchant:matrix-merchant")
+	if revoked.Code != http.StatusOK {
+		t.Fatalf("revoke matrix device: status %d", revoked.Code)
+	}
+	bindMatrixDevice(t, fixture)
+	invalidDeviceToken := rand.Text()
 	doc := testsupport.OpenAPI(t)
+	// 331 was the rejection-case count for 87 operations: 30*3 session reads,
+	// 45*5 CSRF writes, 2*3 missing device credentials and 10 protocol signatures.
+	// Media includes a public branch and is covered by media integration tests.
+	// Email codes exercises its authenticated example here; guest purposes are
+	// covered by the identity tests. The three extra token cases per device add six.
 	cases := 0
 	for path, item := range doc.Paths.Map() {
 		for method, operation := range item.Operations() {
@@ -71,61 +85,40 @@ func TestHTTP_OpenAPISecurityMatrix(t *testing.T) {
 			// IDs need only be syntactically valid: authorization precedes the
 			// handler/resource lookup, so denied requests cannot mutate data.
 			target := regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(path, "1")
-			testCases := []struct {
-				name, role, token string
-				status            int
-				code              string
-			}{}
-			if requiredRole != "" {
+			type denial struct {
+				name, role, csrf, authorization string
+				status                          int
+				code                            string
+			}
+			var testCases []denial
+			switch {
+			case requiredRole != "":
 				opposite := "merchant"
 				if requiredRole == "merchant" {
 					opposite = "admin"
 				}
 				testCases = append(testCases,
-					struct {
-						name, role, token string
-						status            int
-						code              string
-					}{"guest", "", "", 401, "UNAUTHENTICATED"},
-					struct {
-						name, role, token string
-						status            int
-						code              string
-					}{"opposite_session", opposite, "", 403, "FORBIDDEN"},
-					struct {
-						name, role, token string
-						status            int
-						code              string
-					}{"device_token", "device", "", 401, "UNAUTHENTICATED"},
+					denial{name: "guest", status: 401, code: "UNAUTHENTICATED"},
+					denial{name: "opposite_session", role: opposite, status: 403, code: "FORBIDDEN"},
+					denial{name: "device_token", authorization: "Bearer " + fixture.DeviceToken, status: 401, code: "UNAUTHENTICATED"},
 				)
 				if csrf {
 					testCases = append(testCases,
-						struct {
-							name, role, token string
-							status            int
-							code              string
-						}{"missing_csrf", requiredRole, "", 403, "CSRF_FAILED"},
-						struct {
-							name, role, token string
-							status            int
-							code              string
-						}{"forged_csrf", requiredRole, "forged", 403, "CSRF_FAILED"},
+						denial{name: "missing_csrf", role: requiredRole, status: 403, code: "CSRF_FAILED"},
+						denial{name: "forged_csrf", role: requiredRole, csrf: "forged", status: 403, code: "CSRF_FAILED"},
 					)
 				}
-			} else if deviceOnly {
+			case deviceOnly:
 				for _, role := range []string{"", "merchant", "admin"} {
-					testCases = append(testCases, struct {
-						name, role, token string
-						status            int
-						code              string
-					}{"missing_device_" + role, role, "", 401, "DEVICE_UNAUTHORIZED"})
+					testCases = append(testCases, denial{name: "missing_device_" + role, role: role, status: 401, code: "DEVICE_UNAUTHORIZED"})
 				}
-			} else {
-				testCases = append(testCases, struct {
-					name, role, token string
-					status            int
-					code              string
-				}{"missing_signature", "", "", 200, "INVALID_SIGNATURE"})
+				testCases = append(testCases,
+					denial{name: "invalid_device", authorization: "Bearer " + invalidDeviceToken, status: 401, code: "DEVICE_UNAUTHORIZED"},
+					denial{name: "malformed_device", authorization: "Token " + fixture.DeviceToken, status: 401, code: "DEVICE_UNAUTHORIZED"},
+					denial{name: "revoked_device", authorization: "Bearer " + revokedDeviceToken, status: 401, code: "DEVICE_UNAUTHORIZED"},
+				)
+			default:
+				testCases = append(testCases, denial{name: "missing_signature", status: 200, code: "INVALID_SIGNATURE"})
 			}
 			for _, test := range testCases {
 				cases++
@@ -134,11 +127,11 @@ func TestHTTP_OpenAPISecurityMatrix(t *testing.T) {
 					if proof, ok := proofs[test.role]; ok {
 						headers.Set("Cookie", proof.cookie.Name+"="+proof.cookie.Value)
 					}
-					if test.role == "device" {
-						headers.Set("Authorization", "Bearer "+fixture.DeviceToken)
+					if test.authorization != "" {
+						headers.Set("Authorization", test.authorization)
 					}
-					if test.token != "" {
-						headers.Set("X-CSRF-Token", test.token)
+					if test.csrf != "" {
+						headers.Set("X-CSRF-Token", test.csrf)
 					}
 					requestBody := body
 					if protocol {
@@ -257,6 +250,12 @@ func securityFixture(t *testing.T) (*testsupport.HTTPFixture, map[string]session
 			t.Fatal("session fixture did not authenticate")
 		}
 	}
+	bindMatrixDevice(t, fixture)
+	return fixture, proofs
+}
+
+func bindMatrixDevice(t *testing.T, fixture *testsupport.HTTPFixture) {
+	t.Helper()
 	binding := fixture.Request(t, http.MethodPost, "/api/v1/merchant/device/bindings", map[string]any{"replace_confirmed": false}, "merchant:matrix-merchant")
 	var bind struct {
 		Data device.BindingDTO `json:"data"`
@@ -278,5 +277,4 @@ func securityFixture(t *testing.T) (*testsupport.HTTPFixture, map[string]session
 	if response := fixture.Request(t, http.MethodPost, "/api/v1/device/heartbeat", device.HeartbeatRequest{AppVersion: "1.0"}, "device"); response.Code != 200 {
 		t.Fatalf("valid device control=%d", response.Code)
 	}
-	return fixture, proofs
 }

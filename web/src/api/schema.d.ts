@@ -1885,7 +1885,8 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
             merchant: {
-                [key: string]: string;
+                id: string;
+                username: string;
             } | null;
             name: string;
             /** Format: int64 */
@@ -2096,7 +2097,9 @@ export interface components {
             active_subscription_count?: number | null;
             amount_basis: string;
             channels: {
-                [key: string]: components["schemas"]["PortalChannelStats"];
+                alipay: components["schemas"]["PortalChannelStats"];
+                wxpay: components["schemas"]["PortalChannelStats"];
+                qqpay: components["schemas"]["PortalChannelStats"];
             } | null;
             /** Format: date-time */
             end: string;
@@ -2106,7 +2109,14 @@ export interface components {
             /** Format: date-time */
             start: string;
             status_counts: {
-                [key: string]: number;
+                /** Format: int64 */
+                paid: number;
+                /** Format: int64 */
+                pending: number;
+                /** Format: int64 */
+                expired: number;
+                /** Format: int64 */
+                refunded?: number;
             } | null;
             /** Format: int64 */
             subscription_revenue_cents?: number | null;
@@ -2205,6 +2215,11 @@ export interface components {
             updated_at: string | null;
         };
         SettingsSaveCollectionRequest: {
+            /**
+             * Format: int64
+             * @description GET 返回的版本。尚无商户收款设置记录时为 0。
+             */
+            expected_version: number;
             float_direction: string | null;
             /** Format: int64 */
             float_limit_cents: number | null;
@@ -2262,7 +2277,7 @@ export interface components {
             name: components["schemas"]["SubscriptionLocalizedName"];
             /** Format: int64 */
             price_cents: number;
-            /** Format: int64 */
+            /** Format: int32 */
             purchase_limit: number | null;
             /** Format: int64 */
             revision?: number;
@@ -2276,7 +2291,7 @@ export interface components {
             name: components["schemas"]["SubscriptionLocalizedName"];
             /** Format: int64 */
             price_cents: number;
-            /** Format: int64 */
+            /** Format: int32 */
             purchase_limit: number | null;
             /** Format: int64 */
             purchased_count?: number | null;
@@ -2328,7 +2343,7 @@ export interface components {
             source: string;
         };
         /** @enum {string} */
-        ErrorCode: "ACCOUNT_BANNED" | "AGREEMENT_REQUIRED" | "ALREADY_INITIALIZED" | "ALREADY_REFUNDED" | "AMOUNT_CAPACITY_EXHAUSTED" | "AMOUNT_OUT_OF_RANGE" | "BILLING_CREDENTIAL_STALE" | "BILLING_NOT_READY" | "BINDING_EXPIRED" | "BINDING_USED" | "CALLBACK_NOT_CONFIRMED" | "CALLBACK_PENDING" | "CALLBACK_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "CHANNEL_LOCKED" | "CHANNEL_NOT_ALLOWED" | "CSRF_FAILED" | "DEVICE_ALREADY_BOUND" | "DEVICE_OFFLINE" | "DEVICE_UNAUTHORIZED" | "DUPLICATE_ORDER" | "EMAIL_DOMAIN_DENIED" | "EMAIL_SEND_TOO_SOON" | "EMAIL_TAKEN" | "EVENT_CONFLICT" | "FLOAT_OUT_OF_RANGE" | "FORBIDDEN" | "IDEMPOTENCY_CONFLICT" | "INTERNAL_ERROR" | "INVALID_2FA" | "INVALID_CODE" | "INVALID_CREDENTIALS" | "INVALID_PUBLIC_KEY" | "INVALID_QR" | "INVALID_SIGNATURE" | "INVALID_URL" | "IP_NOT_ALLOWED" | "LEGAL_VERSION_CHANGED" | "MAIL_UNAVAILABLE" | "NOT_FOUND" | "ORDER_NOT_PAID" | "ORDER_NOT_PAYABLE" | "PARTIAL_REFUND_UNSUPPORTED" | "PLAN_UNAVAILABLE" | "PLATFORM_KEY_UNAVAILABLE" | "PURCHASE_LIMIT_REACHED" | "PURCHASE_PENDING" | "QR_UNAVAILABLE" | "REFUND_PENDING" | "SETUP_REQUIRED" | "SUBSCRIPTION_INACTIVE" | "TIMESTAMP_EXPIRED" | "TTL_OUT_OF_RANGE" | "TURNSTILE_FAILED" | "TURNSTILE_UNAVAILABLE" | "UNAUTHENTICATED" | "UNSUPPORTED_ACTION" | "UNSUPPORTED_MEDIA_TYPE" | "UNSUPPORTED_METHOD" | "UNSUPPORTED_PARAMETER" | "UNSUPPORTED_PROTOCOL" | "UPLOAD_TOO_LARGE" | "USERNAME_TAKEN" | "VALIDATION_ERROR" | "VERSION_CONFLICT";
+        ErrorCode: "ACCOUNT_BANNED" | "AGREEMENT_REQUIRED" | "ALREADY_INITIALIZED" | "ALREADY_REFUNDED" | "REFUND_ALREADY_HANDLED" | "AMOUNT_CAPACITY_EXHAUSTED" | "AMOUNT_OUT_OF_RANGE" | "BILLING_CREDENTIAL_STALE" | "BILLING_NOT_READY" | "BINDING_EXPIRED" | "BINDING_USED" | "CALLBACK_NOT_CONFIRMED" | "CALLBACK_PENDING" | "CALLBACK_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "CHANNEL_LOCKED" | "CHANNEL_NOT_ALLOWED" | "CSRF_FAILED" | "DEVICE_ALREADY_BOUND" | "DEVICE_OFFLINE" | "DEVICE_UNAUTHORIZED" | "DUPLICATE_ORDER" | "EMAIL_DOMAIN_DENIED" | "EMAIL_SEND_TOO_SOON" | "EMAIL_TAKEN" | "EVENT_CONFLICT" | "FLOAT_OUT_OF_RANGE" | "FORBIDDEN" | "IDEMPOTENCY_CONFLICT" | "INTERNAL_ERROR" | "INVALID_2FA" | "INVALID_CODE" | "INVALID_CREDENTIALS" | "INVALID_PUBLIC_KEY" | "INVALID_QR" | "INVALID_SIGNATURE" | "INVALID_URL" | "IP_NOT_ALLOWED" | "LEGAL_VERSION_CHANGED" | "MAIL_UNAVAILABLE" | "NOT_FOUND" | "ORDER_NOT_PAID" | "ORDER_NOT_PAYABLE" | "PARTIAL_REFUND_UNSUPPORTED" | "PLAN_UNAVAILABLE" | "PLATFORM_KEY_UNAVAILABLE" | "PURCHASE_LIMIT_REACHED" | "PURCHASE_PENDING" | "QR_UNAVAILABLE" | "REFUND_PENDING" | "SETUP_REQUIRED" | "SUBSCRIPTION_INACTIVE" | "TIMESTAMP_EXPIRED" | "TTL_OUT_OF_RANGE" | "TURNSTILE_FAILED" | "TURNSTILE_UNAVAILABLE" | "UNAUTHENTICATED" | "UNSUPPORTED_ACTION" | "UNSUPPORTED_MEDIA_TYPE" | "UNSUPPORTED_METHOD" | "UNSUPPORTED_PARAMETER" | "UNSUPPORTED_PROTOCOL" | "UPLOAD_TOO_LARGE" | "USERNAME_TAKEN" | "VALIDATION_ERROR" | "VERSION_CONFLICT";
         ErrorEnvelope: {
             error: {
                 code: components["schemas"]["ErrorCode"];
@@ -2593,6 +2608,18 @@ export interface components {
             billing_ready: boolean;
         };
         OrderDetail: {
+            /** @description 下单时记录的允许渠道。 */
+            readonly allowed_channels_snapshot: string[];
+            /**
+             * Format: int32
+             * @description 已创建的重发代数，不含初始回调。
+             */
+            readonly callback_replays_used: number;
+            /**
+             * Format: int32
+             * @description 回调代数上限扣除初始代数后的重发上限。
+             */
+            readonly callback_replay_limit: number;
             order: components["schemas"]["PortalOrderDTO"];
             notify_url: string | null;
             return_url: string | null;
@@ -5853,6 +5880,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                "Idempotency-Key": string;
                 Origin: string;
             };
             path: {

@@ -21,7 +21,7 @@ export function yuanToCents(value: string): number | null {
   return Number.isSafeInteger(cents) ? cents : null
 }
 export function centsToYuan(value: number) { return (value / 100).toFixed(2) }
-export function collectionInput(ttl: string, amount: string, direction: string, bounds: Schema['SettingsCollectionSettings']['bounds']): Schema['SettingsSaveCollectionRequest'] | null {
+export function collectionInput(ttl: string, amount: string, direction: string, bounds: Schema['SettingsCollectionSettings']['bounds']): Omit<Schema['SettingsSaveCollectionRequest'], 'expected_version'> | null {
   const seconds = ttl === '' ? null : Number(ttl)
   const cents = amount === '' ? null : yuanToCents(amount)
   if (seconds !== null && (!/^\d+$/.test(ttl) || !Number.isSafeInteger(seconds) || seconds < 60 || seconds > Math.min(86400, bounds.ttl_max_seconds))) return null

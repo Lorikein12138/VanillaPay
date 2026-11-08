@@ -3,15 +3,20 @@ package testsupport
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
+	"unicode"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -109,7 +114,29 @@ func validateHTTPResponse(request *http.Request, response *httptest.ResponseReco
 		if err != nil {
 			return err
 		}
-		route = &routers.Route{Operation: &openapi3.Operation{Responses: openapi3.NewResponses(openapi3.WithName(fmt.Sprint(response.Code), doc.Components.Responses[name].Value))}}
+		contractResponse := doc.Components.Responses[name].Value
+		if len(contractResponse.Content) == 0 && response.Body.Len() != 0 {
+			return fmt.Errorf("uncontracted route: status %d has no declared response body", response.Code)
+		}
+		route = &routers.Route{Operation: &openapi3.Operation{Responses: openapi3.NewResponses(openapi3.WithName(fmt.Sprint(response.Code), contractResponse))}}
+	}
+	contentType := headers.Get("Content-Type")
+	mediaType, _, mediaErr := mime.ParseMediaType(contentType)
+	if contentType != "" && mediaErr != nil {
+		return fmt.Errorf("parse response Content-Type: %w", mediaErr)
+	}
+	if strings.HasSuffix(mediaType, "/json") || strings.HasSuffix(mediaType, "+json") {
+		if response.Body.Len() != 0 {
+			var body any
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				return err
+			}
+			if err := validateOpenResponseMaps(body, nil, false); err != nil {
+				return err
+			}
+		}
+		headers = headers.Clone()
+		headers.Set("Content-Type", mediaType)
 	}
 	input := &openapi3filter.ResponseValidationInput{
 		RequestValidationInput: &openapi3filter.RequestValidationInput{Request: request, Route: route, PathParams: params},
@@ -117,6 +144,80 @@ func validateHTTPResponse(request *http.Request, response *httptest.ResponseReco
 		Options: &openapi3filter.Options{IncludeResponseStatus: true, MultiError: true},
 	}
 	return openapi3filter.ValidateResponse(request.Context(), input)
+}
+
+// Credential-bearing fields are legitimate in some typed DTOs. Only check the
+// deliberately open maps (including nested objects and arrays within them).
+func validateOpenResponseMaps(value any, path []string, sensitive bool) error {
+	switch value := value.(type) {
+	case map[string]any:
+		for key, child := range value {
+			name := strings.ToLower(key)
+			childPath := append(path, key)
+			if sensitive && sensitiveResponseKey(key) && !publicResponseMetadata(childPath, child) {
+				return fmt.Errorf("sensitive key in open response map: %q", key)
+			}
+			if err := validateOpenResponseMaps(child, childPath, sensitive || name == "safe_metadata" || name == "details"); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, child := range value {
+			if err := validateOpenResponseMaps(child, append(path, "[]"), sensitive); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func publicResponseMetadata(path []string, value any) bool {
+	// Allow the numeric version published by merchant and console audit lists.
+	if slices.Equal(path, []string{"data", "items", "[]", "safe_metadata", "key_version"}) {
+		_, numeric := value.(float64)
+		return numeric
+	}
+	return false
+}
+
+func sensitiveResponseKey(key string) bool {
+	parts := strings.FieldsFunc(key, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) })
+	for _, part := range parts {
+		if sensitiveWord(part) {
+			return true
+		}
+		runes := []rune(part)
+		start := 0
+		for i := 1; i <= len(runes); i++ {
+			if i == len(runes) || wordBoundary(runes, i) {
+				if sensitiveWord(string(runes[start:i])) {
+					return true
+				}
+				start = i
+			}
+		}
+	}
+	compact := strings.ToLower(strings.Join(parts, ""))
+	for _, word := range []string{"password", "secret", "token", "credential"} {
+		if strings.Contains(compact, word) {
+			return true
+		}
+	}
+	return false
+}
+
+func sensitiveWord(word string) bool {
+	switch strings.ToLower(word) {
+	case "key", "totp", "recovery":
+		return true
+	}
+	return false
+}
+
+func wordBoundary(word []rune, i int) bool {
+	prev, current := word[i-1], word[i]
+	return unicode.IsNumber(prev) != unicode.IsNumber(current) ||
+		unicode.IsUpper(current) && (unicode.IsLower(prev) || i+1 < len(word) && unicode.IsLower(word[i+1]))
 }
 
 // ContractHandler covers integration tests that call a protocol router

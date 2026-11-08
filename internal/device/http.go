@@ -3,7 +3,6 @@ package device
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 
@@ -75,9 +74,7 @@ func (h *Handler) Device(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) NewBinding(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ReplaceConfirmed bool `json:"replace_confirmed"`
-	}
+	var req CreateBindingRequest
 	if !deviceDecode(w, r, &req, 32<<10) {
 		return
 	}
@@ -93,9 +90,7 @@ func (h *Handler) Binding(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Confirm bool `json:"confirm"`
-	}
+	var req UnbindRequest
 	if !deviceDecode(w, r, &req, 32<<10) {
 		return
 	}
@@ -115,11 +110,8 @@ func (h *Handler) OpenReceipt(w http.ResponseWriter, r *http.Request) {
 }
 
 func deviceDecode(w http.ResponseWriter, r *http.Request, target any, limit int64) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, limit)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if dec.Decode(target) != nil || dec.Decode(new(any)) != io.EOF {
-		deviceWrite(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, http.StatusOK)
+	if err := platform.DecodeJSONBody(w, r, limit, target); err != nil {
+		deviceWrite(w, r, nil, err, http.StatusOK)
 		return false
 	}
 	return true
@@ -133,15 +125,19 @@ func deviceWrite(w http.ResponseWriter, r *http.Request, data any, err error, st
 	if err != nil {
 		status = http.StatusInternalServerError
 		code := "INTERNAL_ERROR"
+		fields := map[string]string{}
 		var api *platform.Error
 		if errors.As(err, &api) {
 			code = api.Code
+			if api.Fields != nil {
+				fields = api.Fields
+			}
 			if api.HTTPStatus > 0 {
 				status = api.HTTPStatus
 			}
 		}
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": map[string]string{}, "details": map[string]any{}}, "request_id": id})
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": fields, "details": map[string]any{}}, "request_id": id})
 		return
 	}
 	w.WriteHeader(status)

@@ -17,17 +17,44 @@ func TestDB_CollectionSettingsInheritGlobalBoundsAndRejectOutOfRangeTTL(t *testi
 	application := db.NewApplication(t)
 	ctx := context.Background()
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
-	result, err := application.Services.Settings.SaveCollection(ctx, actor, settings.SaveCollectionRequest{})
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM merchant_collection_settings WHERE merchant_id=$1`, merchantID); err != nil {
+		t.Fatal(err)
+	}
+	initial, err := application.Services.Settings.GetCollection(ctx, actor)
+	if err != nil || initial.Version != 0 {
+		t.Fatalf("initial collection settings = %#v, %v", initial, err)
+	}
+	result, err := application.Services.Settings.SaveCollection(ctx, actor, settings.SaveCollectionRequest{ExpectedVersion: initial.Version})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Effective.OrderTTLSeconds != 300 || result.Effective.FloatDirection != "down" {
+	if result.Version != 1 || result.Effective.OrderTTLSeconds != 300 || result.Effective.FloatDirection != "down" {
 		t.Fatalf("inherited collection values = %#v", result.Effective)
 	}
 	tooLong := 3600
-	_, err = application.Services.Settings.SaveCollection(ctx, actor, settings.SaveCollectionRequest{OrderTTLSeconds: &tooLong})
+	_, err = application.Services.Settings.SaveCollection(ctx, actor, settings.SaveCollectionRequest{ExpectedVersion: result.Version, OrderTTLSeconds: &tooLong})
 	if !hasErrorCode(err, "TTL_OUT_OF_RANGE") {
 		t.Fatalf("out-of-range TTL error = %v", err)
+	}
+}
+
+func TestDB_CollectionSettingsRejectStaleVersion(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	merchantID, _ := db.SeedMerchant(t)
+	service := db.NewApplication(t).Services.Settings
+	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
+	req := settings.SaveCollectionRequest{ExpectedVersion: 1, OrderTTLSeconds: new(600)}
+	saved, err := service.SaveCollection(t.Context(), actor, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.OrderTTLSeconds = new(900)
+	if _, err := service.SaveCollection(t.Context(), actor, req); !hasErrorCode(err, "VERSION_CONFLICT") {
+		t.Fatalf("stale version error = %v", err)
+	}
+	current, err := service.GetCollection(t.Context(), actor)
+	if err != nil || current.Version != saved.Version || current.OrderTTLSeconds == nil || *current.OrderTTLSeconds != 600 {
+		t.Fatalf("stale write changed collection settings = %#v, %v", current, err)
 	}
 }
 

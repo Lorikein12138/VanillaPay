@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, APIError, consoleApi } from '@/api/client'
 import type { components } from '@/api/schema'
@@ -11,6 +11,7 @@ import { Notice } from '@/components/ui/notice'
 import { RecordLink } from '@/components/ui/records'
 import { cn } from '@/lib/utils'
 import { OrderActionDialog } from './OrderActionDialog'
+import { FormHint } from '@/components/ui/auth-screen'
 import { availableOrderActions, orderErrorKey, type OrderAction, type OrderFilters } from './orders-data'
 import { money } from './overview-data'
 import { OrderChannel, OrderStatus, OrderTime } from './OrderParts'
@@ -23,6 +24,7 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
   const query = useQuery({ queryKey: [role, name, 'order', tradeNo], queryFn: () => (role === 'console' ? consoleApi : api).order(tradeNo) })
   const [confirmation, setConfirmation] = useState<{ action: OrderAction; key: string; detail: Detail }>()
   const [notice, setNotice] = useState<OrderAction>()
+  const replayLimitHintId = useId()
   const detail = query.data
   const back = <BackLink to={role === 'console' ? '/console/orders' : '/orders'} search={filters}>{t('merchant.orders.back')}</BackLink>
   if (query.isPending) {
@@ -50,6 +52,7 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
   }
   const order = detail.order
   const actions = role === 'console' ? [] : availableOrderActions(detail)
+  const replayLimitReached = detail.callback_replays_used >= detail.callback_replay_limit
   async function completed() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ['merchant', name, 'order', tradeNo] }),
@@ -71,16 +74,28 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
           </div>
         }
         actions={actions.length > 0 && (
-          <section aria-label={t('merchant.orders.operations')} className="flex flex-wrap gap-2">
-            {actions.map((action) => (
-              <Button
-                key={action}
-                variant={action === 'reject' ? 'danger' : 'secondary'}
-                onClick={() => { setNotice(undefined); setConfirmation({ action, key: crypto.randomUUID(), detail }) }}
-              >
-                {t(`merchant.orders.actions.${action}`)}
-              </Button>
-            ))}
+          <section aria-label={t('merchant.orders.operations')} className="flex flex-col items-start gap-1.5 sm:items-end">
+            <div className="flex flex-wrap gap-2">
+              {actions.map((action) => {
+                const limited = action === 'replay' && replayLimitReached
+                return (
+                  <Button
+                    key={action}
+                    variant={action === 'reject' ? 'danger' : 'secondary'}
+                    disabled={limited}
+                    aria-describedby={limited ? replayLimitHintId : undefined}
+                    onClick={() => { setNotice(undefined); setConfirmation({ action, key: crypto.randomUUID(), detail }) }}
+                  >
+                    {t(`merchant.orders.actions.${action}`)}
+                  </Button>
+                )
+              })}
+            </div>
+            {actions.includes('replay') && replayLimitReached && (
+              <div id={replayLimitHintId} className="sm:text-right">
+                <FormHint>{t('merchant.orders.replayLimitReached', { used: detail.callback_replays_used, limit: detail.callback_replay_limit })}</FormHint>
+              </div>
+            )}
           </section>
         )}
       />
@@ -113,6 +128,7 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
           detail={confirmation.detail}
           onClose={() => setConfirmation(undefined)}
           onSuccess={completed}
+          onRefundConflict={async () => { await query.refetch() }}
         />
       )}
     </Page>

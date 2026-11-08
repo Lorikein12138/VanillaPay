@@ -61,7 +61,13 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
-	result, err := h.Service.UpdateGroup(r.Context(), actor, chi.URLParam(r, "group"), req)
+	group := chi.URLParam(r, "group")
+	prepared, err := prepareUpdateGroup(actor, group, req)
+	if err != nil {
+		settingsResult(w, r, nil, err, http.StatusOK)
+		return
+	}
+	result, err := h.Service.updatePreparedGroup(r.Context(), actor, group, req.ExpectedVersion, prepared)
 	if actor.RecoveryOnly && err == nil {
 		name := "vp_recovery"
 		if h.SecureCookies {
@@ -110,9 +116,7 @@ func (h *Handler) UploadLogo(w http.ResponseWriter, r *http.Request) {
 	settingsResult(w, r, data, err, http.StatusCreated)
 }
 func (h *Handler) QueueMailTest(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Recipient string `json:"recipient"`
-	}
+	var req MailTestRequest
 	if !settingsDecode(w, r, &req, 32<<10) {
 		return
 	}
@@ -126,9 +130,7 @@ func (h *Handler) MailTestStatus(w http.ResponseWriter, r *http.Request) {
 	settingsResult(w, r, data, err, http.StatusOK)
 }
 func (h *Handler) SetQREnabled(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Enabled bool `json:"enabled"`
-	}
+	var req SetQREnabledRequest
 	if !settingsDecode(w, r, &req, 1<<20) {
 		return
 	}
@@ -155,15 +157,8 @@ func (h *Handler) OpenAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 func settingsDecode(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, limit)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		settingsResult(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, http.StatusOK)
-		return false
-	}
-	if dec.Decode(new(any)) != io.EOF {
-		settingsResult(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, http.StatusOK)
+	if err := platform.DecodeJSONBody(w, r, limit, dst); err != nil {
+		settingsResult(w, r, nil, err, http.StatusOK)
 		return false
 	}
 	return true
