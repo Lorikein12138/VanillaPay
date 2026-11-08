@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -117,41 +119,50 @@ func validateHTTPResponse(request *http.Request, response *httptest.ResponseReco
 		}
 		route = &routers.Route{Operation: &openapi3.Operation{Responses: openapi3.NewResponses(openapi3.WithName(fmt.Sprint(response.Code), contractResponse))}}
 	}
+	contentType := headers.Get("Content-Type")
+	mediaType, _, mediaErr := mime.ParseMediaType(contentType)
+	if contentType != "" && mediaErr != nil {
+		return fmt.Errorf("parse response Content-Type: %w", mediaErr)
+	}
+	if strings.HasSuffix(mediaType, "/json") || strings.HasSuffix(mediaType, "+json") {
+		if response.Body.Len() != 0 {
+			var body any
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				return err
+			}
+			if err := validateOpenResponseMaps(body, nil, false); err != nil {
+				return err
+			}
+		}
+		headers = headers.Clone()
+		headers.Set("Content-Type", mediaType)
+	}
 	input := &openapi3filter.ResponseValidationInput{
 		RequestValidationInput: &openapi3filter.RequestValidationInput{Request: request, Route: route, PathParams: params},
 		Status:                 response.Code, Header: headers, Body: io.NopCloser(bytes.NewReader(response.Body.Bytes())),
 		Options: &openapi3filter.Options{IncludeResponseStatus: true, MultiError: true},
 	}
-	if err := openapi3filter.ValidateResponse(request.Context(), input); err != nil {
-		return err
-	}
-	if strings.HasPrefix(headers.Get("Content-Type"), "application/json") && response.Body.Len() != 0 {
-		var body any
-		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
-			return err
-		}
-		return validateOpenResponseMaps(body, false)
-	}
-	return nil
+	return openapi3filter.ValidateResponse(request.Context(), input)
 }
 
 // Credential-bearing fields are legitimate in some typed DTOs. Only check the
 // deliberately open maps (including nested objects and arrays within them).
-func validateOpenResponseMaps(value any, sensitive bool) error {
+func validateOpenResponseMaps(value any, path []string, sensitive bool) error {
 	switch value := value.(type) {
 	case map[string]any:
 		for key, child := range value {
 			name := strings.ToLower(key)
-			if sensitive && sensitiveResponseKey(name) {
+			childPath := append(path, key)
+			if sensitive && sensitiveResponseKey(key) && !publicResponseMetadata(childPath, child) {
 				return fmt.Errorf("sensitive key in open response map: %q", key)
 			}
-			if err := validateOpenResponseMaps(child, sensitive || name == "safe_metadata" || name == "details"); err != nil {
+			if err := validateOpenResponseMaps(child, childPath, sensitive || name == "safe_metadata" || name == "details"); err != nil {
 				return err
 			}
 		}
 	case []any:
 		for _, child := range value {
-			if err := validateOpenResponseMaps(child, sensitive); err != nil {
+			if err := validateOpenResponseMaps(child, append(path, "[]"), sensitive); err != nil {
 				return err
 			}
 		}
@@ -159,15 +170,33 @@ func validateOpenResponseMaps(value any, sensitive bool) error {
 	return nil
 }
 
+func publicResponseMetadata(path []string, value any) bool {
+	// Allow the numeric version published by merchant and console audit lists.
+	if slices.Equal(path, []string{"data", "items", "[]", "safe_metadata", "key_version"}) {
+		_, numeric := value.(float64)
+		return numeric
+	}
+	return false
+}
+
 func sensitiveResponseKey(key string) bool {
-	for _, word := range strings.FieldsFunc(key, func(r rune) bool { return r == '_' || r == '-' || r == ' ' }) {
-		switch word {
-		case "password", "secret", "token", "key", "totp", "recovery", "credential", "credentials":
-			return true
+	for _, part := range strings.FieldsFunc(key, func(r rune) bool { return r == '_' || r == '-' || r == ' ' }) {
+		for _, word := range []string{"password", "secret", "token", "key", "totp", "recovery", "credential", "credentials"} {
+			for start := range len(part) - len(word) + 1 {
+				end := start + len(word)
+				// Look at the original casing for camel-case boundaries, then
+				// compare the whole sensitive word case-insensitively.
+				if (start == 0 || asciiUpper(part[start])) && (end == len(part) || asciiUpper(part[end])) &&
+					strings.EqualFold(part[start:end], word) {
+					return true
+				}
+			}
 		}
 	}
 	return false
 }
+
+func asciiUpper(c byte) bool { return c >= 'A' && c <= 'Z' }
 
 // ContractHandler covers integration tests that call a protocol router
 // directly rather than using HTTPFixture.Request.

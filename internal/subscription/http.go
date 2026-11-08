@@ -161,8 +161,16 @@ func (h *Handler) ConsolePlans(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, map[string]any{"items": items, "next_cursor": nil, "total": len(items)}, err, 200)
 }
 func (h *Handler) SavePlan(w http.ResponseWriter, r *http.Request) {
-	var req PlanCommand
-	if !subDecode(w, r, &req) {
+	var body struct {
+		PlanCommand
+		PurchaseLimit json.RawMessage `json:"purchase_limit"`
+	}
+	if !subDecode(w, r, &body) {
+		return
+	}
+	req := body.PlanCommand
+	if err := json.Unmarshal(body.PurchaseLimit, &req.PurchaseLimit); err != nil {
+		subWrite(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400, Fields: map[string]string{"purchase_limit": "invalid"}}, 200)
 		return
 	}
 	if id := chi.URLParam(r, "id"); id != "" {

@@ -589,10 +589,19 @@ func (h *Handler) orderResponse(r *http.Request, actor platform.Actor, trade str
 	return detail["order"], nil
 }
 func (h *Handler) ResolveRefund(w http.ResponseWriter, r *http.Request) {
-	var req RefundResolution
-	if decodePaymentJSON(w, r, &req) != nil {
+	var body struct {
+		RefundResolution
+		Confirm json.RawMessage `json:"confirm"`
+	}
+	if decodePaymentJSON(w, r, &body) != nil {
 		return
 	}
+	var confirm *bool
+	if err := json.Unmarshal(body.Confirm, &confirm); err != nil || confirm == nil || body.Action == "mark_refunded" && !*confirm {
+		httpJSON(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400, Fields: map[string]string{"confirm": "invalid"}}, 200)
+		return
+	}
+	body.RefundResolution.Confirm = *confirm
 	actor, _ := platform.ActorFromContext(r.Context())
 	refundID := chi.URLParam(r, "id")
 	key := r.Header.Get("Idempotency-Key")
@@ -600,7 +609,7 @@ func (h *Handler) ResolveRefund(w http.ResponseWriter, r *http.Request) {
 		httpJSON(w, r, nil, apiErr("VALIDATION_ERROR", 400), 200)
 		return
 	}
-	dto, err := h.Service.ResolveRefundIdempotent(r.Context(), actor, refundID, req, key)
+	dto, err := h.Service.ResolveRefundIdempotent(r.Context(), actor, refundID, body.RefundResolution, key)
 	httpJSON(w, r, dto, err, 200)
 }
 func (h *Handler) CallbackReplay(w http.ResponseWriter, r *http.Request) {
@@ -718,8 +727,12 @@ func httpJSON(w http.ResponseWriter, r *http.Request, data any, err error, statu
 	if err != nil {
 		var api *platform.Error
 		code := "INTERNAL_ERROR"
+		fields := map[string]string{}
 		if errors.As(err, &api) {
 			code = api.Code
+			if api.Fields != nil {
+				fields = api.Fields
+			}
 			if api.HTTPStatus > 0 {
 				status = api.HTTPStatus
 			} else {
@@ -729,7 +742,7 @@ func httpJSON(w http.ResponseWriter, r *http.Request, data any, err error, statu
 			status = 500
 		}
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": map[string]string{}, "details": map[string]any{}}, "request_id": id})
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": fields, "details": map[string]any{}}, "request_id": id})
 		return
 	}
 	w.WriteHeader(status)

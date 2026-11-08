@@ -72,8 +72,24 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	settingsResult(w, r, result, err, http.StatusOK)
 }
 func (h *Handler) SaveCollection(w http.ResponseWriter, r *http.Request) {
-	var req SaveCollectionRequest
-	if !settingsDecode(w, r, &req, 1<<20) {
+	var body struct {
+		SaveCollectionRequest
+		OrderTTLSeconds json.RawMessage `json:"order_ttl_seconds"`
+		FloatLimitCents json.RawMessage `json:"float_limit_cents"`
+	}
+	if !settingsDecode(w, r, &body, 1<<20) {
+		return
+	}
+	req := body.SaveCollectionRequest
+	fields := map[string]string{}
+	if err := json.Unmarshal(body.OrderTTLSeconds, &req.OrderTTLSeconds); err != nil {
+		fields["order_ttl_seconds"] = "invalid"
+	}
+	if err := json.Unmarshal(body.FloatLimitCents, &req.FloatLimitCents); err != nil {
+		fields["float_limit_cents"] = "invalid"
+	}
+	if len(fields) != 0 {
+		settingsResult(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400, Fields: fields}, http.StatusOK)
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())

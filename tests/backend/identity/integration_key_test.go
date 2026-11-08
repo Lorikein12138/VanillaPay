@@ -93,9 +93,22 @@ func TestHTTP_IntegrationKeyLifecycle(t *testing.T) {
 			KeyVersion int    `json:"key_version"`
 		}
 		if err := json.Unmarshal(data, &result); err != nil || result.PID != pid || result.Key == "" || result.Key == oldKey || result.KeyVersion != 2 {
-			t.Fatalf("rotated integration credential = %#v err=%v", result, err)
+			t.Fatalf("rotation did not issue a new credential for the merchant at version 2: %v", err)
 		}
 		rotatedKey = result.Key
+		audits := fixture.Request(t, http.MethodGet, "/api/v1/merchant/audit-logs?action=merchant.reset_key", nil, client)
+		var page struct {
+			Items []struct {
+				Action   string `json:"action"`
+				Metadata struct {
+					KeyVersion int `json:"key_version"`
+				} `json:"safe_metadata"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal(assertIdentityResponse(t, audits, http.StatusOK, "read key rotation audit"), &page); err != nil ||
+			len(page.Items) != 1 || page.Items[0].Action != "merchant.reset_key" || page.Items[0].Metadata.KeyVersion != result.KeyVersion {
+			t.Fatalf("rotation audit missing numeric key version: %v", err)
+		}
 	})
 
 	protocolValues := func(outTradeNo string) url.Values {

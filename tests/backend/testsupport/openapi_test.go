@@ -1,7 +1,10 @@
 package testsupport
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -61,20 +64,67 @@ func TestUnit_ContractDistinguishesMissingPathAndMethod(t *testing.T) {
 }
 
 func TestUnit_ContractRejectsSensitiveKeysInOpenResponseMaps(t *testing.T) {
-	for _, body := range []string{
-		`{"error":{"code":"VALIDATION_ERROR","message":"invalid","fields":{},"details":{"items":[{"PaSsWoRd":"redacted"}]}},"request_id":"fixture"}`,
-		`{"error":{"code":"VALIDATION_ERROR","message":"invalid","fields":{},"details":{"nested":{"api_KEY":"redacted"}}},"request_id":"fixture"}`,
-	} {
-		request := httptest.NewRequest("PUT", "https://pay.example.test/api/v1/merchant/collection/settings", nil)
-		response := httptest.NewRecorder()
-		response.Header().Set("Content-Type", "application/json")
-		response.WriteHeader(400)
-		_, _ = response.WriteString(body)
-		if err := validateHTTPResponse(request, response); err == nil {
-			t.Fatal("contract accepted a sensitive error details key")
+	for _, mediaType := range []string{"application/json", "Application/JSON", "application/json; charset=utf-8", "application/problem+json"} {
+		for _, key := range []string{"PaSsWoRd", "api_KEY", "client_secret", "clientSecret", "Client-Secret", "cLiEnTSeCrEt", "accessTOKENValue"} {
+			t.Run(mediaType+"/"+key, func(t *testing.T) {
+				request := httptest.NewRequest("PUT", "https://pay.example.test/api/v1/merchant/collection/settings", nil)
+				response := httptest.NewRecorder()
+				response.Header().Set("Content-Type", mediaType)
+				response.WriteHeader(400)
+				_, _ = fmt.Fprintf(response, `{"error":{"code":"VALIDATION_ERROR","message":"invalid","fields":{},`+
+					`"details":{"items":[[{"nested":{%q:"redacted"}}]]}},"request_id":"fixture"}`, key)
+				if err := validateHTTPResponse(request, response); err == nil || !strings.Contains(err.Error(), "sensitive key in open response map") {
+					t.Fatalf("expected sensitive-key rejection, got %v", err)
+				}
+			})
 		}
 	}
-	if err := validateOpenResponseMaps(map[string]any{"safe_metadata": map[string]any{"nested": []any{map[string]any{"ToKeN": nil}}}}, false); err == nil {
-		t.Fatal("contract accepted a sensitive audit metadata key")
+}
+
+func TestUnit_ContractAcceptsJSONContentTypeVariants(t *testing.T) {
+	for _, mediaType := range []string{"application/json", "Application/JSON", "application/json; charset=utf-8"} {
+		t.Run(mediaType, func(t *testing.T) {
+			request := httptest.NewRequest("GET", "https://pay.example.test/health/live", nil)
+			response := httptest.NewRecorder()
+			response.Header().Set("Content-Type", mediaType)
+			_, _ = response.WriteString(`{"status":"ok"}`)
+			if err := validateHTTPResponse(request, response); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestUnit_ContractRejectsMalformedContentType(t *testing.T) {
+	request := httptest.NewRequest("GET", "https://pay.example.test/health/live", nil)
+	response := httptest.NewRecorder()
+	response.Header().Set("Content-Type", "application/json; charset")
+	_, _ = response.WriteString(`{"status":"ok"}`)
+	if err := validateHTTPResponse(request, response); err == nil || !strings.Contains(err.Error(), "parse response Content-Type") {
+		t.Fatalf("expected invalid Content-Type rejection, got %v", err)
+	}
+}
+
+func TestUnit_ContractAllowsOnlyNumericAuditKeyVersion(t *testing.T) {
+	for _, test := range []struct {
+		name, body string
+		valid      bool
+	}{
+		{"numeric audit version", `{"data":{"items":[{"safe_metadata":{"key_version":2}}]}}`, true},
+		{"string audit version", `{"data":{"items":[{"safe_metadata":{"key_version":"2"}}]}}`, false},
+		{"object audit version", `{"data":{"items":[{"safe_metadata":{"key_version":{"value":"redacted"}}}]}}`, false},
+		{"nested audit version", `{"data":{"items":[{"safe_metadata":{"nested":[{"key_version":2}]}}]}}`, false},
+		{"error details version", `{"error":{"details":{"key_version":2}}}`, false},
+		{"ordinary keys", `{"error":{"details":{"monkey":true,"keyboard":true}}}`, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var body any
+			if err := json.Unmarshal([]byte(test.body), &body); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateOpenResponseMaps(body, nil, false); (err == nil) != test.valid {
+				t.Fatalf("open response map validation: valid=%v error=%v", test.valid, err)
+			}
+		})
 	}
 }
