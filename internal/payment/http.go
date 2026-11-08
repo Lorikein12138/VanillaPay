@@ -296,10 +296,8 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	httpJSON(w, r, dto, err, 200)
 }
 func (h *Handler) SelectCheckoutChannel(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Channel string `json:"channel"`
-	}
-	if decodePaymentJSON(w, r, &req, "channel") != nil {
+	var req CheckoutChannelRequest
+	if decodePaymentJSON(w, r, &req) != nil {
 		return
 	}
 	if !h.sameOrigin(r) {
@@ -533,7 +531,7 @@ func (w *csvResponseWriter) Write(data []byte) (int, error) {
 }
 func (h *Handler) Supplement(w http.ResponseWriter, r *http.Request) {
 	var req SupplementRequest
-	if decodePaymentJSON(w, r, &req, "reason") != nil {
+	if decodePaymentJSON(w, r, &req) != nil {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -551,11 +549,8 @@ func (h *Handler) Supplement(w http.ResponseWriter, r *http.Request) {
 	httpJSON(w, r, order, err, 200)
 }
 func (h *Handler) MarkRefunded(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Confirm bool   `json:"confirm"`
-		Reason  string `json:"reason"`
-	}
-	if decodePaymentJSON(w, r, &req, "confirm", "reason") != nil {
+	var req MarkRefundedRequest
+	if decodePaymentJSON(w, r, &req) != nil {
 		return
 	}
 	if !req.Confirm {
@@ -589,15 +584,11 @@ func (h *Handler) orderResponse(r *http.Request, actor platform.Actor, trade str
 	return detail["order"], nil
 }
 func (h *Handler) ResolveRefund(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Action  string `json:"action"`
-		Reason  string `json:"reason"`
-		Confirm *bool  `json:"confirm"`
-	}
-	if decodePaymentJSON(w, r, &body, "action", "reason", "confirm") != nil {
+	var body RefundResolution
+	if decodePaymentJSON(w, r, &body) != nil {
 		return
 	}
-	if body.Confirm == nil || body.Action == "mark_refunded" && !*body.Confirm {
+	if body.Action == "mark_refunded" && !body.Confirm {
 		httpJSON(w, r, nil, platform.InvalidJSONField("confirm"), 200)
 		return
 	}
@@ -608,8 +599,7 @@ func (h *Handler) ResolveRefund(w http.ResponseWriter, r *http.Request) {
 		httpJSON(w, r, nil, apiErr("VALIDATION_ERROR", 400), 200)
 		return
 	}
-	req := RefundResolution{Action: body.Action, Reason: body.Reason, Confirm: *body.Confirm}
-	dto, err := h.Service.ResolveRefundIdempotent(r.Context(), actor, refundID, req, key)
+	dto, err := h.Service.ResolveRefundIdempotent(r.Context(), actor, refundID, body, key)
 	httpJSON(w, r, dto, err, 200)
 }
 func (h *Handler) CallbackReplay(w http.ResponseWriter, r *http.Request) {
@@ -704,8 +694,8 @@ func parseProtocolParams(r *http.Request) (url.Values, error) {
 	}
 	return query, nil
 }
-func decodePaymentJSON(w http.ResponseWriter, r *http.Request, dst any, required ...string) error {
-	err := platform.DecodeJSONBody(w, r, 64<<10, dst, required...)
+func decodePaymentJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	err := platform.DecodeJSONBody(w, r, 64<<10, dst)
 	if err != nil {
 		httpJSON(w, r, nil, err, 200)
 	}

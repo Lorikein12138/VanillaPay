@@ -218,7 +218,12 @@ func TestHTTP_TOTPStateTransitions(t *testing.T) {
 			})
 
 			t.Run("V11.B.r06/v02", func(t *testing.T) {
-				withoutFreshProof := fixture.Request(t, http.MethodDelete, actor.path, map[string]any{"totp_code": totpCode(t, setupDTO.Secret, db.Clock.Now())}, actor.role+":totp-recovery-"+actor.name)
+				client := actor.role + ":totp-recovery-" + actor.name
+				body := map[string]any{"totp_code": totpCode(t, setupDTO.Secret, db.Clock.Now())}
+				missing := fixture.Request(t, http.MethodDelete, actor.path, body, client)
+				assertIdentityError(t, missing, "VALIDATION_ERROR", actor.name+" disable with missing password field")
+				body["password"] = ""
+				withoutFreshProof := fixture.Request(t, http.MethodDelete, actor.path, body, client)
 				assertIdentityError(t, withoutFreshProof, "INVALID_CREDENTIALS", actor.name+" disable without password proof")
 			})
 

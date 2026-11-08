@@ -24,7 +24,7 @@ func TestDB_CollectionSettingsInheritGlobalBoundsAndRejectOutOfRangeTTL(t *testi
 	if err != nil || initial.Version != 0 {
 		t.Fatalf("initial collection settings = %#v, %v", initial, err)
 	}
-	result, err := application.Services.Settings.SaveCollection(ctx, actor, settings.SaveCollectionRequest{ExpectedVersion: &initial.Version})
+	result, err := application.Services.Settings.SaveCollection(ctx, actor, settings.SaveCollectionRequest{ExpectedVersion: initial.Version})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestDB_CollectionSettingsInheritGlobalBoundsAndRejectOutOfRangeTTL(t *testi
 		t.Fatalf("inherited collection values = %#v", result.Effective)
 	}
 	tooLong := 3600
-	_, err = application.Services.Settings.SaveCollection(ctx, actor, settings.SaveCollectionRequest{ExpectedVersion: &result.Version, OrderTTLSeconds: &tooLong})
+	_, err = application.Services.Settings.SaveCollection(ctx, actor, settings.SaveCollectionRequest{ExpectedVersion: result.Version, OrderTTLSeconds: &tooLong})
 	if !hasErrorCode(err, "TTL_OUT_OF_RANGE") {
 		t.Fatalf("out-of-range TTL error = %v", err)
 	}
@@ -43,7 +43,7 @@ func TestDB_CollectionSettingsRejectStaleVersion(t *testing.T) {
 	merchantID, _ := db.SeedMerchant(t)
 	service := db.NewApplication(t).Services.Settings
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
-	req := settings.SaveCollectionRequest{ExpectedVersion: new(int64(1)), OrderTTLSeconds: new(600)}
+	req := settings.SaveCollectionRequest{ExpectedVersion: 1, OrderTTLSeconds: new(600)}
 	saved, err := service.SaveCollection(t.Context(), actor, req)
 	if err != nil {
 		t.Fatal(err)

@@ -54,9 +54,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *Handler) consoleRecovery(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RecoveryCode string `json:"recovery_code"`
-	}
+	var req RecoveryRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

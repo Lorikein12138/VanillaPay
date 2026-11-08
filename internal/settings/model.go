@@ -44,7 +44,7 @@ type CollectionSettings struct {
 }
 
 type SaveCollectionRequest struct {
-	ExpectedVersion *int64  `json:"expected_version"`
+	ExpectedVersion int64   `json:"expected_version"`
 	OrderTTLSeconds *int    `json:"order_ttl_seconds"`
 	FloatLimitCents *int    `json:"float_limit_cents"`
 	FloatDirection  *string `json:"float_direction"`
@@ -84,28 +84,50 @@ type FooterItem struct {
 }
 
 type FooterLegal struct {
-	Items   []FooterItem `json:"items"`
-	Terms   LanguageText `json:"terms"`
-	Privacy LanguageText `json:"privacy"`
+	Items   *[]FooterItem `json:"items"`
+	Terms   LanguageText  `json:"terms"`
+	Privacy LanguageText  `json:"privacy"`
 }
 
-type mailGroup struct {
-	Host        string          `json:"host"`
-	Port        int             `json:"port"`
-	Username    string          `json:"username"`
-	Password    json.RawMessage `json:"password,omitempty"`
-	FromAddress string          `json:"from_address"`
-	FromName    string          `json:"from_name"`
-	TLSMode     string          `json:"tls_mode"`
+type MailGroupRequest struct {
+	Host        string  `json:"host"`
+	Port        int     `json:"port"`
+	Username    string  `json:"username"`
+	Password    *string `json:"password,omitempty"`
+	FromAddress string  `json:"from_address"`
+	FromName    string  `json:"from_name"`
+	TLSMode     string  `json:"tls_mode"`
 }
 
-type securityGroup struct {
-	TurnstileSiteKey     string          `json:"turnstile_site_key"`
-	TurnstileSecret      json.RawMessage `json:"turnstile_secret,omitempty"`
-	AllowedHostname      string          `json:"allowed_hostname"`
-	RestrictEmailDomains bool            `json:"restrict_email_domains"`
-	EmailDomains         []string        `json:"email_domains"`
-	BanContact           LanguageText    `json:"ban_contact"`
+type SecurityGroupRequest struct {
+	TurnstileSiteKey     string       `json:"turnstile_site_key"`
+	TurnstileSecret      *string      `json:"turnstile_secret,omitempty"`
+	AllowedHostname      string       `json:"allowed_hostname"`
+	RestrictEmailDomains bool         `json:"restrict_email_domains"`
+	EmailDomains         *[]string    `json:"email_domains"`
+	BanContact           LanguageText `json:"ban_contact"`
+}
+
+type SiteGroupRequest struct {
+	SiteName    string  `json:"site_name"`
+	LogoAssetID *string `json:"logo_asset_id"`
+}
+
+type HomeGroupRequest struct {
+	Mode string  `json:"mode"`
+	HTML *string `json:"html"`
+	URL  *string `json:"url"`
+}
+
+type BillingGroupRequest struct {
+	MerchantPID string  `json:"merchant_pid"`
+	MerchantKey *string `json:"merchant_key,omitempty"`
+}
+
+type RecoverySecurityRequest struct {
+	SiteKey  string `json:"turnstile_site_key"`
+	Hostname string `json:"allowed_hostname"`
+	Secret   string `json:"turnstile_secret,omitempty"`
 }
 
 func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[string]json.RawMessage, error) {
@@ -115,11 +137,8 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 	secrets := map[string]json.RawMessage{}
 	switch group {
 	case "site":
-		var v struct {
-			SiteName    string  `json:"site_name"`
-			LogoAssetID *string `json:"logo_asset_id"`
-		}
-		if err := decodeGroup(value, &v, "site_name", "logo_asset_id"); err != nil {
+		var v SiteGroupRequest
+		if err := decodeGroup(value, &v); err != nil {
 			return nil, nil, err
 		}
 		if textLength(strings.TrimSpace(v.SiteName)) < 1 || textLength(v.SiteName) > 80 {
@@ -127,12 +146,8 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		}
 		return marshal(v), secrets, nil
 	case "home":
-		var v struct {
-			Mode string  `json:"mode"`
-			HTML *string `json:"html"`
-			URL  *string `json:"url"`
-		}
-		if err := decodeGroup(value, &v, "mode", "html", "url"); err != nil {
+		var v HomeGroupRequest
+		if err := decodeGroup(value, &v); err != nil {
 			return nil, nil, err
 		}
 		switch v.Mode {
@@ -153,60 +168,54 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		}
 		return marshal(v), secrets, nil
 	case "mail":
-		var v mailGroup
-		if err := decodeGroup(value, &v, "host", "port", "username", "from_address", "from_name", "tls_mode"); err != nil {
+		var v MailGroupRequest
+		if err := decodeGroup(value, &v); err != nil {
 			return nil, nil, err
 		}
 		if textLength(v.Host) < 1 || textLength(v.Host) > 253 || v.Port < 1 || v.Port > 65535 || textLength(v.Username) > 254 || !validEmail(v.FromAddress) || textLength(v.FromName) < 1 || textLength(v.FromName) > 120 || (v.TLSMode != "starttls" && v.TLSMode != "tls") {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
-		if len(v.Password) > 0 {
-			if string(v.Password) != "null" {
-				var p string
-				if json.Unmarshal(v.Password, &p) != nil || p == "" {
-					return nil, nil, errors.New("VALIDATION_ERROR")
-				}
-				secrets["smtp_password"] = append([]byte(nil), v.Password...)
-			} else {
-				secrets["smtp_password"] = json.RawMessage("null")
-			}
+		if v.Password != nil && *v.Password == "" {
+			return nil, nil, errors.New("VALIDATION_ERROR")
+		}
+		if password := groupField(value, "password"); password != nil {
+			secrets["smtp_password"] = password
 		}
 		v.Password = nil
 		return marshal(v), secrets, nil
 	case "security":
-		var v securityGroup
-		if err := decodeGroup(value, &v, "turnstile_site_key", "allowed_hostname", "restrict_email_domains", "email_domains", "ban_contact"); err != nil {
+		var v SecurityGroupRequest
+		if err := decodeGroup(value, &v); err != nil {
 			return nil, nil, err
 		}
-		if textLength(v.TurnstileSiteKey) > 512 || textLength(v.AllowedHostname) > 253 || len(v.EmailDomains) > 100 {
+		var domains []string
+		if v.EmailDomains != nil {
+			domains = *v.EmailDomains
+		}
+		if textLength(v.TurnstileSiteKey) > 512 || textLength(v.AllowedHostname) > 253 || len(domains) > 100 {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
-		if (v.TurnstileSiteKey == "") != (v.AllowedHostname == "") || (v.RestrictEmailDomains && len(v.EmailDomains) == 0) {
+		if (v.TurnstileSiteKey == "") != (v.AllowedHostname == "") || (v.RestrictEmailDomains && len(domains) == 0) {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
-		for i, domain := range v.EmailDomains {
+		for i, domain := range domains {
 			domain = strings.TrimSpace(strings.ToLower(domain))
 			if domain == "" || strings.ContainsAny(domain, " /:@*") || strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") || strings.Contains(domain, "..") {
 				return nil, nil, errors.New("VALIDATION_ERROR")
 			}
-			v.EmailDomains[i] = domain
+			domains[i] = domain
 		}
-		if len(v.TurnstileSecret) > 0 {
-			if string(v.TurnstileSecret) != "null" {
-				var secret string
-				if json.Unmarshal(v.TurnstileSecret, &secret) != nil || secret == "" {
-					return nil, nil, errors.New("VALIDATION_ERROR")
-				}
-				secrets["turnstile_secret"] = append([]byte(nil), v.TurnstileSecret...)
-			} else {
-				secrets["turnstile_secret"] = json.RawMessage("null")
-			}
+		if v.TurnstileSecret != nil && *v.TurnstileSecret == "" {
+			return nil, nil, errors.New("VALIDATION_ERROR")
+		}
+		if secret := groupField(value, "turnstile_secret"); secret != nil {
+			secrets["turnstile_secret"] = secret
 		}
 		v.TurnstileSecret = nil
 		return marshal(v), secrets, nil
 	case "payment":
 		var v GroupBounds
-		if err := decodeGroup(value, &v, "min_amount_cents", "max_amount_cents", "default_ttl_seconds", "max_ttl_seconds", "float_min_cents", "float_max_cents", "float_default_cents", "float_direction"); err != nil {
+		if err := decodeGroup(value, &v); err != nil {
 			return nil, nil, err
 		}
 		if v.MinAmountCents < 1 || v.MaxAmountCents < v.MinAmountCents || v.MaxAmountCents > hardAmountLimit || v.DefaultTTLSeconds < 60 || v.MaxTTLSeconds < v.DefaultTTLSeconds || v.MaxTTLSeconds > 86400 || v.FloatMinCents < 0 || v.FloatMaxCents < v.FloatMinCents || v.FloatMaxCents > 999 || v.FloatDefaultCents < v.FloatMinCents || v.FloatDefaultCents > v.FloatMaxCents || (v.FloatDirection != "up" && v.FloatDirection != "down") {
@@ -214,39 +223,35 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		}
 		return marshal(v), secrets, nil
 	case "billing":
-		var v struct {
-			MerchantPID string          `json:"merchant_pid"`
-			MerchantKey json.RawMessage `json:"merchant_key,omitempty"`
-		}
-		if err := decodeGroup(value, &v, "merchant_pid"); err != nil {
+		var v BillingGroupRequest
+		if err := decodeGroup(value, &v); err != nil {
 			return nil, nil, err
 		}
 		if v.MerchantPID != "" && !validPID(v.MerchantPID) {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
-		if len(v.MerchantKey) > 0 {
-			if string(v.MerchantKey) != "null" {
-				var key string
-				if json.Unmarshal(v.MerchantKey, &key) != nil || len(key) != 64 || !isLowerHex(key) {
-					return nil, nil, errors.New("VALIDATION_ERROR")
-				}
-				secrets["billing_key"] = append([]byte(nil), v.MerchantKey...)
-			} else {
-				secrets["billing_key"] = json.RawMessage("null")
-			}
+		if v.MerchantKey != nil && (len(*v.MerchantKey) != 64 || !isLowerHex(*v.MerchantKey)) {
+			return nil, nil, errors.New("VALIDATION_ERROR")
+		}
+		if key := groupField(value, "merchant_key"); key != nil {
+			secrets["billing_key"] = key
 		}
 		v.MerchantKey = nil
 		return marshal(v), secrets, nil
 	case "footer_legal":
 		var v FooterLegal
-		if err := decodeGroup(value, &v, "items", "terms", "privacy"); err != nil {
+		if err := decodeGroup(value, &v); err != nil {
 			return nil, nil, err
 		}
-		if len(v.Items) > 50 || strings.TrimSpace(v.Terms.ZhCN) == "" || strings.TrimSpace(v.Privacy.ZhCN) == "" || len(v.Terms.ZhCN) > 128<<10 || len(v.Terms.En) > 128<<10 || len(v.Privacy.ZhCN) > 128<<10 || len(v.Privacy.En) > 128<<10 {
+		var items []FooterItem
+		if v.Items != nil {
+			items = *v.Items
+		}
+		if len(items) > 50 || strings.TrimSpace(v.Terms.ZhCN) == "" || strings.TrimSpace(v.Privacy.ZhCN) == "" || len(v.Terms.ZhCN) > 128<<10 || len(v.Terms.En) > 128<<10 || len(v.Privacy.ZhCN) > 128<<10 || len(v.Privacy.En) > 128<<10 {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		seen := map[string]struct{}{}
-		for _, item := range v.Items {
+		for _, item := range items {
 			if item.ID == "" || len(item.ID) > 64 || item.Sort < 0 || textLength(item.Label.ZhCN) == 0 || textLength(item.Label.ZhCN) > 80 || textLength(item.Label.En) > 80 || textLength(item.Text) > 1000 {
 				return nil, nil, errors.New("VALIDATION_ERROR")
 			}
@@ -264,8 +269,23 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 	}
 }
 
-func decodeGroup(raw json.RawMessage, target any, required ...string) error {
-	return platform.DecodeStrictJSON(bytes.NewReader(raw), target, required...)
+func decodeGroup(raw json.RawMessage, target any) error {
+	err := platform.DecodeStrictJSON(bytes.NewReader(raw), target)
+	var problem *platform.Error
+	if errors.As(err, &problem) && len(problem.Fields) == 1 {
+		for field := range problem.Fields {
+			return platform.InvalidJSONField("value." + field)
+		}
+	}
+	return err
+}
+
+// Called only after strict decoding. The raw value distinguishes omission
+// (preserve the secret) from an explicit null (clear it).
+func groupField(raw json.RawMessage, field string) json.RawMessage {
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &fields)
+	return fields[field]
 }
 
 func marshal(value any) json.RawMessage { b, _ := json.Marshal(value); return b }
@@ -303,4 +323,12 @@ func isLowerHex(value string) bool {
 		}
 	}
 	return true
+}
+
+type MailTestRequest struct {
+	Recipient string `json:"recipient"`
+}
+
+type SetQREnabledRequest struct {
+	Enabled bool `json:"enabled"`
 }

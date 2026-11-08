@@ -114,7 +114,7 @@ func (h *Handler) Current(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) Purchase(w http.ResponseWriter, r *http.Request) {
 	var req PurchaseRequest
-	if !subDecode(w, r, &req, "plan_id", "plan_revision", "confirm_replace", "expected_subscription_revision") {
+	if !subDecode(w, r, &req) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -160,9 +160,14 @@ func (h *Handler) ConsolePlans(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, map[string]any{"items": items, "next_cursor": nil, "total": len(items)}, err, 200)
 }
 func (h *Handler) SavePlan(w http.ResponseWriter, r *http.Request) {
-	var req PlanCommand
-	if !subDecode(w, r, &req, "name", "price_cents", "duration_days", "channels", "purchase_limit") {
+	var body SavePlanRequest
+	if !subDecode(w, r, &body) {
 		return
+	}
+	req := PlanCommand{ID: body.ID, Revision: body.Revision, Name: body.Name, PriceCents: body.PriceCents,
+		DurationDays: body.DurationDays, PurchaseLimit: body.PurchaseLimit}
+	if body.Channels != nil {
+		req.Channels = *body.Channels
 	}
 	if id := chi.URLParam(r, "id"); id != "" {
 		req.ID = id
@@ -176,10 +181,8 @@ func (h *Handler) SavePlan(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, result, err, status)
 }
 func (h *Handler) DeletePlan(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Revision int64 `json:"revision"`
-	}
-	if !subDecode(w, r, &req, "revision") {
+	var req DeletePlanRequest
+	if !subDecode(w, r, &req) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -187,8 +190,8 @@ func (h *Handler) DeletePlan(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, result, err, 200)
 }
 func (h *Handler) Grant(w http.ResponseWriter, r *http.Request) {
-	var req GrantRequest
-	if !subDecode(w, r, &req, "plan_id", "expires_at", "channels", "expected_revision", "reason") {
+	var body GrantSubscriptionRequest
+	if !subDecode(w, r, &body) {
 		return
 	}
 	merchantID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -197,12 +200,16 @@ func (h *Handler) Grant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
+	req := GrantRequest{PlanID: body.PlanID, ExpiresAt: body.ExpiresAt, ExpectedRevision: body.ExpectedRevision, Reason: body.Reason}
+	if body.Channels != nil {
+		req.Channels = *body.Channels
+	}
 	result, err := h.Service.Grant(r.Context(), actor, merchantID, req)
 	subWrite(w, r, result, err, 200)
 }
 
-func subDecode(w http.ResponseWriter, r *http.Request, target any, required ...string) bool {
-	if err := platform.DecodeJSONBody(w, r, 1<<20, target, required...); err != nil {
+func subDecode(w http.ResponseWriter, r *http.Request, target any) bool {
+	if err := platform.DecodeJSONBody(w, r, 1<<20, target); err != nil {
 		subWrite(w, r, nil, err, 400)
 		return false
 	}

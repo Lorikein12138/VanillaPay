@@ -74,9 +74,7 @@ func (h *Handler) Device(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) NewBinding(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ReplaceConfirmed bool `json:"replace_confirmed"`
-	}
+	var req CreateBindingRequest
 	if !deviceDecode(w, r, &req, 32<<10) {
 		return
 	}
@@ -92,9 +90,7 @@ func (h *Handler) Binding(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Confirm bool `json:"confirm"`
-	}
+	var req UnbindRequest
 	if !deviceDecode(w, r, &req, 32<<10) {
 		return
 	}

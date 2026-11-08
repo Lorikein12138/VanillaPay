@@ -7,20 +7,22 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 )
 
-func DecodeJSONBody(w http.ResponseWriter, r *http.Request, limit int64, dst any, required ...string) error {
+func DecodeJSONBody(w http.ResponseWriter, r *http.Request, limit int64, dst any) error {
 	if r.Body == nil {
 		return invalidJSON()
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
-	return DecodeStrictJSON(r.Body, dst, required...)
+	return DecodeStrictJSON(r.Body, dst)
 }
 
-// DecodeStrictJSON validates the exact object keys before letting encoding/json
-// populate dst. A required key may be null if its endpoint permits null.
-func DecodeStrictJSON(reader io.Reader, dst any, required ...string) error {
+// DecodeStrictJSON checks exact JSON tags at every level before populating dst.
+// Fields without omitempty are required. Only pointer fields accept null.
+func DecodeStrictJSON(reader io.Reader, dst any) error {
 	target := reflect.ValueOf(dst)
 	if !target.IsValid() || target.Kind() != reflect.Pointer || target.IsNil() {
 		return invalidJSON()
@@ -36,13 +38,8 @@ func DecodeStrictJSON(reader io.Reader, dst any, required ...string) error {
 	}
 	scan := json.NewDecoder(bytes.NewReader(raw))
 	scan.UseNumber()
-	if err := checkJSONKeys(scan, target.Type()); err != nil {
+	if err := checkJSONValue(scan, target.Elem().Type(), nil); err != nil {
 		return err
-	}
-	for _, field := range required {
-		if _, ok := fields[field]; !ok {
-			return InvalidJSONField(field)
-		}
 	}
 	decoded := reflect.New(target.Elem().Type())
 	if err := json.Unmarshal(raw, decoded.Interface()); err != nil {
@@ -68,30 +65,40 @@ func invalidJSON() *Error {
 
 var rawJSONType = reflect.TypeFor[json.RawMessage]()
 
-func checkJSONKeys(dec *json.Decoder, target reflect.Type) error {
-	for target != nil && target.Kind() == reflect.Pointer {
-		target = target.Elem()
-	}
+func checkJSONValue(dec *json.Decoder, target reflect.Type, path []byte) error {
 	token, err := dec.Token()
 	if err != nil {
 		return invalidJSON()
 	}
+	if token == nil && target != nil && target.Kind() != reflect.Pointer {
+		return InvalidJSONField(string(path))
+	}
+	for target != nil && target.Kind() == reflect.Pointer {
+		target = target.Elem()
+	}
 	switch token {
 	case json.Delim('{'):
 		seen := map[string]bool{}
+		fields := jsonObjectFields(target)
 		for dec.More() {
 			token, err := dec.Token()
 			key, ok := token.(string)
 			if err != nil || !ok {
 				return invalidJSON()
 			}
-			fieldType, allowed := jsonFieldType(target, key)
+			fieldPath := jsonFieldPath(path, key)
+			fieldType, allowed := jsonFieldType(target, fields, key)
 			if seen[key] || !allowed {
-				return InvalidJSONField(key)
+				return InvalidJSONField(string(fieldPath))
 			}
 			seen[key] = true
-			if err := checkJSONKeys(dec, fieldType); err != nil {
+			if err := checkJSONValue(dec, fieldType, fieldPath); err != nil {
 				return err
+			}
+		}
+		for _, field := range fields {
+			if field.required && !seen[field.name] {
+				return InvalidJSONField(string(jsonFieldPath(path, field.name)))
 			}
 		}
 	case json.Delim('['):
@@ -99,8 +106,9 @@ func checkJSONKeys(dec *json.Decoder, target reflect.Type) error {
 		if target != nil && target != rawJSONType && (target.Kind() == reflect.Slice || target.Kind() == reflect.Array) {
 			elem = target.Elem()
 		}
-		for dec.More() {
-			if err := checkJSONKeys(dec, elem); err != nil {
+		for index := 0; dec.More(); index++ {
+			elemPath := append(strconv.AppendInt(append(path, '['), int64(index), 10), ']')
+			if err := checkJSONValue(dec, elem, elemPath); err != nil {
 				return err
 			}
 		}
@@ -113,21 +121,45 @@ func checkJSONKeys(dec *json.Decoder, target reflect.Type) error {
 	return nil
 }
 
-func jsonFieldType(target reflect.Type, key string) (reflect.Type, bool) {
+type jsonObjectField struct {
+	name     string
+	typ      reflect.Type
+	required bool
+}
+
+func jsonObjectFields(target reflect.Type) []jsonObjectField {
+	if target == nil || target.Kind() != reflect.Struct {
+		return nil
+	}
+	var fields []jsonObjectField
+	for index := range target.NumField() {
+		field := target.Field(index)
+		name, options, _ := strings.Cut(field.Tag.Get("json"), ",")
+		if field.IsExported() && name != "" && name != "-" {
+			fields = append(fields, jsonObjectField{name, field.Type, !slices.Contains(strings.Split(options, ","), "omitempty")})
+		}
+	}
+	return fields
+}
+
+func jsonFieldType(target reflect.Type, fields []jsonObjectField, key string) (reflect.Type, bool) {
 	if target == nil || target.Kind() == reflect.Interface || target == rawJSONType {
 		return nil, true
 	}
 	if target.Kind() == reflect.Map {
 		return target.Elem(), true
 	}
-	if target.Kind() == reflect.Struct {
-		for index := range target.NumField() {
-			field := target.Field(index)
-			name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-			if field.IsExported() && name != "" && name != "-" && name == key {
-				return field.Type, true
-			}
+	for _, field := range fields {
+		if field.name == key {
+			return field.typ, true
 		}
 	}
 	return nil, false
+}
+
+func jsonFieldPath(parent []byte, key string) []byte {
+	if len(parent) != 0 {
+		parent = append(parent, '.')
+	}
+	return append(parent, key...)
 }

@@ -23,9 +23,9 @@ import (
 func registerCheckoutFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [32]byte, dataDir string) {
 	mux.HandleFunc("POST /__e2e/checkout", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
-			PNG     []byte `json:"png"`
-			TradeNo string `json:"trade_no"`
-			State   string `json:"state"`
+			PNG     []byte `json:"png,omitempty"`
+			TradeNo string `json:"trade_no,omitempty"`
+			State   string `json:"state,omitempty"`
 		}
 		if platform.DecodeJSONBody(w, r, 131072, &input) != nil {
 			http.Error(w, "invalid checkout fixture", http.StatusBadRequest)

@@ -142,9 +142,9 @@ func run(ctx context.Context) error {
 	inbox.register(mux)
 	mux.HandleFunc("POST /__e2e/merchant", func(w http.ResponseWriter, r *http.Request) {
 		var flags struct {
-			TOTP      bool   `json:"totp"`
-			Banned    bool   `json:"banned"`
-			BanReason string `json:"ban_reason"`
+			TOTP      bool   `json:"totp,omitempty"`
+			Banned    bool   `json:"banned,omitempty"`
+			BanReason string `json:"ban_reason,omitempty"`
 		}
 		if platform.DecodeJSONBody(w, r, 1024, &flags) != nil {
 			http.Error(w, "invalid fixture options", http.StatusBadRequest)

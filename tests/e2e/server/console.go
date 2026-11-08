@@ -16,8 +16,8 @@ import (
 func registerConsoleFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [32]byte, service *auth.Service, turnstileToken string) {
 	mux.HandleFunc("POST /__e2e/console", func(w http.ResponseWriter, r *http.Request) {
 		var flags struct {
-			Reset bool `json:"reset"`
-			TOTP  bool `json:"totp"`
+			Reset bool `json:"reset,omitempty"`
+			TOTP  bool `json:"totp,omitempty"`
 		}
 		if platform.DecodeJSONBody(w, r, 1024, &flags) != nil {
 			http.Error(w, "invalid console fixture options", 400)

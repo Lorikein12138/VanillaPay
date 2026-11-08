@@ -69,10 +69,7 @@ func (h *Handler) banned(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) changeUsername(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Username string        `json:"username"`
-		Proof    SecurityProof `json:"security_proof"`
-	}
+	var req ChangeUsernameRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -82,12 +79,7 @@ func (h *Handler) changeUsername(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) changeEmail(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Email        string `json:"email"`
-		OldEmailCode string `json:"old_email_code"`
-		NewEmailCode string `json:"new_email_code"`
-		TOTPCode     string `json:"totp_code,omitempty"`
-	}
+	var req ChangeEmailRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -97,11 +89,7 @@ func (h *Handler) changeEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Password             string        `json:"password"`
-		PasswordConfirmation string        `json:"password_confirmation"`
-		Proof                SecurityProof `json:"security_proof"`
-	}
+	var req ChangePasswordRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -121,10 +109,7 @@ func (h *Handler) adminPreferences(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) preferences(w http.ResponseWriter, r *http.Request, role string) {
-	var req struct {
-		Locale string `json:"locale"`
-		Theme  string `json:"theme"`
-	}
+	var req PreferencesRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -143,9 +128,7 @@ func (h *Handler) merchantTOTPSetup(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) adminTOTPSetup(w http.ResponseWriter, r *http.Request) { h.totpSetup(w, r, "admin") }
 
 func (h *Handler) totpSetup(w http.ResponseWriter, r *http.Request, role string) {
-	var req struct {
-		Password string `json:"password"`
-	}
+	var req TOTPSetupRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -209,12 +192,7 @@ func (h *Handler) totpDisable(w http.ResponseWriter, r *http.Request, role strin
 }
 
 func (h *Handler) adminPassword(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		CurrentPassword      string `json:"current_password"`
-		Password             string `json:"password"`
-		PasswordConfirmation string `json:"password_confirmation"`
-		TOTPCode             string `json:"totp_code,omitempty"`
-	}
+	var req AdminPasswordRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

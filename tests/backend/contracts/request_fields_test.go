@@ -163,16 +163,33 @@ func TestHTTP_RequiredNullableNumbersMustBePresent(t *testing.T) {
 	t.Run("plan create and update", func(t *testing.T) {
 		const client = "admin:matrix-admin"
 		const path = "/api/v1/console/plans"
-		body := map[string]any{"name": map[string]string{"zh_CN": "限购", "en": ""}, "price_cents": 100,
+		name := map[string]string{"zh_CN": "限购", "en": "Original English name"}
+		body := map[string]any{"name": name, "price_cents": 100,
 			"duration_days": 30, "channels": []string{"alipay"}}
-		snapshot := func() [3]int64 {
+		snapshot := func() struct{ plans, audit string } {
 			t.Helper()
-			var result [3]int64
-			if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT count(*),COALESCE(sum(revision),0),(SELECT count(*) FROM audit_logs) FROM plans`).
-				Scan(&result[0], &result[1], &result[2]); err != nil {
+			var result struct{ plans, audit string }
+			if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT
+				COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id)::text FROM plans p), '[]'),
+				COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id)::text FROM audit_logs a), '[]')`).
+				Scan(&result.plans, &result.audit); err != nil {
 				t.Fatal(err)
 			}
 			return result
+		}
+		assertMissingNames := func(method, path string) {
+			t.Helper()
+			body["purchase_limit"] = nil
+			for _, key := range []string{"en", "zh_CN"} {
+				before := snapshot()
+				original := name[key]
+				delete(name, key)
+				assertRequestFieldError(t, fixture.Request(t, method, path, body, client), "name."+key)
+				name[key] = original
+				if snapshot() != before {
+					t.Fatalf("%s without name.%s changed plan rows, revisions or audit records", method, key)
+				}
+			}
 		}
 		before := snapshot()
 		assertRequestFieldError(t, fixture.Request(t, http.MethodPost, path, body, client), "purchase_limit")
@@ -182,7 +199,7 @@ func TestHTTP_RequiredNullableNumbersMustBePresent(t *testing.T) {
 		if snapshot() != before {
 			t.Fatal("invalid create changed plan or audit state")
 		}
-		body["purchase_limit"] = nil
+		assertMissingNames(http.MethodPost, path)
 		created := fixture.Request(t, http.MethodPost, path, body, client)
 		var result struct {
 			Data struct {
@@ -204,9 +221,14 @@ func TestHTTP_RequiredNullableNumbersMustBePresent(t *testing.T) {
 		if snapshot() != before {
 			t.Fatal("invalid update changed plan or audit state")
 		}
-		body["purchase_limit"] = nil
+		assertMissingNames(http.MethodPut, updatePath)
+		name["en"] = ""
 		if response := fixture.Request(t, http.MethodPut, updatePath, body, client); response.Code != http.StatusOK {
 			t.Fatalf("explicit null purchase limit on update: status=%d", response.Code)
+		}
+		delete(body, "revision")
+		if response := fixture.Request(t, http.MethodPost, path, body, client); response.Code != http.StatusCreated {
+			t.Fatalf("explicit empty English name and null purchase limit on create: status=%d", response.Code)
 		}
 	})
 }
@@ -222,7 +244,12 @@ func TestHTTP_StrictJSONInEmailRoutingAndSettingsGroups(t *testing.T) {
 	}
 	assertRequestFieldError(t, fixture.Request(t, http.MethodPut, "/api/v1/console/settings/site",
 		map[string]any{"expected_version": version, "value": map[string]any{"site_name": "Fixture", "LOGO_ASSET_ID": nil}},
-		"admin:matrix-admin"), "LOGO_ASSET_ID")
+		"admin:matrix-admin"), "value.LOGO_ASSET_ID")
+	localized := map[string]string{"zh_CN": "条款", "en": "Terms"}
+	item := map[string]any{"id": "first", "label": map[string]string{"zh_CN": "链接"}, "text": "", "url": nil, "enabled": true, "sort": 0}
+	assertRequestFieldError(t, fixture.Request(t, http.MethodPut, "/api/v1/console/settings/footer_legal", map[string]any{
+		"expected_version": version, "value": map[string]any{"items": []any{item}, "terms": localized, "privacy": localized},
+	}, "admin:matrix-admin"), "value.items[0].label.en")
 	var after int64
 	if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings`).Scan(&after); err != nil || after != version {
 		t.Fatalf("invalid settings group changed version: got %d want %d, error=%v", after, version, err)

@@ -82,19 +82,21 @@ func (h *Handler) Notifications(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
-	var req ReadRequest
-	if !portalDecode(w, r, &req) {
+	var body MarkNotificationsReadRequest
+	if !portalDecode(w, r, &body) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
+	req := ReadRequest{All: body.All}
+	if body.IDs != nil {
+		req.IDs = *body.IDs
+	}
 	result, err := h.Service.MarkRead(r.Context(), actor, req)
 	portalWrite(w, r, result, err, 200)
 }
 
 func (h *Handler) MarkAnnouncementRead(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Revision int64 `json:"revision"`
-	}
+	var req AnnouncementRevisionRequest
 	if !portalDecode(w, r, &req) {
 		return
 	}
@@ -132,9 +134,7 @@ func (h *Handler) SaveAnnouncement(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteAnnouncement(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Revision int64 `json:"revision"`
-	}
+	var req AnnouncementRevisionRequest
 	if !portalDecode(w, r, &req) {
 		return
 	}

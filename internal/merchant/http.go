@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"vanillapay/internal/auth"
 	"vanillapay/internal/platform"
 )
 
@@ -85,9 +84,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Ban(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Reason string `json:"reason"`
-	}
+	var req BanRequest
 	if !merchantDecode(w, r, &req, 1<<20) {
 		return
 	}
@@ -116,10 +113,7 @@ func (h *Handler) Unban(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Password     string `json:"password"`
-		Confirmation string `json:"password_confirmation"`
-	}
+	var req ResetPasswordRequest
 	if !merchantDecode(w, r, &req, 1<<20) {
 		return
 	}
@@ -140,9 +134,7 @@ func (h *Handler) Integration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ResetKey(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Proof auth.SecurityProof `json:"security_proof"`
-	}
+	var req ResetKeyRequest
 	if !merchantDecode(w, r, &req, 1<<20) {
 		return
 	}
@@ -162,18 +154,14 @@ func (h *Handler) RSAPublicKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) IPWhitelist(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Enabled *bool    `json:"enabled"`
-		Entries []string `json:"entries"`
-	}
-	if !merchantDecode(w, r, &body, 32<<10, "enabled", "entries") {
+	var body IPWhitelistRequest
+	if !merchantDecode(w, r, &body, 32<<10) {
 		return
 	}
-	if body.Enabled == nil {
-		merchantWrite(w, r, nil, platform.InvalidJSONField("enabled"), 200)
-		return
+	req := IPWhitelist{Enabled: body.Enabled}
+	if body.Entries != nil {
+		req.Entries = *body.Entries
 	}
-	req := IPWhitelist{Enabled: *body.Enabled, Entries: body.Entries}
 	actor, _ := platform.ActorFromContext(r.Context())
 	err := h.Service.SetIPWhitelist(r.Context(), actor, actor.MerchantID, req)
 	merchantWrite(w, r, req, err, 200)
@@ -187,8 +175,8 @@ func merchantID(raw string) (int64, error) {
 	return id, nil
 }
 
-func merchantDecode(w http.ResponseWriter, r *http.Request, target any, limit int64, required ...string) bool {
-	if err := platform.DecodeJSONBody(w, r, limit, target, required...); err != nil {
+func merchantDecode(w http.ResponseWriter, r *http.Request, target any, limit int64) bool {
+	if err := platform.DecodeJSONBody(w, r, limit, target); err != nil {
 		merchantWrite(w, r, nil, err, 400)
 		return false
 	}

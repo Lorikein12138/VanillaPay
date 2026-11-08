@@ -12,9 +12,13 @@ import (
 func TestDecodeStrictJSON(t *testing.T) {
 	type payload struct {
 		Confirm *bool `json:"confirm"`
+		Name    struct {
+			En    string  `json:"en"`
+			Alias *string `json:"alias"`
+		} `json:"name,omitempty"`
 		Entries []struct {
 			ZhCN string `json:"zh_CN"`
-		} `json:"entries"`
+		} `json:"entries,omitempty"`
 		Value json.RawMessage `json:"value,omitempty"`
 	}
 	for _, test := range []struct {
@@ -23,20 +27,25 @@ func TestDecodeStrictJSON(t *testing.T) {
 	}{
 		{"exact tags", `{"confirm":false,"entries":[{"zh_CN":"内容"}],"value":{"freeKey":1}}`, "", true},
 		{"present null", `{"confirm":null}`, "", true},
+		{"nested pointer null", `{"confirm":false,"name":{"en":"","alias":null}}`, "", true},
+		{"nested object missing key", `{"confirm":false,"name":{"alias":null}}`, "name.en", false},
+		{"nested array missing key", `{"confirm":false,"entries":[{"zh_CN":"内容"},{}]}`, "entries[1].zh_CN", false},
+		{"nested nonpointer null", `{"confirm":false,"name":{"en":null,"alias":null}}`, "name.en", false},
+		{"array element null", `{"confirm":false,"entries":[null]}`, "entries[0]", false},
 		{"missing", `{}`, "confirm", false},
 		{"case variant", `{"Confirm":true}`, "Confirm", false},
 		{"unknown", `{"confirm":true,"extra":null}`, "extra", false},
 		{"duplicate", `{"confirm":false,"confirm":true}`, "confirm", false},
 		{"escaped duplicate", `{"confirm":false,"conf\u0069rm":true}`, "confirm", false},
-		{"nested case variant", `{"confirm":true,"entries":[{"zh_cn":"内容"}]}`, "zh_cn", false},
-		{"duplicate in raw map", `{"confirm":true,"value":{"items":[{"key":1,"key":2}]}}`, "key", false},
+		{"nested case variant", `{"confirm":true,"entries":[{"zh_cn":"内容"}]}`, "entries[0].zh_cn", false},
+		{"duplicate in raw map", `{"confirm":true,"value":{"items":[{"key":1,"key":2}]}}`, "value.items[0].key", false},
 		{"wrong type", `{"confirm":"true"}`, "confirm", false},
 		{"trailing body", `{"confirm":true}{}`, "", false},
 		{"not an object", `null`, "", false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var dst payload
-			err := DecodeStrictJSON(strings.NewReader(test.body), &dst, "confirm")
+			err := DecodeStrictJSON(strings.NewReader(test.body), &dst)
 			if test.valid {
 				if err != nil {
 					t.Fatal(err)

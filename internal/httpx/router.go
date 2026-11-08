@@ -147,7 +147,7 @@ func apiAuthentication(a *app.App) func(http.Handler) http.Handler {
 					return
 				}
 				var request auth.EmailCodeRequest
-				if err := platform.DecodeStrictJSON(bytes.NewReader(body), &request, "purpose", "email"); err != nil {
+				if err := platform.DecodeStrictJSON(bytes.NewReader(body), &request); err != nil {
 					writePlatformError(w, r, err)
 					return
 				}

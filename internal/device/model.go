@@ -69,3 +69,11 @@ type ReceiptResult struct {
 	TradeNo         *string   `json:"trade_no"`
 	ServerTime      time.Time `json:"server_time"`
 }
+
+type CreateBindingRequest struct {
+	ReplaceConfirmed bool `json:"replace_confirmed,omitempty"`
+}
+
+type UnbindRequest struct {
+	Confirm bool `json:"confirm"`
+}

@@ -57,11 +57,17 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	var req UpdateGroup
-	if !settingsDecode(w, r, &req, 300<<10, "expected_version", "value") {
+	if !settingsDecode(w, r, &req, 300<<10) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
-	result, err := h.Service.UpdateGroup(r.Context(), actor, chi.URLParam(r, "group"), req)
+	group := chi.URLParam(r, "group")
+	prepared, err := prepareUpdateGroup(actor, group, req)
+	if err != nil {
+		settingsResult(w, r, nil, err, http.StatusOK)
+		return
+	}
+	result, err := h.Service.updatePreparedGroup(r.Context(), actor, group, req.ExpectedVersion, prepared)
 	if actor.RecoveryOnly && err == nil {
 		name := "vp_recovery"
 		if h.SecureCookies {
@@ -73,11 +79,7 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) SaveCollection(w http.ResponseWriter, r *http.Request) {
 	var req SaveCollectionRequest
-	if !settingsDecode(w, r, &req, 1<<20, "expected_version", "order_ttl_seconds", "float_limit_cents", "float_direction") {
-		return
-	}
-	if req.ExpectedVersion == nil {
-		settingsResult(w, r, nil, platform.InvalidJSONField("expected_version"), http.StatusOK)
+	if !settingsDecode(w, r, &req, 1<<20) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -114,9 +116,7 @@ func (h *Handler) UploadLogo(w http.ResponseWriter, r *http.Request) {
 	settingsResult(w, r, data, err, http.StatusCreated)
 }
 func (h *Handler) QueueMailTest(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Recipient string `json:"recipient"`
-	}
+	var req MailTestRequest
 	if !settingsDecode(w, r, &req, 32<<10) {
 		return
 	}
@@ -130,18 +130,12 @@ func (h *Handler) MailTestStatus(w http.ResponseWriter, r *http.Request) {
 	settingsResult(w, r, data, err, http.StatusOK)
 }
 func (h *Handler) SetQREnabled(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Enabled *bool `json:"enabled"`
-	}
-	if !settingsDecode(w, r, &req, 1<<20, "enabled") {
-		return
-	}
-	if req.Enabled == nil {
-		settingsResult(w, r, nil, platform.InvalidJSONField("enabled"), http.StatusOK)
+	var req SetQREnabledRequest
+	if !settingsDecode(w, r, &req, 1<<20) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
-	result, err := h.Service.SetQREnabled(r.Context(), actor, chi.URLParam(r, "channel"), *req.Enabled)
+	result, err := h.Service.SetQREnabled(r.Context(), actor, chi.URLParam(r, "channel"), req.Enabled)
 	settingsResult(w, r, result, err, http.StatusOK)
 }
 func (h *Handler) OpenAsset(w http.ResponseWriter, r *http.Request) {
@@ -162,8 +156,8 @@ func (h *Handler) OpenAsset(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, asset.Reader)
 }
 
-func settingsDecode(w http.ResponseWriter, r *http.Request, dst any, limit int64, required ...string) bool {
-	if err := platform.DecodeJSONBody(w, r, limit, dst, required...); err != nil {
+func settingsDecode(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
+	if err := platform.DecodeJSONBody(w, r, limit, dst); err != nil {
 		settingsResult(w, r, nil, err, http.StatusOK)
 		return false
 	}

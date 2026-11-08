@@ -107,3 +107,21 @@ func validateBanReason(reason string) error {
 	}
 	return nil
 }
+
+type BanRequest struct {
+	Reason string `json:"reason"`
+}
+
+type ResetPasswordRequest struct {
+	Password     string `json:"password"`
+	Confirmation string `json:"password_confirmation"`
+}
+
+type ResetKeyRequest struct {
+	Proof auth.SecurityProof `json:"security_proof"`
+}
+
+type IPWhitelistRequest struct {
+	Enabled bool      `json:"enabled"`
+	Entries *[]string `json:"entries"`
+}

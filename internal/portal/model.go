@@ -203,3 +203,12 @@ type AuditDTO struct {
 	RequestID    string          `json:"request_id"`
 	SafeMetadata json.RawMessage `json:"safe_metadata"`
 }
+
+type MarkNotificationsReadRequest struct {
+	IDs *[]string `json:"ids,omitempty"`
+	All bool      `json:"all,omitempty"`
+}
+
+type AnnouncementRevisionRequest struct {
+	Revision int64 `json:"revision"`
+}

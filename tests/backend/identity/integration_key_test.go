@@ -72,7 +72,10 @@ func TestHTTP_IntegrationKeyLifecycle(t *testing.T) {
 	}
 
 	t.Run("V14.B.r01/v01", func(t *testing.T) {
-		response := fixture.Request(t, http.MethodPost, "/api/v1/merchant/integration/reset-key", map[string]any{"security_proof": map[string]string{}}, client)
+		const path = "/api/v1/merchant/integration/reset-key"
+		missing := fixture.Request(t, http.MethodPost, path, map[string]any{"security_proof": map[string]string{}}, client)
+		assertIdentityError(t, missing, "VALIDATION_ERROR", "merchant KEY reset with missing email code field")
+		response := fixture.Request(t, http.MethodPost, path, map[string]any{"security_proof": map[string]string{"email_code": ""}}, client)
 		assertIdentityError(t, response, "INVALID_CODE", "merchant KEY reset without email proof")
 		var version int
 		if err := db.Pool.QueryRow(t.Context(), `SELECT key_version FROM merchants WHERE id=$1`, merchantID).Scan(&version); err != nil || version != 1 {

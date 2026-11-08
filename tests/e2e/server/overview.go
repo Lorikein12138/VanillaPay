@@ -14,20 +14,20 @@ import (
 
 type overviewOrder struct {
 	TradeNo            string     `json:"trade_no"`
-	OutTradeNo         string     `json:"out_trade_no"`
+	OutTradeNo         string     `json:"out_trade_no,omitempty"`
 	Name               string     `json:"name"`
-	Channel            *string    `json:"channel"`
+	Channel            *string    `json:"channel,omitempty"`
 	Status             string     `json:"status"`
 	OriginalCents      int64      `json:"original_cents"`
-	ActualCents        *int64     `json:"actual_cents"`
+	ActualCents        *int64     `json:"actual_cents,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
-	PaidAt             *time.Time `json:"paid_at"`
-	NotifyURL          *string    `json:"notify_url"`
-	ReturnURL          *string    `json:"return_url"`
-	CallbackState      string     `json:"callback_state"`
-	CallbackGeneration int        `json:"callback_generation"`
-	AllowedChannels    []string   `json:"allowed_channels_snapshot"`
-	RefundPending      bool       `json:"refund_pending"`
+	PaidAt             *time.Time `json:"paid_at,omitempty"`
+	NotifyURL          *string    `json:"notify_url,omitempty"`
+	ReturnURL          *string    `json:"return_url,omitempty"`
+	CallbackState      string     `json:"callback_state,omitempty"`
+	CallbackGeneration int        `json:"callback_generation,omitempty"`
+	AllowedChannels    []string   `json:"allowed_channels_snapshot,omitempty"`
+	RefundPending      bool       `json:"refund_pending,omitempty"`
 }
 
 // Only registered by the loopback E2E executable, never the production router.
