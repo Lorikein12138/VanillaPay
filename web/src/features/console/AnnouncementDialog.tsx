@@ -47,7 +47,7 @@ export function AnnouncementDialog({
   const [current, setCurrent] = useState(editor.mode === 'create' ? undefined : editor.item)
   const [draft, setDraft] = useState(() => initialDraft(current))
   const [conflict, setConflict] = useState<Conflict>()
-  const [reviewed, setReviewed] = useState(false)
+  const [reviewedRevision, setReviewedRevision] = useState<number>()
   const [preview, setPreview] = useState(false)
   const deleting = editor.mode === 'delete'
   const title = t(`consoleAnnouncements.${editor.mode}`)
@@ -66,6 +66,7 @@ export function AnnouncementDialog({
     if (lang === 'zh_CN' && !value.trim()) return t(`consoleAnnouncements.${key}Required`)
     return undefined
   }
+  const reviewed = reviewedRevision !== undefined && reviewedRevision === current?.revision
   const valid =
     (deleting || fields.every((field) => !fieldError(field))) && (!conflict || (conflict === 'refreshed' && reviewed))
 
@@ -97,7 +98,7 @@ export function AnnouncementDialog({
           throw error
         if (action.active.current) {
           setConflict('needsRefresh')
-          setReviewed(false)
+          setReviewedRevision(undefined)
           await loadLatest(current.id)
         }
         return
@@ -168,15 +169,10 @@ export function AnnouncementDialog({
         }}
       >
         {conflict === 'refreshed' && (
-          <>
-            <Notice tone="warning">
-              {t('consoleAnnouncements.conflict')}
-              {!deleting && <div>{t('consoleAnnouncements.conflictDraft')}</div>}
-            </Notice>
-            <Checkbox checked={reviewed} disabled={action.busy} onChange={(event) => setReviewed(event.target.checked)}>
-              {t('consoleAnnouncements.reviewed')}
-            </Checkbox>
-          </>
+          <Notice tone="warning">
+            {t('consoleAnnouncements.conflict')}
+            {!deleting && <div>{t('consoleAnnouncements.conflictDraft')}</div>}
+          </Notice>
         )}
         {conflict === 'missing' && <Notice tone="warning">{t('consoleAnnouncements.conflictMissing')}</Notice>}
         {conflict === 'needsRefresh' && (
@@ -191,9 +187,34 @@ export function AnnouncementDialog({
             {t('consoleAnnouncements.conflictRefresh')}
           </Notice>
         )}
-        {deleting ? (
-          <DetailList items={[{ label: t('consoleAnnouncements.zhTitle'), value: current?.title.zh_CN }]} />
-        ) : (
+        {deleting && (
+          conflict === 'refreshed' && current ? (
+            <DetailList
+              columns={2}
+              items={[
+                { label: t('consoleAnnouncements.revision'), value: current.revision, mono: true },
+                { label: t('consoleAnnouncements.popup'), value: t(current.popup ? 'polish.enabled' : 'polish.notEnabled') },
+                ...fields.map(({ key, lang, label }) => ({
+                  label: t(`consoleAnnouncements.${label}`),
+                  value: current[key][lang] || '—',
+                  wide: key === 'body',
+                })),
+              ]}
+            />
+          ) : (
+            <DetailList items={[{ label: t('consoleAnnouncements.zhTitle'), value: current?.title.zh_CN }]} />
+          )
+        )}
+        {conflict === 'refreshed' && (
+          <Checkbox
+            checked={reviewed}
+            disabled={action.busy}
+            onChange={(event) => setReviewedRevision(event.target.checked ? current?.revision : undefined)}
+          >
+            {t('consoleAnnouncements.reviewed')}
+          </Checkbox>
+        )}
+        {!deleting && (
           <fieldset
             disabled={action.busy || conflict === 'needsRefresh' || conflict === 'missing'}
             className="m-0 min-w-0 space-y-4 border-0 p-0"

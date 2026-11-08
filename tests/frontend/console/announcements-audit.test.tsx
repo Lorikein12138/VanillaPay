@@ -172,6 +172,56 @@ describe('console announcements', () => {
     expect(bodies).toEqual([{ revision: 4 }])
   })
 
+  it.each([
+    ['Chinese body', { body: { ...announcement.body, zh_CN: '<b>维护改为周一</b>\n请留意通知。' } }],
+    ['English text', { title: { ...announcement.title, en: 'Maintenance' }, body: { ...announcement.body, en: 'New schedule' } }],
+    ['popup status', { popup: false }],
+  ] as const)('requires reviewing the new delete revision when only the %s changes', async (_field, changes) => {
+    const latest = { ...announcement, ...changes, revision: 5 }
+    const newest = { ...latest, revision: 6, body: { ...latest.body, zh_CN: '再次变更的正文' } }
+    const bodies: unknown[] = []
+    server.use(http.delete(notices + '/notice-1', async ({ request }) => {
+      bodies.push(await request.json())
+      if (bodies.length <= 2) {
+        items = [bodies.length === 1 ? latest : newest]
+        return conflict()
+      }
+      items = []
+      return data(null)
+    }))
+    mount()
+    const dialog = await open('删除', '删除公告')
+    const remove = dialog.getByRole<HTMLButtonElement>('button', { name: '删除' })
+    const review = () => dialog.getByRole('checkbox', { name: '我已查看最新内容' })
+    const detail = (value: string) => dialog.getByText(value, { selector: 'dd', normalizer: (text) => text })
+    function verifyBlocked() {
+      expect(review()).not.toBeChecked()
+      expect(remove).toBeDisabled()
+      fireEvent.click(remove)
+      fireEvent.submit(remove.form!)
+    }
+    fireEvent.click(remove)
+    await dialog.findByText('公告已被其他管理员修改，已刷新为最新内容')
+    for (const value of [latest.title.zh_CN, latest.body.zh_CN, latest.popup ? '已开启' : '未开启', '5']) {
+      expect(detail(value)).toBeVisible()
+    }
+    if (latest.title.en) expect(detail(latest.title.en)).toBeVisible()
+    if (latest.body.en) expect(detail(latest.body.en)).toBeVisible()
+    expect(dialog.queryByText('维护改为周一', { exact: true })).not.toBeInTheDocument()
+    verifyBlocked()
+    expect(bodies).toEqual([{ revision: 4 }])
+    fireEvent.click(review())
+    fireEvent.click(remove)
+    expect(await dialog.findByText('再次变更的正文', { selector: 'dd' })).toBeVisible()
+    expect(detail('6')).toBeVisible()
+    verifyBlocked()
+    expect(bodies).toEqual([{ revision: 4 }, { revision: 5 }])
+    fireEvent.click(review())
+    fireEvent.click(remove)
+    expect(await screen.findByText('公告已删除。')).toBeVisible()
+    expect(bodies).toEqual([{ revision: 4 }, { revision: 5 }, { revision: 6 }])
+  })
+
   it('keeps a stale draft blocked until a failed refresh is retried across pages', async () => {
     let phase: 'initial' | 'failed' | 'retry' = 'initial'
     const latest = { ...announcement, revision: 5, title: { zh_CN: '最新标题', en: '' } }
@@ -219,6 +269,43 @@ describe('console announcements', () => {
 })
 
 describe('role-aware audit log', () => {
+  it.each([
+    ['console', 'start', '2026-11-08'],
+    ['console', 'end', '2026-02-29T12:00:00Z'],
+    ['merchant', 'start', 'not-a-date'],
+    ['merchant', 'end', '2026-11-08T12:00:00'],
+  ] as const)('drops an invalid %s audit %s (%s) on the first request and starts new filters from page one', async (role, key, value) => {
+    const isConsole = role === 'console'
+    const requests: URLSearchParams[] = []
+    const validKey = key === 'start' ? 'end' : 'start'
+    const valid = '2024-02-29T12:00:00.123456789+08:00'
+    server.use(
+      http.get('*/api/v1/merchant/me', () => data({ ...admin, user: { ...admin.user, role: 'merchant', pid: '100051' } })),
+      http.get('*/api/v1/merchant/notifications', () => data({ items: [], popup_announcements: [], unread_count: 0 })),
+      http.get(`*/api/v1/${role}/audit-logs`, ({ request }) => {
+        const params = new URL(request.url).searchParams
+        requests.push(params)
+        return data(params.has('cursor') ? page([{ ...audit, id: '2' }]) : page([audit], 'older'))
+      }),
+    )
+    const search = new URLSearchParams({ [key]: value, [validKey]: valid, action: 'announcement.save' })
+    if (isConsole) search.set('actor_role', 'admin')
+    mount(`${isConsole ? '/console/audit-logs' : '/account/logs'}?${search}`)
+    const table = await screen.findByRole('table', { name: isConsole ? '审计日志' : '操作日志' })
+    expect(within(table).getByRole('button', { name: '详情' })).toBeVisible()
+    expect(Object.fromEntries(requests[0]!)).toEqual({
+      [validKey]: valid, action: 'announcement.save', limit: '20', ...(isConsole && { actor_role: 'admin' }),
+    })
+    fireEvent.click(screen.getByRole('button', { name: '加载更多' }))
+    await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(3))
+    expect(requests[1]?.get('cursor')).toBe('older')
+    fireEvent.change(screen.getByLabelText('操作类型'), { target: { value: 'auth.login' } })
+    fireEvent.click(screen.getByRole('button', { name: '应用筛选' }))
+    await waitFor(() => expect(requests[2]?.get('action')).toBe('auth.login'))
+    expect(requests[2]?.has('cursor')).toBe(false)
+    expect(requests[2]?.has(key)).toBe(false)
+  })
+
   it('adds merchant links and console filters, sends the exact ID, and paginates', async () => {
     const requests: URLSearchParams[] = []
     server.use(http.get(audits, ({ request }) => {

@@ -206,7 +206,13 @@ export function registerAnnouncementAuditTests({ seed, captcha, signIn, control 
       await expect(page.getByRole('dialog', { name: '删除公告' })).toBeVisible()
     })
     await page.route('**' + announcements + '/' + edited.id, (route) => {
-      sample = { ...edited, revision: edited.revision + 1, body: { zh_CN: body + '\n具体进度以平台通知为准。', en: '' } }
+      sample = {
+        ...edited,
+        revision: (sample?.revision ?? edited.revision) + 1,
+        title: { ...edited.title, en: 'Settlement maintenance' },
+        body: { zh_CN: '维护改至周一凌晨。', en: 'Maintenance moves to early Monday.' },
+        popup: route.request().method() !== 'DELETE',
+      }
       return route.fulfill({ status: 409, json: { error: { code: 'VERSION_CONFLICT', message: 'version conflict' } } })
     })
     await shots(page, 'announcement-conflict-dialog', async () => {
@@ -217,6 +223,18 @@ export function registerAnnouncementAuditTests({ seed, captcha, signIn, control 
       await expect(conflict).toBeVisible()
       await conflict.scrollIntoViewIfNeeded()
       await expect(dialog.getByRole('button', { name: '保存修改' })).toBeDisabled()
+    })
+    await shots(page, 'announcement-delete-conflict-dialog', async () => {
+      await announcementRow(page, updatedTitle).getByRole('button', { name: '删除' }).click()
+      const dialog = page.getByRole('dialog', { name: '删除公告' })
+      const remove = dialog.getByRole('button', { name: '删除', exact: true })
+      await remove.click()
+      await expect(dialog.getByText('公告已被其他管理员修改，已刷新为最新内容')).toBeInViewport()
+      await expect(dialog.getByText('维护改至周一凌晨。')).toBeInViewport()
+      await expect(dialog.getByText('Maintenance moves to early Monday.')).toBeInViewport()
+      await expect(dialog.getByText('未开启', { exact: true })).toBeInViewport()
+      await expect(dialog.getByRole('checkbox', { name: '我已查看最新内容' })).not.toBeChecked()
+      await expect(remove).toBeDisabled()
     })
   })
 }

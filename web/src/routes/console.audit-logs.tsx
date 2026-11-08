@@ -11,7 +11,7 @@ function AuditLogs() {
     <AuditLogsPage
       role="console"
       name={session.user.username}
-      filters={Route.useSearch()}
+      filters={Route.useSearch({ select: consoleAuditSearch })}
       onFilters={(search) => void navigate({ search })}
     />
   )
