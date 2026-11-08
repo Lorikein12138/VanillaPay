@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { clickControl, expect, login, openMenu, polishShot, test } from './fixtures'
+import { clickControl, expect, login, merchantVisualShots, openMenu, polishShot, test } from './fixtures'
 
 async function signIn(page: Page, account: Parameters<typeof login>[1], path: string) {
   await page.goto(`/login?redirect=${encodeURIComponent(path)}`)
@@ -97,8 +97,14 @@ test('reads notifications before internal navigation and clears the unread badge
   await page.reload()
   await expect(page.getByText('订单 '+trade+' 收到退款申请，请查看订单详情并及时处理。')).toBeVisible()
   const order = page.getByRole('listitem', { name: '退款申请待处理', exact: true })
+  const detailLink = order.getByRole('link', { name: '查看详情' })
+  await expect(detailLink).toHaveCSS('padding-left', '0px')
+  await expect(detailLink).toHaveCSS('padding-right', '0px')
+  await merchantVisualShots(page, async () => {
+    await polishShot(page, 'notification-view-link', false, 'web-visual-polish-shots')
+  })
   const marking = page.waitForResponse((response) => response.url().endsWith('/notifications/read'))
-  await order.getByRole('link', { name: '查看详情' }).click()
+  await detailLink.click()
   const marked = await marking; expect(marked.status()).toBe(200)
   const headers = await marked.request().allHeaders()
   expect(headers.origin).toBe(new URL(page.url()).origin); expect(headers['x-csrf-token']).toBeTruthy()

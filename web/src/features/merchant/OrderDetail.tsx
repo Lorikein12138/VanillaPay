@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { api, APIError, consoleApi } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Button } from '@/components/ui/button'
-import { CopyButton } from '@/components/ui/copy-button'
+import { CopyIdentifier } from '@/components/ui/copy-button'
 import { DetailList } from '@/components/ui/detail-list'
-import { BackLink, Card, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
+import { BackLink, Card, Identifier, Page, PageHeader, SectionHeader, Skeleton, SubsectionTitle } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
 import { RecordLink } from '@/components/ui/records'
 import { cn } from '@/lib/utils'
@@ -68,10 +68,7 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
         back={back}
         title={t('merchant.orders.detail')}
         meta={
-          <div className="-my-2 flex min-w-0 items-center gap-0.5">
-            <span className="min-w-0 font-mono text-label text-text-2 [overflow-wrap:anywhere]">{order.trade_no}</span>
-            <CopyButton value={order.trade_no} label={t('merchant.orders.copyTradeNo')} />
-          </div>
+          <CopyIdentifier value={order.trade_no} label={t('merchant.orders.copyTradeNo')} />
         }
         actions={actions.length > 0 && (
           <section aria-label={t('merchant.orders.operations')} className="flex flex-col items-start gap-1.5 sm:items-end">
@@ -174,7 +171,7 @@ function OrderInformation({ detail, merchant }: { detail: Detail; merchant?: Rea
       items={[
         { label: t('manage.merchant'), value: merchant || null },
         { label: t('merchant.overview.product'), value: order.name },
-        { label: t('merchant.orders.outTradeNo'), value: order.out_trade_no, mono: true },
+        { label: t('merchant.orders.outTradeNo'), value: <Identifier value={order.out_trade_no} /> },
         { label: t('merchant.orders.originalAmount'), value: adjusted ? money(order.original_cents, language) : null },
         { label: t('merchant.overview.createdAt'), value: <OrderTime value={order.created_at} /> },
         { label: t('merchant.orders.paidAt'), value: order.paid_at && <OrderTime value={order.paid_at} /> },
@@ -236,10 +233,10 @@ function CallbackAttempts({ detail }: { detail: Detail }) {
         const ok = attempt.http_status !== null && attempt.http_status >= 200 && attempt.http_status < 300 && !attempt.error_code
         return (
           <li key={attempt.id} className="rounded-card border-[0.5px] border-border bg-surface p-5 sm:px-7">
-            <h3 className="m-0 mb-2 flex items-center gap-2.5 text-label font-medium">
+            <SubsectionTitle className="mb-2 flex items-center gap-2.5">
               <span aria-hidden="true" className={cn('size-[7px] shrink-0 rounded-full', ok ? 'bg-dot-ok' : attempt.finished_at ? 'bg-danger' : 'bg-dot-wait')} />
               {t('merchant.orders.attempt', { generation: attempt.generation, number: attempt.attempt_no })}
-            </h3>
+            </SubsectionTitle>
             <DetailList
               items={[
                 { label: t('merchant.orders.startedAt'), value: <OrderTime value={attempt.started_at} /> },

@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
-import { expect, login, noOverflow, test, clickControl, openMenu, polishShot } from './fixtures'
+import { expect, login, merchantVisualShots, noOverflow, test, clickControl, openMenu, polishShot } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Shanghai' })
 function fixtureOrder(status = 'pending', index = 0) {
@@ -20,6 +20,51 @@ async function screenshot(page: Page, name: string) {
   await polishShot(page, name === 'list' ? 'orders' : name === 'detail' ? 'order-detail' : 'order-action-dialog')
   await page.screenshot({ path: fileURLToPath(new URL(`../../../.artifacts/orders-shots/${name}-${theme}-${width}.png`, import.meta.url)), fullPage: name !== 'confirmation', animations: 'disabled' })
 }
+
+test('keeps date segments and a long order number usable at the active width', async ({ page, account, request, context }) => {
+  const order = { ...fixtureOrder('paid'), trade_no: `VP-${crypto.randomUUID()}-01` }
+  expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [order] } })).status()).toBe(204)
+  await page.goto('/login?redirect=%2Forders')
+  await login(page, account)
+  const link = page.getByRole('link', { name: order.trade_no, exact: true })
+  await expect(link).toBeVisible()
+  const start = page.getByLabel('开始时间', { exact: true })
+  const end = page.getByLabel('结束时间', { exact: true })
+  const dateValues = ['2026-11-01T08:15:09', '2026-11-30T18:45:17'] as const
+  async function fillDates() {
+    await start.fill(dateValues[0])
+    await end.fill(dateValues[1])
+  }
+  await expect(start).toHaveCSS('height', '44px')
+  await expect(start).toHaveAttribute('data-empty', 'true')
+  await fillDates()
+  await expect(start).toHaveValue(dateValues[0])
+  await expect(start).toHaveAttribute('data-empty', 'false')
+  await noOverflow(page)
+
+  await merchantVisualShots(page, async () => {
+    await start.fill('')
+    await end.fill('')
+    await end.blur()
+    await polishShot(page, 'orders-dates-empty', true, 'web-visual-polish-shots')
+    await fillDates()
+    await end.blur()
+    await polishShot(page, 'orders-dates-filled', true, 'web-visual-polish-shots')
+  })
+
+  await link.click()
+  const copy = page.getByRole('button', { name: '复制订单号', exact: true })
+  await expect(copy).toBeVisible()
+  const header = page.getByRole('main').locator('header').filter({ has: copy })
+  await expect(header).toContainText(order.trade_no)
+  await noOverflow(page)
+  await merchantVisualShots(page, async () => {
+    await polishShot(page, 'order-detail-long-trade-no', false, 'web-visual-polish-shots')
+  })
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await copy.click()
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(order.trade_no)
+})
 
 test('filters orders, restores shared URLs, loads cursors and exports only the current merchant and filters', async ({ page, account, request }) => {
   const prefix = `MER-${crypto.randomUUID()}`

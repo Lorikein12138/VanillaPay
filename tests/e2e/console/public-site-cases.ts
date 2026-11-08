@@ -212,6 +212,31 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
       }
 
       await save('home', { mode: 'url', html: null, url: destination })
+      // Cancel the destination navigation so its fallback link stays on screen.
+      const keepDocument = await visitorContext.newPage()
+      try {
+        await keepDocument.route(destination, (route) => route.abort('aborted'))
+        const captures = process.env.WEB_VISUAL_POLISH === '1'
+        for (const width of captures ? [360, 1280] : [1280]) {
+          await keepDocument.setViewportSize({ width, height: width === 360 ? 780 : 800 })
+          const themes = [['light', '浅色'], ['dark', '深色']] as const
+          for (const [theme, label] of captures ? themes : themes.slice(0, 1)) {
+            await keepDocument.goto('/console/login')
+            await keepDocument.getByRole('button', { name: label, exact: true }).click()
+            const cancelled = keepDocument.waitForEvent('requestfailed', (request) => request.url() === destination)
+            await keepDocument.goto('/')
+            await cancelled
+            const link = keepDocument.getByRole('main').getByRole('link', { name: '如未自动跳转，请点击继续' })
+            await expect(link).toHaveAttribute('href', destination)
+            await expect(link).toHaveCSS('padding-left', '0px')
+            await expect(link).toHaveCSS('padding-right', '0px')
+            await expect(keepDocument.locator('html')).toHaveAttribute('data-theme', theme)
+            if (captures) await polishShot(keepDocument, 'home-url-link', false, 'web-visual-polish-shots')
+          }
+        }
+      } finally {
+        await keepDocument.close()
+      }
       await visitor.route(destination, (route) => route.fulfill({ contentType: 'text/html', body: '<h1>Redirect destination</h1>' }))
       await visitor.goto('/')
       await expect(visitor).toHaveURL(destination)

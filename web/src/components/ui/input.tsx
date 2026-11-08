@@ -1,19 +1,27 @@
 import { Check, ChevronDown } from 'lucide-react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
+import './input.css'
 
 /** Base look for every text-like control: 44px, 1px strong border, accent focus ring. */
 export const controlClass =
   'w-full min-w-0 rounded-control border border-border-strong bg-surface px-3 text-[15px] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--color-focus-ring)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-text-2 aria-invalid:border-danger'
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, onInput, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  const dateTime = props.type === 'datetime-local'
   return (
     <input
+      data-empty={dateTime ? !((props.value ?? props.defaultValue) || '') : undefined}
       className={cn(
         controlClass,
-        'h-11 read-only:bg-muted/60 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-55 hover:[&::-webkit-calendar-picker-indicator]:opacity-90',
+        'h-11 read-only:bg-muted/60',
+        dateTime && 'date-time-input',
         className,
       )}
+      onInput={dateTime ? (event) => {
+        if (props.value === undefined) event.currentTarget.dataset.empty = String(!event.currentTarget.value)
+        onInput?.(event)
+      } : onInput}
       {...props}
     />
   )

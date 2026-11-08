@@ -2,7 +2,7 @@ import { Check, Copy } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { Mono } from './layout'
+import { Identifier, Mono } from './layout'
 
 /**
  * Icon button that copies `value`. Feedback is the icon turning into a check
@@ -52,6 +52,15 @@ export function CopyButton({ value, label, className, size = 'md' }: { value: st
 /** Unboxed identifier with a compact icon, for dense lists and detail rows. */
 export function CopyText({ value, label }: { value: string; label?: string }) {
   return <span className="inline-flex max-w-full items-center gap-1"><Mono className="min-w-0">{value}</Mono><CopyButton value={value} label={label} size="sm" /></span>
+}
+
+export function CopyIdentifier({ value, label }: { value: string; label?: string }) {
+  return (
+    <span className="-my-2 flex min-w-0 max-w-full items-center gap-0.5">
+      <Identifier value={value} className="text-label text-text-2" />
+      <CopyButton value={value} label={label} />
+    </span>
+  )
 }
 
 /** A monospace value with its copy button, for keys, IDs and URLs. */
