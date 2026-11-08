@@ -216,6 +216,7 @@ func RealIP(remoteAddr, forwardedFor string, trusted []netip.Prefix) netip.Addr 
 func writePlatformError(w http.ResponseWriter, r *http.Request, err error) {
 	status := http.StatusInternalServerError
 	code := "INTERNAL_ERROR"
+	fields := map[string]string{}
 	apiErr := &platform.Error{}
 	if errors.As(err, &apiErr) {
 		if apiErr.HTTPStatus > 0 {
@@ -224,15 +225,17 @@ func writePlatformError(w http.ResponseWriter, r *http.Request, err error) {
 		if apiErr.Code != "" {
 			code = apiErr.Code
 		}
+		if apiErr.Fields != nil {
+			fields = apiErr.Fields
+		}
 	}
-	writeAPIError(w, r, status, code)
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, status, map[string]any{
+		"error":      map[string]any{"code": code, "message": code, "fields": fields, "details": map[string]any{}},
+		"request_id": middleware.GetReqID(r.Context()),
+	})
 }
 
 func writeAPIError(w http.ResponseWriter, r *http.Request, status int, code string) {
-	requestID := middleware.GetReqID(r.Context())
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(status)
-	_, _ = w.Write([]byte(`{"error":{"code":"` + code + `","message":"` + code + `","fields":{},"details":{}},"request_id":"` + requestID + `"}`))
+	writePlatformError(w, r, &platform.Error{Code: code, HTTPStatus: status})
 }

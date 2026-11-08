@@ -65,7 +65,10 @@ func TestUnit_ContractDistinguishesMissingPathAndMethod(t *testing.T) {
 
 func TestUnit_ContractRejectsSensitiveKeysInOpenResponseMaps(t *testing.T) {
 	for _, mediaType := range []string{"application/json", "Application/JSON", "application/json; charset=utf-8", "application/problem+json"} {
-		for _, key := range []string{"PaSsWoRd", "api_KEY", "client_secret", "clientSecret", "Client-Secret", "cLiEnTSeCrEt", "accessTOKENValue"} {
+		for _, key := range []string{
+			"PaSsWoRd", "api_kEy", "client_secret", "clientSecret", "Client-Secret", "cLiEnTSeCrEt", "accessTOKENValue",
+			"client.secret", "accessToken2", "api_key_v2", "ClientSecret", "clientsecret", "logincredential", "token_count",
+		} {
 			t.Run(mediaType+"/"+key, func(t *testing.T) {
 				request := httptest.NewRequest("PUT", "https://pay.example.test/api/v1/merchant/collection/settings", nil)
 				response := httptest.NewRecorder()
@@ -84,10 +87,12 @@ func TestUnit_ContractRejectsSensitiveKeysInOpenResponseMaps(t *testing.T) {
 func TestUnit_ContractAcceptsJSONContentTypeVariants(t *testing.T) {
 	for _, mediaType := range []string{"application/json", "Application/JSON", "application/json; charset=utf-8"} {
 		t.Run(mediaType, func(t *testing.T) {
-			request := httptest.NewRequest("GET", "https://pay.example.test/health/live", nil)
+			request := httptest.NewRequest("PUT", "https://pay.example.test/api/v1/merchant/collection/settings", nil)
 			response := httptest.NewRecorder()
 			response.Header().Set("Content-Type", mediaType)
-			_, _ = response.WriteString(`{"status":"ok"}`)
+			response.WriteHeader(400)
+			_, _ = response.WriteString(`{"error":{"code":"VALIDATION_ERROR","message":"invalid","fields":{},
+				"details":{"items":[{"monkey":1},{"keyboard":2},{"item.count2":3}]}},"request_id":"fixture"}`)
 			if err := validateHTTPResponse(request, response); err != nil {
 				t.Fatal(err)
 			}

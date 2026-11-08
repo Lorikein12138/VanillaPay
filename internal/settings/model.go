@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/mail"
 	"net/url"
 	"strings"
 	"unicode/utf8"
+
+	"vanillapay/internal/platform"
 )
 
 const hardAmountLimit int64 = 999999999
@@ -118,7 +119,10 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 			SiteName    string  `json:"site_name"`
 			LogoAssetID *string `json:"logo_asset_id"`
 		}
-		if err := decodeGroup(value, &v, "site_name", "logo_asset_id"); err != nil || textLength(strings.TrimSpace(v.SiteName)) < 1 || textLength(v.SiteName) > 80 {
+		if err := decodeGroup(value, &v, "site_name", "logo_asset_id"); err != nil {
+			return nil, nil, err
+		}
+		if textLength(strings.TrimSpace(v.SiteName)) < 1 || textLength(v.SiteName) > 80 {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		return marshal(v), secrets, nil
@@ -129,7 +133,7 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 			URL  *string `json:"url"`
 		}
 		if err := decodeGroup(value, &v, "mode", "html", "url"); err != nil {
-			return nil, nil, errors.New("VALIDATION_ERROR")
+			return nil, nil, err
 		}
 		switch v.Mode {
 		case "default":
@@ -150,7 +154,10 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		return marshal(v), secrets, nil
 	case "mail":
 		var v mailGroup
-		if err := decodeGroup(value, &v, "host", "port", "username", "from_address", "from_name", "tls_mode"); err != nil || textLength(v.Host) < 1 || textLength(v.Host) > 253 || v.Port < 1 || v.Port > 65535 || textLength(v.Username) > 254 || !validEmail(v.FromAddress) || textLength(v.FromName) < 1 || textLength(v.FromName) > 120 || (v.TLSMode != "starttls" && v.TLSMode != "tls") {
+		if err := decodeGroup(value, &v, "host", "port", "username", "from_address", "from_name", "tls_mode"); err != nil {
+			return nil, nil, err
+		}
+		if textLength(v.Host) < 1 || textLength(v.Host) > 253 || v.Port < 1 || v.Port > 65535 || textLength(v.Username) > 254 || !validEmail(v.FromAddress) || textLength(v.FromName) < 1 || textLength(v.FromName) > 120 || (v.TLSMode != "starttls" && v.TLSMode != "tls") {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		if len(v.Password) > 0 {
@@ -168,7 +175,10 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		return marshal(v), secrets, nil
 	case "security":
 		var v securityGroup
-		if err := decodeGroup(value, &v, "turnstile_site_key", "allowed_hostname", "restrict_email_domains", "email_domains", "ban_contact"); err != nil || textLength(v.TurnstileSiteKey) > 512 || textLength(v.AllowedHostname) > 253 || len(v.EmailDomains) > 100 {
+		if err := decodeGroup(value, &v, "turnstile_site_key", "allowed_hostname", "restrict_email_domains", "email_domains", "ban_contact"); err != nil {
+			return nil, nil, err
+		}
+		if textLength(v.TurnstileSiteKey) > 512 || textLength(v.AllowedHostname) > 253 || len(v.EmailDomains) > 100 {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		if (v.TurnstileSiteKey == "") != (v.AllowedHostname == "") || (v.RestrictEmailDomains && len(v.EmailDomains) == 0) {
@@ -196,7 +206,10 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		return marshal(v), secrets, nil
 	case "payment":
 		var v GroupBounds
-		if err := decodeGroup(value, &v, "min_amount_cents", "max_amount_cents", "default_ttl_seconds", "max_ttl_seconds", "float_min_cents", "float_max_cents", "float_default_cents", "float_direction"); err != nil || v.MinAmountCents < 1 || v.MaxAmountCents < v.MinAmountCents || v.MaxAmountCents > hardAmountLimit || v.DefaultTTLSeconds < 60 || v.MaxTTLSeconds < v.DefaultTTLSeconds || v.MaxTTLSeconds > 86400 || v.FloatMinCents < 0 || v.FloatMaxCents < v.FloatMinCents || v.FloatMaxCents > 999 || v.FloatDefaultCents < v.FloatMinCents || v.FloatDefaultCents > v.FloatMaxCents || (v.FloatDirection != "up" && v.FloatDirection != "down") {
+		if err := decodeGroup(value, &v, "min_amount_cents", "max_amount_cents", "default_ttl_seconds", "max_ttl_seconds", "float_min_cents", "float_max_cents", "float_default_cents", "float_direction"); err != nil {
+			return nil, nil, err
+		}
+		if v.MinAmountCents < 1 || v.MaxAmountCents < v.MinAmountCents || v.MaxAmountCents > hardAmountLimit || v.DefaultTTLSeconds < 60 || v.MaxTTLSeconds < v.DefaultTTLSeconds || v.MaxTTLSeconds > 86400 || v.FloatMinCents < 0 || v.FloatMaxCents < v.FloatMinCents || v.FloatMaxCents > 999 || v.FloatDefaultCents < v.FloatMinCents || v.FloatDefaultCents > v.FloatMaxCents || (v.FloatDirection != "up" && v.FloatDirection != "down") {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		return marshal(v), secrets, nil
@@ -205,7 +218,10 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 			MerchantPID string          `json:"merchant_pid"`
 			MerchantKey json.RawMessage `json:"merchant_key,omitempty"`
 		}
-		if err := decodeGroup(value, &v, "merchant_pid"); err != nil || (v.MerchantPID != "" && !validPID(v.MerchantPID)) {
+		if err := decodeGroup(value, &v, "merchant_pid"); err != nil {
+			return nil, nil, err
+		}
+		if v.MerchantPID != "" && !validPID(v.MerchantPID) {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		if len(v.MerchantKey) > 0 {
@@ -223,7 +239,10 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		return marshal(v), secrets, nil
 	case "footer_legal":
 		var v FooterLegal
-		if err := decodeGroup(value, &v, "items", "terms", "privacy"); err != nil || len(v.Items) > 50 || strings.TrimSpace(v.Terms.ZhCN) == "" || strings.TrimSpace(v.Privacy.ZhCN) == "" || len(v.Terms.ZhCN) > 128<<10 || len(v.Terms.En) > 128<<10 || len(v.Privacy.ZhCN) > 128<<10 || len(v.Privacy.En) > 128<<10 {
+		if err := decodeGroup(value, &v, "items", "terms", "privacy"); err != nil {
+			return nil, nil, err
+		}
+		if len(v.Items) > 50 || strings.TrimSpace(v.Terms.ZhCN) == "" || strings.TrimSpace(v.Privacy.ZhCN) == "" || len(v.Terms.ZhCN) > 128<<10 || len(v.Terms.En) > 128<<10 || len(v.Privacy.ZhCN) > 128<<10 || len(v.Privacy.En) > 128<<10 {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		seen := map[string]struct{}{}
@@ -246,24 +265,7 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 }
 
 func decodeGroup(raw json.RawMessage, target any, required ...string) error {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
-		return errors.New("invalid object")
-	}
-	for _, field := range required {
-		if _, ok := fields[field]; !ok {
-			return errors.New("missing field")
-		}
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(target); err != nil {
-		return err
-	}
-	if err := dec.Decode(new(any)); err != io.EOF {
-		return errors.New("trailing JSON")
-	}
-	return nil
+	return platform.DecodeStrictJSON(bytes.NewReader(raw), target, required...)
 }
 
 func marshal(value any) json.RawMessage { b, _ := json.Marshal(value); return b }

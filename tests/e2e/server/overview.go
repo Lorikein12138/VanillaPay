@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -38,7 +37,7 @@ func registerOverviewFixtures(mux *http.ServeMux, pool *pgxpool.Pool) {
 			PID    string          `json:"pid"`
 			Orders []overviewOrder `json:"orders"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&input) != nil || len(input.Orders) == 0 || len(input.Orders) > 100 {
+		if platform.DecodeJSONBody(w, r, 65536, &input) != nil || len(input.Orders) == 0 || len(input.Orders) > 100 {
 			http.Error(w, "invalid order fixtures", http.StatusBadRequest)
 			return
 		}
@@ -54,7 +53,7 @@ func registerOverviewFixtures(mux *http.ServeMux, pool *pgxpool.Pool) {
 			State string `json:"state"`
 			Name  string `json:"name"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&input) != nil || (input.State != "unbound" && input.State != "online" && input.State != "offline") {
+		if platform.DecodeJSONBody(w, r, 1024, &input) != nil || (input.State != "unbound" && input.State != "online" && input.State != "offline") {
 			http.Error(w, "invalid device fixture", http.StatusBadRequest)
 			return
 		}

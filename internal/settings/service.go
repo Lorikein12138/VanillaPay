@@ -138,6 +138,10 @@ func (s *Service) UpdateGroup(ctx context.Context, actor platform.Actor, group s
 	}
 	clean, secrets, err := ValidateGroup(group, req.Value)
 	if err != nil {
+		var validation *platform.Error
+		if errors.As(err, &validation) {
+			return GroupResult{}, validation
+		}
 		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
 	if group != "site" && group != "home" && group != "footer_legal" && group != "mail" && group != "security" && group != "payment" && group != "billing" {
@@ -246,20 +250,19 @@ func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Act
 	if actor.Role != "admin" || actor.SubjectID != 1 || actor.RecoveryChallengeID <= 0 || req.ExpectedVersion < 1 || len(req.Value) == 0 || len(req.Value) > 16<<10 {
 		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
-	var input map[string]json.RawMessage
-	if err := json.Unmarshal(req.Value, &input); err != nil || input == nil {
+	var input struct {
+		SiteKey  string          `json:"turnstile_site_key"`
+		Hostname string          `json:"allowed_hostname"`
+		Secret   json.RawMessage `json:"turnstile_secret"`
+	}
+	if err := decodeGroup(req.Value, &input, "turnstile_site_key", "allowed_hostname"); err != nil {
+		return GroupResult{}, err
+	}
+	siteKey, hostname := input.SiteKey, input.Hostname
+	if strings.TrimSpace(siteKey) == "" || strings.TrimSpace(hostname) == "" {
 		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
-	for field := range input {
-		if field != "turnstile_site_key" && field != "allowed_hostname" && field != "turnstile_secret" {
-			return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
-		}
-	}
-	var siteKey, hostname string
-	if json.Unmarshal(input["turnstile_site_key"], &siteKey) != nil || json.Unmarshal(input["allowed_hostname"], &hostname) != nil || strings.TrimSpace(siteKey) == "" || strings.TrimSpace(hostname) == "" {
-		return GroupResult{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
-	}
-	secret, replacesSecret := input["turnstile_secret"]
+	secret, replacesSecret := input.Secret, len(input.Secret) != 0
 	if replacesSecret {
 		var value string
 		if json.Unmarshal(secret, &value) != nil || strings.TrimSpace(value) == "" {
@@ -287,8 +290,8 @@ func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Act
 		if err := json.Unmarshal(currentSecurity, &merged); err != nil || merged == nil {
 			return errors.New("stored security settings are invalid")
 		}
-		merged["turnstile_site_key"] = append(json.RawMessage(nil), input["turnstile_site_key"]...)
-		merged["allowed_hostname"] = append(json.RawMessage(nil), input["allowed_hostname"]...)
+		merged["turnstile_site_key"] = marshal(siteKey)
+		merged["allowed_hostname"] = marshal(hostname)
 		if replacesSecret {
 			merged["turnstile_secret"] = append(json.RawMessage(nil), secret...)
 		}

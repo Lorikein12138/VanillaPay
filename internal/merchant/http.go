@@ -1,6 +1,7 @@
 package merchant
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -161,10 +162,18 @@ func (h *Handler) RSAPublicKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) IPWhitelist(w http.ResponseWriter, r *http.Request) {
-	var req IPWhitelist
-	if !merchantDecode(w, r, &req, 32<<10) {
+	var body struct {
+		Enabled *bool    `json:"enabled"`
+		Entries []string `json:"entries"`
+	}
+	if !merchantDecode(w, r, &body, 32<<10, "enabled", "entries") {
 		return
 	}
+	if body.Enabled == nil {
+		merchantWrite(w, r, nil, platform.InvalidJSONField("enabled"), 200)
+		return
+	}
+	req := IPWhitelist{Enabled: *body.Enabled, Entries: body.Entries}
 	actor, _ := platform.ActorFromContext(r.Context())
 	err := h.Service.SetIPWhitelist(r.Context(), actor, actor.MerchantID, req)
 	merchantWrite(w, r, req, err, 200)
@@ -178,12 +187,9 @@ func merchantID(raw string) (int64, error) {
 	return id, nil
 }
 
-func merchantDecode(w http.ResponseWriter, r *http.Request, target any, limit int64) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, limit)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(target); err != nil || dec.Decode(new(any)) != io.EOF {
-		merchantWrite(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, 400)
+func merchantDecode(w http.ResponseWriter, r *http.Request, target any, limit int64, required ...string) bool {
+	if err := platform.DecodeJSONBody(w, r, limit, target, required...); err != nil {
+		merchantWrite(w, r, nil, err, 400)
 		return false
 	}
 	return true
@@ -201,9 +207,8 @@ func emptyBody(w http.ResponseWriter, r *http.Request) bool {
 	if len(data) == 0 {
 		return true
 	}
-	var value map[string]any
-	if json.Unmarshal(data, &value) != nil || len(value) != 0 {
-		merchantWrite(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, 400)
+	if err := platform.DecodeStrictJSON(bytes.NewReader(data), &struct{}{}); err != nil {
+		merchantWrite(w, r, nil, err, 400)
 		return false
 	}
 	return true

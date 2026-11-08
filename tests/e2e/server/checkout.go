@@ -27,7 +27,7 @@ func registerCheckoutFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [32]by
 			TradeNo string `json:"trade_no"`
 			State   string `json:"state"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 131072)).Decode(&input) != nil {
+		if platform.DecodeJSONBody(w, r, 131072, &input) != nil {
 			http.Error(w, "invalid checkout fixture", http.StatusBadRequest)
 			return
 		}

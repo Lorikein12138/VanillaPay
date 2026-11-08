@@ -87,15 +87,17 @@ func TestHTTP_RefundResolutionRequiresBooleanConfirm(t *testing.T) {
 			if before.order != "paid" || before.refund != "pending" || before.callback != "pending" || before.idempotency != 0 {
 				t.Fatal("invalid refund fixture state")
 			}
-			invalid := []struct{ name, fields string }{
-				{"missing", ""}, {"null", `,"confirm":null`}, {"string", `,"confirm":"false"`},
+			type invalidConfirm struct{ name, fields, errorField string }
+			invalid := []invalidConfirm{
+				{"missing", "", "confirm"}, {"null", `,"confirm":null`, "confirm"}, {"string", `,"confirm":"false"`, "confirm"},
+				{"case variant", `,"Confirm":true`, "Confirm"}, {"duplicate", `,"confirm":false,"confirm":true`, "confirm"},
 			}
 			if test.action == "mark_refunded" {
-				invalid = append(invalid, struct{ name, fields string }{"false", `,"confirm":false`})
+				invalid = append(invalid, invalidConfirm{"false", `,"confirm":false`, "confirm"})
 			}
 			for _, input := range invalid {
 				t.Run(input.name, func(t *testing.T) {
-					assertRequestFieldError(t, send(t, input.fields), "confirm")
+					assertRequestFieldError(t, send(t, input.fields), input.errorField)
 					if snapshot(t) != before {
 						t.Fatal("invalid confirm changed order, refund, callback, audit or idempotency state")
 					}
@@ -130,10 +132,29 @@ func TestHTTP_RequiredNullableNumbersMustBePresent(t *testing.T) {
 		const client = "merchant:matrix-merchant"
 		const path = "/api/v1/merchant/collection/settings"
 		body := map[string]any{"expected_version": 1, "float_limit_cents": nil, "float_direction": nil}
+		snapshot := func() [2]int64 {
+			t.Helper()
+			var result [2]int64
+			if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT version,(SELECT count(*) FROM audit_logs)
+				FROM merchant_collection_settings`).Scan(&result[0], &result[1]); err != nil {
+				t.Fatal(err)
+			}
+			return result
+		}
+		before := snapshot()
 		assertRequestFieldError(t, fixture.Request(t, http.MethodPut, path, body, client), "order_ttl_seconds")
+		body["ORDER_TTL_SECONDS"] = 180
+		assertRequestFieldError(t, fixture.Request(t, http.MethodPut, path, body, client), "ORDER_TTL_SECONDS")
+		delete(body, "ORDER_TTL_SECONDS")
 		delete(body, "float_limit_cents")
 		body["order_ttl_seconds"] = nil
 		assertRequestFieldError(t, fixture.Request(t, http.MethodPut, path, body, client), "float_limit_cents")
+		body["FLOAT_LIMIT_CENTS"] = 1
+		assertRequestFieldError(t, fixture.Request(t, http.MethodPut, path, body, client), "FLOAT_LIMIT_CENTS")
+		delete(body, "FLOAT_LIMIT_CENTS")
+		if snapshot() != before {
+			t.Fatal("invalid collection request changed the settings version or audit count")
+		}
 		body["float_limit_cents"] = nil
 		if response := fixture.Request(t, http.MethodPut, path, body, client); response.Code != http.StatusOK {
 			t.Fatalf("explicit null collection fields: status=%d", response.Code)
@@ -144,7 +165,23 @@ func TestHTTP_RequiredNullableNumbersMustBePresent(t *testing.T) {
 		const path = "/api/v1/console/plans"
 		body := map[string]any{"name": map[string]string{"zh_CN": "限购", "en": ""}, "price_cents": 100,
 			"duration_days": 30, "channels": []string{"alipay"}}
+		snapshot := func() [3]int64 {
+			t.Helper()
+			var result [3]int64
+			if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT count(*),COALESCE(sum(revision),0),(SELECT count(*) FROM audit_logs) FROM plans`).
+				Scan(&result[0], &result[1], &result[2]); err != nil {
+				t.Fatal(err)
+			}
+			return result
+		}
+		before := snapshot()
 		assertRequestFieldError(t, fixture.Request(t, http.MethodPost, path, body, client), "purchase_limit")
+		body["PURCHASE_LIMIT"] = 3
+		assertRequestFieldError(t, fixture.Request(t, http.MethodPost, path, body, client), "PURCHASE_LIMIT")
+		delete(body, "PURCHASE_LIMIT")
+		if snapshot() != before {
+			t.Fatal("invalid create changed plan or audit state")
+		}
 		body["purchase_limit"] = nil
 		created := fixture.Request(t, http.MethodPost, path, body, client)
 		var result struct {
@@ -159,12 +196,37 @@ func TestHTTP_RequiredNullableNumbersMustBePresent(t *testing.T) {
 		body["revision"] = result.Data.Revision
 		delete(body, "purchase_limit")
 		updatePath := path + "/" + result.Data.ID
+		before = snapshot()
 		assertRequestFieldError(t, fixture.Request(t, http.MethodPut, updatePath, body, client), "purchase_limit")
+		body["PURCHASE_LIMIT"] = 3
+		assertRequestFieldError(t, fixture.Request(t, http.MethodPut, updatePath, body, client), "PURCHASE_LIMIT")
+		delete(body, "PURCHASE_LIMIT")
+		if snapshot() != before {
+			t.Fatal("invalid update changed plan or audit state")
+		}
 		body["purchase_limit"] = nil
 		if response := fixture.Request(t, http.MethodPut, updatePath, body, client); response.Code != http.StatusOK {
 			t.Fatalf("explicit null purchase limit on update: status=%d", response.Code)
 		}
 	})
+}
+
+func TestHTTP_StrictJSONInEmailRoutingAndSettingsGroups(t *testing.T) {
+	fixture, _ := securityFixture(t)
+	assertRequestFieldError(t, fixture.Request(t, http.MethodPost, "/api/v1/auth/email-codes",
+		map[string]string{"Purpose": "reset_key", "email": "merchant@example.test"}, "merchant:matrix-merchant"), "Purpose")
+
+	var version int64
+	if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	assertRequestFieldError(t, fixture.Request(t, http.MethodPut, "/api/v1/console/settings/site",
+		map[string]any{"expected_version": version, "value": map[string]any{"site_name": "Fixture", "LOGO_ASSET_ID": nil}},
+		"admin:matrix-admin"), "LOGO_ASSET_ID")
+	var after int64
+	if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings`).Scan(&after); err != nil || after != version {
+		t.Fatalf("invalid settings group changed version: got %d want %d, error=%v", after, version, err)
+	}
 }
 
 func assertRequestFieldError(t *testing.T, response *httptest.ResponseRecorder, field string) {

@@ -29,7 +29,7 @@ func (m *browserInbox) register(mux *http.ServeMux) {
 		var input struct {
 			Email string `json:"email"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&input) != nil {
+		if platform.DecodeJSONBody(w, r, 1024, &input) != nil {
 			http.Error(w, "invalid mailbox", http.StatusBadRequest)
 			return
 		}

@@ -3,7 +3,6 @@ package subscription
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -115,7 +114,7 @@ func (h *Handler) Current(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) Purchase(w http.ResponseWriter, r *http.Request) {
 	var req PurchaseRequest
-	if !subDecode(w, r, &req) {
+	if !subDecode(w, r, &req, "plan_id", "plan_revision", "confirm_replace", "expected_subscription_revision") {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -161,16 +160,8 @@ func (h *Handler) ConsolePlans(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, map[string]any{"items": items, "next_cursor": nil, "total": len(items)}, err, 200)
 }
 func (h *Handler) SavePlan(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		PlanCommand
-		PurchaseLimit json.RawMessage `json:"purchase_limit"`
-	}
-	if !subDecode(w, r, &body) {
-		return
-	}
-	req := body.PlanCommand
-	if err := json.Unmarshal(body.PurchaseLimit, &req.PurchaseLimit); err != nil {
-		subWrite(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400, Fields: map[string]string{"purchase_limit": "invalid"}}, 200)
+	var req PlanCommand
+	if !subDecode(w, r, &req, "name", "price_cents", "duration_days", "channels", "purchase_limit") {
 		return
 	}
 	if id := chi.URLParam(r, "id"); id != "" {
@@ -188,7 +179,7 @@ func (h *Handler) DeletePlan(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Revision int64 `json:"revision"`
 	}
-	if !subDecode(w, r, &req) {
+	if !subDecode(w, r, &req, "revision") {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -197,7 +188,7 @@ func (h *Handler) DeletePlan(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) Grant(w http.ResponseWriter, r *http.Request) {
 	var req GrantRequest
-	if !subDecode(w, r, &req) {
+	if !subDecode(w, r, &req, "plan_id", "expires_at", "channels", "expected_revision", "reason") {
 		return
 	}
 	merchantID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -210,12 +201,9 @@ func (h *Handler) Grant(w http.ResponseWriter, r *http.Request) {
 	subWrite(w, r, result, err, 200)
 }
 
-func subDecode(w http.ResponseWriter, r *http.Request, target any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if dec.Decode(target) != nil || dec.Decode(new(any)) != io.EOF {
-		subWrite(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, 400)
+func subDecode(w http.ResponseWriter, r *http.Request, target any, required ...string) bool {
+	if err := platform.DecodeJSONBody(w, r, 1<<20, target, required...); err != nil {
+		subWrite(w, r, nil, err, 400)
 		return false
 	}
 	return true

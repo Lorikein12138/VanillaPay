@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"unicode"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -180,23 +181,44 @@ func publicResponseMetadata(path []string, value any) bool {
 }
 
 func sensitiveResponseKey(key string) bool {
-	for _, part := range strings.FieldsFunc(key, func(r rune) bool { return r == '_' || r == '-' || r == ' ' }) {
-		for _, word := range []string{"password", "secret", "token", "key", "totp", "recovery", "credential", "credentials"} {
-			for start := range len(part) - len(word) + 1 {
-				end := start + len(word)
-				// Look at the original casing for camel-case boundaries, then
-				// compare the whole sensitive word case-insensitively.
-				if (start == 0 || asciiUpper(part[start])) && (end == len(part) || asciiUpper(part[end])) &&
-					strings.EqualFold(part[start:end], word) {
+	parts := strings.FieldsFunc(key, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) })
+	for _, part := range parts {
+		if sensitiveWord(part) {
+			return true
+		}
+		runes := []rune(part)
+		start := 0
+		for i := 1; i <= len(runes); i++ {
+			if i == len(runes) || wordBoundary(runes, i) {
+				if sensitiveWord(string(runes[start:i])) {
 					return true
 				}
+				start = i
 			}
+		}
+	}
+	compact := strings.ToLower(strings.Join(parts, ""))
+	for _, word := range []string{"password", "secret", "token", "credential"} {
+		if strings.Contains(compact, word) {
+			return true
 		}
 	}
 	return false
 }
 
-func asciiUpper(c byte) bool { return c >= 'A' && c <= 'Z' }
+func sensitiveWord(word string) bool {
+	switch strings.ToLower(word) {
+	case "key", "totp", "recovery":
+		return true
+	}
+	return false
+}
+
+func wordBoundary(word []rune, i int) bool {
+	prev, current := word[i-1], word[i]
+	return unicode.IsNumber(prev) != unicode.IsNumber(current) ||
+		unicode.IsUpper(current) && (unicode.IsLower(prev) || i+1 < len(word) && unicode.IsLower(word[i+1]))
+}
 
 // ContractHandler covers integration tests that call a protocol router
 // directly rather than using HTTPFixture.Request.

@@ -57,7 +57,7 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	var req UpdateGroup
-	if !settingsDecode(w, r, &req, 300<<10) {
+	if !settingsDecode(w, r, &req, 300<<10, "expected_version", "value") {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -72,24 +72,12 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	settingsResult(w, r, result, err, http.StatusOK)
 }
 func (h *Handler) SaveCollection(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		SaveCollectionRequest
-		OrderTTLSeconds json.RawMessage `json:"order_ttl_seconds"`
-		FloatLimitCents json.RawMessage `json:"float_limit_cents"`
-	}
-	if !settingsDecode(w, r, &body, 1<<20) {
+	var req SaveCollectionRequest
+	if !settingsDecode(w, r, &req, 1<<20, "expected_version", "order_ttl_seconds", "float_limit_cents", "float_direction") {
 		return
 	}
-	req := body.SaveCollectionRequest
-	fields := map[string]string{}
-	if err := json.Unmarshal(body.OrderTTLSeconds, &req.OrderTTLSeconds); err != nil {
-		fields["order_ttl_seconds"] = "invalid"
-	}
-	if err := json.Unmarshal(body.FloatLimitCents, &req.FloatLimitCents); err != nil {
-		fields["float_limit_cents"] = "invalid"
-	}
-	if len(fields) != 0 {
-		settingsResult(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400, Fields: fields}, http.StatusOK)
+	if req.ExpectedVersion == nil {
+		settingsResult(w, r, nil, platform.InvalidJSONField("expected_version"), http.StatusOK)
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
@@ -143,13 +131,17 @@ func (h *Handler) MailTestStatus(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) SetQREnabled(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Enabled bool `json:"enabled"`
+		Enabled *bool `json:"enabled"`
 	}
-	if !settingsDecode(w, r, &req, 1<<20) {
+	if !settingsDecode(w, r, &req, 1<<20, "enabled") {
+		return
+	}
+	if req.Enabled == nil {
+		settingsResult(w, r, nil, platform.InvalidJSONField("enabled"), http.StatusOK)
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
-	result, err := h.Service.SetQREnabled(r.Context(), actor, chi.URLParam(r, "channel"), req.Enabled)
+	result, err := h.Service.SetQREnabled(r.Context(), actor, chi.URLParam(r, "channel"), *req.Enabled)
 	settingsResult(w, r, result, err, http.StatusOK)
 }
 func (h *Handler) OpenAsset(w http.ResponseWriter, r *http.Request) {
@@ -170,16 +162,9 @@ func (h *Handler) OpenAsset(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, asset.Reader)
 }
 
-func settingsDecode(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, limit)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		settingsResult(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, http.StatusOK)
-		return false
-	}
-	if dec.Decode(new(any)) != io.EOF {
-		settingsResult(w, r, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}, http.StatusOK)
+func settingsDecode(w http.ResponseWriter, r *http.Request, dst any, limit int64, required ...string) bool {
+	if err := platform.DecodeJSONBody(w, r, limit, dst, required...); err != nil {
+		settingsResult(w, r, nil, err, http.StatusOK)
 		return false
 	}
 	return true

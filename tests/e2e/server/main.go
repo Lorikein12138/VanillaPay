@@ -146,7 +146,7 @@ func run(ctx context.Context) error {
 			Banned    bool   `json:"banned"`
 			BanReason string `json:"ban_reason"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&flags) != nil {
+		if platform.DecodeJSONBody(w, r, 1024, &flags) != nil {
 			http.Error(w, "invalid fixture options", http.StatusBadRequest)
 			return
 		}
