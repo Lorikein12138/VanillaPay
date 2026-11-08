@@ -8,6 +8,7 @@ import type { components } from '@/api/schema'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { createI18n, type Language } from '@/lib/i18n'
+import { publicConfigQuery, refreshPublicConfig } from '@/lib/public-config'
 import { defaultPublicConfig, publicConfigHandler } from '../public-config-fixture'
 
 type Config = components['schemas']['PublicConfig']
@@ -164,4 +165,17 @@ it('shows the default home and footer when config fails', async () => {
   mount()
   expect(await screen.findByRole('heading', { name: defaultTitle })).toBeVisible()
   expect(within(screen.getByRole('contentinfo')).getByText('VanillaPay')).toBeVisible()
+})
+
+it('discards a cached snapshot when the forced read fails without an active observer', async () => {
+  const client = createQueryClient()
+  client.setQueryData(publicConfigQuery.queryKey, { ...defaultPublicConfig, site_name: 'Before the write' })
+  server.use(http.get(endpoint, () => new HttpResponse(null, { status: 503 })))
+
+  await expect(refreshPublicConfig(client)).rejects.toMatchObject({ status: 503 })
+  expect(client.getQueryData(publicConfigQuery.queryKey)).toBeUndefined()
+
+  mockConfig({ site_name: 'After the write' })
+  await expect(refreshPublicConfig(client)).resolves.toMatchObject({ site_name: 'After the write' })
+  expect(client.getQueryData(publicConfigQuery.queryKey)).toMatchObject({ site_name: 'After the write' })
 })

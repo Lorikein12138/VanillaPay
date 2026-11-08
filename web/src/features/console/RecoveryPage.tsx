@@ -9,7 +9,7 @@ import { formatCountdown, useCountdown } from '@/components/ui/countdown'
 import { Notice } from '@/components/ui/notice'
 import { AccountError, AccountField } from '@/features/auth/account-shared'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
-import { publicConfigQuery } from '@/lib/public-config'
+import { refreshPublicConfig } from '@/lib/public-config'
 
 export function RecoveryPage() {
   const { t } = useTranslation(), navigate = useNavigate(), action = useLocalAction()
@@ -45,7 +45,7 @@ export function RecoveryPage() {
           if (!action.active.current || active.signal.aborted) return
           setSession(null)
           setSecret('')
-          await queryClient.invalidateQueries({ queryKey: publicConfigQuery.queryKey })
+          await refreshPublicConfig(queryClient)
           if (!action.active.current || active.signal.aborted) return
           await navigate({ to: '/console/login', search: { notice: 'repaired' }, replace: true })
         }

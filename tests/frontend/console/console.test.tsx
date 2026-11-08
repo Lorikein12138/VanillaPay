@@ -12,6 +12,7 @@ import { consoleDestination, consoleSafePath, safePath } from '@/lib/redirect'
 import { createI18n } from '@/lib/i18n'
 import { publicConfigQuery } from '@/lib/public-config'
 import { emptyStats } from '../merchant/fixtures'
+import { controlPublicConfigReads } from '../public-config-fixture'
 
 vi.mock('@/features/auth/Turnstile', () => ({
   Turnstile: ({ siteKey, onToken }: { siteKey: string; onToken: (token: string) => void }) => (
@@ -249,6 +250,63 @@ describe('repair-only recovery', () => {
     await actor.click(captcha)
     expect(screen.getByRole('button', { name: '登录' })).toBeEnabled()
     expect(fetched).toEqual(['', 'repaired-site'])
+  })
+
+  it('cancels the initial public config GET after recovery and waits for the post-write snapshot', async () => {
+    const result = recovery({ security: { turnstile_site_key: '', allowed_hostname: '', turnstile_secret_configured: false } })
+    let turnstile = { ...config.turnstile, configured: false, site_key: '' }
+    const { handler, reads, releaseFirst, releaseSecond, firstReturned } = controlPublicConfigReads(() => ({ ...config, turnstile }))
+    server.use(
+      handler,
+      http.post('*/api/v1/console/recovery', () => success(result)),
+      http.put('*/api/v1/console/settings/security', async ({ request }) => {
+        const { value } = await request.json() as { value: { turnstile_site_key: string } }
+        turnstile = { ...turnstile, configured: true, site_key: value.turnstile_site_key }
+        return success({ version: 8, value: {} })
+      }),
+    )
+    const { router, client } = mount('/console/recovery')
+    const cachedKeys: string[] = []
+    const unsubscribe = client.getQueryCache().subscribe(() => {
+      const value = client.getQueryData(publicConfigQuery.queryKey)
+      if (value) cachedKeys.push(value.turnstile.site_key)
+    })
+    try {
+      await waitFor(() => expect(reads).toHaveLength(1))
+      expect(client.getQueryData(publicConfigQuery.queryKey)).toBeUndefined()
+      const actor = await enterRecovery()
+      await actor.type(screen.getByLabelText('Turnstile Site Key'), 'repaired-site')
+      await actor.type(screen.getByLabelText('允许的主机名'), 'pay.example.test')
+      await actor.type(screen.getByLabelText('Turnstile Secret'), crypto.randomUUID())
+      await actor.click(screen.getByRole('button', { name: '保存并结束修复' }))
+
+      await waitFor(() => expect(reads).toHaveLength(2))
+      expect(reads[0]?.signal.aborted).toBe(true)
+      expect(reads.map(({ data }) => data.turnstile.site_key)).toEqual(['', 'repaired-site'])
+      await act(async () => {
+        releaseFirst()
+        await firstReturned
+      })
+      expect(client.getQueryData(publicConfigQuery.queryKey)).toBeUndefined()
+      expect(router.state.location.pathname).toBe('/console/recovery')
+      releaseSecond()
+
+      const captcha = await screen.findByRole('button', { name: '完成人机验证' })
+      expect(router.state.location.pathname).toBe('/console/login')
+      expect(captcha).toHaveAttribute('data-site-key', 'repaired-site')
+      await actor.type(screen.getByLabelText('用户名 / 邮箱'), user.username)
+      await actor.type(screen.getByLabelText('密码', { exact: true }), crypto.randomUUID())
+      await actor.click(captcha)
+      expect(screen.getByRole('button', { name: '登录' })).toBeEnabled()
+      expect(cachedKeys).not.toContain('')
+      expect(reads).toHaveLength(2)
+      await actor.click(screen.getByRole('button', { name: '登录' }))
+      await waitFor(() => expect(router.state.location.pathname).toBe('/console'))
+    } finally {
+      unsubscribe()
+      releaseFirst()
+      releaseSecond()
+    }
   })
 
   it.each([[true, 'Secret 已配置，留空保留原值。'], [false, '尚未配置 Secret，本次必须填写。']] as const)('describes the secret field when configured=%s', async (configured, hint) => {
