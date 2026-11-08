@@ -196,7 +196,7 @@ export function useSettingsEditor(group: SettingsGroup) {
       const result = await consoleApi.saveSettings(group, input)
       minimumVersion.current = result.version
       setDrafts((previous) => ({ ...previous, [group]: undefined }))
-      if (group === 'site' || group === 'home' || group === 'footer_legal') {
+      if (group === 'site' || group === 'home' || group === 'footer_legal' || group === 'security') {
         void client.invalidateQueries({ queryKey: publicConfigQuery.queryKey })
       }
       // Read all groups together before enabling writes at the new global version.

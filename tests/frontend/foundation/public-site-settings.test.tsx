@@ -125,17 +125,32 @@ it('shows only a loading state until config resolves, then displays HTML in the 
   expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
 })
 
-it('replaces the location once and offers a manual link for an HTTPS homepage', async () => {
-  const destination = 'https://example.test/landing?lang=en'
-  mockConfig({ home: { mode: 'url', html: null, url: destination } })
+it.each([
+  ['https://example.test/landing?lang=en', 'https://example.test/landing?lang=en'],
+  ['/login', 'https://vanillapay.test/login'],
+])('replaces the location once and offers a manual link for %s', async (target, destination) => {
+  mockConfig({ home: { mode: 'url', html: null, url: target } })
   const replace = vi.fn()
-  vi.stubGlobal('location', { ...location, replace })
+  vi.stubGlobal('location', { ...location, href: 'https://vanillapay.test/', origin: 'https://vanillapay.test', replace })
   mount()
   expect(await screen.findByRole('link', { name: '如未自动跳转，请点击继续' })).toHaveAttribute('href', destination)
   expect(screen.getByRole('status')).toHaveTextContent('正在跳转')
   await waitFor(() => expect(replace).toHaveBeenCalledExactlyOnceWith(destination))
   expect(screen.queryByText(defaultTitle)).not.toBeInTheDocument()
 })
+
+it.each(['/', '/?a=1', '/index.html', '/index.html///?a=1', 'https://vanillapay.test///?a=1'])(
+  'shows the default home and footer without navigating to %s', async (url) => {
+    mockConfig({ home: { mode: 'url', html: null, url } })
+    const replace = vi.fn()
+    vi.stubGlobal('location', { ...location, href: 'https://vanillapay.test/', origin: 'https://vanillapay.test', replace })
+    mount()
+    expect(await screen.findByRole('heading', { name: defaultTitle })).toBeVisible()
+    expect(screen.getByRole('contentinfo')).toBeVisible()
+    expect(screen.queryByRole('link', { name: '如未自动跳转，请点击继续' })).not.toBeInTheDocument()
+    expect(replace).not.toHaveBeenCalled()
+  },
+)
 
 it.each(['http://example.test/', 'javascript:alert(1)', '//example.test/', 'https://'])('shows the default home for %s', async (url) => {
   mockConfig({ home: { mode: 'url', html: null, url } })

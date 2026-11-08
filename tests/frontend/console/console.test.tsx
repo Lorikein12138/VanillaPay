@@ -10,9 +10,14 @@ import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { consoleDestination, consoleSafePath, safePath } from '@/lib/redirect'
 import { createI18n } from '@/lib/i18n'
+import { publicConfigQuery } from '@/lib/public-config'
 import { emptyStats } from '../merchant/fixtures'
 
-vi.mock('@/features/auth/Turnstile', () => ({ Turnstile: ({ onToken }: { onToken: (token: string) => void }) => <button type="button" onClick={() => onToken(crypto.randomUUID())}>完成人机验证</button> }))
+vi.mock('@/features/auth/Turnstile', () => ({
+  Turnstile: ({ siteKey, onToken }: { siteKey: string; onToken: (token: string) => void }) => (
+    <button type="button" data-site-key={siteKey} onClick={() => onToken(crypto.randomUUID())}>完成人机验证</button>
+  ),
+}))
 type Schema = components['schemas']
 const user: Schema['AuthUserDTO'] = { id: '1', role: 'admin', username: 'console_admin', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }
 const session: Schema['AuthSessionResult'] = { user, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 43200000).toISOString(), next_path: '/console' }
@@ -211,6 +216,41 @@ describe('console guards and login', () => {
 })
 
 describe('repair-only recovery', () => {
+  it('refreshes the Turnstile key before going to login in the same document', async () => {
+    const result = recovery({ security: { turnstile_site_key: '', allowed_hostname: '', turnstile_secret_configured: false } })
+    let published = { ...config.turnstile, configured: false, site_key: '' }
+    const fetched: string[] = []
+    server.use(
+      http.get('*/api/v1/public/config', () => {
+        fetched.push(published.site_key)
+        return success({ ...config, turnstile: published })
+      }),
+      http.post('*/api/v1/console/recovery', () => success(result)),
+      http.put('*/api/v1/console/settings/security', async ({ request }) => {
+        const { value } = await request.json() as { value: { turnstile_site_key: string } }
+        published = { ...published, configured: true, site_key: value.turnstile_site_key }
+        return success({ version: 8, value: {} })
+      }),
+    )
+    const { router, client } = mount('/console/recovery')
+    await waitFor(() => expect(client.getQueryData(publicConfigQuery.queryKey)?.turnstile.configured).toBe(false))
+    const actor = await enterRecovery()
+    await actor.type(screen.getByLabelText('Turnstile Site Key'), 'repaired-site')
+    await actor.type(screen.getByLabelText('允许的主机名'), 'pay.example.test')
+    await actor.type(screen.getByLabelText('Turnstile Secret'), crypto.randomUUID())
+    await actor.click(screen.getByRole('button', { name: '保存并结束修复' }))
+
+    expect(await screen.findByText('已修复，请登录。')).toBeVisible()
+    expect(router.state.location.pathname).toBe('/console/login')
+    const captcha = await screen.findByRole('button', { name: '完成人机验证' })
+    expect(captcha).toHaveAttribute('data-site-key', 'repaired-site')
+    await actor.type(screen.getByLabelText('用户名 / 邮箱'), user.username)
+    await actor.type(screen.getByLabelText('密码', { exact: true }), crypto.randomUUID())
+    await actor.click(captcha)
+    expect(screen.getByRole('button', { name: '登录' })).toBeEnabled()
+    expect(fetched).toEqual(['', 'repaired-site'])
+  })
+
   it.each([[true, 'Secret 已配置，留空保留原值。'], [false, '尚未配置 Secret，本次必须填写。']] as const)('describes the secret field when configured=%s', async (configured, hint) => {
     server.use(http.post('*/api/v1/console/recovery', () => success(recovery({ security: { turnstile_site_key: 'public-site', allowed_hostname: 'pay.example.test', turnstile_secret_configured: configured } }))))
     mount('/console/recovery')

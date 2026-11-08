@@ -11,6 +11,7 @@ import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { byteLength, newFooterItem, type SettingsGroup } from '@/features/console/settings-data'
 import { createI18n } from '@/lib/i18n'
+import { publicConfigQuery } from '@/lib/public-config'
 import { setupServer } from 'msw/node'
 import { defaultPublicConfig } from '../public-config-fixture'
 
@@ -177,6 +178,35 @@ describe('console settings page', () => {
     await waitFor(() => expect(document.title).toBe('Platform 13'))
     expect(versions).toEqual([12, 13])
     expect(bodies).toHaveLength(1)
+  })
+
+  it('refreshes the published captcha and email domain policy after saving security', async () => {
+    const bodies = recordSaves()
+    server.use(http.get('*/api/v1/public/config', () => {
+      const security = current.security
+      return success({
+        ...defaultPublicConfig,
+        turnstile: { ...defaultPublicConfig.turnstile, configured: security.secret_configured, site_key: security.turnstile_site_key },
+        email_domain_restriction: { enabled: security.restrict_email_domains, domains: security.email_domains },
+      })
+    }))
+    const { client } = mount('/console/settings?group=security')
+    const published = () => client.getQueryData(publicConfigQuery.queryKey)
+    await waitFor(() => expect(published()).toMatchObject({
+      turnstile: { site_key: '' }, email_domain_restriction: { enabled: false, domains: [] },
+    }))
+    fireEvent.change(await screen.findByLabelText('人机验证站点密钥'), { target: { value: 'updated-site' } })
+    fireEvent.change(screen.getByLabelText('允许的主机名'), { target: { value: 'pay.example.test' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: '限制注册邮箱域名' }))
+    fireEvent.change(screen.getByLabelText('允许的邮箱域名（每行一个）'), { target: { value: 'merchant.example' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存安全设置' }))
+
+    expect(await screen.findByText('安全与注册设置已保存。')).toBeVisible()
+    expect(bodies).toHaveLength(1)
+    await waitFor(() => expect(published()).toMatchObject({
+      turnstile: { configured: true, site_key: 'updated-site' },
+      email_domain_restriction: { enabled: true, domains: ['merchant.example'] },
+    }))
   })
 
   it('requires review after another administrator replaces the password queued for clearing', async () => {

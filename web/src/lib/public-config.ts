@@ -13,7 +13,7 @@ export function usePublicConfig() {
   return useQuery(publicConfigQuery)
 }
 
-export function parsePublicURL(value: string | null | undefined) {
+export function parsePublicURL(value: string | null | undefined, base?: string) {
   if (!value) return undefined
-  try { return new URL(value) } catch { return undefined }
+  try { return new URL(value, base) } catch { return undefined }
 }

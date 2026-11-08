@@ -28,12 +28,20 @@ const stepKeys = ['register', 'configure', 'integrate'] as const
 const navLinkClass =
   'hidden h-10 items-center rounded-control px-3 text-label text-text-2 transition-colors hover:bg-hover hover:text-text md:inline-flex'
 
+function homeDestination(target: string | null | undefined) {
+  const destination = parsePublicURL(target, location.href)
+  if (destination?.protocol !== 'https:') return undefined
+  const path = destination.pathname.replace(/\/+$/, '')
+  if (destination.origin === location.origin && (path === '' || path === '/index.html')) return undefined
+  return destination.href
+}
+
 export function HomePage() {
   const { t } = useTranslation()
   const config = usePublicConfig()
   const { name } = useSiteBrand()
   const home = config.isError ? undefined : config.data?.home
-  const destination = home?.mode === 'url' ? parsePublicURL(home.url) : undefined
+  const destination = home?.mode === 'url' ? homeDestination(home.url) : undefined
 
   if (config.isPending) {
     return (
@@ -54,7 +62,7 @@ export function HomePage() {
       </main>
     )
   }
-  if (destination?.protocol === 'https:') return <HomeRedirect url={destination.href} />
+  if (destination) return <HomeRedirect url={destination} />
   return <DefaultHome />
 }
 

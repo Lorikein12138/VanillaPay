@@ -185,6 +185,32 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
         }
       }
 
+      // Give Chromium an HTTPS origin while still serving the real application and configuration.
+      const selfOrigin = 'https://public-site-self.example.test'
+      for (const suffix of ['/', '/?a=1']) {
+        await save('home', { mode: 'url', html: null, url: `${selfOrigin}${suffix}` })
+        const self = await visitorContext.newPage()
+        const documents: string[] = []
+        try {
+          await self.route(`${selfOrigin}/**`, async (route) => {
+            const request = route.request()
+            if (request.resourceType() === 'document' && request.frame() === self.mainFrame()) {
+              documents.push(request.url())
+              if (documents.length > 1) return route.abort()
+            }
+            const { pathname, search } = new URL(request.url())
+            const response = await route.fetch({ url: `${origin}${pathname}${search}` })
+            await route.fulfill({ response })
+          })
+          await self.goto(`${selfOrigin}/`)
+          await expect(self.getByRole('heading', { name: '用自己的收款码，收得清清楚楚' })).toBeVisible()
+          await expect(self.getByRole('contentinfo').getByRole('link', { name: '帮助中心' })).toBeVisible()
+          expect(documents).toEqual([`${selfOrigin}/`])
+        } finally {
+          await self.close()
+        }
+      }
+
       await save('home', { mode: 'url', html: null, url: destination })
       await visitor.route(destination, (route) => route.fulfill({ contentType: 'text/html', body: '<h1>Redirect destination</h1>' }))
       await visitor.goto('/')
