@@ -1,4 +1,5 @@
 import { registerManagementTests } from './manage-cases'
+import { registerAnnouncementAuditTests } from './announcements-audit-cases'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import QRCode from 'qrcode'
 import type { ConsoleRecovery } from '../../../web/src/api/client'
@@ -101,7 +102,9 @@ test('initializes once, enters the shared overview and captures the responsive s
   expect(await page.evaluate(() => document.documentElement.scrollHeight - Math.ceil(Math.max(window.innerHeight, document.getElementById('main')!.getBoundingClientRect().bottom + window.scrollY)))).toBeLessThanOrEqual(0)
   await shots(page, 'drawer', true, true)
   await page.setViewportSize({ width: 1280, height: 800 })
-  await expect(page.getByRole('navigation', { name: '管理控制台' }).getByRole('link')).toHaveText(['概览', '商户', '订单', '套餐', '购买记录', '系统设置'])
+  await expect(page.getByRole('navigation', { name: '管理控制台' }).getByRole('link')).toHaveText([
+    '概览', '商户', '订单', '套餐', '公告', '购买记录', '系统设置', '审计日志',
+  ])
   await control(page, '退出登录')
   await expect(page).toHaveURL(/\/console\/login$/)
   await page.goto('/console/setup')
@@ -417,3 +420,4 @@ test('changes password, revokes the session, persists preferences and enables/di
 })
 
 registerManagementTests({ seed, captcha, signIn })
+registerAnnouncementAuditTests({ seed, captcha, signIn, control })

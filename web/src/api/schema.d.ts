@@ -5467,10 +5467,14 @@ export interface operations {
                 limit?: number;
                 start?: string;
                 end?: string;
+                /** @description 按操作名称精确筛选 */
                 action?: string;
+                /** @description 按操作结果精确筛选 */
                 result?: string;
+                /** @description 按商户 ID 精确筛选 */
                 merchant_id?: number;
-                actor_role?: string;
+                /** @description 按操作者角色精确筛选 */
+                actor_role?: "merchant" | "admin" | "system" | "device";
             };
             header?: never;
             path?: never;
