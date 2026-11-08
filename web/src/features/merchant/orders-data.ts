@@ -36,6 +36,7 @@ export function orderErrorKey(error: unknown) {
     case 'CALLBACK_PENDING': return 'merchant.orders.errors.callbackPending'
     case 'CALLBACK_UNAVAILABLE': return 'merchant.orders.errors.callbackUnavailable'
     case 'IDEMPOTENCY_CONFLICT': return 'merchant.orders.errors.idempotency'
+    case 'REFUND_ALREADY_HANDLED': return 'merchant.orders.errors.refundHandled'
     case 'ACCOUNT_BANNED': return 'auth.errors.banned'
   }
   if (error.status === 401) return 'auth.errors.session'

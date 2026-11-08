@@ -39,6 +39,7 @@ func TestUnit_ContractDistinguishesMissingPathAndMethod(t *testing.T) {
 		{"unknown_404", "GET", "/api/unknown-contract-route", "application/json", `{"error":{"code":"NOT_FOUND"}}`, 404, true},
 		{"unknown_405", "GET", "/api/unknown-contract-route", "", "", 405, false},
 		{"unknown_405_json", "GET", "/api/unknown-contract-route", "application/json", `{}`, 405, false},
+		{"unknown_404_arbitrary_json", "GET", "/api/unknown-contract-route", "application/json", `{"unexpected":true}`, 404, false},
 		{"known_405", "POST", "/health/live", "", "", 405, true},
 		{"templated_405", "DELETE", "/api/v1/checkout/unknown-trade", "", "", 405, true},
 		{"known_405_json", "POST", "/health/live", "application/json", `{}`, 405, false},
@@ -56,5 +57,24 @@ func TestUnit_ContractDistinguishesMissingPathAndMethod(t *testing.T) {
 				t.Fatalf("contract fallback: valid=%v error=%v", test.valid, err)
 			}
 		})
+	}
+}
+
+func TestUnit_ContractRejectsSensitiveKeysInOpenResponseMaps(t *testing.T) {
+	for _, body := range []string{
+		`{"error":{"code":"VALIDATION_ERROR","message":"invalid","fields":{},"details":{"items":[{"PaSsWoRd":"redacted"}]}},"request_id":"fixture"}`,
+		`{"error":{"code":"VALIDATION_ERROR","message":"invalid","fields":{},"details":{"nested":{"api_KEY":"redacted"}}},"request_id":"fixture"}`,
+	} {
+		request := httptest.NewRequest("PUT", "https://pay.example.test/api/v1/merchant/collection/settings", nil)
+		response := httptest.NewRecorder()
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(400)
+		_, _ = response.WriteString(body)
+		if err := validateHTTPResponse(request, response); err == nil {
+			t.Fatal("contract accepted a sensitive error details key")
+		}
+	}
+	if err := validateOpenResponseMaps(map[string]any{"safe_metadata": map[string]any{"nested": []any{map[string]any{"ToKeN": nil}}}}, false); err == nil {
+		t.Fatal("contract accepted a sensitive audit metadata key")
 	}
 }

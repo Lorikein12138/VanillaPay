@@ -43,6 +43,7 @@ type CollectionSettings struct {
 }
 
 type SaveCollectionRequest struct {
+	ExpectedVersion *int64  `json:"expected_version"`
 	OrderTTLSeconds *int    `json:"order_ttl_seconds"`
 	FloatLimitCents *int    `json:"float_limit_cents"`
 	FloatDirection  *string `json:"float_direction"`

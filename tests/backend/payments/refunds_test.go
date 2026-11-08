@@ -3,6 +3,8 @@ package payments
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +12,86 @@ import (
 	"vanillapay/internal/platform"
 	"vanillapay/tests/backend/testsupport"
 )
+
+func TestDB_RefundResolutionStateAndIdempotency(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	merchantID, _ := db.SeedMerchant(t)
+	service := db.NewApplication(t).Services.Payment
+	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
+	seed := func(t *testing.T, trade string) payment.RefundDTO {
+		t.Helper()
+		orderID := seedPendingExternalOrder(t, db, merchantID, trade, trade, "https://merchant.example/notify")
+		if _, err := db.Pool.Exec(t.Context(), `UPDATE orders SET status='paid',paid_at=now(),channel='alipay',actual_cents=original_cents WHERE id=$1`, orderID); err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256([]byte(trade))
+		result, err := service.RequestRefund(t.Context(), payment.RefundCommand{MerchantID: merchantID, TradeNo: trade, AmountCents: 100, Actor: actor, RequestDigest: digest[:]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	checkState := func(t *testing.T, refund payment.RefundDTO, wantOrder, wantRefund string) {
+		t.Helper()
+		var orderStatus, refundStatus string
+		var effects int
+		err := db.Pool.QueryRow(t.Context(), `SELECT o.status,r.status,(SELECT count(*) FROM audit_logs WHERE (action='refund.reject' AND target_id=r.public_id)
+			OR (action='order.refunded' AND target_id=o.trade_no)) FROM refunds r JOIN orders o ON o.id=r.order_id WHERE r.public_id=$1`, refund.ID).
+			Scan(&orderStatus, &refundStatus, &effects)
+		if err != nil || orderStatus != wantOrder || refundStatus != wantRefund || effects != 1 {
+			t.Fatalf("resolution state order=%s refund=%s audits=%d err=%v", orderStatus, refundStatus, effects, err)
+		}
+	}
+	reject := payment.RefundResolution{Action: "reject", Reason: "insufficient evidence"}
+	complete := payment.RefundResolution{Action: "mark_refunded", Reason: "confirmed refund", Confirm: true}
+	t.Run("rejected cannot be completed; same action and same key are safe", func(t *testing.T) {
+		refund := seed(t, "resolve-rejected")
+		first, err := service.ResolveRefundIdempotent(t.Context(), actor, refund.ID, reject, "first-reject-key")
+		if err != nil || first.Status != "rejected" {
+			t.Fatalf("reject = %#v, %v", first, err)
+		}
+		for _, key := range []string{"first-reject-key", "other-reject-key"} {
+			replay, err := service.ResolveRefundIdempotent(t.Context(), actor, refund.ID, reject, key)
+			want, _ := json.Marshal(first)
+			got, _ := json.Marshal(replay)
+			if err != nil || string(got) != string(want) {
+				t.Fatalf("reject replay = %s, %v; want %s", got, err, want)
+			}
+		}
+		changed := reject
+		changed.Reason = "changed reason"
+		_, err = service.ResolveRefundIdempotent(t.Context(), actor, refund.ID, changed, "first-reject-key")
+		if errorCode(err) != "IDEMPOTENCY_CONFLICT" {
+			t.Fatalf("changed body replay = %v", err)
+		}
+		_, err = service.ResolveRefundIdempotent(t.Context(), actor, refund.ID, complete, "opposite-action-key")
+		var problem *platform.Error
+		if !errors.As(err, &problem) || problem.Code != "REFUND_ALREADY_HANDLED" || problem.HTTPStatus != 409 {
+			t.Fatalf("opposite action = %v", err)
+		}
+		checkState(t, refund, "paid", "rejected")
+	})
+	t.Run("concurrent completion only mutates once", func(t *testing.T) {
+		refund := seed(t, "resolve-concurrently")
+		start, results := make(chan struct{}), make(chan error, 2)
+		for _, key := range []string{"parallel-resolve-a", "parallel-resolve-b"} {
+			go func() {
+				<-start
+				_, err := service.ResolveRefundIdempotent(t.Context(), actor, refund.ID, complete, key)
+				results <- err
+			}()
+		}
+		close(start)
+		firstErr, secondErr := <-results, <-results
+		if firstErr != nil || secondErr != nil {
+			t.Fatalf("concurrent completion = %v, %v", firstErr, secondErr)
+		}
+		if _, err := service.ResolveRefundIdempotent(t.Context(), actor, refund.ID, reject, "reject-after-complete"); errorCode(err) != "REFUND_ALREADY_HANDLED" {
+			t.Fatalf("reject after completion = %v", err)
+		}
+		checkState(t, refund, "refunded", "completed")
+	})
+}
 
 func TestDB_RefundRequestAndManualResolutionAreFullAmountAndCancelCallbacks(t *testing.T) {
 	db := testsupport.NewDatabase(t)

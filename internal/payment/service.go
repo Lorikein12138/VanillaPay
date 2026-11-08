@@ -702,41 +702,87 @@ func validateRefundRequest(in RefundCommand) error {
 }
 
 func (s *Service) ResolveRefund(ctx context.Context, actor platform.Actor, refundID string, in RefundResolution) error {
+	_, err := s.ResolveRefundIdempotent(ctx, actor, refundID, in, "")
+	return err
+}
+
+func (s *Service) ResolveRefundIdempotent(ctx context.Context, actor platform.Actor, refundID string, in RefundResolution, key string) (RefundDTO, error) {
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
-		return apiErr("UNAUTHENTICATED", 401)
+		return RefundDTO{}, apiErr("UNAUTHENTICATED", 401)
 	}
 	if in.Action != "reject" && in.Action != "mark_refunded" || strings.TrimSpace(in.Reason) == "" || len(in.Reason) > 500 || in.Action == "mark_refunded" && !in.Confirm {
-		return apiErr("VALIDATION_ERROR", 400)
+		return RefundDTO{}, apiErr("VALIDATION_ERROR", 400)
+	}
+	const scope = "merchant.refunds.resolve"
+	target := "rejected"
+	if in.Action == "mark_refunded" {
+		target = "completed"
 	}
 	ctx = platform.WithActor(ctx, actor)
-	return sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	var dto RefundDTO
+	err := sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{actor.MerchantID}, false); err != nil {
 			return err
 		}
-		var orderID int64
-		var orderTrade string
-		var state string
-		var amount int64
-		err := tx.QueryRow(ctx, `SELECT r.order_id,o.trade_no,o.status,o.original_cents FROM refunds r JOIN orders o ON o.id=r.order_id WHERE r.public_id=$1 AND o.merchant_id=$2 FOR UPDATE OF r,o`, refundID, actor.MerchantID).Scan(&orderID, &orderTrade, &state, &amount)
-		if err != nil {
-			return apiErr("NOT_FOUND", 404)
-		}
-		if state != "paid" {
-			return apiErr("ORDER_NOT_PAID", 409)
-		}
-		if in.Action == "reject" {
-			_, err := tx.Exec(ctx, `UPDATE refunds SET status='rejected',reason=$1,handled_at=$2,handled_by=$3 WHERE public_id=$4 AND status='pending'`, strings.TrimSpace(in.Reason), s.clock.Now(), actor.SubjectID, refundID)
+		var digest []byte
+		if key != "" {
+			digest = idempotencyDigest(refundID, in.Action, in.Reason, strconv.FormatBool(in.Confirm))
+			result, replayed, err := beginIdempotencyTx(ctx, tx, actor, scope, key, digest, s.clock.Now())
 			if err != nil {
 				return err
 			}
-			return auditOrderTx(ctx, tx, actor, actor.MerchantID, "refund.reject", refundID, map[string]any{})
+			if replayed {
+				return json.Unmarshal(result, &dto)
+			}
 		}
-		if err := s.markRefundedTx(ctx, tx, orderID, actor, strings.TrimSpace(in.Reason)); err != nil {
+		var orderID int64
+		var orderStatus string
+		err := tx.QueryRow(ctx, `SELECT r.order_id,o.status,r.public_id,o.trade_no,r.out_refund_no,r.requested_cents,r.status,r.reason,r.requested_at,r.handled_at,r.handled_by::text
+			FROM refunds r JOIN orders o ON o.id=r.order_id WHERE r.public_id=$1 AND o.merchant_id=$2 FOR UPDATE OF r,o`, refundID, actor.MerchantID).
+			Scan(&orderID, &orderStatus, &dto.ID, &dto.TradeNo, &dto.OutRefundNo, &dto.AmountCents, &dto.Status, &dto.Reason, &dto.RequestedAt, &dto.HandledAt, &dto.HandledBy)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apiErr("NOT_FOUND", 404)
+		}
+		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE refunds SET status='completed',reason=$1,handled_at=$2,handled_by=$3 WHERE public_id=$4 AND status='pending'`, strings.TrimSpace(in.Reason), s.clock.Now(), actor.SubjectID, refundID)
-		return err
+		switch dto.Status {
+		case target:
+			// A retry with a different key still observes the already-applied result.
+		case "pending":
+			if orderStatus != "paid" {
+				return apiErr("ORDER_NOT_PAID", 409)
+			}
+			if err := s.applyRefundResolutionTx(ctx, tx, actor, orderID, target, strings.TrimSpace(in.Reason), &dto); err != nil {
+				return err
+			}
+		default:
+			return apiErr("REFUND_ALREADY_HANDLED", 409)
+		}
+		if key == "" {
+			return nil
+		}
+		result, err := json.Marshal(dto)
+		if err != nil {
+			return err
+		}
+		return recordIdempotencyTx(ctx, tx, actor, scope, key, digest, result, s.clock.Now())
 	})
+	return dto, err
+}
+
+func (s *Service) applyRefundResolutionTx(ctx context.Context, tx pgx.Tx, actor platform.Actor, orderID int64, target, reason string, dto *RefundDTO) error {
+	// public_id is unique. RETURNING requires exactly one pending row to be updated.
+	err := tx.QueryRow(ctx, `UPDATE refunds SET status=$1,reason=$2,handled_at=$3,handled_by=$4 WHERE public_id=$5 AND status='pending'
+		RETURNING status,reason,handled_at,handled_by::text`, target, reason, s.clock.Now(), actor.SubjectID, dto.ID).
+		Scan(&dto.Status, &dto.Reason, &dto.HandledAt, &dto.HandledBy)
+	if err != nil {
+		return fmt.Errorf("update pending refund: %w", err)
+	}
+	if target == "completed" {
+		return s.markRefundedTx(ctx, tx, orderID, actor, reason)
+	}
+	return auditOrderTx(ctx, tx, actor, actor.MerchantID, "refund.reject", dto.ID, map[string]any{})
 }
 
 func (s *Service) MarkRefunded(ctx context.Context, actor platform.Actor, trade, reason string) error {

@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
+import type { components } from '../../../web/src/api/schema'
 import { expect, login, noOverflow, test, clickControl, openMenu, polishShot } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Shanghai' })
@@ -88,7 +89,7 @@ test('filters orders, restores shared URLs, loads cursors and exports only the c
 })
 
 test('shows order details, supplements a payment and records a confirmed offline refund', async ({ page, account, request }) => {
-  const pending = fixtureOrder()
+  const pending = { ...fixtureOrder(), allowed_channels_snapshot: ['alipay'] }
   expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [pending, fixtureOrder('paid', 1), fixtureOrder('refunded', 2)] } })).status()).toBe(204)
   await page.goto('/login'); await login(page, account)
   await expect(page).toHaveURL(/\/dashboard$/)
@@ -102,6 +103,9 @@ test('shows order details, supplements a payment and records a confirmed offline
   await expect(page.getByText(pending.out_trade_no, { exact: true })).toBeVisible()
   await screenshot(page, 'detail')
   await page.getByRole('button', { name: '补单', exact: true }).click()
+  await expect(page.getByLabel('补单通道').locator('option[value="wxpay"]')).toBeDisabled()
+  await expect(page.getByLabel('补单通道').locator('option[value="alipay"]')).toBeEnabled()
+  await polishShot(page, 'supplement-channels-dialog', false, 'contract-backend-fixes-shots')
   await page.getByLabel('补单通道').selectOption('alipay')
   await page.getByLabel('原因', { exact: true }).fill('已核对银行收款记录')
   await screenshot(page, 'confirmation')
@@ -129,7 +133,8 @@ test('shows order details, supplements a payment and records a confirmed offline
 test('shows real callback attempts and queues a replay with CSRF, Origin and idempotency headers', async ({ page, account, request }) => {
   // The production outbound client rejects this fixture target before dialing.
   const paid = { ...fixtureOrder('paid'), notify_url: 'https://127.0.0.1/notify', return_url: 'https://shop.example.test/return', callback_state: 'failed' }
-  expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [paid] } })).status()).toBe(204)
+  const capped = { ...paid, ...fixtureOrder('paid', 1), callback_generation: 2147483647 }
+  expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [paid, capped] } })).status()).toBe(204)
   await page.goto(`/login?redirect=${encodeURIComponent(`/orders/${paid.trade_no}`)}`); await login(page, account)
   await expect(page).toHaveURL(new RegExp(`/orders/${paid.trade_no}$`))
   await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
@@ -148,12 +153,17 @@ test('shows real callback attempts and queues a replay with CSRF, Origin and ide
   expect(headers.origin).toBe(new URL(page.url()).origin)
   await expect(page.getByRole('status')).toContainText('回调已加入重发队列')
   await noOverflow(page)
+  await page.goto(`/orders/${capped.trade_no}`)
+  await expect(page.getByRole('button', { name: '重发回调', exact: true })).toBeDisabled()
+  await expect(page.getByText('已达重发上限（2147483646/2147483646）')).toBeVisible()
+  await polishShot(page, 'callback-replay-limit', true, 'contract-backend-fixes-shots')
 })
 
 test('rejects and resolves pending refund requests through the real backend', async ({ page, account, request }) => {
   const rejected = { ...fixtureOrder('paid'), refund_pending: true }
   const resolved = { ...fixtureOrder('paid', 1), refund_pending: true }
-  expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [rejected, resolved] } })).status()).toBe(204)
+  const stale = { ...fixtureOrder('paid', 2), refund_pending: true }
+  expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [rejected, resolved, stale] } })).status()).toBe(204)
   await page.goto('/login'); await login(page, account)
   await expect(page).toHaveURL(/\/dashboard$/)
   await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
@@ -174,6 +184,23 @@ test('rejects and resolves pending refund requests through the real backend', as
   await expect(page.getByRole('status')).toContainText('退款申请已处理')
   await expect(page.getByText('已完成', { exact: true })).toBeVisible()
   await expect(page.getByText('已退款', { exact: true })).toBeVisible()
+
+  await page.goto(`/orders/${stale.trade_no}`)
+  await page.getByRole('button', { name: '处理退款', exact: true }).click()
+  await page.getByLabel('原因', { exact: true }).fill('已核实退款申请')
+  await page.getByRole('checkbox').check()
+  const identity = await page.request.get('/api/v1/merchant/me')
+  const { data } = await identity.json() as { data: components['schemas']['SessionIdentity'] }
+  const reject = await page.request.post(`/api/v1/merchant/refunds/${stale.trade_no}-refund/resolve`, {
+    headers: { Origin: new URL(page.url()).origin, 'X-CSRF-Token': data.csrf_token, 'Idempotency-Key': crypto.randomUUID() },
+    data: { action: 'reject', reason: '申请信息待核实', confirm: false },
+  })
+  expect(reject.status()).toBe(200)
+  await page.getByRole('button', { name: '确认处理退款' }).click()
+  await expect(page.getByRole('alert')).toContainText('该退款申请已被处理')
+  await polishShot(page, 'refund-already-handled-dialog', false, 'contract-backend-fixes-shots')
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(page.getByText('已拒绝', { exact: true })).toBeVisible()
 })
 
 test('guards unauthenticated access and hides missing and other-merchant orders behind 404', async ({ page, account, request }) => {

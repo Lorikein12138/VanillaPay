@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
-import { api } from '@/api/client'
+import { APIError, api } from '@/api/client'
 import { FormError } from '@/components/FormError'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -10,8 +10,9 @@ import { Checkbox, Select, Textarea } from '@/components/ui/input'
 import { orderChannels, orderErrorKey, validReason, type OrderAction } from './orders-data'
 import { money } from './overview-data'
 
-export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onSuccess }: {
-  action: OrderAction; detail: components['schemas']['OrderDetail']; idempotencyKey: string; onClose: () => void; onSuccess: () => Promise<void>
+export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onSuccess, onRefundConflict }: {
+  action: OrderAction; detail: components['schemas']['OrderDetail']; idempotencyKey: string
+  onClose: () => void; onSuccess: () => Promise<void>; onRefundConflict: () => Promise<void>
 }) {
   const { t, i18n } = useTranslation()
   const formId = useId()
@@ -23,8 +24,11 @@ export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onS
   const [busy, setBusy] = useState(false)
   const submitting = useRef(false)
   const [error, setError] = useState<unknown>()
+  const refundHandled = isRefundHandled(error)
   const isRefund = action === 'refund' || action === 'resolve'
-  const valid = (action === 'replay' || validReason(reason, action)) && (!isRefund || confirm) && (action !== 'supplement' || !!channel)
+  const allowedChannels = detail.allowed_channels_snapshot
+  const valid = !refundHandled && (action === 'replay' || validReason(reason, action)) && (!isRefund || confirm)
+    && (action !== 'supplement' || allowedChannels.includes(channel))
   const order = detail.order
   async function submit() {
     if (submitting.current || !valid) return
@@ -40,7 +44,10 @@ export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onS
       else if (detail.refund) await api.resolveRefund(detail.refund.id, { action: action === 'resolve' ? 'mark_refunded' : 'reject', confirm, reason: reason.trim() }, idempotencyKey)
       else throw new Error('refund no longer available')
       await onSuccess()
-    } catch (problem) { setError(problem) }
+    } catch (problem) {
+      setError(problem)
+      if (isRefundHandled(problem)) await onRefundConflict()
+    }
     finally { submitting.current = false; setBusy(false) }
   }
   return (
@@ -74,7 +81,9 @@ export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onS
               onChange={(event) => setChannel(event.target.value)}
             >
               <option value="">{t('merchant.orders.selectChannel')}</option>
-              {orderChannels.map((value) => <option key={value} value={value}>{t(`merchant.overview.channels.${value}`)}</option>)}
+              {orderChannels.map((value) => (
+                <option key={value} value={value} disabled={!allowedChannels.includes(value)}>{t(`merchant.overview.channels.${value}`)}</option>
+              ))}
             </Select>
           </Field>
         )}
@@ -103,10 +112,14 @@ export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onS
         {error != null && (
           <div className="flex flex-col gap-1.5">
             <FormError>{t(orderErrorKey(error))}</FormError>
-            {attempted && <p className="m-0 pl-6 text-caption text-text-3">{t('merchant.orders.retryHint')}</p>}
+            {attempted && !refundHandled && <p className="m-0 pl-6 text-caption text-text-3">{t('merchant.orders.retryHint')}</p>}
           </div>
         )}
       </form>
     </Dialog>
   )
+}
+
+function isRefundHandled(error: unknown) {
+  return error instanceof APIError && error.problem?.code === 'REFUND_ALREADY_HANDLED'
 }

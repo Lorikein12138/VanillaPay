@@ -595,34 +595,13 @@ func (h *Handler) ResolveRefund(w http.ResponseWriter, r *http.Request) {
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
 	refundID := chi.URLParam(r, "id")
-	err := h.Service.ResolveRefund(r.Context(), actor, refundID, req)
-	var data any
-	if err == nil {
-		var dto RefundDTO
-		var outNo, reason, handledBy pgtype.Text
-		var handledAt pgtype.Timestamptz
-		err = h.Service.pool.QueryRow(r.Context(), `SELECT r.public_id,o.trade_no,r.out_refund_no,r.requested_cents,r.status,r.reason,r.requested_at,r.handled_at,r.handled_by::text FROM refunds r JOIN orders o ON o.id=r.order_id WHERE r.public_id=$1 AND o.merchant_id=$2`, refundID, actor.MerchantID).Scan(&dto.ID, &dto.TradeNo, &outNo, &dto.AmountCents, &dto.Status, &reason, &dto.RequestedAt, &handledAt, &handledBy)
-		if err == nil {
-			if outNo.Valid {
-				value := outNo.String
-				dto.OutRefundNo = &value
-			}
-			if reason.Valid {
-				value := reason.String
-				dto.Reason = &value
-			}
-			if handledAt.Valid {
-				value := handledAt.Time
-				dto.HandledAt = &value
-			}
-			if handledBy.Valid {
-				value := handledBy.String
-				dto.HandledBy = &value
-			}
-			data = dto
-		}
+	key := r.Header.Get("Idempotency-Key")
+	if key == "" {
+		httpJSON(w, r, nil, apiErr("VALIDATION_ERROR", 400), 200)
+		return
 	}
-	httpJSON(w, r, data, err, 200)
+	dto, err := h.Service.ResolveRefundIdempotent(r.Context(), actor, refundID, req, key)
+	httpJSON(w, r, dto, err, 200)
 }
 func (h *Handler) CallbackReplay(w http.ResponseWriter, r *http.Request) {
 	var req struct{}

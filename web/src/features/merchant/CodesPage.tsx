@@ -19,8 +19,8 @@ import { OrderChannel, OrderTime } from './OrderParts'
 export function CodesPage({ name }: { name: string }) {
   const { t } = useTranslation()
   const [notice, setNotice] = useState('')
-  const [noticeTone, setNoticeTone] = useState<'success' | 'error'>('success')
-  function showNotice(message: string, tone: 'success' | 'error' = 'success') { setNotice(message); setNoticeTone(tone) }
+  const [noticeTone, setNoticeTone] = useState<'success' | 'error' | 'warning'>('success')
+  function showNotice(message: string, tone: typeof noticeTone = 'success') { setNotice(message); setNoticeTone(tone) }
   const collection = useQuery({ queryKey: ['merchant', name, 'collection'], queryFn: api.collection })
   const codes = useQuery({ queryKey: ['merchant', name, 'codes'], queryFn: api.qrSlots })
   return <Page>
@@ -66,7 +66,9 @@ function QRSlot({ name, channel, value, onNotice }: { name: string; channel: str
   </Card>
 }
 
-function CollectionForm({ name, value, onNotice }: { name: string; value: Schema['SettingsCollectionSettings']; onNotice: (value: string) => void }) {
+function CollectionForm({ name, value, onNotice }: {
+  name: string; value: Schema['SettingsCollectionSettings']; onNotice: (value: string, tone?: 'warning') => void
+}) {
   const { t } = useTranslation()
   const client = useQueryClient(), action = useLocalAction(), id = useId()
   const [ttl, setTTL] = useState(value.order_ttl_seconds?.toString() ?? '')
@@ -78,19 +80,33 @@ function CollectionForm({ name, value, onNotice }: { name: string; value: Schema
     if (!pending) return
     await action.run(async () => {
       try { await api.saveCollection(pending) }
-      catch (error) { if (error instanceof APIError && error.status === 409) { setPending(null); onNotice(t('polish.settingsChangedAndHaveBeenReloadedReview')); await invalidateCollection(client, name) }; throw error }
+      catch (error) {
+        if (!(error instanceof APIError && error.status === 409)) throw error
+        setPending(null)
+        await invalidateCollection(client, name)
+        if (client.getQueryState(['merchant', name, 'collection'])?.status === 'success') {
+          onNotice(t('polish.settingsChangedAndHaveBeenReloadedReview'), 'warning')
+        }
+        return
+      }
       setPending(null); onNotice(t('polish.collectionSettingsSaved')); await invalidateCollection(client, name)
     })
   }
   return <Card><SectionHeader title={t('polish.collectionSettings')} description={t('polish.leaveBlankToUsePlatformDefaultsThe')} />
     <DetailList items={[{ label: t('polish.effectiveOrderLifetime'), value: t('polish.secondsValue', { v0: value.effective.order_ttl_seconds }) }, { label: t('polish.adjustmentLimitYuan'), value: centsToYuan(value.effective.float_limit_cents) }, { label: t('polish.adjustmentDirection'), value: value.effective.float_direction === 'up' ? t('polish.adjustUp') : t('polish.adjustDown') }]} />
-    <form className="mt-5 flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); const next = collectionInput(ttl, amount, direction, value.bounds); setInvalid(!next); if (next) setPending(next) }}>
+    <form className="mt-5 flex flex-col gap-5" onSubmit={(event) => {
+      event.preventDefault()
+      if (action.busy) return
+      const next = collectionInput(ttl, amount, direction, value.bounds)
+      setInvalid(!next)
+      if (next) setPending({ ...next, expected_version: value.version })
+    }}>
       <FieldGrid><Field label={t('polish.orderLifetimeSeconds')} htmlFor={`${id}-ttl`} hint={t('polish.ttlBounds', { v0: value.bounds.ttl_max_seconds })}><Input id={`${id}-ttl`} inputMode="numeric" value={ttl} onChange={(event) => setTTL(event.target.value)} /></Field>
         <Field label={t('polish.adjustmentLimitYuan')} htmlFor={`${id}-amount`} hint={t('polish.amountBounds', { v0: centsToYuan(value.bounds.float_min_cents), v1: centsToYuan(value.bounds.float_max_cents) })}><Input id={`${id}-amount`} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></Field>
         <Field label={t('polish.adjustmentDirection')} htmlFor={`${id}-direction`}><Select id={`${id}-direction`} value={direction} onChange={(event) => setDirection(event.target.value)}><option value="">{t('polish.platformDefault')}</option><option value="up">{t('polish.adjustUp')}</option><option value="down">{t('polish.adjustDown')}</option></Select></Field>
       </FieldGrid>
       {invalid && <Notice tone="error">{t('polish.enterWholeSecondsAndAnAmountWith')}</Notice>}{action.error != null && !pending && !invalid && <ModuleError error={action.error} />}
-      <FormActions className="border-t-[0.5px] border-border pt-5"><Button variant="primary" type="submit">{t('polish.saveCollectionSettings')}</Button></FormActions>
+      <FormActions className="border-t-[0.5px] border-border pt-5"><Button variant="primary" type="submit" disabled={action.busy}>{t('polish.saveCollectionSettings')}</Button></FormActions>
     </form>
     {pending && <Dialog title={t('polish.confirmCollectionSettings')} description={t('polish.theseSettingsApplyToNewOrdersReview')} busy={action.busy} onClose={() => setPending(null)} footer={<Button variant="primary" loading={action.busy} onClick={() => { void submit() }}>{action.busy ? t('polish.submitting') : t('polish.confirmSave')}</Button>}>{action.error != null && <ModuleError error={action.error} />}</Dialog>}
   </Card>

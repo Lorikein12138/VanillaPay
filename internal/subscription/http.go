@@ -220,15 +220,19 @@ func subWrite(w http.ResponseWriter, r *http.Request, data any, err error, statu
 	if err != nil {
 		status = 500
 		code := "INTERNAL_ERROR"
+		fields := map[string]string{}
 		var api *platform.Error
 		if errors.As(err, &api) {
 			code = api.Code
+			if api.Fields != nil {
+				fields = api.Fields
+			}
 			if api.HTTPStatus > 0 {
 				status = api.HTTPStatus
 			}
 		}
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": map[string]string{}, "details": map[string]any{}}, "request_id": id})
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": code, "fields": fields, "details": map[string]any{}}, "request_id": id})
 		return
 	}
 	w.WriteHeader(status)

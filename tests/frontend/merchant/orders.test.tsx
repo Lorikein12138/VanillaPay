@@ -18,7 +18,8 @@ import { order } from './fixtures'
 type Schema = components['schemas']
 const identity: Schema['SessionIdentity'] = { user: { id: '1', role: 'merchant', username: 'orders_shop', pid: '9000000000000001', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 3600000).toISOString() }
 function detail(status = 'pending', channel: string | null = 'alipay'): Schema['OrderDetail'] {
-  return { order: order(status, channel), notify_url: 'https://callback.example.test/notify', return_url: 'https://shop.example.test/return', clientip: null, key_version: null, receipt_id: null, callback_attempts: [], refund: null }
+  return { order: order(status, channel), notify_url: 'https://callback.example.test/notify', return_url: 'https://shop.example.test/return', clientip: null, key_version: null, receipt_id: null, callback_attempts: [], refund: null,
+    allowed_channels_snapshot: ['alipay', 'wxpay', 'qqpay'], callback_replays_used: 0, callback_replay_limit: 2147483646 }
 }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: Schema['ErrorCode']) => HttpResponse.json({ error: { code, fields: {}, details: {}, message: code }, request_id: crypto.randomUUID() }, { status })
@@ -125,6 +126,50 @@ describe('order filters and cursor pagination', () => {
 })
 
 describe('order actions', () => {
+  it('only allows supplement channels present in the order snapshot', async () => {
+    const value = { ...detail('pending', null), allowed_channels_snapshot: ['alipay'] }
+    server.use(http.get('*/api/v1/merchant/orders/:trade', () => success(value)))
+    mount(`/orders/${value.order.trade_no}`)
+    const actor = userEvent.setup()
+    await actor.click(await screen.findByRole('button', { name: '补单' }))
+    const channel = within(screen.getByLabelText('补单通道'))
+    expect(channel.getByRole('option', { name: '支付宝' })).toBeEnabled()
+    expect(channel.getByRole('option', { name: '微信支付' })).toBeDisabled()
+    expect(channel.getByRole('option', { name: 'QQ 钱包' })).toBeDisabled()
+  })
+
+  it('keeps replay visible but disabled at the generation limit', async () => {
+    const paid = detail('paid')
+    paid.order.callback_status = 'failed'
+    const value = { ...paid, callback_replays_used: paid.callback_replay_limit }
+    server.use(http.get('*/api/v1/merchant/orders/:trade', () => success(value)))
+    mount(`/orders/${value.order.trade_no}`)
+    expect(await screen.findByRole('button', { name: '重发回调' })).toBeDisabled()
+    expect(screen.getByText('已达重发上限（2147483646/2147483646）')).toBeVisible()
+  })
+
+  it('shows an already handled refund conflict and refreshes detail', async () => {
+    const value = detail('paid')
+    const refund: NonNullable<Schema['OrderDetail']['refund']> = { id: crypto.randomUUID(), trade_no: value.order.trade_no,
+      out_refund_no: null, amount_cents: 12345, status: 'pending', reason: null, requested_at: new Date().toISOString(), handled_at: null, handled_by: null }
+    let rejected = false
+    server.use(
+      http.get('*/api/v1/merchant/orders/:trade', () => success({ ...value, refund: { ...refund, status: rejected ? 'rejected' : 'pending' } })),
+      http.post('*/api/v1/merchant/refunds/:id/resolve', () => { rejected = true; return failure(409, 'REFUND_ALREADY_HANDLED') }),
+    )
+    mount(`/orders/${value.order.trade_no}`)
+    const actor = userEvent.setup()
+    await actor.click(await screen.findByRole('button', { name: '处理退款' }))
+    await actor.type(screen.getByLabelText('原因', { exact: true }), 'Verified refund')
+    await actor.click(screen.getByRole('checkbox'))
+    await actor.click(screen.getByRole('button', { name: '确认处理退款' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('该退款申请已被处理')
+    expect(screen.getByRole('button', { name: '确认处理退款' })).toBeDisabled()
+    await actor.click(screen.getByRole('button', { name: '取消' }))
+    expect(await screen.findByText('已拒绝')).toBeVisible()
+    expect(screen.queryByRole('button', { name: '处理退款' })).not.toBeInTheDocument()
+  })
+
   it.each(['supplement', 'refund', 'resolve'] as const)('invalidates every cached statistics range for this merchant after %s', async (action) => {
     const value = detail(action === 'supplement' ? 'pending' : 'paid')
     value.refund = action === 'resolve' ? { id: crypto.randomUUID(), trade_no: value.order.trade_no, out_refund_no: null, amount_cents: 12345, status: 'pending', reason: null, requested_at: new Date().toISOString(), handled_at: null, handled_by: null } : null

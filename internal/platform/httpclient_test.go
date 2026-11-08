@@ -127,3 +127,53 @@ func TestUnit_PublicHTTPClientBodyLimit(t *testing.T) {
 		})
 	}
 }
+
+type readFunc func([]byte) (int, error)
+
+func (read readFunc) Read(p []byte) (int, error) { return read(p) }
+
+func TestUnit_PublicHTTPClientBodyCancellation(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		cancelBefore bool
+		bytes        int
+	}{
+		{"before reading", true, 0},
+		{"after reading before EOF", false, 1},
+		{"cancellation takes precedence over size", false, 4097},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			body := &limitedReadCloser{ctx: ctx, reader: readFunc(func([]byte) (int, error) {
+				if tc.cancelBefore {
+					t.Fatal("read reached the underlying reader after cancellation")
+				}
+				cancel()
+				return tc.bytes, io.EOF
+			})}
+			if tc.cancelBefore {
+				cancel()
+			}
+			n, err := body.Read(make([]byte, 4097))
+			if n != tc.bytes || !errors.Is(err, context.Canceled) {
+				t.Fatalf("read = %d, %v; want %d and cancellation", n, err, tc.bytes)
+			}
+		})
+	}
+}
+
+func TestUnit_PublicHTTPClientBodyCanCloseTwice(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	reader := strings.NewReader("body")
+	body := &limitedReadCloser{ReadCloser: io.NopCloser(reader), reader: reader, ctx: ctx, close: cancel}
+	for range 2 {
+		if err := body.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := body.Read(make([]byte, 1)); !errors.Is(err, context.Canceled) {
+			t.Fatalf("read after close = %v", err)
+		}
+	}
+}

@@ -106,7 +106,7 @@ func TestDB_AmountReservationsRespectOriginalsAndLifecycle(t *testing.T) {
 		db.PrepareBillingMerchant(t, app, merchantID, key, planID)
 		actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 		limit, direction := 3, "up"
-		if _, err := app.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{FloatLimitCents: &limit, FloatDirection: &direction}); err != nil {
+		if _, err := app.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{ExpectedVersion: new(int64(1)), FloatLimitCents: &limit, FloatDirection: &direction}); err != nil {
 			t.Fatalf("configure upward reservation bounds: %v", err)
 		}
 		first := createReservationOrder(t, db, app, merchantID, "up-first", 100, "alipay", nil)
@@ -124,7 +124,7 @@ func TestDB_AmountReservationsRespectOriginalsAndLifecycle(t *testing.T) {
 		db.PrepareBillingMerchant(t, app, merchantID, key, planID)
 		actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 		limit, direction := 10, "down"
-		if _, err := app.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{FloatLimitCents: &limit, FloatDirection: &direction}); err != nil {
+		if _, err := app.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{ExpectedVersion: new(int64(1)), FloatLimitCents: &limit, FloatDirection: &direction}); err != nil {
 			t.Fatalf("configure downward reservation bounds: %v", err)
 		}
 		order := createReservationOrder(t, db, app, merchantID, "one-cent-original", 1, "alipay", nil)
@@ -140,7 +140,7 @@ func TestDB_AmountReservationsRespectOriginalsAndLifecycle(t *testing.T) {
 		db.PrepareBillingMerchant(t, app, merchantID, key, planID)
 		actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 		limit, direction := 10, "up"
-		if _, err := app.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{FloatLimitCents: &limit, FloatDirection: &direction}); err != nil {
+		if _, err := app.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{ExpectedVersion: new(int64(1)), FloatLimitCents: &limit, FloatDirection: &direction}); err != nil {
 			t.Fatalf("configure upper-bound reservation: %v", err)
 		}
 		order := createReservationOrder(t, db, app, merchantID, "global-upper-bound", 9999999, "alipay", nil)
@@ -191,7 +191,7 @@ func TestDB_AmountReservationsRespectOriginalsAndLifecycle(t *testing.T) {
 		deviceToken := db.PrepareBillingMerchant(t, app, merchantID, key, planID)
 		actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 		limit, direction := 0, "down"
-		if _, err := app.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{FloatLimitCents: &limit, FloatDirection: &direction}); err != nil {
+		if _, err := app.Services.Settings.SaveCollection(t.Context(), actor, settings.SaveCollectionRequest{ExpectedVersion: new(int64(1)), FloatLimitCents: &limit, FloatDirection: &direction}); err != nil {
 			t.Fatalf("configure a single available actual amount: %v", err)
 		}
 		ttl := 60

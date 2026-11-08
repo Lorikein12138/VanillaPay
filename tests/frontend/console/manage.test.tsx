@@ -412,7 +412,8 @@ it('clears only the console CSRF token after a console CSV 401', async () => {
 
 it('renders shared console orders read-only with merchant links and role-specific export errors', async () => {
   const item = order('paid', 'alipay')
-  const dto: Schema['OrderDetail'] = { order: item, callback_attempts: [], refund: null, notify_url: null, return_url: null, key_version: null, receipt_id: null, clientip: null }
+  const dto: Schema['OrderDetail'] = { order: item, callback_attempts: [], refund: null, notify_url: null, return_url: null, key_version: null, receipt_id: null, clientip: null,
+    allowed_channels_snapshot: ['alipay'], callback_replays_used: 0, callback_replay_limit: 2147483646 }
   server.use(http.get('*/api/v1/console/orders', () => success({ items: [item], total: 1, next_cursor: null })),
     http.get('*/api/v1/console/orders/export.csv', () => failure('VERSION_CONFLICT')),
     http.get('*/api/v1/console/orders/:tradeNo', () => success(dto)))

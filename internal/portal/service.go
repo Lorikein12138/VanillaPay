@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -507,7 +508,12 @@ func (s *Service) OrderDetail(ctx context.Context, actor platform.Actor, tradeNo
 	var ch, reason, manual pgtype.Text
 	var actualCents pgtype.Int8
 	var paid, refunded pgtype.Timestamptz
-	err := s.pool.QueryRow(ctx, `SELECT o.trade_no,o.out_trade_no,o.merchant_id,o.merchant_username_snapshot,o.purpose,o.protocol,o.channel,o.name,o.product_id,o.param,o.original_cents,o.actual_cents,o.status,o.expire_reason,o.is_manual,o.manual_reason,o.created_at,o.paid_at,o.expires_at,o.refunded_at,COALESCE((SELECT state FROM callback_events c WHERE c.order_id=o.id ORDER BY generation DESC LIMIT 1),CASE WHEN o.purpose='subscription' THEN 'internal_fulfillment' ELSE 'none' END),r.public_id FROM orders o LEFT JOIN receipts r ON r.order_id=o.id WHERE o.id=$1`, id).Scan(&dto.TradeNo, &dto.OutTradeNo, &dto.MerchantID, &dto.MerchantUsername, &dto.Purpose, &dto.Protocol, &ch, &dto.Name, &dto.ProductID, &dto.Param, &dto.OriginalCents, &actualCents, &dto.Status, &reason, &dto.IsManual, &manual, &dto.CreatedAt, &paid, &dto.ExpiresAt, &refunded, &dto.CallbackStatus, &receipt)
+	var channels []string
+	var callbackReplaysUsed int
+	err := s.pool.QueryRow(ctx, `SELECT o.trade_no,o.out_trade_no,o.merchant_id,o.merchant_username_snapshot,o.purpose,o.protocol,o.channel,o.name,o.product_id,o.param,o.original_cents,o.actual_cents,o.status,o.expire_reason,o.is_manual,o.manual_reason,o.created_at,o.paid_at,o.expires_at,o.refunded_at,
+		COALESCE(c.state,CASE WHEN o.purpose='subscription' THEN 'internal_fulfillment' ELSE 'none' END),r.public_id,o.allowed_channels_snapshot,GREATEST(COALESCE(c.generation,1)-1,0)
+		FROM orders o LEFT JOIN receipts r ON r.order_id=o.id LEFT JOIN LATERAL (SELECT state,generation FROM callback_events WHERE order_id=o.id ORDER BY generation DESC LIMIT 1) c ON true WHERE o.id=$1`, id).
+		Scan(&dto.TradeNo, &dto.OutTradeNo, &dto.MerchantID, &dto.MerchantUsername, &dto.Purpose, &dto.Protocol, &ch, &dto.Name, &dto.ProductID, &dto.Param, &dto.OriginalCents, &actualCents, &dto.Status, &reason, &dto.IsManual, &manual, &dto.CreatedAt, &paid, &dto.ExpiresAt, &refunded, &dto.CallbackStatus, &receipt, &channels, &callbackReplaysUsed)
 	if err != nil {
 		return nil, err
 	}
@@ -604,7 +610,8 @@ func (s *Service) OrderDetail(ctx context.Context, actor platform.Actor, tradeNo
 		return nil, err
 	}
 	rows.Close()
-	out := map[string]any{"order": dto, "notify_url": nullText(notify), "return_url": nullText(returnURL), "key_version": nullText(keyVersion), "clientip": nullText(ip), "receipt_id": dto.ReceiptID, "callback_attempts": attempts, "refund": refund}
+	out := map[string]any{"order": dto, "notify_url": nullText(notify), "return_url": nullText(returnURL), "key_version": nullText(keyVersion), "clientip": nullText(ip), "receipt_id": dto.ReceiptID, "callback_attempts": attempts, "refund": refund,
+		"allowed_channels_snapshot": channels, "callback_replays_used": callbackReplaysUsed, "callback_replay_limit": math.MaxInt32 - 1}
 	return out, nil
 }
 

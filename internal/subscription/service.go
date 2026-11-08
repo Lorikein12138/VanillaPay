@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,6 +49,9 @@ func NewService(pool *pgxpool.Pool, key [32]byte, clock platform.Clock, random i
 func (s *Service) SavePlan(ctx context.Context, actor platform.Actor, in PlanCommand) (PlanDTO, error) {
 	if actor.Role != "admin" {
 		return PlanDTO{}, subError("FORBIDDEN", 403)
+	}
+	if in.PurchaseLimit != nil && (*in.PurchaseLimit < 1 || *in.PurchaseLimit > math.MaxInt32) {
+		return PlanDTO{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400, Fields: map[string]string{"purchase_limit": "invalid"}}
 	}
 	if err := validatePlan(in); err != nil {
 		return PlanDTO{}, subError("VALIDATION_ERROR", 400)
@@ -852,7 +856,7 @@ func (s *Service) CancelPendingPurchasesForBannedTx(ctx context.Context, tx pgx.
 }
 
 func validatePlan(in PlanCommand) error {
-	if strings.TrimSpace(in.Name.ZhCN) == "" || len(in.Name.ZhCN) > 300 || len(in.Name.En) > 300 || in.PriceCents < 1 || in.PriceCents > 999999999 || in.DurationDays < 1 || in.DurationDays > 36500 || !validChannels(in.Channels) || in.PurchaseLimit != nil && *in.PurchaseLimit < 1 {
+	if strings.TrimSpace(in.Name.ZhCN) == "" || len(in.Name.ZhCN) > 300 || len(in.Name.En) > 300 || in.PriceCents < 1 || in.PriceCents > 999999999 || in.DurationDays < 1 || in.DurationDays > 36500 || !validChannels(in.Channels) {
 		return errors.New("invalid plan")
 	}
 	return nil

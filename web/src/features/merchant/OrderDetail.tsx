@@ -11,6 +11,7 @@ import { Notice } from '@/components/ui/notice'
 import { RecordLink } from '@/components/ui/records'
 import { cn } from '@/lib/utils'
 import { OrderActionDialog } from './OrderActionDialog'
+import { FormHint } from '@/components/ui/auth-screen'
 import { availableOrderActions, orderErrorKey, type OrderAction, type OrderFilters } from './orders-data'
 import { money } from './overview-data'
 import { OrderChannel, OrderStatus, OrderTime } from './OrderParts'
@@ -72,15 +73,23 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
         }
         actions={actions.length > 0 && (
           <section aria-label={t('merchant.orders.operations')} className="flex flex-wrap gap-2">
-            {actions.map((action) => (
-              <Button
-                key={action}
-                variant={action === 'reject' ? 'danger' : 'secondary'}
-                onClick={() => { setNotice(undefined); setConfirmation({ action, key: crypto.randomUUID(), detail }) }}
-              >
-                {t(`merchant.orders.actions.${action}`)}
-              </Button>
-            ))}
+            {actions.map((action) => {
+              const replayLimitReached = action === 'replay' && detail.callback_replays_used >= detail.callback_replay_limit
+              return (
+                <div key={action}>
+                  <Button
+                    variant={action === 'reject' ? 'danger' : 'secondary'}
+                    disabled={replayLimitReached}
+                    onClick={() => { setNotice(undefined); setConfirmation({ action, key: crypto.randomUUID(), detail }) }}
+                  >
+                    {t(`merchant.orders.actions.${action}`)}
+                  </Button>
+                  {replayLimitReached && (
+                    <FormHint>{t('merchant.orders.replayLimitReached', { used: detail.callback_replays_used, limit: detail.callback_replay_limit })}</FormHint>
+                  )}
+                </div>
+              )
+            })}
           </section>
         )}
       />
@@ -113,6 +122,7 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
           detail={confirmation.detail}
           onClose={() => setConfirmation(undefined)}
           onSuccess={completed}
+          onRefundConflict={async () => { await query.refetch() }}
         />
       )}
     </Page>

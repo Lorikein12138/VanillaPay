@@ -505,6 +505,9 @@ func (s *Service) SaveCollection(ctx context.Context, actor platform.Actor, req 
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
 		return CollectionSettings{}, &platform.Error{Code: "UNAUTHENTICATED", HTTPStatus: 401}
 	}
+	if req.ExpectedVersion == nil || *req.ExpectedVersion < 0 {
+		return CollectionSettings{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+	}
 	if req.OrderTTLSeconds != nil && (*req.OrderTTLSeconds < 60 || *req.OrderTTLSeconds > 86400) || req.FloatLimitCents != nil && (*req.FloatLimitCents < 0 || *req.FloatLimitCents > 999) || req.FloatDirection != nil && *req.FloatDirection != "up" && *req.FloatDirection != "down" {
 		return CollectionSettings{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
@@ -512,6 +515,15 @@ func (s *Service) SaveCollection(ctx context.Context, actor platform.Actor, req 
 	err := sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{actor.MerchantID}, false); err != nil {
 			return err
+		}
+		// GetCollection exposes version zero until the first settings row exists.
+		var currentVersion int64
+		err := tx.QueryRow(ctx, `SELECT version FROM merchant_collection_settings WHERE merchant_id=$1`, actor.MerchantID).Scan(&currentVersion)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if currentVersion != *req.ExpectedVersion {
+			return &platform.Error{Code: "VERSION_CONFLICT", HTTPStatus: 409}
 		}
 		var global GroupBounds
 		var raw []byte

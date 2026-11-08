@@ -166,7 +166,7 @@ func TestDB_AuditSecurityCoverage(t *testing.T) {
 	for index, merchantID := range []int64{merchantOne, merchantTwo} {
 		metadata := platform.WithRequestMetadata(ctx, platform.RequestMetadata{IP: "192.0.2." + []string{"21", "22"}[index], RequestID: "audit-merchant-" + []string{"one", "two"}[index]})
 		actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
-		if _, err := fixture.App.Services.Settings.SaveCollection(metadata, actor, settings.SaveCollectionRequest{}); err != nil {
+		if _, err := fixture.App.Services.Settings.SaveCollection(metadata, actor, settings.SaveCollectionRequest{ExpectedVersion: new(int64(1))}); err != nil {
 			t.Fatalf("create real merchant collection audit for merchant %d: %v", merchantID, err)
 		}
 	}

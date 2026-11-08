@@ -3,6 +3,7 @@ package testsupport
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 
@@ -109,14 +111,62 @@ func validateHTTPResponse(request *http.Request, response *httptest.ResponseReco
 		if err != nil {
 			return err
 		}
-		route = &routers.Route{Operation: &openapi3.Operation{Responses: openapi3.NewResponses(openapi3.WithName(fmt.Sprint(response.Code), doc.Components.Responses[name].Value))}}
+		contractResponse := doc.Components.Responses[name].Value
+		if len(contractResponse.Content) == 0 && response.Body.Len() != 0 {
+			return fmt.Errorf("uncontracted route: status %d has no declared response body", response.Code)
+		}
+		route = &routers.Route{Operation: &openapi3.Operation{Responses: openapi3.NewResponses(openapi3.WithName(fmt.Sprint(response.Code), contractResponse))}}
 	}
 	input := &openapi3filter.ResponseValidationInput{
 		RequestValidationInput: &openapi3filter.RequestValidationInput{Request: request, Route: route, PathParams: params},
 		Status:                 response.Code, Header: headers, Body: io.NopCloser(bytes.NewReader(response.Body.Bytes())),
 		Options: &openapi3filter.Options{IncludeResponseStatus: true, MultiError: true},
 	}
-	return openapi3filter.ValidateResponse(request.Context(), input)
+	if err := openapi3filter.ValidateResponse(request.Context(), input); err != nil {
+		return err
+	}
+	if strings.HasPrefix(headers.Get("Content-Type"), "application/json") && response.Body.Len() != 0 {
+		var body any
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			return err
+		}
+		return validateOpenResponseMaps(body, false)
+	}
+	return nil
+}
+
+// Credential-bearing fields are legitimate in some typed DTOs. Only check the
+// deliberately open maps (including nested objects and arrays within them).
+func validateOpenResponseMaps(value any, sensitive bool) error {
+	switch value := value.(type) {
+	case map[string]any:
+		for key, child := range value {
+			name := strings.ToLower(key)
+			if sensitive && sensitiveResponseKey(name) {
+				return fmt.Errorf("sensitive key in open response map: %q", key)
+			}
+			if err := validateOpenResponseMaps(child, sensitive || name == "safe_metadata" || name == "details"); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, child := range value {
+			if err := validateOpenResponseMaps(child, sensitive); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func sensitiveResponseKey(key string) bool {
+	for _, word := range strings.FieldsFunc(key, func(r rune) bool { return r == '_' || r == '-' || r == ' ' }) {
+		switch word {
+		case "password", "secret", "token", "key", "totp", "recovery", "credential", "credentials":
+			return true
+		}
+	}
+	return false
 }
 
 // ContractHandler covers integration tests that call a protocol router
