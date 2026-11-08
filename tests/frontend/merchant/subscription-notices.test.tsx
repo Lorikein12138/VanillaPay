@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import { publicConfigHandler } from '../public-config-fixture'
 import { useState, type ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
@@ -30,7 +31,11 @@ const overview: Schema['SubscriptionOverview'] = { current, plans: [plan], pendi
 const announcement: Schema['PortalAnnouncementDTO'] = { id: 'announcement', revision: 1, title: { zh_CN: '系统公告', en: 'Announcement' }, body: { zh_CN: '<script>alert(1)</script>\n<b>原始文本</b>', en: 'Notice' }, popup: true, published_at: new Date().toISOString(), read: false }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (code: Schema['ErrorCode'], status = 409) => HttpResponse.json({ error: { code, message: code, fields: {}, details: {} }, request_id: crypto.randomUUID() }, { status })
-const server = setupServer(emptyNotifications, http.get('*/api/v1/merchant/me', () => success(session)), http.get('*/api/v1/merchant/subscription', () => success(overview)))
+const server = setupServer(
+  emptyNotifications, publicConfigHandler,
+  http.get('*/api/v1/merchant/me', () => success(session)),
+  http.get('*/api/v1/merchant/subscription', () => success(overview)),
+)
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())

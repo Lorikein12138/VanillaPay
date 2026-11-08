@@ -11,7 +11,9 @@ import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { byteLength, newFooterItem, type SettingsGroup } from '@/features/console/settings-data'
 import { createI18n } from '@/lib/i18n'
+import { publicConfigQuery } from '@/lib/public-config'
 import { setupServer } from 'msw/node'
+import { controlPublicConfigReads, defaultPublicConfig } from '../public-config-fixture'
 
 type S = components['schemas']
 const settings: S['Settings'] = {
@@ -157,6 +159,108 @@ function mount(path = '/console/settings') {
 }
 
 describe('console settings page', () => {
+  it.each([
+    ['site', '保存站点信息', '站点信息已保存。'],
+    ['home', '保存首页设置', '首页设置已保存。'],
+    ['footer_legal', '保存页脚与协议', '页脚与协议已保存。'],
+  ] as const)('refreshes the shared public config after saving %s', async (group, button, saved) => {
+    const bodies = recordSaves()
+    const versions: number[] = []
+    server.use(http.get('*/api/v1/public/config', () => {
+      versions.push(current.version)
+      return success({ ...defaultPublicConfig, site_name: `Platform ${current.version}` })
+    }))
+    mount(`/console/settings?group=${group}`)
+    await waitFor(() => expect(document.title).toBe('Platform 12'))
+    const save = await screen.findByRole('button', { name: button })
+    fireEvent.click(save)
+    expect(await screen.findByText(saved)).toBeVisible()
+    await waitFor(() => expect(document.title).toBe('Platform 13'))
+    expect(versions).toEqual([12, 13])
+    expect(bodies).toHaveLength(1)
+  })
+
+  it('refreshes the published captcha and email domain policy after saving security', async () => {
+    const bodies = recordSaves()
+    server.use(http.get('*/api/v1/public/config', () => {
+      const security = current.security
+      return success({
+        ...defaultPublicConfig,
+        turnstile: { ...defaultPublicConfig.turnstile, configured: security.secret_configured, site_key: security.turnstile_site_key },
+        email_domain_restriction: { enabled: security.restrict_email_domains, domains: security.email_domains },
+      })
+    }))
+    const { client } = mount('/console/settings?group=security')
+    const published = () => client.getQueryData(publicConfigQuery.queryKey)
+    await waitFor(() => expect(published()).toMatchObject({
+      turnstile: { site_key: '' }, email_domain_restriction: { enabled: false, domains: [] },
+    }))
+    fireEvent.change(await screen.findByLabelText('人机验证站点密钥'), { target: { value: 'updated-site' } })
+    fireEvent.change(screen.getByLabelText('允许的主机名'), { target: { value: 'pay.example.test' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: '限制注册邮箱域名' }))
+    fireEvent.change(screen.getByLabelText('允许的邮箱域名（每行一个）'), { target: { value: 'merchant.example' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存安全设置' }))
+
+    expect(await screen.findByText('安全与注册设置已保存。')).toBeVisible()
+    expect(bodies).toHaveLength(1)
+    await waitFor(() => expect(published()).toMatchObject({
+      turnstile: { configured: true, site_key: 'updated-site' },
+      email_domain_restriction: { enabled: true, domains: ['merchant.example'] },
+    }))
+  })
+
+  it('cancels the initial public config GET after saving security and never caches its snapshot', async () => {
+    const bodies = recordSaves()
+    const { handler, reads, releaseFirst, releaseSecond, firstReturned } = controlPublicConfigReads(() => {
+      const security = current.security
+      return {
+        ...defaultPublicConfig,
+        turnstile: { ...defaultPublicConfig.turnstile, configured: security.secret_configured, site_key: security.turnstile_site_key },
+        email_domain_restriction: { enabled: security.restrict_email_domains, domains: security.email_domains },
+      }
+    })
+    server.use(handler)
+    const { client } = mount('/console/settings?group=security')
+    const published = () => client.getQueryData(publicConfigQuery.queryKey)
+    const cached: S['PublicConfig'][] = []
+    const unsubscribe = client.getQueryCache().subscribe(() => {
+      const value = published()
+      if (value) cached.push(value)
+    })
+    try {
+      await waitFor(() => expect(reads).toHaveLength(1))
+      expect(published()).toBeUndefined()
+      fireEvent.change(await screen.findByLabelText('人机验证站点密钥'), { target: { value: 'updated-site' } })
+      fireEvent.change(screen.getByLabelText('允许的主机名'), { target: { value: 'pay.example.test' } })
+      fireEvent.click(screen.getByRole('checkbox', { name: '限制注册邮箱域名' }))
+      fireEvent.change(screen.getByLabelText('允许的邮箱域名（每行一个）'), { target: { value: 'merchant.example' } })
+      fireEvent.click(screen.getByRole('button', { name: '保存安全设置' }))
+
+      expect(await screen.findByText('安全与注册设置已保存。')).toBeVisible()
+      expect(bodies).toHaveLength(1)
+      await waitFor(() => expect(reads).toHaveLength(2))
+      expect(reads[0]?.signal.aborted).toBe(true)
+      expect(reads[0]?.data.email_domain_restriction).toEqual({ enabled: false, domains: [] })
+      await act(async () => {
+        releaseFirst()
+        await firstReturned
+      })
+      expect(published()).toBeUndefined()
+      releaseSecond()
+
+      await waitFor(() => expect(published()).toMatchObject({
+        turnstile: { configured: true, site_key: 'updated-site' },
+        email_domain_restriction: { enabled: true, domains: ['merchant.example'] },
+      }))
+      expect(cached).not.toContainEqual(reads[0]?.data)
+      expect(reads).toHaveLength(2)
+    } finally {
+      unsubscribe()
+      releaseFirst()
+      releaseSecond()
+    }
+  })
+
   it('requires review after another administrator replaces the password queued for clearing', async () => {
     const bodies = recordSaves()
     let rejected: S['SettingsUpdateGroup'] | undefined

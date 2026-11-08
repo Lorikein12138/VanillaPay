@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, APIError, consoleApi } from '@/api/client'
 import type { components } from '@/api/schema'
+import { PublicFooter, footerLinkClass } from '@/components/PublicFooter'
 import { Notice } from '@/components/ui/notice'
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/field'
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { TopBar } from '@/components/TopBar'
 import { authErrorKey } from '@/features/auth/errors'
 import { Turnstile } from '@/features/auth/Turnstile'
+import { usePublicConfig } from '@/lib/public-config'
 import { consoleDestination, loginDestination } from '@/lib/redirect'
 
 type Challenge = components['schemas']['AuthLoginResult']
@@ -18,7 +19,7 @@ type Challenge = components['schemas']['AuthLoginResult']
 export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: string; notice?: 'registered' | 'password_reset' | 'password_changed' | 'initialized' | 'repaired'; role?: 'merchant' | 'console' }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const config = useQuery({ queryKey: ['public-config'], queryFn: api.config })
+  const config = usePublicConfig()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
@@ -78,7 +79,7 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <TopBar siteName={config.data?.site_name} />
+      <TopBar />
       <main id="main" className="mx-auto grid w-full max-w-[1160px] flex-1 items-center gap-12 px-4 pt-12 pb-16 sm:px-8 lg:grid-cols-[1fr_400px] lg:gap-20 lg:pt-16 lg:pb-24">
         <section className="min-w-0">
           <h1 aria-label={hero.replaceAll('\n', '')} className="m-0 max-w-[520px] font-serif text-[clamp(2.5rem,5vw,3.5rem)] leading-[1.1] font-[330] tracking-normal text-balance">{hero.split('\n').map((line) => <span key={line} className={hero.includes('\n') ? 'block whitespace-nowrap' : undefined}>{line}</span>)}</h1>
@@ -111,7 +112,13 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
           {challenge && <Button variant="ghost" disabled={busy} onClick={() => { setChallenge(undefined); setCode(''); setProblem(undefined); setFields({}); setToken(''); setAttempt((value) => value + 1) }}>{t('auth.restart')}</Button>}
         </form>
       </main>
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t-[0.5px] border-border px-4 py-6 text-caption text-text-3 sm:px-8"><span>© {config.data?.site_name ?? t('common.brand')}</span>{admin ? <a href="/console/recovery">{t('console.recovery')}</a> : config.data?.registration_open ? <a href="/register" className="inline-flex min-h-11 items-center rounded-control px-2 text-accent-text hover:bg-hover">{t('auth.register')}</a> : <span>{t('auth.contactAdmin')}</span>}</footer>
+      <PublicFooter>
+        {admin ? (
+          <a className={footerLinkClass} href="/console/recovery">{t('console.recovery')}</a>
+        ) : config.data?.registration_open ? (
+          <a className={footerLinkClass} href="/register">{t('auth.register')}</a>
+        ) : <span className="text-text-3">{t('auth.contactAdmin')}</span>}
+      </PublicFooter>
     </div>
   )
 }

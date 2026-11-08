@@ -11,6 +11,7 @@ const viewports = [
   { name: 'chromium-1280', width: 1280, height: 800 },
 ]
 const globalAnnouncement = /@global-announcement/
+const publicSiteSettings = /@public-site-settings/
 
 export default {
   testDir: './e2e',
@@ -26,19 +27,33 @@ export default {
   projects: [
     ...viewports.map(({ name, width, height }) => ({
       name,
-      // The administrator is a singleton: console specs execute only once and
-      // capture both required viewport sizes internally, serially.
-      testIgnore: name === 'chromium-1280' ? [] : ['**/console/**'],
-      grepInvert: globalAnnouncement,
+      testIgnore: '**/console/**',
       use: { browserName: 'chromium' as const, viewport: { width, height } },
     })),
+    {
+      // Existing console settings specs also write global branding and security.
+      // Run them once, after the public and merchant viewport projects finish.
+      name: 'console',
+      testMatch: '**/console/console.spec.ts',
+      grepInvert: [globalAnnouncement, publicSiteSettings],
+      dependencies: viewports.map(({ name }) => name),
+      use: { browserName: 'chromium', viewport: { width: 1280, height: 800 } },
+    },
     {
       // A real platform popup also reaches other logged-in merchants. Run this
       // case after the shared-database projects have finished.
       name: 'console-announcements',
       testMatch: '**/console/console.spec.ts',
       grep: globalAnnouncement,
-      dependencies: viewports.map(({ name }) => name),
+      dependencies: ['console'],
+      use: { browserName: 'chromium', viewport: { width: 1280, height: 800 } },
+    },
+    {
+      // Public site settings also affect every visitor. Run after the announcement project and its dependencies.
+      name: 'public-site-settings',
+      testMatch: '**/console/console.spec.ts',
+      grep: publicSiteSettings,
+      dependencies: ['console-announcements'],
       use: { browserName: 'chromium', viewport: { width: 1280, height: 800 } },
     },
   ],

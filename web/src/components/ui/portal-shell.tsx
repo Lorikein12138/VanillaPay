@@ -1,7 +1,7 @@
 import { Menu } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { LogoMark } from '@/components/Logo'
+import { SiteBrand, useSiteBrand } from '@/components/SiteBrand'
 import type { ReactNode, RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from './button'
@@ -14,7 +14,15 @@ export function PortalShell({ logo, navigation, userBlock, controls, problem, ch
   const { t } = useTranslation()
   return <div className="grid min-h-dvh min-w-0 grid-rows-[auto_1fr] lg:grid-cols-[224px_1fr] lg:grid-rows-1">
     <aside className="hidden min-w-0 flex-col gap-7 bg-sidebar px-4 py-6 lg:flex lg:min-h-dvh">{logo}{navigation}{userBlock}</aside>
-    <div className="min-w-0"><header className="flex min-h-20 items-center justify-between gap-2 border-b-[0.5px] border-border px-4 py-3 lg:justify-end lg:border-0 sm:px-8"><div className="lg:hidden">{logo}</div><Button ref={menu} className="lg:hidden" size="icon" variant="ghost" aria-label={t('ui.menu')} aria-expanded={open} onClick={() => onOpenChange(true)}><Menu aria-hidden="true" /></Button><div className="hidden items-center gap-2 lg:flex">{controls}</div></header>
+    <div className="min-w-0">
+      <header className="flex min-h-20 items-center justify-between gap-2 border-b-[0.5px] border-border px-4 py-3 sm:px-8 lg:justify-end lg:border-0">
+        <div className="min-w-0 lg:hidden">{logo}</div>
+        <Button ref={menu} className="lg:hidden" size="icon" variant="ghost" aria-label={t('ui.menu')}
+          aria-expanded={open} onClick={() => onOpenChange(true)}>
+          <Menu aria-hidden="true" />
+        </Button>
+        <div className="hidden items-center gap-2 lg:flex">{controls}</div>
+      </header>
       {problem && <div className="px-4 pt-4 sm:px-8">{problem}</div>}
       <main id="main" className="min-w-0 px-4 py-8 sm:px-8 lg:px-12 lg:py-10">{children}</main>
     </div>
@@ -23,12 +31,18 @@ export function PortalShell({ logo, navigation, userBlock, controls, problem, ch
 }
 
 export function PortalBrandTag({ children }: { children: ReactNode }) {
-  return <span className="ml-auto text-caption text-text-3">{children}</span>
+  return <span className="ml-auto shrink-0 text-caption text-text-3">{children}</span>
 }
 
 export function PortalBrand({ to, tag, onClose }: { to: string; tag?: string; onClose: () => void }) {
-  const { t } = useTranslation()
-  return <Link to={to} onClick={onClose} className="flex min-h-11 items-center gap-2.5 rounded-control px-2"><LogoMark /><span className="font-serif text-xl font-medium">{t('common.brand')}</span>{tag && <PortalBrandTag>{tag}</PortalBrandTag>}</Link>
+  const { name } = useSiteBrand()
+  return (
+    <Link to={to} aria-label={tag ? `${name} · ${tag}` : name} onClick={onClose}
+      className="flex min-h-11 min-w-0 items-center gap-2.5 rounded-control px-2">
+      <SiteBrand />
+      {tag && <PortalBrandTag>{tag}</PortalBrandTag>}
+    </Link>
+  )
 }
 
 export function PortalNavigation({ title, items, onClose }: { title: string; items: { path: string; label: string; icon: LucideIcon; exact?: boolean }[]; onClose: () => void }) {

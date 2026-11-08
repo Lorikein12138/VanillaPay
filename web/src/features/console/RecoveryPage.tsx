@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi, type ConsoleRecovery } from '@/api/client'
@@ -8,9 +9,11 @@ import { formatCountdown, useCountdown } from '@/components/ui/countdown'
 import { Notice } from '@/components/ui/notice'
 import { AccountError, AccountField } from '@/features/auth/account-shared'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
+import { refreshPublicConfig } from '@/lib/public-config'
 
 export function RecoveryPage() {
   const { t } = useTranslation(), navigate = useNavigate(), action = useLocalAction()
+  const queryClient = useQueryClient()
   const [session, setSession] = useState<Omit<ConsoleRecovery, 'csrf_token'> | null>(null)
   const csrf = useRef<string | null>(null), controller = useRef<AbortController | null>(null)
   const [code, setCode] = useState(''), [siteKey, setSiteKey] = useState(''), [hostname, setHostname] = useState(''), [secret, setSecret] = useState('')
@@ -39,7 +42,12 @@ export function RecoveryPage() {
           if (!csrf.current) return
           await consoleApi.repair(csrf.current, { expected_version: session.settings_version, value: { turnstile_site_key: siteKey.trim(), allowed_hostname: hostname.trim(), ...(secret.trim() ? { turnstile_secret: secret.trim() } : {}) } }, active.signal)
           csrf.current = null
-          if (action.active.current && !active.signal.aborted) { setSession(null); setSecret(''); await navigate({ to: '/console/login', search: { notice: 'repaired' }, replace: true }) }
+          if (!action.active.current || active.signal.aborted) return
+          setSession(null)
+          setSecret('')
+          await refreshPublicConfig(queryClient)
+          if (!action.active.current || active.signal.aborted) return
+          await navigate({ to: '/console/login', search: { notice: 'repaired' }, replace: true })
         }
       } catch (error) {
         if (!action.active.current || active.signal.aborted) return

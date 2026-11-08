@@ -6,10 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { api } from '@/api/client'
 import type { components } from '@/api/schema'
 import { LanguageSwitch } from '@/components/LanguageSwitch'
-import { LogoMark } from '@/components/Logo'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
 import { Button } from '@/components/ui/button'
-import { PortalShell } from '@/components/ui/portal-shell'
+import { PortalBrand, PortalShell } from '@/components/ui/portal-shell'
 import { Notice } from '@/components/ui/notice'
 import { authErrorKey } from '@/features/auth/errors'
 import { merchantNavigation } from '@/features/merchant/navigation'
@@ -39,7 +38,7 @@ function MerchantContent() {
     catch (error) { setProblem(error) }
     finally { setBusy(false) }
   }
-  const logo = <Link to="/dashboard" onClick={() => setOpen(false)} className="flex min-h-11 items-center gap-2.5 rounded-control px-2"><LogoMark /><span className="font-serif text-xl font-medium">{t('common.brand')}</span></Link>
+  const logo = <PortalBrand to="/dashboard" onClose={() => setOpen(false)} />
   const navigation = !session.user.banned && <nav aria-label={t('merchant.navigation')} className="flex flex-col gap-1">{merchantNavigation.filter((item) => item.enabled).map((item) => <Link key={item.key} to={item.path} onClick={() => setOpen(false)} activeOptions={{ exact: true }} activeProps={{ 'aria-current': 'page', className: 'bg-hover text-text' }} inactiveProps={{ className: 'text-text-2' }} className="flex min-h-11 items-center gap-3 rounded-control px-3 text-label transition-colors hover:bg-hover hover:text-text"><item.icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />{t(`merchant.nav.${item.key}`)}{item.key === 'notifications' && <UnreadBadge count={notifications.data?.unread_count ?? 0} />}</Link>)}</nav>
   const user = <><span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-oat text-label">{session.user.username.slice(0, 1)}</span><span className="min-w-0"><span className="block truncate text-label">{session.user.username}</span><span className="block truncate font-mono text-caption text-text-3">{session.user.pid}</span></span></>
   const userClass = 'flex min-h-11 min-w-0 items-center gap-3 rounded-control px-2 py-3'

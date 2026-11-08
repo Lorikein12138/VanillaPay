@@ -1,7 +1,7 @@
 {
   "common": {
     "brand": "VanillaPay",
-    "home": "VanillaPay 首页",
+    "home": "{{name}} 首页",
     "skipToContent": "跳到主要内容",
     "backHome": "返回首页"
   },
@@ -18,6 +18,8 @@
     "dark": "深色"
   },
   "home": {
+    "redirecting": "正在跳转…",
+    "continueToDestination": "如未自动跳转，请点击继续",
     "nav": {
       "label": "页内导航",
       "features": "功能",
@@ -377,7 +379,7 @@
     "loading": "正在加载…",
     "notPublishedYet": "暂未发布",
     "revision": "版本",
-    "vanillapayAccountServices": "VanillaPay · 账户服务",
+    "siteAccountServices": "{{name}} · 账户服务",
     "manageEveryPaymentWithYourOwnQr": "用自己的收款码，安心管理每一笔收款。保护账户，也保护你的生意。",
     "backToSignIn": "返回登录",
     "createAMerchantAccount": "创建商户账户",

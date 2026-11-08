@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { APIError, consoleApi } from '@/api/client'
+import { refreshPublicConfig } from '@/lib/public-config'
 import {
   normalizeDomains,
   settingsEqual,
@@ -195,6 +196,11 @@ export function useSettingsEditor(group: SettingsGroup) {
       const result = await consoleApi.saveSettings(group, input)
       minimumVersion.current = result.version
       setDrafts((previous) => ({ ...previous, [group]: undefined }))
+      if (group === 'site' || group === 'home' || group === 'footer_legal' || group === 'security') {
+        void refreshPublicConfig(client).catch(() => {
+          // The public query reports its own failure. The settings write has already succeeded.
+        })
+      }
       // Read all groups together before enabling writes at the new global version.
       // The PUT response does not provide authoritative credential configuration flags.
       await refresh()

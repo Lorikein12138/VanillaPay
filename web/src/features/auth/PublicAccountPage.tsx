@@ -1,24 +1,44 @@
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useState, type ReactNode } from 'react'
 import { api, APIError } from '@/api/client'
+import { PublicFooter } from '@/components/PublicFooter'
+import { useSiteBrand } from '@/components/SiteBrand'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/input'
 import { Notice } from '@/components/ui/notice'
 import { TopBar } from '@/components/TopBar'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
+import { publicConfigQuery, usePublicConfig } from '@/lib/public-config'
 import { safePath } from '@/lib/redirect'
 import { AccountError, AccountField, allowedEmail, EmailCodeButton, EmailCodeNotice, useEmailCode, validPassword, validUsername } from './account-shared'
 import { Turnstile } from './Turnstile'
 
 export function PublicAccountShell({ title, children }: { title: string; children: ReactNode }) {
   const { t } = useTranslation()
-  return <div className="flex min-h-dvh flex-col"><TopBar /><main id="main" className="mx-auto grid w-full max-w-[1160px] flex-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[1fr_440px] lg:gap-20"><section><p className="mb-5 font-mono text-caption uppercase tracking-widest text-accent-text">{t('polish.vanillapayAccountServices')}</p><h1 className="font-serif text-[clamp(2.5rem,5vw,3.5rem)] font-[330] leading-tight">{title}</h1><p className="mt-6 max-w-md text-lg leading-relaxed text-text-2">{t('polish.manageEveryPaymentWithYourOwnQr')}</p><a className="mt-8 inline-flex min-h-11 items-center text-label text-accent-text" href="/login">{t('polish.backToSignIn')}</a></section><section className="min-w-0 rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8">{children}</section></main></div>
+  const { name } = useSiteBrand()
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <TopBar />
+      <main id="main" className="mx-auto grid w-full max-w-[1160px] flex-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[1fr_440px] lg:gap-20">
+        <section className="min-w-0">
+          <p className="mb-5 break-words font-mono text-caption uppercase tracking-widest text-accent-text">
+            {t('polish.siteAccountServices', { name })}
+          </p>
+          <h1 className="font-serif text-[clamp(2.5rem,5vw,3.5rem)] font-[330] leading-tight">{title}</h1>
+          <p className="mt-6 max-w-md text-lg leading-relaxed text-text-2">{t('polish.manageEveryPaymentWithYourOwnQr')}</p>
+          <a className="mt-8 inline-flex min-h-11 items-center text-label text-accent-text" href="/login">{t('polish.backToSignIn')}</a>
+        </section>
+        <section className="min-w-0 rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8">{children}</section>
+      </main>
+      <PublicFooter />
+    </div>
+  )
 }
 export function PublicAccountPage({ mode }: { mode: 'register' | 'reset_password' }) {
   const { t } = useTranslation()
-  const config = useQuery({ queryKey: ['public-config'], queryFn: api.config })
+  const config = usePublicConfig()
   const title = mode === 'register' ? t('polish.createAMerchantAccount') : t('polish.resetPassword')
   return <PublicAccountShell title={title}>{config.isPending ? <p aria-live="polite">{t('polish.loading')}</p> : config.error ? <><AccountError error={config.error} /><Button variant="primary" onClick={() => { void config.refetch() }}>{t('polish.tryAgain')}</Button></> : mode === 'register' && !config.data.registration_open ? <Notice tone="info">{t('polish.registrationIsClosed')}</Notice> : <PublicAccountForm mode={mode} config={config.data} />}</PublicAccountShell>
 }
@@ -55,7 +75,9 @@ function PublicAccountForm({ mode, config }: { mode: 'register' | 'reset_passwor
           if (action.active.current) { setPassword(''); setConfirmation(''); setCode(''); await navigate({ to: '/login', search: { notice: 'password_reset' }, replace: true }) }
         }
       } catch (error) {
-        if (error instanceof APIError && error.problem?.code === 'LEGAL_VERSION_CHANGED') await client.invalidateQueries({ queryKey: ['public-config'] })
+        if (error instanceof APIError && error.problem?.code === 'LEGAL_VERSION_CHANGED') {
+          await client.invalidateQueries({ queryKey: publicConfigQuery.queryKey })
+        }
         throw error
       } finally { resetCaptcha() }
     })

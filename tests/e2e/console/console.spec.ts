@@ -1,5 +1,6 @@
 import { registerManagementTests } from './manage-cases'
 import { registerAnnouncementAuditTests } from './announcements-audit-cases'
+import { registerPublicSiteTests } from './public-site-cases'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import QRCode from 'qrcode'
 import type { ConsoleRecovery } from '../../../web/src/api/client'
@@ -138,7 +139,7 @@ test('manages platform settings, protects stored secrets and captures every grou
   await page.getByRole('button', { name: '保存站点信息' }).click()
   expect((await logoSave).status()).toBe(200)
   await page.reload()
-  await expect(page.locator(`img[src="/media/${logoAsset}"]`)).toBeVisible()
+  await expect(page.getByRole('main').getByRole('img', { name: '站点标识' })).toHaveAttribute('src', `/media/${logoAsset}`)
 
   await page.goto('/console/settings?group=mail')
   await page.getByLabel('邮件服务器').fill('mail.e2e.example.test')
@@ -421,3 +422,4 @@ test('changes password, revokes the session, persists preferences and enables/di
 
 registerManagementTests({ seed, captcha, signIn })
 registerAnnouncementAuditTests({ seed, captcha, signIn, control })
+registerPublicSiteTests({ seed, captcha, signIn })

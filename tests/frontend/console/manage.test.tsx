@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import { publicConfigHandler } from '../public-config-fixture'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
@@ -26,6 +27,7 @@ const success = <T,>(data: T) => HttpResponse.json({ data })
 const failure = (code: Schema['ErrorCode']) => HttpResponse.json({ error: { code, message: code, fields: {}, details: {} } }, { status: 409 })
 let current: Schema['ConsoleMerchantDetail'], currentPlan: Schema['SubscriptionPlanDTO']
 const server = setupServer(
+  publicConfigHandler,
   http.get('*/api/v1/console/me', () => success(admin)),
   http.get('*/api/v1/console/merchants', () => success({ items: [merchant], total: 1, next_cursor: null })),
   http.get('*/api/v1/console/merchants/42', () => success(current)),
