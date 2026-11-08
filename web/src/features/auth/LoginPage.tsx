@@ -3,9 +3,9 @@ import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, APIError, consoleApi } from '@/api/client'
 import type { components } from '@/api/schema'
-import { PublicFooter } from '@/components/PublicFooter'
+import { PublicFooter, footerLinkClass } from '@/components/PublicFooter'
 import { Notice } from '@/components/ui/notice'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { TopBar } from '@/components/TopBar'
@@ -114,10 +114,10 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
       </main>
       <PublicFooter>
         {admin ? (
-          <a className={buttonVariants({ variant: 'link' })} href="/console/recovery">{t('console.recovery')}</a>
+          <a className={footerLinkClass} href="/console/recovery">{t('console.recovery')}</a>
         ) : config.data?.registration_open ? (
-          <a className={buttonVariants({ variant: 'link' })} href="/register">{t('auth.register')}</a>
-        ) : <span>{t('auth.contactAdmin')}</span>}
+          <a className={footerLinkClass} href="/register">{t('auth.register')}</a>
+        ) : <span className="text-text-3">{t('auth.contactAdmin')}</span>}
       </PublicFooter>
     </div>
   )
