@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
-import { expect, login, merchantVisualShots, noOverflow, test, clickControl, openMenu, polishShot } from './fixtures'
+import { expect, login, merchantVisualShots, noOverflow, test, selectScreenshotTheme, openMenu, polishShot } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Shanghai' })
 function fixtureOrder(status = 'pending', index = 0) {
@@ -20,6 +20,34 @@ async function screenshot(page: Page, name: string) {
   await polishShot(page, name === 'list' ? 'orders' : name === 'detail' ? 'order-detail' : 'order-action-dialog')
   await page.screenshot({ path: fileURLToPath(new URL(`../../../.artifacts/orders-shots/${name}-${theme}-${width}.png`, import.meta.url)), fullPage: name !== 'confirmation', animations: 'disabled' })
 }
+
+test('persists the screenshot theme before an order page reload', async ({ page, account }) => {
+  await page.goto('/login?redirect=%2Forders')
+  await login(page, account)
+  await expect(page).toHaveURL(/\/orders$/)
+  let release!: () => void
+  const permission = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/api/v1/merchant/preferences', async (route) => {
+    await permission
+    await route.continue()
+  })
+  const patch = page.waitForRequest('**/api/v1/merchant/preferences')
+  let switchingFinished = false
+  const switched = selectScreenshotTheme(page, 'dark').then(() => { switchingFinished = true })
+  try {
+    await patch
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    // The button has applied the theme locally, but the PATCH is still held.
+    await expect(page.getByRole('button', { name: '深色', exact: true })).toBeDisabled()
+    expect(switchingFinished).toBe(false)
+  } finally {
+    release()
+    await switched
+  }
+  await page.reload()
+  await expect(page.getByRole('heading', { name: '订单', exact: true })).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+})
 
 test('keeps date segments and a long order number usable at the active width', async ({ page, account, request, context }) => {
   const order = { ...fixtureOrder('paid'), trade_no: `VP-${crypto.randomUUID()}-01` }
@@ -138,7 +166,7 @@ test('shows order details, supplements a payment and records a confirmed offline
   expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [pending, fixtureOrder('paid', 1), fixtureOrder('refunded', 2)] } })).status()).toBe(204)
   await page.goto('/login'); await login(page, account)
   await expect(page).toHaveURL(/\/dashboard$/)
-  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
+  await selectScreenshotTheme(page, page.viewportSize()?.width === 360 ? 'dark' : 'light')
   await openMenu(page); await page.getByRole('link', { name: '订单', exact: true }).click()
   await expect(rows(page)).toHaveCount(3)
   await screenshot(page, 'list')
@@ -182,7 +210,7 @@ test('shows real callback attempts and queues a replay with CSRF, Origin and ide
   expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [paid, capped] } })).status()).toBe(204)
   await page.goto(`/login?redirect=${encodeURIComponent(`/orders/${paid.trade_no}`)}`); await login(page, account)
   await expect(page).toHaveURL(new RegExp(`/orders/${paid.trade_no}$`))
-  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
+  await selectScreenshotTheme(page, page.viewportSize()?.width === 360 ? 'dark' : 'light')
   await expect(page.getByText('fixture callback failed', { exact: true })).toBeVisible()
   await expect(page.getByText('CALLBACK_NOT_CONFIRMED', { exact: true })).toBeVisible()
   await expect(page.getByText(paid.return_url, { exact: true })).toBeVisible()
@@ -211,7 +239,7 @@ test('rejects and resolves pending refund requests through the real backend', as
   expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [rejected, resolved, stale] } })).status()).toBe(204)
   await page.goto('/login'); await login(page, account)
   await expect(page).toHaveURL(/\/dashboard$/)
-  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
+  await selectScreenshotTheme(page, page.viewportSize()?.width === 360 ? 'dark' : 'light')
   await page.goto(`/orders/${rejected.trade_no}`)
   await page.getByRole('button', { name: '拒绝退款', exact: true }).click()
   await polishShot(page, 'reject-order-dialog', false)

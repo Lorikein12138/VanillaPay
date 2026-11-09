@@ -80,15 +80,33 @@ export async function clickControl(page: Page, name: string) {
   await closeMenu(page)
 }
 
+export async function selectScreenshotTheme(page: Page, theme: 'light' | 'dark' | 'system', role = 'merchant') {
+  const label = { light: '浅色', dark: '深色', system: '跟随系统' }[theme]
+  const control = page.getByRole('button', { name: label, exact: true })
+  const mobile = page.viewportSize()!.width < 1024
+  if (mobile) await page.getByRole('button', { name: /打开菜单|Open menu/ }).click()
+  await expect(control).toBeEnabled()
+  // The switch applies optimistically. A full navigation can abort the PATCH
+  // and load the old preference unless we wait for the server to persist it.
+  const saved = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === `/api/v1/${role}/preferences` && response.request().method() === 'PATCH',
+  )
+  await control.click()
+  expect((await saved).status()).toBe(200)
+  await expect(control).toHaveAttribute('aria-pressed', 'true')
+  if (theme === 'system') await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/)
+  else await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+  if (mobile) await page.keyboard.press('Escape')
+}
+
 export async function merchantVisualShots(page: Page, capture: () => Promise<void>) {
   if (process.env.WEB_VISUAL_POLISH !== '1' || ![360, 1280].includes(page.viewportSize()!.width)) return
   const previous = await page.locator('html').getAttribute('data-theme')
-  for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
-    await clickControl(page, label)
-    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+  for (const theme of ['light', 'dark'] as const) {
+    await selectScreenshotTheme(page, theme)
     await capture()
   }
-  await clickControl(page, previous === 'dark' ? '深色' : '浅色')
+  await selectScreenshotTheme(page, previous === 'dark' || previous === 'light' ? previous : 'system')
 }
 export async function polishShot(
   page: Page,

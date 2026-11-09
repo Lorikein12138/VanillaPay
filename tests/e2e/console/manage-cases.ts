@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { login, noOverflow, polishShot } from '../merchant/fixtures'
+import { login, noOverflow, polishShot, selectScreenshotTheme } from '../merchant/fixtures'
 
 type Admin = { username: string; password: string; pid?: string; totpSeed: string; turnstileToken: string }
 type Helpers = {
@@ -12,20 +12,10 @@ export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
   async function shots(page: Page, state: string, prepare?: () => Promise<void>) {
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
-      for (const theme of ['light', 'dark']) {
+      for (const theme of ['light', 'dark'] as const) {
+        await selectScreenshotTheme(page, theme, 'console')
         if (prepare) await prepare()
-        // Preference persistence is covered by the console account tests.
-        const previous = await page.locator('html').getAttribute('data-theme')
-        try {
-          await page.evaluate((value) => { document.documentElement.dataset.theme = value }, theme)
-          await polishShot(page, state, !prepare, 'console-manage-shots')
-          await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-        } finally {
-          await page.evaluate((value) => {
-            if (value === null) delete document.documentElement.dataset.theme
-            else document.documentElement.dataset.theme = value
-          }, previous)
-        }
+        await polishShot(page, state, !prepare, 'console-manage-shots')
         if (prepare) await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click()
       }
     }

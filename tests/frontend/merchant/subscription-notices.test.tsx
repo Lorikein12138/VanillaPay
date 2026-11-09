@@ -1,4 +1,5 @@
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
+import { focusManager } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -49,6 +50,43 @@ function mount(path: string) {
 }
 
 describe('subscription confirmations', () => {
+  it('keeps the price and revisions shown when a confirmation was opened during a background refresh', async () => {
+    let latest = overview
+    const buy = vi.spyOn(api, 'purchase').mockResolvedValue(purchase)
+    server.use(http.get('*/api/v1/merchant/subscription', () => success(latest)))
+    const { client } = wrap(<SubscriptionPage name={user.username} />)
+    await userEvent.click(await screen.findByRole('button', { name: '购买套餐' }))
+    latest = { ...overview, current: { ...current, revision: 8 }, plans: [{ ...plan, revision: 9, price_cents: 8800 }] }
+    await act(() => client.refetchQueries({ queryKey: ['merchant', user.username, 'subscription'] }))
+    expect(await screen.findByText('¥88.00')).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByText('¥12.00')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '确认并创建订单' }))
+    expect(buy).toHaveBeenCalledExactlyOnceWith({
+      plan_id: plan.id, plan_revision: plan.revision, expected_subscription_revision: current.revision, confirm_replace: false,
+    }, expect.any(String))
+  })
+
+  it('polls every 15 seconds while pending and stops when the pending purchase disappears', async () => {
+    vi.useFakeTimers()
+    const load = vi.spyOn(api, 'subscription')
+      .mockResolvedValueOnce({ ...overview, pending_purchase: purchase })
+      .mockResolvedValueOnce({ ...overview, pending_purchase: purchase })
+      .mockResolvedValue(overview)
+    vi.spyOn(api, 'purchaseDetail').mockResolvedValue(purchase)
+    wrap(<SubscriptionPage name={user.username} />)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(screen.getByRole('region', { name: '待支付订单' })).toBeVisible()
+    await act(() => vi.advanceTimersByTimeAsync(14999))
+    expect(load).toHaveBeenCalledTimes(1)
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(load).toHaveBeenCalledTimes(2)
+    await act(() => vi.advanceTimersByTimeAsync(15001))
+    expect(load).toHaveBeenCalledTimes(3)
+    expect(screen.queryByRole('region', { name: '待支付订单' })).not.toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(45000))
+    expect(load).toHaveBeenCalledTimes(3)
+  })
+
   it.each(['new', 'renew', 'switch'] as const)('shows %s semantics and sends the captured revisions with CSRF and one idempotency key', async (kind) => {
     await api.me()
     const value = kind === 'new' ? current : { ...current, revision: 7, active: true, plan: kind === 'renew' ? plan : { ...plan, id: 'other', name: { zh_CN: '原有套餐', en: 'Previous plan' } }, expires_at: '2026-12-01T12:00:00Z' }
@@ -215,13 +253,48 @@ describe('notifications and announcements', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/devices'))
     await waitFor(() => expect(screen.queryByLabelText('1 条未读通知')).not.toBeInTheDocument())
   })
-  it('stops its summary polling when unmounted', async () => {
+  it('refreshes the unread summary every 60 seconds and on focus, then stops after unmount', async () => {
+    vi.useFakeTimers()
     const load = vi.spyOn(api, 'notifications').mockResolvedValue({ items: [], total: 0, next_cursor: null, unread_count: 0, popup_announcements: [] })
     function Host() { useNotificationSummary(user.username); return null }
     const { unmount } = wrap(<Host />)
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(1))
-    vi.useFakeTimers(); unmount(); await act(() => vi.advanceTimersByTimeAsync(120000))
-    expect(load).toHaveBeenCalledTimes(1)
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(59999))
+      expect(load).toHaveBeenCalledTimes(1)
+      await act(() => vi.advanceTimersByTimeAsync(1))
+      expect(load).toHaveBeenCalledTimes(2)
+      focusManager.setFocused(false)
+      await act(() => { focusManager.setFocused(true); return Promise.resolve() })
+      expect(load).toHaveBeenCalledTimes(3)
+      unmount()
+      focusManager.setFocused(false)
+      await act(() => { focusManager.setFocused(true); return Promise.resolve() })
+      await act(() => vi.advanceTimersByTimeAsync(120000))
+      expect(load).toHaveBeenCalledTimes(3)
+    } finally {
+      focusManager.setFocused(undefined)
+    }
+  })
+
+  it('keeps the notification unread and stays on the list when marking it fails', async () => {
+    const notice = {
+      id: 'n1', kind: 'device_offline', source_id: 'd1', title: { zh_CN: '设备消息', en: 'Device alert' },
+      summary: { zh_CN: '请检查设备', en: 'Check device' }, created_at: new Date().toISOString(), read_at: null,
+      action: { page: '/dashboard/collection', entity_id: '' },
+    }
+    let attempts = 0
+    server.use(
+      http.get('*/api/v1/merchant/notifications', () => success({
+        items: [notice], unread_count: 1, total: 1, next_cursor: null, popup_announcements: [],
+      })),
+      http.post('*/api/v1/merchant/notifications/read', () => { attempts++; return failure('INTERNAL_ERROR', 503) }),
+    )
+    const { router } = mount('/notifications')
+    await userEvent.click(await screen.findByRole('link', { name: '查看详情' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('服务暂时不可用')
+    expect(router.state.location.pathname).toBe('/notifications')
+    expect(screen.getAllByLabelText('1 条未读通知').length).toBeGreaterThan(0)
+    expect(attempts).toBe(1)
   })
   it('filters unread notifications, paginates and sends the exclusive all-read body', async () => {
     const parameters: URLSearchParams[] = []
