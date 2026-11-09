@@ -94,7 +94,7 @@ export function SectionHeader({
 
 /** A smaller, sans-serif heading within a card. */
 export function SubsectionTitle({ className, children }: { className?: string; children: ReactNode }) {
-  return <h3 className={cn('m-0 font-sans text-label font-medium text-text-2', className)}>{children}</h3>
+  return <h3 className={cn('m-0 font-sans text-body font-medium text-text', className)}>{children}</h3>
 }
 
 /** Muted centered message for empty lists. */
