@@ -95,6 +95,8 @@ jobs:
       PUBLIC_BASE_URL: http://localhost:8080
       LISTEN_ADDR: localhost:8080
       DATA_DIR: .local/ci-e2e-data
+      DOWNLOADS_DIR: .local/ci-e2e-downloads
+      APK_DOWNLOADS_DIR: .local/ci-e2e-apks
       TRUSTED_PROXY_CIDRS: ''
       E2E_BASE_URL: http://localhost:8080
     steps:
@@ -131,7 +133,12 @@ jobs:
       - name: Build and start backend
         shell: bash
         run: |
-          mkdir -p .local "$DATA_DIR"
+          mkdir -p .local "$DATA_DIR" "$DOWNLOADS_DIR" "$APK_DOWNLOADS_DIR"
+          apk="$APK_DOWNLOADS_DIR/vanillapay-monitor-1.0.0.apk"
+          printf 'VanillaPay test download\n' > "$apk"
+          hash="$(sha256sum < "$apk")"
+          printf '{"version":"1.0.0","file":"vanillapay-monitor-1.0.0.apk","sha256":"%s","size":%d,"published_at":"2026-11-09T00:00:00Z"}\n' \
+            "${hash%% *}" "$(wc -c < "$apk")" > "$DOWNLOADS_DIR/latest.json"
           encryption_key="$(openssl rand -base64 32)"
           echo "::add-mask::$encryption_key"
           export APP_ENCRYPTION_KEY="$encryption_key"
@@ -161,3 +168,27 @@ jobs:
           if [ -f .local/server.pid ]; then
             kill "$(cat .local/server.pid)" 2>/dev/null || true
           fi
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - name: Check preinstalled Android SDK
+        run: |
+          sdk="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          test -f "$sdk/platforms/android-37.0/android.jar" || { echo 'Android SDK platform 37.0 is required'; exit 1; }
+          test -x "$sdk/build-tools/36.0.0/aapt2" || { echo 'Android SDK build-tools 36.0.0 are required'; exit 1; }
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+      - run: ./gradlew lint testDebugUnitTest assembleDebug
+      - run: ./gradlew testDebugUnitTest -PmonitorScreenshots --tests '*MonitorScreenshotTest'
+      - name: Check screenshot outputs
+        run: test "$(find ../.artifacts/android-screens -name '*.png' -size +0c | wc -l)" -eq 22

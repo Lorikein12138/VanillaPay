@@ -17,6 +17,7 @@ import { Card, Page, PageHeader, SectionHeader } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
 import { OrderTime } from './OrderParts'
 import { ReceiptsList } from './ReceiptsList'
+import { MonitorDownload } from './MonitorDownload'
 
 export function DevicesPage({ name, filters, onFilters }: { name: string; filters: ReceiptFilters; onFilters: (value: ReceiptFilters) => void }) {
   const { t } = useTranslation()
@@ -36,6 +37,7 @@ export function DevicesPage({ name, filters, onFilters }: { name: string; filter
         { label: t('polish.offlineThreshold'), value: t('polish.secondsValue', { v0: device.data.offline_threshold_seconds }) },
       ]} /><FormActions className="mt-5"><Button variant="primary" onClick={() => setDialog('bind')}>{device.data.bound ? t('polish.replaceDevice') : t('polish.bindDevice')}</Button>{device.data.bound && <Button onClick={() => setDialog('unbind')}>{t('polish.unbindDevice')}</Button>}</FormActions></>}
     </Card>
+    <MonitorDownload />
     <ReceiptsList name={name} filters={filters} onFilters={onFilters} />
     {dialog === 'bind' && device.data && <BindingDialog replace={device.data.bound} onClose={() => setDialog(null)} onChanged={changed} />}
     {dialog === 'unbind' && <UnbindDialog onClose={() => setDialog(null)} onChanged={changed} />}
@@ -87,6 +89,7 @@ export function BindingDialog({ replace, onClose, onChanged }: { replace: boolea
     return () => { active = false; controller.abort(); clearInterval(clock); clearTimeout(timer) }
   }, [binding, status, onChanged])
   return <Dialog title={t('polish.bindMonitoringDevice')} description={replace ? t('polish.thePreviousDeviceSCredentialsAreRevoked') : t('polish.scanTheQrCodeOrEnterThe')} busy={action.busy} onClose={onClose} footer={!binding ? <Button variant="primary" loading={action.busy} disabled={!confirmed} onClick={() => { void generate() }}>{action.busy ? t('polish.generating') : t('polish.generateBindingCode')}</Button> : status === 'expired' ? <Button variant="primary" loading={action.busy} onClick={() => { setQR(''); void generate() }}>{t('polish.generateAgain')}</Button> : undefined}>
+    {!binding && <p className="text-label text-text-2">{t('monitorDownload.installFirst')}</p>}
     {!binding && replace && <Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)}>{t('polish.iConfirmReplacingTheCurrentDevice')}</Checkbox>}
     {binding && <div className="flex flex-col gap-4">
       {status === 'pending' && <>{qr && <img className="mx-auto w-60 max-w-full rounded-control" src={qr} alt={t('polish.deviceBindingQrCode')} />}<p className="text-caption text-text-3">{t('polish.bindingCode')}</p><CopyField testId="binding-code" value={binding.code} /><div className="flex justify-center"><StatusDot tone="wait">{t('polish.bindingRemaining', { time: formatCountdown(remaining) })}</StatusDot></div><p className="text-center text-caption text-text-3">{t('polish.expires')}<OrderTime value={binding.expires_at} /></p></>}

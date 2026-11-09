@@ -16,6 +16,8 @@ use_release() {
 }
 
 compose() {
+    local DEPLOY_APK_DIR="$stack_dir/downloads/apks"
+    export DEPLOY_APK_DIR
     local args=(--env-file "$stack_dir/.env" -f "$release_dir/compose.yaml")
     if [[ -f "$release_dir/images.env" ]]; then
         env -u APP_IMAGE_TAG -u POSTGRES_IMAGE -u PROXY_IMAGE \

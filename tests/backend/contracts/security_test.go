@@ -38,7 +38,8 @@ func TestHTTP_OpenAPISecurityMatrix(t *testing.T) {
 	// 45*5 CSRF writes, 2*3 missing device credentials and 10 protocol signatures.
 	// Media includes a public branch and is covered by media integration tests.
 	// Email codes exercises its authenticated example here; guest purposes are
-	// covered by the identity tests. The three extra token cases per device add six.
+	// covered by the identity tests. Each device route now has six rejection
+	// cases, including the self-unbind route with no JSON body.
 	cases := 0
 	for path, item := range doc.Paths.Map() {
 		for method, operation := range item.Operations() {

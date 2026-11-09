@@ -637,6 +637,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/device/unbind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /api/v1/device/unbind
+         * @description 吊销发起请求的设备凭据，无请求体。
+         */
+        post: operations["post_api_v1_device_unbind"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/device/heartbeat": {
         parameters: {
             query?: never;
@@ -4222,6 +4242,26 @@ export interface operations {
             404: components["responses"]["Error404"];
             409: components["responses"]["Error409"];
             410: components["responses"]["Error410"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    post_api_v1_device_unbind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 凭据已吊销 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error401"];
             500: components["responses"]["Error500"];
         };
     };

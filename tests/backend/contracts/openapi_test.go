@@ -21,7 +21,7 @@ import (
 	"vanillapay/tests/backend/testsupport"
 )
 
-// Only these three exact page/404 handlers are outside the API contract.
+// These exact page/404 handlers and the static download paths are outside the API contract.
 const (
 	spaRoot             = "/"
 	apiRootFallback     = "/api"
@@ -42,7 +42,7 @@ func TestOpenAPI_DocumentAndRoutes(t *testing.T) {
 	actual := []string{}
 	if err := chi.Walk(httpx.NewRouter(application).(chi.Routes), func(method, route string, handler http.Handler, _ ...func(http.Handler) http.Handler) error {
 		switch route {
-		case spaRoot, apiRootFallback, apiWildcardFallback:
+		case spaRoot, apiRootFallback, apiWildcardFallback, "/downloads", "/downloads/*":
 			return nil
 		}
 		actual = append(actual, method+" "+route)

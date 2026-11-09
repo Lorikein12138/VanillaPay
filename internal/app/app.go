@@ -178,6 +178,19 @@ func (a *App) PublicBaseURL() string {
 	}
 	return a.config.PublicBaseURL
 }
+func (a *App) DownloadsDir() string {
+	if a == nil {
+		return ""
+	}
+	return a.config.DownloadsDir
+}
+
+func (a *App) APKDownloadsDir() string {
+	if a == nil {
+		return ""
+	}
+	return a.config.APKDownloadsDir
+}
 func (a *App) AppEnvironment() string {
 	if a == nil {
 		return ""

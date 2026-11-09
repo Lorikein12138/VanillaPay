@@ -32,3 +32,10 @@ playwright-report/
 test-results/
 *.out
 *.exe
+*.jks
+*.keystore
+*.apk
+android/**/build/
+.gradle/
+.kotlin/
+local.properties

@@ -1586,6 +1586,20 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DeviceRedeemRequest'
+  /api/v1/device/unbind:
+    post:
+      operationId: post_api_v1_device_unbind
+      summary: POST /api/v1/device/unbind
+      description: 吊销发起请求的设备凭据，无请求体。
+      security:
+        - DeviceToken: []
+      responses:
+        '204':
+          description: 凭据已吊销
+        '401':
+          $ref: '#/components/responses/Error401'
+        '500':
+          $ref: '#/components/responses/Error500'
   /api/v1/device/heartbeat:
     post:
       operationId: post_api_v1_device_heartbeat

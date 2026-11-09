@@ -36,6 +36,40 @@ func TestHTTP_DeviceBindingCredentialRejections(t *testing.T) {
 	}
 }
 
+func TestHTTP_DeviceSelfUnbindRevokesToken(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	fixture := testsupport.NewHTTPFixture(t, db)
+	id, _ := db.SeedMerchant(t)
+	binding, err := fixture.App.Services.Device.NewBinding(t.Context(), platform.Actor{Role: "merchant", SubjectID: id, MerchantID: id}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential := fixture.Request(t, http.MethodPost, "/api/v1/device/bind", device.RedeemRequest{
+		Code: binding.Code, DeviceName: "contract device", AppVersion: "1.0.0",
+	}, "guest")
+	var bound struct {
+		Data device.CredentialDTO `json:"data"`
+	}
+	if err := json.Unmarshal(credential.Body.Bytes(), &bound); err != nil || bound.Data.DeviceToken == "" {
+		t.Fatal("binding did not issue a device credential")
+	}
+	role := "device:" + bound.Data.DeviceToken
+	unbind := fixture.Request(t, http.MethodPost, "/api/v1/device/unbind", nil, role)
+	if unbind.Code != http.StatusNoContent || unbind.Body.Len() != 0 {
+		t.Fatalf("unbind status=%d, size=%d", unbind.Code, unbind.Body.Len())
+	}
+	for _, path := range []string{"/api/v1/device/heartbeat", "/api/v1/device/receipts", "/api/v1/device/unbind"} {
+		assertAPIError(t, fixture.Request(t, http.MethodPost, path, nil, role), http.StatusUnauthorized, "DEVICE_UNAUTHORIZED")
+	}
+	var audits, mail int
+	err = db.Pool.QueryRow(t.Context(), `SELECT
+		(SELECT count(*) FROM audit_logs WHERE action='device.revoke' AND actor_role='device' AND merchant_id=$1 AND target_id=$2),
+		(SELECT count(*) FROM mail_deliveries WHERE template='device_offline')`, id, bound.Data.DeviceID).Scan(&audits, &mail)
+	if err != nil || audits != 1 || mail != 0 {
+		t.Fatalf("unbind audits=%d offline mail=%d err=%v", audits, mail, err)
+	}
+}
+
 func TestHTTP_ImageUploadValidationResponses(t *testing.T) {
 	fixture, _ := securityFixture(t)
 	for _, endpoint := range []struct{ method, path, role string }{

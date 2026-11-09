@@ -21,6 +21,7 @@ func (h *Handler) Routes() chi.Router {
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/device/bind", h.Redeem)
+	r.Post("/device/unbind", h.Unbind)
 	r.Post("/device/heartbeat", func(w http.ResponseWriter, r *http.Request) {
 		identity, _ := platform.DeviceFromContext(r.Context())
 		h.Heartbeat(w, r, identity)
@@ -71,6 +72,15 @@ func (h *Handler) Device(w http.ResponseWriter, r *http.Request) {
 	actor, _ := platform.ActorFromContext(r.Context())
 	result, err := h.Service.Device(r.Context(), actor)
 	deviceWrite(w, r, result, err, http.StatusOK)
+}
+
+func (h *Handler) Unbind(w http.ResponseWriter, r *http.Request) {
+	actor, _ := platform.ActorFromContext(r.Context())
+	if err := h.Service.Unbind(r.Context(), actor); err != nil {
+		deviceWrite(w, r, nil, err, http.StatusNoContent)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) NewBinding(w http.ResponseWriter, r *http.Request) {

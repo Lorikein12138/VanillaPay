@@ -3,16 +3,29 @@ set -euo pipefail
 umask 077
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
-dry=0 rollback=0
+dry=0 rollback=0 apk=''
 while [[ ${1:-} == --* ]]; do
     case "$1" in
         --dry-run) dry=1 ;;
         --rollback) rollback=1 ;;
-        *) fail 'Usage: deploy.sh [--dry-run] [--rollback] USER@HOST /absolute/remote/dir' ;;
+        --apk)
+            [[ $# -gt 1 && -z $apk && -n $2 ]] || fail '--apk requires one APK path.'
+            apk=$2
+            shift
+            ;;
+        *) fail 'Usage: deploy.sh [--dry-run] [--rollback | --apk FILE] USER@HOST /absolute/remote/dir' ;;
     esac
     shift
 done
-[[ $# == 2 ]] || fail 'Usage: deploy.sh [--dry-run] [--rollback] USER@HOST /absolute/remote/dir'
+[[ $# == 2 ]] || fail 'Usage: deploy.sh [--dry-run] [--rollback | --apk FILE] USER@HOST /absolute/remote/dir'
+if [[ -n $apk ]]; then
+    (( ! rollback )) || fail '--apk cannot be used with --rollback.'
+    [[ -f $apk && ! -L $apk && -s $apk ]] || fail 'APK must be a nonempty regular file.'
+    apk_name=$(basename -- "$apk")
+    [[ $apk_name =~ ^vanillapay-monitor-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.apk$ ]] ||
+        fail 'APK filename must be vanillapay-monitor-MAJOR.MINOR.PATCH.apk.'
+    apk="$(cd -- "$(dirname -- "$apk")" && pwd -P)/$apk_name"
+fi
 target=$1 remote=$2
 port=${DEPLOY_SSH_PORT:-22} platform=${DEPLOY_PLATFORM:-linux/amd64} backup_dir=${DEPLOY_BACKUP_DIR:-}
 # These values are embedded as quoted arguments in a remote shell command.
@@ -33,6 +46,11 @@ if (( dry )); then
     else
         printf 'Build vanillapay:%s for %s. Pull pinned dependencies and save a compressed image archive.\n' "$tag" "$platform"
         printf 'SCP the images and Compose files to %s:%s. Back up any existing release, load images and start Compose offline.\n' "$target" "$remote"
+        if [[ -n $apk ]]; then
+            printf 'Compute SHA-256 and size, append %s to the shared APK directory, and save latest.json with this release.\n' "$apk_name"
+        else
+            printf 'Inherit the current release manifest if available.\n'
+        fi
     fi
     printf 'Verify /health/ready. Show recent logs and exit nonzero if startup fails.\n'
     exit 0
@@ -51,9 +69,13 @@ temp=$(mktemp -d)
 stage=''
 cleanup() {
     rm -f -- "$temp/release.tar.gz" "$temp/stack.tar.gz" "$temp/images.env"
+    if [[ -n $apk && -d $temp/downloads ]]; then
+        rm -f -- "$temp/downloads/latest.json" "$temp/downloads/$apk_name"
+        rmdir -- "$temp/downloads"
+    fi
     rmdir -- "$temp"
     if [[ -n $stage ]]; then
-        ssh "${ssh_args[@]}" "if test -d '$stage'; then rm -f -- '$stage'/release.tar.gz '$stage'/stack.tar.gz '$stage'/compose.yaml '$stage'/images.env '$stage'/deploy/apply-release.sh '$stage'/deploy/backup.sh '$stage'/deploy/common.sh '$stage'/deploy/proxy.conf '$stage'/deploy/restore.sh; rmdir -- '$stage/deploy' 2>/dev/null; rmdir -- '$stage'; fi" || true
+        ssh "${ssh_args[@]}" "if test -d '$stage'; then rm -rf -- '$stage'; fi" || true
     fi
 }
 trap cleanup EXIT
@@ -74,7 +96,21 @@ docker build --platform "$platform" -t "vanillapay:$tag" .
 docker image save --platform "$platform" "vanillapay:$tag" "$pg_alias" "$proxy_alias" |
     gzip -1 > "$temp/release.tar.gz"
 printf 'APP_IMAGE_TAG=%s\nPOSTGRES_IMAGE=%s\nPROXY_IMAGE=%s\n' "$tag" "$pg_alias" "$proxy_alias" > "$temp/images.env"
-tar -czf "$temp/stack.tar.gz" compose.yaml deploy/{apply-release,backup,common,restore}.sh deploy/proxy.conf
+files=(compose.yaml deploy/{apply-release,backup,common,restore}.sh deploy/proxy.conf)
+if [[ -n $apk ]]; then
+    mkdir -m 755 -- "$temp/downloads"
+    cp -- "$apk" "$temp/downloads/$apk_name"
+    apk_copy="$temp/downloads/$apk_name"
+    chmod 644 "$apk_copy"
+    sha=$(sha256sum < "$apk_copy")
+    size=$(wc -c < "$apk_copy")
+    version=${apk_name#vanillapay-monitor-}
+    printf '{"version":"%s","file":"%s","sha256":"%s","size":%d,"published_at":"%s"}\n' \
+        "${version%.apk}" "$apk_name" "${sha%% *}" "$size" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$temp/downloads/latest.json"
+    chmod 644 "$temp/downloads/latest.json"
+    files+=(-C "$temp" downloads)
+fi
+tar -czf "$temp/stack.tar.gz" "${files[@]}"
 
 uploaded=$(ssh "${ssh_args[@]}" "mktemp -d '$remote/.incoming.XXXXXXXX'")
 [[ $uploaded == "$remote/.incoming.${uploaded##*.}" && ${uploaded##*.} =~ ^[a-zA-Z0-9]{8}$ ]] || fail 'Unexpected remote staging path.'
