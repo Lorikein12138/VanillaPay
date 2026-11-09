@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
-import { expect, login, noOverflow, test, clickControl, polishShot } from './fixtures'
+import { expect, login, merchantVisualShots, noOverflow, test, clickControl, polishShot } from './fixtures'
 
 async function shot(page: Page, name: string) {
   const width = page.viewportSize()?.width
@@ -116,6 +116,10 @@ test('redeems a real binding code, reports receipts, opens a matched order and r
   const receipt = await receiptResponse.json() as { data: { receipt_id: string; match_state: string } }
   expect(receipt.data.match_state).toBe('matched')
   await page.reload()
+  await expect(page.getByRole('link', { name: trade, exact: true })).toBeVisible()
+  await merchantVisualShots(page, async () => {
+    await polishShot(page, 'receipt-filters', true, 'web-visual-polish-shots')
+  })
   await page.getByRole('button', { name: receipt.data.receipt_id, exact: true }).click()
   await expect(page.getByRole('dialog').locator('pre')).toHaveText(raw)
   await polishShot(page, 'receipt-detail-dialog', false)

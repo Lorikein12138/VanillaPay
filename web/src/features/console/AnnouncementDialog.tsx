@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi } from '@/api/client'
@@ -12,6 +13,7 @@ import { Notice } from '@/components/ui/notice'
 import { AccountError } from '@/features/auth/account-shared'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { localized } from '@/features/merchant/subscription-data'
+import { cn } from '@/lib/utils'
 import { bytes } from './manage-data'
 
 type Announcement = components['schemas']['PortalAnnouncementDTO']
@@ -49,6 +51,7 @@ export function AnnouncementDialog({
   const [conflict, setConflict] = useState<Conflict>()
   const [reviewedRevision, setReviewedRevision] = useState<number>()
   const [preview, setPreview] = useState(false)
+  const previewId = useId()
   const deleting = editor.mode === 'delete'
   const title = t(`consoleAnnouncements.${editor.mode}`)
   const submitLabel = t(
@@ -192,7 +195,7 @@ export function AnnouncementDialog({
             <DetailList
               columns={2}
               items={[
-                { label: t('consoleAnnouncements.revision'), value: current.revision, mono: true },
+                { label: t('consoleAnnouncements.revision'), value: <span className="tabular-nums">{current.revision}</span> },
                 { label: t('consoleAnnouncements.popup'), value: t(current.popup ? 'polish.enabled' : 'polish.notEnabled') },
                 ...fields.map(({ key, lang, label }) => ({
                   label: t(`consoleAnnouncements.${label}`),
@@ -226,11 +229,14 @@ export function AnnouncementDialog({
               {t('consoleAnnouncements.popup')}
             </Checkbox>
             <div>
-              <Button size="sm" variant="ghost" aria-expanded={preview} onClick={() => setPreview(!preview)}>
+              <Button size="sm" aria-expanded={preview} aria-controls={previewId} onClick={() => setPreview(!preview)}>
                 {t('consoleAnnouncements.preview')}
+                <ChevronDown aria-hidden="true" className={cn('transition-transform duration-150 motion-reduce:transition-none', preview && 'rotate-180')} />
               </Button>
               {preview && (
                 <DetailList
+                  id={previewId}
+                  className="mt-3"
                   items={[
                     {
                       wide: true,

@@ -51,6 +51,9 @@ async function shots(
         await page.keyboard.press('Escape')
       } else await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
       await polishShot(page, state, !drawer, directory, passwords)
+      if (state === 'settings-footer_legal' && process.env.WEB_VISUAL_POLISH === '1') {
+        await polishShot(page, 'settings-subsection-titles', true, 'web-visual-polish-shots', passwords)
+      }
       if (drawer) await page.keyboard.press('Escape')
     }
   }

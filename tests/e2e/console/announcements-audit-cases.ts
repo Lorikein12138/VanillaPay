@@ -33,7 +33,7 @@ function announcementRow(page: Page, title: string) {
 }
 
 export function registerAnnouncementAuditTests({ seed, captcha, signIn, control }: Helpers) {
-  async function shots(page: Page, state: string, prepare?: () => Promise<void>) {
+  async function shots(page: Page, state: string, prepare?: () => Promise<void>, visualState?: string) {
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
       for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
@@ -44,7 +44,10 @@ export function registerAnnouncementAuditTests({ seed, captcha, signIn, control 
         expect((await saved).status()).toBe(200)
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
         await prepare?.()
-        await polishShot(page, state, !prepare, 'console-announcements-audit-shots')
+        if (state) await polishShot(page, state, !prepare, 'console-announcements-audit-shots')
+        if (visualState && process.env.WEB_VISUAL_POLISH === '1') {
+          await polishShot(page, visualState, !prepare, 'web-visual-polish-shots')
+        }
         if (prepare) {
           await page.keyboard.press('Escape')
           await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -179,8 +182,12 @@ export function registerAnnouncementAuditTests({ seed, captcha, signIn, control 
         ? page.getByRole('list', { name: '操作记录卡片' })
         : page.getByRole('table', { name: '审计日志' })
       await records.getByRole('button', { name: '详情' }).first().click()
-      await expect(page.getByRole('dialog', { name: '操作详情' })).toContainText('管理员')
-    })
+      const dialog = page.getByRole('dialog', { name: '操作详情' })
+      await expect(dialog).toContainText('管理员')
+      await expect(dialog.getByText('请求 ID', { exact: true }).locator('..').locator('dd')).not.toBeEmpty()
+      await expect(dialog.getByText('安全元数据', { exact: true })).toBeVisible()
+      await dialog.locator('pre').scrollIntoViewIfNeeded()
+    }, 'audit-detail-with-metadata')
 
     // Render visual fixtures after the real lifecycle so the global popup stays live for the shortest time.
     let sample: Announcement | undefined
@@ -200,7 +207,24 @@ export function registerAnnouncementAuditTests({ seed, captcha, signIn, control 
       const warning = page.getByRole('dialog').getByText(/商户将再次看到弹窗/)
       await expect(warning).toBeVisible()
       await warning.scrollIntoViewIfNeeded()
+      const preview = page.getByRole('button', { name: '正文预览' })
+      await expect(preview).toHaveAttribute('aria-expanded', 'false')
+      await preview.click()
+      await expect(preview).toHaveAttribute('aria-expanded', 'true')
+      await expect(page.locator('dl').and(page.locator(`[id="${await preview.getAttribute('aria-controls')}"]`))).toBeVisible()
+      await preview.click()
     })
+    if (process.env.WEB_VISUAL_POLISH === '1') {
+      for (const expanded of [false, true]) {
+        await shots(page, '', async () => {
+          await announcementRow(page, updatedTitle).getByRole('button', { name: '编辑' }).click()
+          const preview = page.getByRole('button', { name: '正文预览' })
+          if (expanded) await preview.click()
+          await preview.scrollIntoViewIfNeeded()
+          if (expanded) await page.getByRole('dialog').locator('dl').scrollIntoViewIfNeeded()
+        }, expanded ? 'announcement-preview-expanded' : 'announcement-preview-collapsed')
+      }
+    }
     await shots(page, 'announcement-delete-dialog', async () => {
       await announcementRow(page, updatedTitle).getByRole('button', { name: '删除' }).click()
       await expect(page.getByRole('dialog', { name: '删除公告' })).toBeVisible()
@@ -235,6 +259,6 @@ export function registerAnnouncementAuditTests({ seed, captcha, signIn, control 
       await expect(dialog.getByText('未开启', { exact: true })).toBeInViewport()
       await expect(dialog.getByRole('checkbox', { name: '我已查看最新内容' })).not.toBeChecked()
       await expect(remove).toBeDisabled()
-    })
+    }, 'announcement-delete-conflict')
   })
 }

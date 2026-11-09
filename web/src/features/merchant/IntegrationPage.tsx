@@ -9,7 +9,7 @@ import { formatCountdown } from '@/components/ui/countdown'
 import { Dialog } from '@/components/ui/dialog'
 import { Field, FormActions } from '@/components/ui/field'
 import { Checkbox, Input, InputGroup, Textarea } from '@/components/ui/input'
-import { Card, Mono, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
+import { Card, Mono, Page, PageHeader, SectionHeader, Skeleton, SubsectionTitle } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
 import { invalidateCollection, validWhitelist, type Schema } from './collection-data'
 import { ModuleError, useLocalAction } from './CollectionParts'
@@ -40,8 +40,43 @@ export function IntegrationPage({ user }: { user: Schema['AuthUserDTO'] }) {
         }}>{secretAction.busy ? t('polish.loadingKey') : reveal ? t('polish.hideKey') : t('polish.showKey')}</Button>{reveal && <CopyButton value={currentKey} label={t('polish.copyKey')} />}<Button onClick={() => { hide(); setDialog('reset') }}>{t('polish.resetKey')}</Button></div></div>
         {secretAction.error != null && <ModuleError error={secretAction.error} />}
       </Card>
-      <Card><SectionHeader title={t('polish.apiGuide')} description={t('polish.v1SignsRequestsWithTheMerchantKey')} /><div className="grid gap-6 md:grid-cols-2">{(['v1', 'v2'] as const).map((version) => <div key={version}><h3 className="mb-4 font-mono">{version}</h3><dl className="space-y-4">{Object.entries(data[version]).map(([operation, url]) => <div key={operation}><dt className="mb-1.5 text-caption text-text-3">{operation}</dt><dd><CopyField value={url} /></dd></div>)}</dl></div>)}</div></Card>
-      <Card><SectionHeader title={t('polish.rsaPublicKeys')} /><div className="flex flex-col gap-4"><h3 className="text-label">{t('polish.merchantPublicKey')}</h3>{data.merchant_public_key ? <CopyField value={data.merchant_public_key} /> : <p className="text-label text-text-3">{t('polish.notConfigured')}</p>}<div><Button onClick={() => setDialog('rsa')}>{t('polish.saveMerchantPublicKey')}</Button></div></div><div className="mt-6 border-t-[0.5px] border-border pt-6"><h3 className="mb-4 text-label">{t('polish.platformPublicKeys')}</h3>{data.platform_public_keys.length ? data.platform_public_keys.map((item) => <div key={item.id} className="mt-4 space-y-2"><p className="text-caption text-text-3">{t('polish.fingerprint')}<Mono>{item.id}</Mono></p><CopyField value={item.pem} label={t('polish.copyPlatformPublicKey')} /></div>) : <p className="text-label text-text-3">{t('polish.noPlatformPublicKeys')}</p>}</div></Card>
+      <Card>
+        <SectionHeader title={t('polish.apiGuide')} description={t('polish.v1SignsRequestsWithTheMerchantKey')} />
+        <div className="grid gap-6 md:grid-cols-2">
+          {(['v1', 'v2'] as const).map((version) => (
+            <div key={version}>
+              <SubsectionTitle className="mb-4">{version}</SubsectionTitle>
+              <dl className="space-y-4">
+                {Object.entries(data[version]).map(([operation, url]) => (
+                  <div key={operation}>
+                    <dt className="mb-1.5 text-caption text-text-3">{operation}</dt>
+                    <dd><CopyField value={url} /></dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card>
+        <SectionHeader title={t('polish.rsaPublicKeys')} />
+        <div className="flex flex-col gap-4">
+          <SubsectionTitle>{t('polish.merchantPublicKey')}</SubsectionTitle>
+          {data.merchant_public_key
+            ? <CopyField value={data.merchant_public_key} />
+            : <p className="text-label text-text-3">{t('polish.notConfigured')}</p>}
+          <div><Button onClick={() => setDialog('rsa')}>{t('polish.saveMerchantPublicKey')}</Button></div>
+        </div>
+        <div className="mt-6 border-t-[0.5px] border-border pt-6">
+          <SubsectionTitle className="mb-4">{t('polish.platformPublicKeys')}</SubsectionTitle>
+          {data.platform_public_keys.length ? data.platform_public_keys.map((item) => (
+            <div key={item.id} className="mt-4 space-y-2">
+              <p className="text-caption text-text-3">{t('polish.fingerprint')}<Mono>{item.id}</Mono></p>
+              <CopyField value={item.pem} label={t('polish.copyPlatformPublicKey')} />
+            </div>
+          )) : <p className="text-label text-text-3">{t('polish.noPlatformPublicKeys')}</p>}
+        </div>
+      </Card>
       <WhitelistForm key={JSON.stringify(data.ip_whitelist)} name={name} value={data.ip_whitelist} />
     </>}
     {dialog && <SecurityDialog mode={dialog} user={user} onClose={() => setDialog(null)} onChanged={() => invalidateCollection(client, name)} />}

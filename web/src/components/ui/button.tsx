@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
  * Shared button styles. 44px default height keeps every target touch-sized;
  * `sm` uses compact horizontal padding while retaining the touch target.
  */
-export const buttonVariants = cva(
+const buttonStyles = cva(
   'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-control text-label font-medium transition-[background-color,color,border-color,opacity] duration-150 disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
@@ -30,8 +30,17 @@ export const buttonVariants = cva(
   },
 )
 
+/**
+ * Class string for button-styled elements such as links. Conflicting classes
+ * are merged so later variants win (e.g. `link` keeps `px-0` over the size's padding)
+ * even when the result is used without `cn`.
+ */
+export function buttonVariants(props?: VariantProps<typeof buttonStyles>) {
+  return cn(buttonStyles(props))
+}
+
 export type ButtonProps = ComponentPropsWithRef<'button'> &
-  VariantProps<typeof buttonVariants> & {
+  VariantProps<typeof buttonStyles> & {
     /** Shows a spinner and disables the button while keeping its label for screen readers. */
     loading?: boolean
   }

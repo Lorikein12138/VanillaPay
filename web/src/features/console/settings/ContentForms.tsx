@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox, Select, Textarea } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
-import { Card, SectionHeader } from '@/components/ui/layout'
+import { Card, SubsectionTitle } from '@/components/ui/layout'
 import { AccountField } from '@/features/auth/account-shared'
 import { newFooterItem, type Schema as S } from '../settings-data'
 
@@ -75,7 +75,7 @@ export function FooterForm({
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3">
-        <SectionHeader as="h3" title={t('consoleSettings.footerLinks')} className="mb-0" />
+        <SubsectionTitle>{t('consoleSettings.footerLinks')}</SubsectionTitle>
         {items.length === 0 && <p className="m-0 text-label text-text-3">{t('consoleSettings.footerEmpty')}</p>}
         {items.map((item, index) => (
           <Card key={item.id} className="space-y-3 p-3 sm:p-4">
@@ -168,7 +168,7 @@ export function FooterForm({
       <Notice tone="info">{t('consoleSettings.legalVersionNotice')}</Notice>
       {(['terms', 'privacy'] as const).map((kind) => (
         <div key={kind} className="space-y-3">
-          <SectionHeader as="h3" title={t(`consoleSettings.${kind}`)} />
+          <SubsectionTitle className="mb-5">{t(`consoleSettings.${kind}`)}</SubsectionTitle>
           <Field label={t('consoleSettings.zhContent')} htmlFor={`${kind}-zh`} error={errorText(kind)}>
             <Textarea
               id={`${kind}-zh`}

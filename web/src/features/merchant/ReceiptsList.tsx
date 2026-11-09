@@ -8,7 +8,7 @@ import { DetailList } from '@/components/ui/detail-list'
 import { Dialog } from '@/components/ui/dialog'
 import { Field, FieldGrid, FormActions } from '@/components/ui/field'
 import { Input, Select } from '@/components/ui/input'
-import { Card, EmptyState, SectionHeader, Skeleton } from '@/components/ui/layout'
+import { Card, EmptyState, Identifier, SectionHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
 import { Table, Th, Td } from '@/components/ui/table'
 import { unmatchedReasons, type ReceiptFilters, type Schema } from './collection-data'
@@ -16,6 +16,16 @@ import { ModuleError } from './CollectionParts'
 import { localDateInput, orderChannels } from './orders-data'
 import { OrderChannel, OrderTime } from './OrderParts'
 import { money } from './overview-data'
+
+function ReceiptOrderLink({ tradeNo }: { tradeNo: string | null }) {
+  if (!tradeNo) return null
+  return (
+    <Link to="/orders/$tradeNo" params={{ tradeNo }} search={{}} aria-label={tradeNo}
+      className="inline-flex min-h-11 max-w-full items-center text-accent-text">
+      <Identifier value={tradeNo} className="text-caption" />
+    </Link>
+  )
+}
 
 export function ReceiptsList({ name, filters, onFilters }: { name: string; filters: ReceiptFilters; onFilters: (value: ReceiptFilters) => void }) {
   const { t, i18n } = useTranslation()
@@ -25,7 +35,7 @@ export function ReceiptsList({ name, filters, onFilters }: { name: string; filte
   const items = receipts.data?.pages.flatMap((page) => page.items ?? []) ?? []
   const state = (item: Schema['PortalReceiptDTO']) => <>{item.match_state === 'matched' ? t('polish.matched') : t('polish.unmatched')}{item.unmatched_reason && <> · {t(unmatchedReasons[item.unmatched_reason] ?? 'polish.unknownReason')}</>}</>
   const idButton = (item: Schema['PortalReceiptDTO']) => <Button variant="link" className="max-w-full whitespace-normal text-left font-mono [overflow-wrap:anywhere]" onClick={() => setSelected(item.id)}>{item.id}</Button>
-  const trade = (item: Schema['PortalReceiptDTO']) => item.trade_no && <Link to="/orders/$tradeNo" params={{ tradeNo: item.trade_no }} search={{}} className="inline-flex min-h-11 items-center font-mono text-caption text-accent-text [overflow-wrap:anywhere]">{item.trade_no}</Link>
+  const trade = (item: Schema['PortalReceiptDTO']) => <ReceiptOrderLink tradeNo={item.trade_no ?? null} />
   return <section aria-label={t('polish.receipts')} className="flex min-w-0 flex-col gap-5"><SectionHeader title={t('polish.receipts')} className="mb-0" />
     <ReceiptFilterForm key={JSON.stringify(filters)} filters={filters} onFilters={onFilters} />
     {receipts.isPending && <Skeleton className="h-64" />}
@@ -63,7 +73,7 @@ function ReceiptDetail({ name, id, onClose }: { name: string; id: string; onClos
       { label: t('polish.receiptId'), value: item.id, mono: true }, { label: t('polish.eventId'), value: item.event_id, mono: true }, { label: t('polish.deviceId'), value: item.device_id, mono: true }, { label: t('polish.paymentChannel'), value: <OrderChannel channel={item.channel} /> }, { label: t('polish.paymentAmount'), value: money(item.amount_cents, i18n.resolvedLanguage ?? 'zh-CN') },
       { label: t('polish.occurredAt'), value: <OrderTime value={item.occurred_at} /> }, { label: t('polish.receivedAt'), value: <OrderTime value={item.received_at} /> }, { label: t('polish.providerTransactionId'), value: item.provider_trade_no ?? '—' }, { label: t('polish.payerHint'), value: item.payer_hint ?? '—' },
       { label: t('polish.matchStatus'), value: item.match_state === 'matched' ? t('polish.matched') : t('polish.unmatched') }, { label: t('polish.unmatchedReason'), value: item.unmatched_reason ? t(unmatchedReasons[item.unmatched_reason] ?? 'polish.unknownReason') : '—' },
-      { label: t('polish.matchedOrder'), value: item.trade_no && <Link to="/orders/$tradeNo" params={{ tradeNo: item.trade_no }} search={{}} className="inline-flex min-h-11 items-center text-accent-text">{item.trade_no}</Link>, mono: true },
+      { label: t('polish.matchedOrder'), value: item.trade_no ? <ReceiptOrderLink tradeNo={item.trade_no} /> : null },
       { label: t('polish.rawText'), value: <pre className="m-0 whitespace-pre-wrap rounded-control bg-muted p-3 font-mono text-caption [overflow-wrap:anywhere]">{item.raw_text ?? '—'}</pre>, wide: true },
     ]} />}
   </Dialog>

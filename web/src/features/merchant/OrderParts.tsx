@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
 import { StatusDot } from '@/components/StatusDot'
+import { Identifier } from '@/components/ui/layout'
 import { RecordLink } from '@/components/ui/records'
 import { Table, Td, Th } from '@/components/ui/table'
 import { money } from './overview-data'
@@ -48,9 +49,10 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
       to={role === 'console' ? '/console/orders/$tradeNo' : '/orders/$tradeNo'}
       params={{ tradeNo: order.trade_no }}
       search={filters}
-      className="font-mono text-[13px] text-text underline decoration-border-strong underline-offset-4 [overflow-wrap:anywhere] hover:text-accent-text hover:decoration-current"
+      aria-label={order.trade_no}
+      className="text-text underline decoration-border-strong underline-offset-4 hover:text-accent-text hover:decoration-current"
     >
-      {order.trade_no}
+      <Identifier value={order.trade_no} />
     </Link>
   )
   return (
@@ -72,7 +74,7 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
             <tr key={order.trade_no} className="transition-colors hover:bg-hover/50">
               <Td className="w-[30%] max-w-[260px]">
                 {link(order)}
-                <div className="mt-1 font-mono text-caption text-text-3 [overflow-wrap:anywhere]">{order.out_trade_no}</div>
+                <div className="mt-1 text-text-3"><Identifier value={order.out_trade_no} className="text-caption" /></div>
               </Td>
               {role === 'console' && <Td className="max-w-[160px]"><RecordLink to={'/console/merchants/' + order.merchant_id}>{order.merchant_username}</RecordLink></Td>}
               <Td className="max-w-[220px] break-words">{order.name}</Td>
@@ -96,7 +98,7 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
               {t('manage.merchant')} · <RecordLink to={'/console/merchants/' + order.merchant_id}>{order.merchant_username}</RecordLink>
             </p>}
             <p className="m-0 mt-0.5 font-mono text-caption text-text-3 [overflow-wrap:anywhere]">
-              {t('merchant.orders.outTradeNo')} · {order.out_trade_no}
+              {t('merchant.orders.outTradeNo')} · <Identifier value={order.out_trade_no} className="text-caption" />
             </p>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t-[0.5px] border-border pt-3 text-caption text-text-2">
               <OrderStatus status={order.status} />

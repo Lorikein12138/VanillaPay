@@ -1,6 +1,6 @@
 import { createLink } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
-import type { AnchorHTMLAttributes, HTMLAttributes, ReactNode, Ref } from 'react'
+import { Fragment, type AnchorHTMLAttributes, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import { cn } from '@/lib/utils'
 
 /** Page container shared by every merchant page. */
@@ -92,6 +92,11 @@ export function SectionHeader({
   )
 }
 
+/** A smaller, sans-serif heading within a card. */
+export function SubsectionTitle({ className, children }: { className?: string; children: ReactNode }) {
+  return <h3 className={cn('m-0 font-sans text-body font-medium text-text', className)}>{children}</h3>
+}
+
 /** Muted centered message for empty lists. */
 export function EmptyState({ icon, title, children }: { icon?: ReactNode; title: ReactNode; children?: ReactNode }) {
   return (
@@ -110,4 +115,29 @@ export function Skeleton({ className }: { className?: string }) {
 /** Monospace identifier; wraps only where it must (narrow screens). */
 export function Mono({ className, children }: { className?: string; children: ReactNode }) {
   return <span className={cn('font-mono text-[13px] [overflow-wrap:anywhere]', className)}>{children}</span>
+}
+
+/** Prefer hyphen breaks without leaving short prefixes or suffixes on a line of their own. */
+export function Identifier({ value, className }: { value: string; className?: string }) {
+  const groups: string[] = []
+  let pending = ''
+  for (const part of value.match(/[^-]*-+|[^-]+/g) ?? []) {
+    pending += part
+    if (pending.length >= 4) {
+      groups.push(pending)
+      pending = ''
+    }
+  }
+  if (pending) groups.push((groups.pop() ?? '') + pending)
+
+  return (
+    <Mono className={cn('min-w-0 [text-decoration:inherit]', className)}>
+      {groups.map((group, index) => (
+        <Fragment key={index}>
+          {index > 0 && <wbr />}
+          <span className="inline-block max-w-full text-balance [text-decoration:inherit]">{group}</span>
+        </Fragment>
+      ))}
+    </Mono>
+  )
 }

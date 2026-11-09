@@ -222,15 +222,12 @@ export function AuditDetails({
           },
           { label: t('audit.time'), value: <OrderTime value={item.created_at} /> },
           { label: t('audit.ip'), value: item.ip ?? '—', mono: true },
+          { label: t('audit.request'), value: <CopyText value={item.request_id} label={t('audit.copyRequest')} />, wide: true },
         ]}
       />
-      <div className="mt-5">
-        <p className="text-caption text-text-3">{t('audit.request')}</p>
-        <CopyText value={item.request_id} label={t('audit.copyRequest')} />
-      </div>
       {item.safe_metadata && Object.keys(item.safe_metadata).length > 0 && (
-        <div className="mt-5">
-          <p className="text-caption text-text-3">{t('audit.metadata')}</p>
+        <div className="border-t-[0.5px] border-border pt-3.5">
+          <p className="mb-1 mt-0 text-caption text-text-3">{t('audit.metadata')}</p>
           <pre className="m-0 whitespace-pre-wrap rounded-control bg-muted p-4">
             <Mono>{JSON.stringify(item.safe_metadata, null, 2)}</Mono>
           </pre>

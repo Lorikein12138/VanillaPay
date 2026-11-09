@@ -195,7 +195,7 @@ describe('console announcements', () => {
     const dialog = await open('删除', '删除公告')
     const remove = dialog.getByRole<HTMLButtonElement>('button', { name: '删除' })
     const review = () => dialog.getByRole('checkbox', { name: '我已查看最新内容' })
-    const detail = (value: string) => dialog.getByText(value, { selector: 'dd', normalizer: (text) => text })
+    const detail = (value: string) => dialog.getByText((_, node) => node?.textContent === value, { selector: 'dd' })
     function verifyBlocked() {
       expect(review()).not.toBeChecked()
       expect(remove).toBeDisabled()

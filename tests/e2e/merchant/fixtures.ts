@@ -79,6 +79,17 @@ export async function clickControl(page: Page, name: string) {
   await control.click()
   await closeMenu(page)
 }
+
+export async function merchantVisualShots(page: Page, capture: () => Promise<void>) {
+  if (process.env.WEB_VISUAL_POLISH !== '1' || ![360, 1280].includes(page.viewportSize()!.width)) return
+  const previous = await page.locator('html').getAttribute('data-theme')
+  for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
+    await clickControl(page, label)
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    await capture()
+  }
+  await clickControl(page, previous === 'dark' ? '深色' : '浅色')
+}
 export async function polishShot(
   page: Page,
   name: string,
