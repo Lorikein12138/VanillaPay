@@ -4,13 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api, consoleApi, onUnauthorized, type ConsoleRecovery } from '@/api/client'
+import { APIError, api, consoleApi, onUnauthorized, type ConsoleRecovery } from '@/api/client'
 import type { components } from '@/api/schema'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { consoleDestination, consoleSafePath, safePath } from '@/lib/redirect'
 import { createI18n } from '@/lib/i18n'
 import { publicConfigQuery } from '@/lib/public-config'
+import { Route as ConsoleRoute } from '@/routes/console'
 import { emptyStats } from '../merchant/fixtures'
 import { controlPublicConfigReads } from '../public-config-fixture'
 
@@ -112,6 +113,16 @@ describe('role-scoped CSRF', () => {
 })
 
 describe('console guards and login', () => {
+  it('rethrows a non-FORBIDDEN 403 from the console guard unchanged', async () => {
+    const banned = new APIError(403, { code: 'ACCOUNT_BANNED', message: 'ACCOUNT_BANNED', fields: {}, details: {} })
+    const load = vi.spyOn(consoleApi, 'me').mockRejectedValue(banned)
+    const router = createAppRouter({ history: createMemoryHistory() })
+    const beforeLoad = ConsoleRoute.options.beforeLoad!
+    const location = router.buildLocation({ to: '/console' })
+    await expect(beforeLoad({ location } as Parameters<typeof beforeLoad>[0])).rejects.toBe(banned)
+    expect(load).toHaveBeenCalledExactlyOnceWith(false)
+  })
+
   it.each([401, 403])('redirects console %i to console login with a safe redirect', async (status) => {
     server.use(http.get('*/api/v1/console/me', () => failure(status, status === 403 ? 'FORBIDDEN' : 'UNAUTHENTICATED')))
     const { router } = mount('/console/not-implemented?state=paid')
@@ -217,6 +228,59 @@ describe('console guards and login', () => {
 })
 
 describe('repair-only recovery', () => {
+  it('retries a validation failure using the original repair credential', async () => {
+    const result = recovery()
+    const attempts: { token: string | null; body: unknown }[] = []
+    server.use(
+      http.post('*/api/v1/console/recovery', () => success(result)),
+      http.put('*/api/v1/console/settings/security', async ({ request }) => {
+        attempts.push({ token: request.headers.get('X-CSRF-Token'), body: await request.json() })
+        return attempts.length === 1 ? failure(400, 'VALIDATION_ERROR') : success({ version: 8, value: {} })
+      }),
+    )
+    const { router } = mount('/console/recovery')
+    const actor = await enterRecovery()
+    const submit = screen.getByRole('button', { name: '保存并结束修复' })
+    await actor.click(submit)
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(router.state.location.pathname).toBe('/console/recovery')
+    expect(submit).toBeEnabled()
+    fireEvent.change(screen.getByLabelText('Turnstile Site Key'), { target: { value: 'updated-site-key' } })
+    await actor.click(submit)
+    expect(await screen.findByText('已修复，请登录。')).toBeVisible()
+    expect(attempts).toEqual(['public-site', 'updated-site-key'].map((turnstile_site_key) => ({
+      token: result.csrf_token,
+      body: { expected_version: 7, value: { turnstile_site_key, allowed_hostname: 'pay.example.test' } },
+    })))
+  })
+
+  it('aborts an in-flight repair PUT on navigation and ignores its late success', async () => {
+    let release!: () => void, signal: AbortSignal | undefined
+    const pending = new Promise<void>((resolve) => { release = resolve })
+    server.use(
+      http.post('*/api/v1/console/recovery', () => success(recovery())),
+      http.put('*/api/v1/console/settings/security', async ({ request }) => {
+        signal = request.signal
+        await pending
+        return success({ version: 8, value: {} })
+      }),
+    )
+    const { router } = mount('/console/recovery')
+    try {
+      const actor = await enterRecovery()
+      await actor.click(screen.getByRole('button', { name: '保存并结束修复' }))
+      await waitFor(() => expect(signal?.aborted).toBe(false))
+      await act(async () => { await router.navigate({ to: '/console/login' }) })
+      await screen.findByLabelText('用户名 / 邮箱')
+      expect(signal?.aborted).toBe(true)
+      await act(async () => { release(); await pending })
+      expect(router.state.location.pathname).toBe('/console/login')
+      expect(screen.queryByText('已修复，请登录。')).not.toBeInTheDocument()
+    } finally {
+      release()
+    }
+  })
+
   it('refreshes the Turnstile key before going to login in the same document', async () => {
     const result = recovery({ security: { turnstile_site_key: '', allowed_hostname: '', turnstile_secret_configured: false } })
     let published = { ...config.turnstile, configured: false, site_key: '' }

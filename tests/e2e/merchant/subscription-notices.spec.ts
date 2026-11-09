@@ -1,20 +1,28 @@
 import type { Page } from '@playwright/test'
-import { clickControl, expect, login, merchantVisualShots, openMenu, polishShot, test } from './fixtures'
+import type { components } from '../../../web/src/api/schema'
+import { expect, login, merchantVisualShots, openMenu, polishShot, selectScreenshotTheme, test } from './fixtures'
 
 async function signIn(page: Page, account: Parameters<typeof login>[1], path: string) {
   await page.goto(`/login?redirect=${encodeURIComponent(path)}`)
   await login(page, account)
   await expect(page).toHaveURL(new RegExp(path+'$'))
-  await clickControl(page, page.viewportSize()?.width === 360 ? '深色' : '浅色')
+  await selectScreenshotTheme(page, page.viewportSize()?.width === 360 ? 'dark' : 'light')
 }
-async function shot(page: Page, name: string) {
-  if (![360, 1280].includes(page.viewportSize()!.width)) return
-  const previous = await page.locator('html').getAttribute('data-theme')
-  for (const theme of ['light', 'dark']) {
-    await page.evaluate((value) => { document.documentElement.dataset.theme = value }, theme)
-    await polishShot(page, name, !name.includes('dialog'), 'merchant-subscription-notices-shots')
+async function shot(page: Page, name: string, open?: () => Promise<void>) {
+  if ([360, 1280].includes(page.viewportSize()!.width)) {
+    const previous = await page.locator('html').getAttribute('data-theme')
+    for (const theme of ['light', 'dark'] as const) {
+      await selectScreenshotTheme(page, theme)
+      await open?.()
+      await polishShot(page, name, !open, 'merchant-subscription-notices-shots')
+      if (open) {
+        await page.keyboard.press('Escape')
+        await expect(page.getByRole('dialog')).toHaveCount(0)
+      }
+    }
+    await selectScreenshotTheme(page, previous === 'dark' ? 'dark' : 'light')
   }
-  await page.evaluate((value) => { document.documentElement.dataset.theme = value ?? 'light' }, previous)
+  await open?.()
 }
 async function nav(page: Page, name: string) {
   await openMenu(page)
@@ -28,8 +36,7 @@ test('purchases a plan, keeps the cashier URL unchanged, cancels it and shows bo
   const card = page.getByRole('region', { name: '基础套餐', exact: true })
   await expect(card.getByRole('button', { name: '购买套餐' })).toBeEnabled()
   await shot(page, 'subscription')
-  await card.getByRole('button', { name: '购买套餐' }).click()
-  await shot(page, 'purchase-dialog')
+  await shot(page, 'purchase-dialog', () => card.getByRole('button', { name: '购买套餐' }).click())
   const creating = page.waitForResponse((response) => response.url().endsWith('/subscription/purchases') && response.request().method() === 'POST')
   await page.getByRole('button', { name: '确认并创建订单' }).click()
   const created = await creating
@@ -45,8 +52,7 @@ test('purchases a plan, keeps the cashier URL unchanged, cancels it and shows bo
   await expect(page.getByRole('link', { name: '去支付' })).toHaveAttribute('href', cashier)
   await expect(card.getByRole('button', { name: '购买套餐' })).toBeDisabled()
   await shot(page, 'pending-subscription')
-  await page.getByRole('button', { name: '取消订单', exact: true }).click()
-  await shot(page, 'cancel-purchase-dialog')
+  await shot(page, 'cancel-purchase-dialog', () => page.getByRole('button', { name: '取消订单', exact: true }).click())
   const canceling = page.waitForResponse((response) => response.url().endsWith(`/purchases/${data.id}/cancel`))
   await page.getByRole('button', { name: '确认取消订单' }).click()
   expect((await canceling).status()).toBe(200)
@@ -66,25 +72,23 @@ test('purchases a plan, keeps the cashier URL unchanged, cancels it and shows bo
     await page.evaluate(() => window.scrollTo(0, 0))
   }
   await shot(page, 'audit-logs')
-  await page.getByRole('button', { name: '详情', exact: true }).filter({ visible: true }).first().click()
+  const details = page.getByRole('button', { name: '详情', exact: true }).filter({ visible: true }).first()
+  await shot(page, 'audit-details-dialog', () => details.click())
   await expect(page.getByRole('dialog', { name: '操作详情' })).toBeVisible()
-  await shot(page, 'audit-details-dialog')
 })
 
 test('requires explicit forfeiture consent for switching a live plan', async ({ page, request, account }) => {
   expect((await request.post('/__e2e/subscription', { data: { pid: account.pid, active: true } })).ok()).toBe(true)
   await signIn(page, account, '/subscription')
   const card = page.getByRole('region', { name: '进阶套餐', exact: true })
-  await card.getByRole('button', { name: '更换套餐' }).click()
+  await shot(page, 'switch-purchase-dialog', () => card.getByRole('button', { name: '更换套餐' }).click())
   await expect(page.getByRole('note')).toContainText('剩余时间将在支付完成后作废')
   const submit = page.getByRole('button', { name: '确认并创建订单' })
   await expect(submit).toBeDisabled()
-  await shot(page, 'switch-purchase-dialog')
   await page.getByRole('checkbox').check(); await expect(submit).toBeEnabled()
   await page.getByRole('button', { name: '关闭', exact: true }).click()
   const current = page.getByRole('region', { name: '基础套餐', exact: true })
-  await current.getByRole('button', { name: '续费套餐' }).click()
-  await shot(page, 'renew-purchase-dialog')
+  await shot(page, 'renew-purchase-dialog', () => current.getByRole('button', { name: '续费套餐' }).click())
 })
 
 test('reads notifications before internal navigation and clears the unread badge', async ({ page, request, account }) => {
@@ -135,9 +139,24 @@ test('acknowledges the current popup revision and does not reopen it after refre
   const dialog = page.getByRole('dialog', { name: '平台收款服务使用说明', exact: true })
   await expect(dialog).toBeVisible()
   await expect(dialog).toContainText('请保持监控设备在线')
-  // Set the document theme without opening a second modal over the popup.
-  await page.evaluate((theme) => { document.documentElement.dataset.theme = theme }, page.viewportSize()?.width === 360 ? 'dark' : 'light')
-  await shot(page, 'announcement-dialog')
+  if ([360, 1280].includes(page.viewportSize()!.width)) {
+    // The announcement blocks the theme controls. Persist preferences directly
+    // and reload without acknowledging the announcement.
+    const session = await page.request.get('/api/v1/merchant/me')
+    expect(session.ok()).toBe(true)
+    const { data } = await session.json() as { data: components['schemas']['SessionIdentity'] }
+    for (const theme of ['light', 'dark'] as const) {
+      const saved = await page.request.patch('/api/v1/merchant/preferences', {
+        headers: { Origin: new URL(page.url()).origin, 'X-CSRF-Token': data.csrf_token },
+        data: { locale: data.user.locale, theme },
+      })
+      expect(saved.status()).toBe(200)
+      await page.reload()
+      await expect(dialog).toBeVisible()
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      await polishShot(page, 'announcement-dialog', false, 'merchant-subscription-notices-shots')
+    }
+  }
   const reading = page.waitForResponse((response) => /\/announcements\/[^/]+\/read$/.test(new URL(response.url()).pathname))
   await dialog.getByRole('button', { name: '知道了' }).click()
   const response = await reading; expect(response.status()).toBe(200)

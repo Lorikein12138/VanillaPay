@@ -44,6 +44,53 @@ function mount(path: string) {
 function binding(expires = 300): Schema['DeviceBindingDTO'] { return { binding_id: crypto.randomUUID(), code: crypto.randomUUID(), qr_content: 'vanillapay://bind?code=fixture', expires_at: new Date(Date.now() + expires * 1000).toISOString() } }
 
 describe('binding lifecycle', () => {
+  it('invalidates a late binding creation once without polling after unmount', async () => {
+    let release!: (value: Schema['DeviceBindingDTO']) => void
+    const create = vi.spyOn(api, 'createBinding').mockImplementation(() => new Promise((resolve) => { release = resolve }))
+    const poll = vi.spyOn(api, 'binding').mockResolvedValue({ state: 'pending', device: null, expires_at: binding().expires_at })
+    const changed = vi.fn().mockResolvedValue(undefined)
+    const { unmount } = wrapper(<BindingDialog replace={false} onClose={() => {}} onChanged={changed} />)
+    fireEvent.click(screen.getByRole('button', { name: '生成绑定码' }))
+    expect(create).toHaveBeenCalledOnce()
+    unmount()
+    await act(() => { release(binding()); return Promise.resolve() })
+    expect(changed).toHaveBeenCalledOnce()
+    expect(poll).not.toHaveBeenCalled()
+  })
+
+  it.each(['close', 'expire and regenerate'] as const)('ignores a late consumed response after %s', async (exit) => {
+    vi.useFakeTimers()
+    const old = binding(1), next = binding()
+    const changed = vi.fn().mockResolvedValue(undefined)
+    let release!: (value: Awaited<ReturnType<typeof api.binding>>) => void
+    vi.spyOn(api, 'createBinding').mockResolvedValueOnce(old).mockResolvedValueOnce(next)
+    const poll = vi.spyOn(api, 'binding')
+      .mockImplementationOnce(() => new Promise((resolve) => { release = resolve }))
+      .mockResolvedValue({ state: 'pending', device: null, expires_at: next.expires_at })
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return open ? <BindingDialog replace={false} onClose={() => setOpen(false)} onChanged={changed} /> : null
+    }
+    wrapper(<Host />)
+    await act(() => { fireEvent.click(screen.getByRole('button', { name: '生成绑定码' })); return Promise.resolve() })
+    expect(screen.getByTestId('binding-code')).toHaveTextContent(old.code)
+    const signal = poll.mock.calls[0]?.[1]
+    expect(signal?.aborted).toBe(false)
+    if (exit === 'close') {
+      fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    } else {
+      await act(() => vi.advanceTimersByTimeAsync(1000))
+      await act(() => { fireEvent.click(screen.getByRole('button', { name: '重新生成' })); return Promise.resolve() })
+      expect(screen.getByTestId('binding-code')).toHaveTextContent(next.code)
+    }
+    expect(signal?.aborted).toBe(true)
+    await act(() => { release({ state: 'consumed', device: null, expires_at: old.expires_at }); return Promise.resolve() })
+    expect(changed).toHaveBeenCalledTimes(exit === 'close' ? 1 : 2)
+    expect(screen.queryByText('设备已绑定')).not.toBeInTheDocument()
+    if (exit === 'close') expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    else expect(screen.getByTestId('binding-code')).toHaveTextContent(next.code)
+  })
+
   it.each(['consumed', 'expired'])('polls pending then %s, refreshes on consumption and stops', async (state) => {
     const value = binding(), changed = vi.fn().mockResolvedValue(undefined)
     vi.spyOn(api, 'createBinding').mockResolvedValue(value)
@@ -92,6 +139,61 @@ describe('binding lifecycle', () => {
 })
 
 describe('security proof and one-time key', () => {
+  const integration: Schema['Integration'] = {
+    pid: user.pid!, key: 'fixture-current-key', key_version: 1, base_url: 'https://example.test',
+    v1: { submit: '', mapi: '', query: '', refund: '' }, v2: { submit: '', create: '', query: '', refund: '' },
+    merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] },
+  }
+
+  it.each(['open and close reset', 'leave and return'] as const)('does not display or cache a late key read after %s', async (exit) => {
+    let release!: (value: Schema['Integration']) => void
+    const lateKey = crypto.randomUUID()
+    const get = vi.spyOn(api, 'integration').mockResolvedValue(integration)
+      .mockImplementationOnce(() => Promise.resolve(integration))
+      .mockImplementationOnce(() => new Promise((resolve) => { release = resolve }))
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <><button onClick={() => setOpen(!open)}>{open ? '离开' : '返回'}</button>{open && <IntegrationPage user={user} />}</>
+    }
+    const { client } = wrapper(<Host />)
+    fireEvent.click(await screen.findByRole('button', { name: '显示 Key' }))
+    expect(get).toHaveBeenCalledTimes(2)
+    if (exit === 'open and close reset') {
+      fireEvent.click(screen.getByRole('button', { name: /^重置 Key$/ }))
+      fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: '离开' }))
+      fireEvent.click(screen.getByRole('button', { name: '返回' }))
+    }
+    await act(() => { release({ ...integration, key: lateKey }); return Promise.resolve() })
+    expect(await screen.findByRole('button', { name: '显示 Key' })).toBeEnabled()
+    expect(screen.queryByText(lateKey)).not.toBeInTheDocument()
+    expect(JSON.stringify(client.getQueryCache().getAll())).not.toContain(lateKey)
+    expect(JSON.stringify(client.getMutationCache().getAll())).not.toContain(lateKey)
+  })
+
+  it('invalidates a late key reset once without exposing the key or proof in a rebuilt dialog', async () => {
+    const key = crypto.randomUUID(), changed = vi.fn().mockResolvedValue(undefined)
+    let release!: (value: Awaited<ReturnType<typeof api.resetKey>>) => void
+    const reset = vi.spyOn(api, 'resetKey').mockImplementation(() => new Promise((resolve) => { release = resolve }))
+    function Host({ generation }: { generation: number }) {
+      return <SecurityDialog key={generation} mode="reset" user={user} onClose={() => {}} onChanged={changed} />
+    }
+    const client = createQueryClient(), i18n = createI18n()
+    const view = (generation: number) => <AppProviders i18n={i18n} queryClient={client}><Host generation={generation} /></AppProviders>
+    const { rerender } = render(view(1))
+    fireEvent.change(screen.getByLabelText('邮箱验证码'), { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: '确认重置 Key' }))
+    expect(reset).toHaveBeenCalledOnce()
+    rerender(view(2))
+    await act(() => { release({ key, pid: user.pid!, key_version: 2 }); return Promise.resolve() })
+    expect(changed).toHaveBeenCalledOnce()
+    expect(screen.getByLabelText('邮箱验证码')).toHaveValue('')
+    expect(screen.queryByTestId('one-time-key')).not.toBeInTheDocument()
+    expect(JSON.stringify(client.getQueryCache().getAll())).not.toContain(key)
+    expect(JSON.stringify(client.getMutationCache().getAll())).not.toContain(key)
+  })
+
   it('keeps the returned key out of caches/storage and destroys the display when closed', async () => {
     const secret = crypto.randomUUID(), changed = vi.fn().mockResolvedValue(undefined)
     vi.spyOn(api, 'resetKey').mockResolvedValue({ key: secret, pid: user.pid!, key_version: 2 })
@@ -156,6 +258,56 @@ describe('security proof and one-time key', () => {
 })
 
 describe('collection bounds and cache invalidation', () => {
+  it('sends all four order writes with the caller idempotency keys and session credentials', async () => {
+    await api.me()
+    const fetchOptions = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(success(null)))
+    const keys = ['supplement-key', 'refund-key', 'resolve-key', 'replay-key']
+    await api.supplement('trade-1', { reason: 'fixture' }, keys[0]!)
+    await api.refund('trade-1', { reason: 'fixture', confirm: true }, keys[1]!)
+    await api.resolveRefund('refund-1', { reason: 'fixture', confirm: false, action: 'reject' }, keys[2]!)
+    await api.replayCallback('trade-1', keys[3]!)
+    expect(fetchOptions.mock.calls.map(([url, options]) => [
+      url, options?.method, options?.credentials,
+      new Headers(options?.headers).get('Idempotency-Key'),
+    ])).toEqual([
+      ['/api/v1/merchant/orders/trade-1/supplement', 'POST', 'include', keys[0]],
+      ['/api/v1/merchant/orders/trade-1/refund', 'POST', 'include', keys[1]],
+      ['/api/v1/merchant/refunds/refund-1/resolve', 'POST', 'include', keys[2]],
+      ['/api/v1/merchant/orders/trade-1/callback-replay', 'POST', 'include', keys[3]],
+    ])
+  })
+
+  it('lets fetch set the multipart content type and retains CSRF for PUT, PATCH and DELETE', async () => {
+    await api.me()
+    const fetchOptions = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(success(null)))
+    const file = new File(['fixture'], 'code.png', { type: 'image/png' })
+    await api.uploadQR('alipay', file)
+    await api.setQREnabled('alipay', true)
+    await api.unbindDevice()
+    expect(fetchOptions.mock.calls.map(([, options]) => [
+      options?.method, new Headers(options?.headers).get('X-CSRF-Token'),
+    ])).toEqual(['PUT', 'PATCH', 'DELETE'].map((method) => [method, identity.csrf_token]))
+    const multipart = fetchOptions.mock.calls[0]?.[1]
+    expect(new Headers(multipart?.headers).has('Content-Type')).toBe(false)
+    expect(multipart?.body).toBeInstanceOf(FormData)
+    expect((multipart?.body as FormData).get('file')).toBe(file)
+  })
+
+  it('notifies global logout once for a protected UNAUTHENTICATED response', async () => {
+    await api.me()
+    const unauthorized = vi.fn()
+    onUnauthorized(unauthorized)
+    server.use(http.get('*/api/v1/merchant/device', () => HttpResponse.json({
+      error: { code: 'UNAUTHENTICATED', message: '' },
+    }, { status: 401 })))
+    try {
+      await expect(api.device()).rejects.toMatchObject({ status: 401, problem: { code: 'UNAUTHENTICATED' } })
+      expect(unauthorized).toHaveBeenCalledOnce()
+    } finally {
+      onUnauthorized(() => {})
+    }
+  })
+
   it('converts yuan/cents exactly and validates nullable settings against response bounds', () => {
     expect(yuanToCents('0.29')).toBe(29); expect(yuanToCents('1.01')).toBe(101); expect(centsToYuan(29)).toBe('0.29')
     for (const value of ['1.001', '-1', '1e2', 'NaN', '9007199254740992']) expect(yuanToCents(value)).toBeNull()

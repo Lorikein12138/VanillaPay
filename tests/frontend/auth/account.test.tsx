@@ -1,22 +1,22 @@
 import { emptyNotifications } from '../merchant/notification-fixture'
-import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
+import { createMemoryHistory, RouterContextProvider, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { useEffect, useState, type ReactNode } from 'react'
+import QRCode from 'qrcode'
+import { useState, type ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { APIError, api, onUnauthorized } from '@/api/client'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { allowedEmail, type AccountSchema } from '@/features/auth/account-shared'
 import { FactorDialog } from '@/features/merchant/AccountPage'
+import { AccountProvider, useMerchantAccount } from '@/features/merchant/AccountProvider'
 import { isMerchantPath } from '@/features/merchant/navigation'
 import { createI18n } from '@/lib/i18n'
 import { initTheme } from '@/lib/theme'
 
-const captcha = vi.hoisted(() => ({ mounts: 0 }))
 vi.mock('@/features/auth/Turnstile', () => ({ Turnstile: ({ onToken, action }: { onToken: (value: string) => void; action: string }) => {
-  useEffect(() => { captcha.mounts++ }, [])
   return <button type="button" data-action={action} onClick={() => onToken(crypto.randomUUID())}>完成验证</button>
 } }))
 vi.mock('qrcode', () => ({ default: { toDataURL: () => Promise.resolve('data:image/png;base64,AA==') } }))
@@ -72,17 +72,19 @@ describe('public account flows', () => {
     fill('邮箱验证码', '123456')
     fireEvent.click(screen.getByRole('checkbox', { name: '我同意服务条款' })); fireEvent.click(screen.getByRole('checkbox', { name: '我同意隐私政策' }))
     expect(within(screen.getByRole('form', { name: '注册商户' })).getByRole('link', { name: '服务条款' })).toHaveAttribute('target', '_blank')
-    fireEvent.click(screen.getByRole('button', { name: '完成验证' }))
+    const emailProof = screen.getByRole('button', { name: '完成验证' })
+    fireEvent.click(emailProof)
     fireEvent.click(screen.getByRole('button', { name: '获取邮箱验证码' }))
     await screen.findByText('0:03')
+    await waitFor(() => expect(emailProof).not.toBeInTheDocument())
     expect(requests[0]).toMatchObject({ purpose: 'register', email: 'new@example.test', target_username: 'new_shop' })
     expect(screen.getByRole('button', { name: '创建账户' })).toBeDisabled()
-    const mounts = captcha.mounts
-    fireEvent.click(screen.getByRole('button', { name: '完成验证' })); fireEvent.click(screen.getByRole('button', { name: '创建账户' }))
+    const registrationProof = screen.getByRole('button', { name: '完成验证' })
+    fireEvent.click(registrationProof); fireEvent.click(screen.getByRole('button', { name: '创建账户' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('人机验证未完成或已过期')
     expect(registration).toMatchObject({ username: 'new_shop', terms_revision: 7, privacy_revision: 9, accept_terms: true, accept_privacy: true })
     expect(registration?.turnstile_token).not.toBe(requests[0]?.turnstile_token)
-    expect(captcha.mounts).toBeGreaterThan(mounts)
+    await waitFor(() => expect(registrationProof).not.toBeInTheDocument())
     expect(screen.getByRole('button', { name: '创建账户' })).toBeDisabled()
   })
   it('resets Turnstile after email failure and honors the 429 retry delay', async () => {
@@ -127,6 +129,28 @@ describe('public account flows', () => {
 })
 
 describe('identity and preferences', () => {
+  it('persists only the first preference save when two controls enter in the same turn', async () => {
+    const next = { locale: 'zh-CN', theme: 'dark' } as const
+    let finish!: (value: AccountSchema['Preferences']) => void
+    const save = vi.spyOn(api, 'preferences').mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    function Controls() {
+      const account = useMerchantAccount()!
+      return <button type="button" disabled={account.busy} onClick={() => {
+        void account.save(next)
+        void account.save({ locale: 'en', theme: 'light' })
+      }}>保存偏好</button>
+    }
+    const router = createAppRouter({ history: createMemoryHistory() })
+    wrapper(<RouterContextProvider router={router}><AccountProvider session={identity()}><Controls /></AccountProvider></RouterContextProvider>)
+    fireEvent.click(screen.getByRole('button', { name: '保存偏好' }))
+    await waitFor(() => expect(save).toHaveBeenCalledExactlyOnceWith(next))
+    expect(screen.getByRole('button', { name: '保存偏好' })).toBeDisabled()
+    await act(() => { finish(next); return Promise.resolve() })
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(screen.getByRole('button', { name: '保存偏好' })).toBeEnabled()
+  })
+
   it.each(['username', 'email', 'password'] as const)('assembles %s email proofs and requires TOTP when enabled', async (mode) => {
     const user = { ...baseUser, totp_enabled: true }, session = identity(user)
     const sent: AccountSchema['AuthEmailCodeRequest'][] = []
@@ -193,6 +217,114 @@ describe('TOTP and one-time recovery secrets', () => {
   function setup(seconds = 300): AccountSchema['AuthTOTPSetup'] { return { setup_id: crypto.randomUUID(), secret: crypto.randomUUID(), otpauth_url: `otpauth://totp/account?secret=${crypto.randomUUID()}`, expires_at: new Date(Date.now() + seconds * 1000).toISOString() } }
   function Host() { const [open, setOpen] = useState(true); return <><button onClick={() => setOpen(true)}>打开设置</button>{open && <FactorDialog mode="setup" onClose={() => setOpen(false)} onChanged={() => Promise.resolve()} />}</> }
   async function generate() { fill('当前密码', crypto.randomUUID()); fireEvent.click(screen.getByRole('button', { name: '验证密码并生成' })); return screen.findByTestId('totp-secret') }
+
+  it('discards a setup response received after its deadline without starting QR generation', async () => {
+    vi.useFakeTimers()
+    const value = setup(1)
+    let release!: (value: AccountSchema['AuthTOTPSetup']) => void
+    vi.spyOn(api, 'setupTOTP').mockImplementation(() => new Promise((resolve) => { release = resolve }))
+    const qr = vi.spyOn(QRCode, 'toDataURL')
+    wrapper(<Host />)
+    fill('当前密码', crypto.randomUUID())
+    fireEvent.click(screen.getByRole('button', { name: '验证密码并生成' }))
+    await act(() => vi.advanceTimersByTimeAsync(1001))
+    await act(() => { release(value); return Promise.resolve() })
+    expect(screen.getByText('设置已过期，请重新输入密码生成。')).toBeVisible()
+    expect(screen.getByLabelText('当前密码')).toHaveValue('')
+    expect(screen.queryByTestId('totp-secret')).not.toBeInTheDocument()
+    expect(qr).not.toHaveBeenCalled()
+  })
+
+  it('keeps the QR hidden after expiry even if encoding resolves in the next setup', async () => {
+    vi.useFakeTimers()
+    let releaseOld!: (value: string) => void, releaseNext!: (value: string) => void
+    const old = setup(1), next = setup()
+    const encoder: { toDataURL: (value: string) => Promise<string> } = QRCode
+    const qr = vi.spyOn(encoder, 'toDataURL')
+      .mockImplementationOnce(() => new Promise<string>((resolve) => { releaseOld = resolve }))
+      .mockImplementationOnce(() => new Promise<string>((resolve) => { releaseNext = resolve }))
+    vi.spyOn(api, 'setupTOTP').mockResolvedValueOnce(old).mockResolvedValueOnce(next)
+    wrapper(<Host />)
+    async function requestSetup() {
+      fill('当前密码', crypto.randomUUID())
+      await act(() => { fireEvent.click(screen.getByRole('button', { name: '验证密码并生成' })); return Promise.resolve() })
+    }
+    await requestSetup()
+    expect(screen.getByTestId('totp-secret')).toHaveTextContent(old.secret)
+    await act(() => vi.advanceTimersByTimeAsync(1000))
+    expect(screen.queryByTestId('totp-secret')).not.toBeInTheDocument()
+    await requestSetup()
+    expect(screen.getByTestId('totp-secret')).toHaveTextContent(next.secret)
+    const oldUrl = 'data:image/png;base64,AQ==', nextUrl = 'data:image/png;base64,Ag=='
+    await act(() => { releaseOld(oldUrl); return Promise.resolve() })
+    expect(screen.queryByTestId('totp-qr')).not.toBeInTheDocument()
+    await act(() => { releaseNext(nextUrl); return Promise.resolve() })
+    expect(screen.getByTestId('totp-qr')).toHaveAttribute('src', nextUrl)
+    expect(qr).toHaveBeenCalledTimes(2)
+  })
+
+  it('downloads recovery codes as a UTF-8 text file and revokes its object URL', async () => {
+    const codes = ['RECOVERY-ONE', 'RECOVERY-TWO']
+    vi.spyOn(api, 'setupTOTP').mockResolvedValue(setup())
+    vi.spyOn(api, 'confirmTOTP').mockResolvedValue({ enabled: true, recovery_codes: codes })
+    wrapper(<Host />)
+    await generate()
+    fill('动态验证码', '123456')
+    fireEvent.click(screen.getByRole('button', { name: '确认开启' }))
+    await screen.findByTestId('recovery-codes')
+    const create = vi.fn<(blob: Blob) => string>(() => 'blob:fixture-recovery'), revoke = vi.fn()
+    const OriginalURL = URL
+    vi.stubGlobal('URL', class extends OriginalURL {
+      static createObjectURL = create
+      static revokeObjectURL = revoke
+    })
+    const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      vi.useFakeTimers()
+      fireEvent.click(screen.getByRole('button', { name: /下载.*TXT/ }))
+      expect(download).toHaveBeenCalledOnce()
+      expect(download.mock.contexts[0]).toMatchObject({ download: 'vanillapay-recovery-codes.txt', href: 'blob:fixture-recovery' })
+      const blob = create.mock.calls[0]?.[0]
+      expect(blob?.type).toBe('text/plain;charset=utf-8')
+      expect(revoke).not.toHaveBeenCalled()
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:fixture-recovery')
+      vi.useRealTimers()
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result)
+          else reject(new Error('Expected recovery codes as text'))
+        }
+        reader.onerror = () => reject(reader.error ?? new Error('Could not read recovery codes'))
+        reader.readAsText(blob!)
+      })
+      expect(text).toBe('RECOVERY-ONE\nRECOVERY-TWO\n')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('submits the native form from the dialog footer and disables it while busy', async () => {
+    let release!: (value: AccountSchema['AuthTOTPSetup']) => void
+    const request = vi.spyOn(api, 'setupTOTP').mockImplementation(() => new Promise((resolve) => { release = resolve }))
+    wrapper(<Host />)
+    const password = crypto.randomUUID()
+    fill('当前密码', password)
+    const submit = screen.getByRole<HTMLButtonElement>('button', { name: '验证密码并生成' })
+    expect(submit.form).toBe(screen.getByLabelText('当前密码').closest('form'))
+    expect(submit.form).not.toContainElement(submit)
+    fireEvent.click(submit)
+    expect(request).toHaveBeenCalledExactlyOnceWith({ password })
+    expect(submit).toBeDisabled()
+    expect(screen.getByRole('button', { name: '关闭' })).toBeDisabled()
+    fireEvent.click(submit)
+    expect(request).toHaveBeenCalledOnce()
+    await act(() => { release(setup()); return Promise.resolve() })
+    expect(screen.getByTestId('totp-secret')).toBeVisible()
+    expect(screen.getByRole('button', { name: '关闭' })).toBeEnabled()
+  })
+
   it('destroys setup secrets and recovery codes on close without placing them in caches or storage', async () => {
     const value = setup(), codes = [crypto.randomUUID(), crypto.randomUUID()]
     vi.spyOn(api, 'setupTOTP').mockResolvedValue(value); vi.spyOn(api, 'confirmTOTP').mockResolvedValue({ enabled: true, recovery_codes: codes })
