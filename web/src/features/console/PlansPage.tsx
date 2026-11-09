@@ -32,11 +32,11 @@ export function PlansPage() {
         { label: t('manage.plan'), value: (item) => <>{item.name.zh_CN}<FormHint>{item.name.en}</FormHint>{item.deleted && <FormHint>{t('manage.deleted')}</FormHint>}</> },
         { label: t('manage.price'), value: (item) => money(item.price_cents, i18n.language) },
         { label: t('manage.days'), value: (item) => item.duration_days },
-        { label: t('manage.channels'), value: (item) => <Channels value={item.channels} /> },
+        { label: t('manage.channels'), value: (item) => <Channels value={item.channels} />, wide: true },
         { label: t('manage.limit'), value: (item) => item.purchase_limit ?? t('manage.unlimited') },
         { label: t('manage.purchased'), value: (item) => item.purchased_count ?? '—' },
         { label: t('manage.remaining'), value: (item) => item.remaining_count ?? '—' },
-        { label: t('manage.manage'), value: (item) => item.deleted ? t('manage.deleted') : <InlineActions>
+        { label: t('manage.manage'), wide: true, value: (item) => item.deleted ? t('manage.deleted') : <InlineActions>
           <Button size="sm" onClick={() => setDialog({ mode: 'edit', plan: item })}>{t('manage.edit')}</Button>
           <Button size="sm" variant="dangerOutline" onClick={() => setDialog({ mode: 'delete', plan: item })}>{t('manage.remove')}</Button>
         </InlineActions> },

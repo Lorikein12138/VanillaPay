@@ -33,6 +33,22 @@ describe('channel icons', () => {
     expect(container.querySelector('svg')).toBeNull()
   })
 
+  it('uses a muted glyph without a coloured tile in lists', () => {
+    const i18n = createI18n('zh-CN')
+    const { container } = render(<I18nextProvider i18n={i18n}><OrderChannel channel="alipay" /></I18nextProvider>)
+
+    expect(screen.getByText('支付宝')).toBeVisible()
+    const icon = container.querySelector('svg[aria-hidden="true"]')
+    expect(icon).toHaveClass('text-text-3')
+    expect(container.querySelector('[class*="--channel-color"]')).toBeNull()
+  })
+
+  it('renders nothing for an unknown channel in the plain tone', () => {
+    const { container } = render(<ChannelIcon channel="future-channel" tone="plain" />)
+
+    expect(container.firstChild).toBeNull()
+  })
+
   it('displays an unassigned order channel without an icon', () => {
     const i18n = createI18n('zh-CN')
     const { container } = render(<I18nextProvider i18n={i18n}><OrderChannel channel={null} /></I18nextProvider>)

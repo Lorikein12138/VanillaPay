@@ -37,8 +37,8 @@ export function PurchasesPage({ filters, onFilters }: { filters: PurchaseFilters
         { label: t('manage.status'), nowrap: true, value: (item) => <StatusDot tone={item.state === 'paid' ? 'ok' : item.state === 'pending' ? 'wait' : 'off'}>
           {t('manage.states.' + item.state, { defaultValue: item.state })}
         </StatusDot> },
-        { label: t('manage.paymentOrder'), value: (item) => item.trade_no && <span className="font-mono text-caption"><RecordLink to={'/console/orders/' + item.trade_no}>{item.trade_no}</RecordLink></span> },
-        { label: t('manage.paidExpiry'), nowrap: true, value: (item) => <span className="flex flex-col gap-0.5">
+        { label: t('manage.paymentOrder'), wide: true, value: (item) => item.trade_no && <span className="font-mono text-caption"><RecordLink to={'/console/orders/' + item.trade_no}>{item.trade_no}</RecordLink></span> },
+        { label: t('manage.paidExpiry'), nowrap: true, wide: true, value: (item) => <span className="flex flex-col gap-0.5">
           <span>{t('manage.paidShort')} <OrderTime value={item.paid_at} /></span>
           <span className="text-text-3">{t('manage.expiresShort')} <OrderTime value={item.expires_at} /></span>
         </span> },

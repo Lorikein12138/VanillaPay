@@ -267,9 +267,9 @@ describe('public checkout', () => {
   })
   it('shows the paid amount and localized channel once, including English', async () => {
     value = { ...locked(), status: 'paid' }; mount()
-    expect((await screen.findByText('支付宝', { exact: true })).closest('p')).toHaveTextContent('已支付 ¥29.99 · 支付宝')
+    expect(await screen.findByText('已支付 ¥29.99 · 支付宝')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '切换语言为 English' }))
-    expect((await screen.findByText('Alipay', { exact: true })).closest('p')).toHaveTextContent('Paid ¥29.99 · Alipay')
+    expect(await screen.findByText('Paid ¥29.99 · Alipay')).toBeVisible()
     expect(screen.getByText('You may close this page.')).toBeVisible()
   })
   it.each([false, true])('renders a channel option selected=%s with disabled behavior', (selected) => {

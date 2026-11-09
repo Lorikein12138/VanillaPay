@@ -26,8 +26,20 @@ const channelColors: Record<keyof typeof channelPaths, string> = {
   wxpay: '[--channel-color:#07a855] dark:[--channel-color:#47d68a]',
   qqpay: '[--channel-color:#008cdb] dark:[--channel-color:#58bfff]',
 }
-export function ChannelIcon({ channel, size = 'sm', className }: { channel: string; size?: 'sm' | 'md'; className?: string }) {
+/**
+ * `brand` is a coloured tile for places where the channel is the thing being
+ * chosen or identified (checkout, collection-code cards). `plain` is a muted
+ * glyph for dense lists and tables, where colour would only add noise.
+ */
+export function ChannelIcon({ channel, size = 'sm', tone = 'brand', className }: {
+  channel: string; size?: 'sm' | 'md'; tone?: 'brand' | 'plain'; className?: string
+}) {
   const brand = Object.hasOwn(channelPaths, channel) ? channel as keyof typeof channelPaths : null
+  if (tone === 'plain') {
+    return brand
+      ? <svg aria-hidden="true" className={cn('size-3.5 shrink-0 text-text-3', className)} viewBox="0 0 24 24" fill="currentColor"><path d={channelPaths[brand]} /></svg>
+      : null
+  }
   return (
     <span aria-hidden="true" className={cn(
       'inline-grid shrink-0 place-items-center bg-[var(--channel-color)] text-white',
@@ -47,8 +59,16 @@ export function ChannelIcon({ channel, size = 'sm', className }: { channel: stri
 export function ChannelLabel({ channel, children }: { channel: string; children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap align-middle">
-      <ChannelIcon channel={channel} />
+      <ChannelIcon channel={channel} tone="plain" />
       {children}
+    </span>
+  )
+}
+
+export function ChannelList({ channels, name }: { channels: string[]; name: (channel: string) => string }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
+      {channels.map((channel) => <ChannelLabel key={channel} channel={channel}>{name(channel)}</ChannelLabel>)}
     </span>
   )
 }

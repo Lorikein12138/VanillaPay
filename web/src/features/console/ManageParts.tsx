@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { StatusDot } from '@/components/StatusDot'
 import { Field } from '@/components/ui/field'
 import { Checkbox, Select, Textarea } from '@/components/ui/input'
-import { InlineActions } from '@/components/ui/records'
-import { ChannelBadge, ChannelLabel } from '@/components/ui/payment'
+import { ChannelList } from '@/components/ui/payment'
 import type { Schema } from './manage-data'
 
 export function Choice({ label, value, onChange, children, disabled = false }: {
@@ -28,17 +27,15 @@ export function ChannelChoices({ allowed, value, onChange, disabled }: {
   return <fieldset disabled={disabled} className="m-0 min-w-0 border-0 p-0"><legend className="mb-1.5 p-0 text-label text-text-2">{t('manage.channels')}</legend><div className="flex flex-wrap items-center gap-x-5 gap-y-2">
     {allowed.map((channel) => <Checkbox key={channel} checked={value.includes(channel)}
       onChange={(event) => onChange(event.target.checked ? [...value, channel] : value.filter((item) => item !== channel))}>
-      <ChannelLabel channel={channel}>{t(`merchant.overview.channels.${channel}`, { defaultValue: channel })}</ChannelLabel>
+      {t(`merchant.overview.channels.${channel}`, { defaultValue: channel })}
     </Checkbox>)}
   </div></fieldset>
 }
 export function Channels({ value }: { value: string[] | null }) {
   const { t } = useTranslation()
-  return <InlineActions>
-    {value?.map((channel) => (
-      <ChannelBadge key={channel} channel={channel} name={t(`merchant.overview.channels.${channel}`, { defaultValue: channel })} />
-    ))}
-  </InlineActions>
+  return value?.length
+    ? <ChannelList channels={value} name={(channel) => t(`merchant.overview.channels.${channel}`, { defaultValue: channel })} />
+    : null
 }
 export function MerchantStatus({ banned }: { banned: boolean }) {
   const { t } = useTranslation()

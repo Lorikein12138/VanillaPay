@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { formatCountdown, useCountdown } from '@/components/ui/countdown'
 import { Notice } from '@/components/ui/notice'
 import {
-  ChannelBadge, ChannelGroup, ChannelIcon, ChannelLabel, ChannelOption, PaymentAmount, PaymentOrder, PaymentQR, PaymentResult, PaymentShell,
+  ChannelBadge, ChannelGroup, ChannelOption, PaymentAmount, PaymentOrder, PaymentQR, PaymentResult, PaymentShell,
 } from '@/components/ui/payment'
 import { money } from '@/features/merchant/overview-data'
 import { useCheckout } from './useCheckout'
@@ -61,7 +61,7 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
             {data.actual_cents !== null && (
               <p>
                 {t('checkout.paidAmount', { amount: money(data.actual_cents, i18n.language) })}
-                {data.channel && <> · <ChannelLabel channel={data.channel}>{channelName(data.channel)}</ChannelLabel></>}
+                {data.channel && <> · {channelName(data.channel)}</>}
               </p>
             )}
             <PaidReturn key={tradeNo} url={data.return_url_signed} hasReturned={hasReturned} onReturn={returnOnce} />
@@ -81,10 +81,7 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
             {(state.actionError || state.error) && <Notice tone="error">{errorMessage(state.actionError || state.error)}</Notice>}
             {data.can_pay && data.qr_image_url ? <>
               <PaymentQR src={data.qr_image_url} alt={t('checkout.qr')} />
-              <p className="text-center text-label text-text-2">
-                {data.channel && <ChannelIcon channel={data.channel} className="mr-1.5 align-middle" />}
-                {t('checkout.scan', { channel: channelName(data.channel ?? '') })}
-              </p>
+              <p className="text-center text-label text-text-2">{t('checkout.scan', { channel: channelName(data.channel ?? '') })}</p>
             </>
               : data.reason !== 'no_channel' && <Notice tone="warning">{t(`checkout.reasons.${data.reason ?? 'unavailable'}`, { defaultValue: t('checkout.reasons.unavailable') })}</Notice>}
             <p className="text-center text-caption text-text-3">{t('checkout.remaining')} <span className="font-mono tabular-nums">{formatCountdown(state.seconds)}</span></p>
