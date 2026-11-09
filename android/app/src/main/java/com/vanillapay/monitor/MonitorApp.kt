@@ -1,8 +1,10 @@
 package com.vanillapay.monitor
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.service.notification.NotificationListenerService
 import androidx.core.content.ContextCompat
 import androidx.room.Room
 import androidx.work.CoroutineWorker
@@ -44,6 +46,8 @@ class MonitorApp : Application() {
     private val mutableState = MutableStateFlow(MonitorState())
     val state = mutableState.asStateFlow()
     val uploads = Signal<Unit>(Signal.CONFLATED)
+    // Read and written on the main thread alongside the listener callbacks.
+    var listenerConnected = false
 
     override fun onCreate() {
         super.onCreate()
@@ -73,6 +77,16 @@ class MonitorApp : Application() {
 
     fun launchService() {
         ContextCompat.startForegroundService(this, Intent(this, MonitorService::class.java))
+    }
+
+    suspend fun revive(tryRebind: Boolean = true) = withContext(Dispatchers.Main.immediate) {
+        state.first { it.loaded }
+        val actions = reviveActions(state.value, notificationAccess(this@MonitorApp), listenerConnected)
+        if (tryRebind && actions.requestRebind) runCatching {
+            NotificationListenerService.requestRebind(ComponentName(this@MonitorApp, PaymentNotificationListener::class.java))
+        }
+        // Background foreground-service starts can be refused by Android or vendor firmware.
+        if (actions.launchService) runCatching { launchService() }
     }
 
     suspend fun heartbeat(deviceId: String, answer: Heartbeat) = sessionLock.withLock {
@@ -122,6 +136,13 @@ class MonitorApp : Application() {
             pruneReceipts(cutoff, scope)
         }
     }
+}
+
+internal data class ReviveActions(val launchService: Boolean, val requestRebind: Boolean)
+
+internal fun reviveActions(state: MonitorState, hasNotificationAccess: Boolean, listenerConnected: Boolean): ReviveActions {
+    val active = state.loaded && state.session?.started == true && hasNotificationAccess
+    return ReviveActions(active, active && !listenerConnected)
 }
 
 class RetentionWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
