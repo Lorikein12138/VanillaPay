@@ -45,7 +45,8 @@ class MonitorScreenshotTest {
             Diagnostic("1", time, "wxpay", "微信支付\n微信支付收款0.01元(朋友到店)", 1),
             Diagnostic("2", time - 50_000, "alipay", "支付宝\n付款38.00元", null),
         )
-        for (screen in listOf("bind", "setup", "main", "settings", "diagnostics")) {
+        val screens = listOf("bind", "setup", "main", "settings", "diagnostics")
+        for (screen in if (width == 360) screens + "receipt-error" else screens) {
             val theme = if (dark) "dark" else "light"
             val file = File(directory, "$screen-$theme-$width.png")
             captureRoboImage(file = file) {
@@ -58,6 +59,10 @@ class MonitorScreenshotTest {
                             setOf(Channel.Alipay, Channel.WeChat), receipts, 18, 1, time, {}, {}, {})
                         "settings" -> SettingsScreen(session, {}, {}, {}, {})
                         "diagnostics" -> DiagnosticsScreen(true, diagnostics, {}, {}, {})
+                        "receipt-error" -> HomeScreen(MonitorState(true, session, true, false, time - 12_000), true,
+                            setOf(Channel.Alipay, Channel.WeChat), listOf(receipts.last(),
+                                receipts.last().copy(eventId = "5", cents = 1_000_000_000, detail = "VALIDATION_ERROR")),
+                            18, 0, time, {}, {}, {})
                     }
                 }
             }

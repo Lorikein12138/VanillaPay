@@ -22,6 +22,7 @@ type Config struct {
 	ListenAddr        string
 	DataDir           string
 	DownloadsDir      string
+	APKDownloadsDir   string
 	TrustedProxyCIDRs []netip.Prefix
 }
 
@@ -72,6 +73,8 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	cfg.DataDir = readRequired("DATA_DIR")
 	downloadsDir, _ := lookup("DOWNLOADS_DIR")
 	cfg.DownloadsDir = strings.TrimSpace(downloadsDir)
+	apkDownloadsDir, _ := lookup("APK_DOWNLOADS_DIR")
+	cfg.APKDownloadsDir = strings.TrimSpace(apkDownloadsDir)
 	trustedProxyValue, hasTrustedProxyValue := lookup("TRUSTED_PROXY_CIDRS")
 	if !hasTrustedProxyValue {
 		invalid = append(invalid, "TRUSTED_PROXY_CIDRS")

@@ -54,6 +54,7 @@ describe('monitor installer', () => {
     mount('/devices')
     const link = await screen.findByRole('link', { name: '下载 VanillaPay Monitor 1.0.0' })
     expect(link).toHaveAttribute('href', '/downloads/vanillapay-monitor-1.0.0.apk')
+      expect(screen.getByText('装到收款手机上，打开后点上方「绑定设备」扫码。')).toBeVisible()
     expect(screen.getByText(/2,048/)).toBeVisible()
     await userEvent.click(screen.getByText('查看 SHA-256'))
     expect(screen.getByText(manifest.sha256)).toBeVisible()

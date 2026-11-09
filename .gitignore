@@ -37,4 +37,5 @@ test-results/
 *.apk
 android/**/build/
 .gradle/
+.kotlin/
 local.properties

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDownloads(t *testing.T) {
@@ -39,7 +40,7 @@ func TestDownloads(t *testing.T) {
 			request := httptest.NewRequest(tt.method, "/downloads/"+tt.name, nil)
 			request.Header.Set("Range", tt.byteRange)
 			response := httptest.NewRecorder()
-			downloadHandler(dir)(response, request)
+			downloadHandler(dir, "")(response, request)
 			if response.Code != tt.status {
 				t.Fatalf("status=%d want=%d", response.Code, tt.status)
 			}
@@ -61,7 +62,7 @@ func TestDownloads(t *testing.T) {
 			t.Skipf("system cannot create symlinks: %v", err)
 		}
 		response := httptest.NewRecorder()
-		downloadHandler(dir)(response, httptest.NewRequest(http.MethodGet, "/downloads/"+link, nil))
+		downloadHandler(dir, "")(response, httptest.NewRequest(http.MethodGet, "/downloads/"+link, nil))
 		if response.Code != http.StatusNotFound {
 			t.Fatalf("symbolic link served: %d", response.Code)
 		}
@@ -78,5 +79,55 @@ func TestDownloads(t *testing.T) {
 		if validDownloadManifest([]byte(invalid)) {
 			t.Fatalf("invalid manifest accepted: %s", invalid)
 		}
+	}
+}
+
+func TestManifestRevalidationByContent(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "latest.json")
+	modtime := time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)
+	write := func(version string, stamp time.Time) string {
+		t.Helper()
+		body := `{"version":"` + version + `","file":"vanillapay-monitor-` + version +
+			`.apk","sha256":"` + strings.Repeat("a", 64) + `","size":6,"published_at":"2026-11-09T00:00:00Z"}`
+		if err := os.WriteFile(file, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(file, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		return body
+	}
+	get := func(etag, modifiedSince, body string, status int) string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/downloads/latest.json", nil)
+		req.Header.Set("If-None-Match", etag)
+		req.Header.Set("If-Modified-Since", modifiedSince)
+		res := httptest.NewRecorder()
+		downloadHandler(dir, "")(res, req)
+		if res.Code != status || res.Body.String() != body || res.Header().Get("Last-Modified") != "" {
+			t.Fatalf("status=%d body=%q headers=%v", res.Code, res.Body, res.Header())
+		}
+		tag := res.Header().Get("ETag")
+		if !strings.HasPrefix(tag, `"`) || !strings.HasSuffix(tag, `"`) || len(tag) < 34 {
+			t.Fatalf("expected a strong content ETag, got %q", tag)
+		}
+		return tag
+	}
+	first := write("1.0.0", modtime)
+	get("", modtime.Add(time.Hour).Format(http.TimeFormat), first, http.StatusOK)
+	firstTag := get("", "", first, http.StatusOK)
+	get(firstTag, "", "", http.StatusNotModified)
+	second := write("1.0.1", modtime)
+	secondTag := get(firstTag, "", second, http.StatusOK)
+	if firstTag == secondTag {
+		t.Fatal("different manifests with the same mtime share an ETag")
+	}
+	write("1.0.0", modtime.Add(-time.Hour))
+	if tag := get(secondTag, "", first, http.StatusOK); tag != firstTag {
+		t.Fatal("rollback did not restore the original content ETag")
+	}
+	for _, date := range []string{modtime.Format(http.TimeFormat), "invalid date", modtime.Add(-2 * time.Hour).Format(http.TimeFormat)} {
+		get("", date, first, http.StatusOK)
 	}
 }

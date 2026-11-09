@@ -1,6 +1,7 @@
 {
   "monitorDownload": {
     "title": "Android payment monitor",
+    "instructions": "Install it on the phone that receives payments, then use Bind device above to scan the code.",
     "loading": "Checking for the installer…",
     "download": "Download VanillaPay Monitor {{version}}",
     "checksum": "View SHA-256",

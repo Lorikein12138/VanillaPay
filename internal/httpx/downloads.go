@@ -2,6 +2,8 @@ package httpx
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"os"
@@ -23,10 +25,19 @@ type downloadManifest struct {
 	PublishedAt string `json:"published_at"`
 }
 
-func downloadHandler(dir string) http.HandlerFunc {
+func downloadHandler(manifestDir, apkDir string) http.HandlerFunc {
+	if apkDir == "" {
+		apkDir = manifestDir
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/downloads/")
-		if dir == "" || (name != "latest.json" && !apkName.MatchString(name)) {
+		dir := apkDir
+		if name == "latest.json" {
+			dir = manifestDir
+		} else if !apkName.MatchString(name) {
+			dir = ""
+		}
+		if dir == "" {
 			http.NotFound(w, r)
 			return
 		}
@@ -57,7 +68,7 @@ func downloadHandler(dir string) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		var content io.ReadSeeker = file
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if name == "latest.json" {
 			const limit = 4096
 			payload, err := io.ReadAll(io.LimitReader(file, limit+1))
@@ -65,16 +76,18 @@ func downloadHandler(dir string) http.HandlerFunc {
 				http.NotFound(w, r)
 				return
 			}
-			content = bytes.NewReader(payload)
+			digest := sha256.Sum256(payload)
+			w.Header().Set("ETag", `"`+hex.EncodeToString(digest[:])+`"`)
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "no-cache")
-		} else {
-			w.Header().Set("Content-Type", "application/vnd.android.package-archive")
-			w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			// Release mtimes can go backwards on rollback. Only validate by content.
+			http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(payload))
+			return
 		}
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		http.ServeContent(w, r, name, actual.ModTime(), content)
+		w.Header().Set("Content-Type", "application/vnd.android.package-archive")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		http.ServeContent(w, r, name, actual.ModTime(), file)
 	}
 }
 

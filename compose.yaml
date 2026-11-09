@@ -62,6 +62,7 @@ services:
     environment:
       <<: *app-environment
       DOWNLOADS_DIR: /var/lib/vanillapay-downloads
+      APK_DOWNLOADS_DIR: /var/lib/vanillapay-apks
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,6 +73,7 @@ services:
     volumes:
       - app-data:/var/lib/vanillapay
       - ./downloads:/var/lib/vanillapay-downloads:ro
+      - ${DEPLOY_APK_DIR:-./downloads}:/var/lib/vanillapay-apks:ro
     networks:
       - default
       - database

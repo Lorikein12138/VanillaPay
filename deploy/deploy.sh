@@ -47,9 +47,9 @@ if (( dry )); then
         printf 'Build vanillapay:%s for %s. Pull pinned dependencies and save a compressed image archive.\n' "$tag" "$platform"
         printf 'SCP the images and Compose files to %s:%s. Back up any existing release, load images and start Compose offline.\n' "$target" "$remote"
         if [[ -n $apk ]]; then
-            printf 'Compute SHA-256 and size, generate latest.json, and publish %s in this release.\n' "$apk_name"
+            printf 'Compute SHA-256 and size, append %s to the shared APK directory, and save latest.json with this release.\n' "$apk_name"
         else
-            printf 'Reuse the current release downloads if available.\n'
+            printf 'Inherit the current release manifest if available.\n'
         fi
     fi
     printf 'Verify /health/ready. Show recent logs and exit nonzero if startup fails.\n'

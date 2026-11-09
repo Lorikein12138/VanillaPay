@@ -34,6 +34,7 @@ export function MonitorDownload() {
   return (
     <Card aria-busy={manifest.isPending}>
       <SectionHeader title={t('monitorDownload.title')} />
+      <p className="mb-3 text-text-2">{t('monitorDownload.instructions')}</p>
       {manifest.isPending ? <p className="text-text-3">{t('monitorDownload.loading')}</p> : data ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -42,7 +43,7 @@ export function MonitorDownload() {
             </a>
             <span className="text-caption text-text-3">{format.format(data.size)}</span>
           </div>
-          <Button variant="ghost" size="sm" aria-expanded={showChecksum} aria-controls={checksumId}
+          <Button variant="link" size="sm" aria-expanded={showChecksum} aria-controls={checksumId}
             onClick={() => setShowChecksum(!showChecksum)}>
             {t('monitorDownload.checksum')}
           </Button>

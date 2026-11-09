@@ -1,6 +1,7 @@
 {
   "monitorDownload": {
     "title": "Android 监控收款 App",
+    "instructions": "装到收款手机上，打开后点上方「绑定设备」扫码。",
     "loading": "正在检查安装包…",
     "download": "下载 VanillaPay Monitor {{version}}",
     "checksum": "查看 SHA-256",
