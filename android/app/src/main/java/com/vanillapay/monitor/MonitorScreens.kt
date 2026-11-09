@@ -239,7 +239,7 @@ internal fun ReceiptRow(receipt: Receipt) {
             Text(yuan(receipt.cents), Modifier.alignByBaseline(), fontFamily = mono, fontSize = 16.sp, maxLines = 1)
             Text(channel.display, Modifier.weight(1f).alignByBaseline(), color = palette.secondary,
                 fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("· ${localTime(receipt.occurredAt, "HH:mm:ss")}", Modifier.alignByBaseline(), color = palette.subtle,
+            Text(localTime(receipt.occurredAt, "HH:mm:ss"), Modifier.alignByBaseline(), color = palette.subtle,
                 fontFamily = mono, fontSize = 12.sp, maxLines = 1)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
