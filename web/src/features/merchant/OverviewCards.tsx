@@ -6,6 +6,7 @@ import { StatusDot } from '@/components/StatusDot'
 export { Skeleton }
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
+import { OrderChannel } from './OrderParts'
 import { money, relativeTime } from './overview-data'
 
 type Schema = components['schemas']
@@ -51,7 +52,7 @@ export function RecentOrders({ orders }: { orders: Schema['PortalOrderDTO'][] })
     <tbody>{orders.map((order) => <tr key={order.trade_no}>
       <Td className="border-b-[0.5px] border-border py-4 pr-4 font-mono text-[13px]">{order.trade_no}</Td>
       <Td className="border-b-[0.5px] border-border p-4">{order.name}</Td>
-      <Td className="border-b-[0.5px] border-border p-4 text-text-2">{t(order.channel === 'alipay' || order.channel === 'wxpay' || order.channel === 'qqpay' ? `merchant.overview.channels.${order.channel}` : 'merchant.overview.channels.unassigned')}</Td>
+      <Td className="border-b-[0.5px] border-border p-4 text-text-2"><OrderChannel channel={order.channel} /></Td>
       <Td className="border-b-[0.5px] border-border p-4 text-right tabular-nums">{money(order.actual_cents ?? order.original_cents, language)}</Td>
       <Td className="border-b-[0.5px] border-border p-4"><StatusDot tone={tones[order.status as keyof typeof tones] ?? 'off'}>{t(order.status === 'paid' || order.status === 'pending' || order.status === 'expired' || order.status === 'refunded' ? `merchant.overview.statuses.${order.status}` : 'merchant.overview.unknownStatus')}</StatusDot></Td>
       <Td className="whitespace-nowrap border-b-[0.5px] border-border py-4 pl-4 text-right text-text-2"><time dateTime={order.created_at}>{date.format(new Date(order.created_at))}</time></Td>

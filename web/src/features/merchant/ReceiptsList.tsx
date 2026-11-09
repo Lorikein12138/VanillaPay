@@ -57,7 +57,14 @@ function ReceiptFilterForm({ filters, onFilters }: { filters: ReceiptFilters; on
     if ((start && Number.isNaN(Date.parse(start))) || (end && Number.isNaN(Date.parse(end))) || (start && end && Date.parse(start) >= Date.parse(end))) { setInvalid(true); return }
     setInvalid(false); onFilters({ channel: channel || undefined, match_state: state || undefined, start: start ? new Date(start).toISOString() : undefined, end: end ? new Date(end).toISOString() : undefined })
   }}><FieldGrid className="grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-    <Field label={t('polish.paymentChannel')} htmlFor={`${id}-channel`}><Select id={`${id}-channel`} value={channel} onChange={(event) => setChannel(event.target.value)}><option value="">{t('polish.allChannels')}</option>{orderChannels.map((channel) => <option key={channel} value={channel}><OrderChannel channel={channel} /></option>)}</Select></Field>
+    <Field label={t('polish.paymentChannel')} htmlFor={`${id}-channel`}>
+      <Select id={`${id}-channel`} value={channel} onChange={(event) => setChannel(event.target.value)}>
+        <option value="">{t('polish.allChannels')}</option>
+        {orderChannels.map((channel) => (
+          <option key={channel} value={channel}>{t(`merchant.overview.channels.${channel}`)}</option>
+        ))}
+      </Select>
+    </Field>
     <Field label={t('polish.matchStatus')} htmlFor={`${id}-state`}><Select id={`${id}-state`} value={state} onChange={(event) => setState(event.target.value)}><option value="">{t('polish.allStates')}</option><option value="matched">{t('polish.matched')}</option><option value="unmatched">{t('polish.unmatched')}</option></Select></Field>
     <Field label={t('polish.startTime')} htmlFor={`${id}-start`}><Input id={`${id}-start`} type="datetime-local" step="1" value={start} onChange={(event) => setStart(event.target.value)} /></Field>
     <Field label={t('polish.endTime')} htmlFor={`${id}-end`}><Input id={`${id}-end`} type="datetime-local" step="1" value={end} onChange={(event) => setEnd(event.target.value)} /></Field>
