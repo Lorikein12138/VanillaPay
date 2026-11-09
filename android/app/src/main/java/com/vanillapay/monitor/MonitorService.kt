@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -70,8 +71,9 @@ class MonitorService : Service() {
                         return@collectLatest
                     }
                     kotlinx.coroutines.coroutineScope {
-                        launch { heartbeat(id) }
-                        launch { upload(id) }
+                        val heartbeatWake = Channel<Unit>(Channel.CONFLATED)
+                        launch { heartbeat(id, heartbeatWake) }
+                        launch { upload(id, heartbeatWake) }
                         launch { notifications(id, initial) }
                     }
                 }
@@ -87,7 +89,7 @@ class MonitorService : Service() {
 
     private fun session(id: String) = app.state.value.session?.takeIf { it.deviceId == id }
 
-    private suspend fun heartbeat(id: String) {
+    private suspend fun heartbeat(id: String, wake: Channel<Unit>) {
         while (coroutineContext.isActive) {
             val session = session(id) ?: return
             if (!notificationAccess(this)) {
@@ -105,11 +107,12 @@ class MonitorService : Service() {
             } catch (_: JSONException) {
                 app.offline(id)
             }
-            delay((session(id)?.interval ?: return) * 1_000L)
+            val interval = session(id)?.interval ?: return
+            withTimeoutOrNull(interval * 1_000L) { wake.receive() }
         }
     }
 
-    private suspend fun upload(id: String) {
+    private suspend fun upload(id: String, wake: Channel<Unit>) {
         while (coroutineContext.isActive) {
             val session = session(id) ?: return
             val now = System.currentTimeMillis()
@@ -124,6 +127,7 @@ class MonitorService : Service() {
                 val result = app.api.report(session, receipt.payload)
                 dao.complete(receipt.eventId, if (result.matched) MATCHED else UNMATCHED,
                     result.tradeNo ?: result.reason, System.currentTimeMillis())
+                if (!app.state.value.online) wake.trySend(Unit)
             } catch (e: ApiFailure) {
                 if (e.unauthorized) { app.forget(id); return }
                 if (e.retryable) retry(receipt) else dao.complete(receipt.eventId, FAILED, e.code.ifBlank { "HTTP ${e.status}" }, System.currentTimeMillis())

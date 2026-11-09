@@ -1,8 +1,10 @@
 package com.vanillapay.monitor
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.service.notification.NotificationListenerService
 import androidx.core.content.ContextCompat
 import androidx.room.Room
 import androidx.work.CoroutineWorker
@@ -44,6 +46,8 @@ class MonitorApp : Application() {
     private val mutableState = MutableStateFlow(MonitorState())
     val state = mutableState.asStateFlow()
     val uploads = Signal<Unit>(Signal.CONFLATED)
+    // Read and written on the main thread alongside the listener callbacks.
+    var listenerConnected = false
 
     override fun onCreate() {
         super.onCreate()
@@ -51,8 +55,11 @@ class MonitorApp : Application() {
             val session = withContext(Dispatchers.IO) { vault.load() }
             mutableState.value = MonitorState(loaded = true, session = session)
         }
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork("monitor-history-retention", ExistingPeriodicWorkPolicy.KEEP,
+        val workManager = WorkManager.getInstance(this)
+        workManager.enqueueUniquePeriodicWork("monitor-history-retention", ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<RetentionWorker>(1, TimeUnit.DAYS).build())
+        workManager.enqueueUniquePeriodicWork("monitor-revive", ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<ReviveWorker>(15, TimeUnit.MINUTES).build())
     }
 
     suspend fun bind(base: String, code: String, name: String) = sessionLock.withLock {
@@ -73,6 +80,16 @@ class MonitorApp : Application() {
 
     fun launchService() {
         ContextCompat.startForegroundService(this, Intent(this, MonitorService::class.java))
+    }
+
+    suspend fun revive(rebindOnly: Boolean = false) = withContext(Dispatchers.Main.immediate) {
+        state.first { it.loaded }
+        val actions = reviveActions(state.value, notificationAccess(this@MonitorApp), listenerConnected)
+        // Background foreground-service starts can be refused by Android or vendor firmware.
+        if (!rebindOnly && actions.launchService) runCatching { launchService() }
+        if (actions.requestRebind) runCatching {
+            NotificationListenerService.requestRebind(ComponentName(this@MonitorApp, PaymentNotificationListener::class.java))
+        }
     }
 
     suspend fun heartbeat(deviceId: String, answer: Heartbeat) = sessionLock.withLock {
@@ -121,6 +138,20 @@ class MonitorApp : Application() {
             pruneStamps(cutoff, scope)
             pruneReceipts(cutoff, scope)
         }
+    }
+}
+
+internal data class ReviveActions(val launchService: Boolean, val requestRebind: Boolean)
+
+internal fun reviveActions(state: MonitorState, hasNotificationAccess: Boolean, listenerConnected: Boolean): ReviveActions {
+    val started = state.loaded && state.session?.started == true
+    return ReviveActions(started, started && hasNotificationAccess && !listenerConnected)
+}
+
+class ReviveWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        (applicationContext as MonitorApp).revive()
+        return Result.success()
     }
 }
 
