@@ -1,24 +1,112 @@
+name: vanillapay
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app-environment: &app-environment
+  APP_ENV: production
+  DATABASE_URL: postgres://vanillapay:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/vanillapay?sslmode=disable
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env}
+  APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY in .env}
+  LISTEN_ADDR: :8080
+  DATA_DIR: /var/lib/vanillapay
+  # The socket relay shares the app's network namespace. The published TCP
+  # port enters from outside that namespace and cannot supply trusted headers.
+  TRUSTED_PROXY_CIDRS: 127.0.0.1/32
+
 services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17.6-alpine3.22@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94}
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_DB: vanillapay
+      POSTGRES_USER: vanillapay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    healthcheck:
+      # Use TCP so the entrypoint's temporary initialization server doesn't count.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - database
+
+  migrate:
+    image: vanillapay:${APP_IMAGE_TAG:-local}
+    pull_policy: never
+    restart: "no"
+    logging: *logging
+    command: ["migrate", "up"]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - database
+    # The image declares a VOLUME, but migration has no file data to keep.
+    tmpfs:
+      - /var/lib/vanillapay
+
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: vanillapay:local
+    image: vanillapay:${APP_IMAGE_TAG:-local}
+    pull_policy: never
     init: true
     restart: unless-stopped
-    environment:
-      APP_ENV: production
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env}
-      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY in .env}
-      LISTEN_ADDR: :8080
-      DATA_DIR: /var/lib/vanillapay
-      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-127.0.0.1/32,::1/128}
+    logging: *logging
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
     volumes:
       - app-data:/var/lib/vanillapay
+    networks:
+      - default
+      - database
     stop_grace_period: 30s
 
+  proxy:
+    image: ${PROXY_IMAGE:-nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de}
+    restart: unless-stopped
+    logging: *logging
+    network_mode: service:app
+    depends_on:
+      app:
+        condition: service_started
+        restart: true
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["rm -f /run/vanillapay/app.sock; exec nginx -g 'daemon off;'"]
+    volumes:
+      - type: bind
+        source: ./deploy/proxy.conf
+        target: /etc/nginx/conf.d/default.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${PROXY_SOCKET_DIR:-/var/lib/vanillapay-proxy}
+        target: /run/vanillapay
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/vanillapay/app.sock && wget -q -O /dev/null http://127.0.0.1:8080/health/ready"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+networks:
+  database:
+    internal: true
+
 volumes:
+  db-data:
   app-data:

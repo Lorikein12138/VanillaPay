@@ -31,6 +31,10 @@ jobs:
       TEST_DATABASE_URL: postgres://postgres@localhost:5432/vanillapay_ci?sslmode=disable
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate production Compose and shell syntax
+        run: |
+          docker compose --env-file deploy/env.example config --quiet
+          for script in deploy/*.sh; do bash -n "$script"; done
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.27.3'
