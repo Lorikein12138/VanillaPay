@@ -119,11 +119,22 @@ func (s *Service) Revoke(ctx context.Context, actor platform.Actor) error {
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
 		return deviceErr("UNAUTHENTICATED", 401)
 	}
+	return s.revoke(ctx, actor, 0)
+}
+
+func (s *Service) Unbind(ctx context.Context, actor platform.Actor) error {
+	if actor.Role != "device" || actor.SubjectID <= 0 || actor.MerchantID <= 0 {
+		return deviceErr("DEVICE_UNAUTHORIZED", 401)
+	}
+	return s.revoke(ctx, actor, actor.SubjectID)
+}
+
+func (s *Service) revoke(ctx context.Context, actor platform.Actor, deviceID int64) error {
 	return sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{actor.MerchantID}, false); err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, `UPDATE devices SET revoked_at=$1,updated_at=$1 WHERE merchant_id=$2 AND revoked_at IS NULL RETURNING public_id`, s.clock.Now(), actor.MerchantID)
+		rows, err := tx.Query(ctx, `UPDATE devices SET revoked_at=$1,updated_at=$1 WHERE merchant_id=$2 AND revoked_at IS NULL AND ($3::bigint=0 OR id=$3) RETURNING public_id`, s.clock.Now(), actor.MerchantID, deviceID)
 		if err != nil {
 			return err
 		}
@@ -141,6 +152,9 @@ func (s *Service) Revoke(ctx context.Context, actor platform.Actor) error {
 			return err
 		}
 		rows.Close()
+		if deviceID != 0 && len(publicIDs) == 0 {
+			return deviceErr("DEVICE_UNAUTHORIZED", 401)
+		}
 		for _, publicID := range publicIDs {
 			metadata, _ := json.Marshal(map[string]any{"device_id": publicID})
 			if err := platform.RecordAudit(ctx, tx, platform.AuditEvent{Actor: actor, MerchantID: &actor.MerchantID, Action: "device.revoke", TargetType: "device", TargetID: publicID, Result: "success", SafeMetadata: metadata}); err != nil {

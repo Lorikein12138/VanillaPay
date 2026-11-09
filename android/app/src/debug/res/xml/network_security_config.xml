@@ -1,0 +1,4 @@
+<network-security-config>
+    <!-- The client additionally limits HTTP to localhost and numeric private IP addresses. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

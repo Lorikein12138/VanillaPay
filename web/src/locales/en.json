@@ -1,4 +1,13 @@
 {
+  "monitorDownload": {
+    "title": "Android payment monitor",
+    "loading": "Checking for the installer…",
+    "download": "Download VanillaPay Monitor {{version}}",
+    "checksum": "View SHA-256",
+    "copyChecksum": "Copy SHA-256",
+    "unavailable": "The installer has not been published",
+    "installFirst": "Download and install VanillaPay Monitor on your phone before pairing."
+  },
   "common": {
     "brand": "VanillaPay",
     "home": "{{name}} home",

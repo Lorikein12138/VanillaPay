@@ -1,4 +1,13 @@
 {
+  "monitorDownload": {
+    "title": "Android 监控收款 App",
+    "loading": "正在检查安装包…",
+    "download": "下载 VanillaPay Monitor {{version}}",
+    "checksum": "查看 SHA-256",
+    "copyChecksum": "复制 SHA-256",
+    "unavailable": "安装包暂未发布",
+    "installFirst": "请先在手机上下载安装 VanillaPay Monitor，再绑定设备。"
+  },
   "common": {
     "brand": "VanillaPay",
     "home": "{{name}} 首页",

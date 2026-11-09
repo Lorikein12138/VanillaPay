@@ -59,7 +59,9 @@ services:
     init: true
     restart: unless-stopped
     logging: *logging
-    environment: *app-environment
+    environment:
+      <<: *app-environment
+      DOWNLOADS_DIR: /var/lib/vanillapay-downloads
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +71,7 @@ services:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
     volumes:
       - app-data:/var/lib/vanillapay
+      - ./downloads:/var/lib/vanillapay-downloads:ro
     networks:
       - default
       - database

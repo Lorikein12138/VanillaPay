@@ -138,6 +138,20 @@ test('redeems a real binding code, reports receipts, opens a matched order and r
   await noOverflow(page)
 })
 
+test('links to the published Android installer and serves it as an attachment', async ({ page, account, request }) => {
+  await page.goto('/login?redirect=%2Fdevices')
+  await login(page, account)
+  await expect(page).toHaveURL(/\/devices$/)
+  const path = '/downloads/vanillapay-monitor-1.0.0.apk'
+  await expect(page.getByRole('link', { name: '下载 VanillaPay Monitor 1.0.0' })).toHaveAttribute('href', path)
+  const apk = await request.head(path)
+  expect(apk.ok()).toBe(true)
+  expect(apk.headers()['content-type']).toBe('application/vnd.android.package-archive')
+  expect(apk.headers()['content-disposition']).toBe('attachment; filename="vanillapay-monitor-1.0.0.apk"')
+  expect(apk.headers()['x-content-type-options']).toBe('nosniff')
+  await merchantVisualShots(page, async () => { await polishShot(page, 'devices-download', true, 'android-monitor-shots') })
+})
+
 test('obtains a security email code, resets the key once and saves an IP whitelist', async ({ page, account, request }) => {
   await signIn(page, account, '/integration')
   await polishShot(page, 'integration')

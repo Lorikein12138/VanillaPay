@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">VanillaPay Monitor</string>
+    <string name="launcher_name">VanillaPay</string>
+    <color name="icon_background">#064D73</color>
+</resources>

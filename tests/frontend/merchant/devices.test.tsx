@@ -23,6 +23,7 @@ const settings: Schema['SettingsCollectionSettings'] = { version: 1, order_ttl_s
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const server = setupServer(
   emptyNotifications, publicConfigHandler,
+  http.get('*/downloads/latest.json', () => new HttpResponse(null, { status: 404 })),
   http.get('*/api/v1/merchant/me', () => success(identity)),
   http.get('*/api/v1/merchant/device', () => success(device)),
   http.get('*/api/v1/merchant/receipts', () => success({ items: [], total: 0, next_cursor: null })),
@@ -42,6 +43,28 @@ function mount(path: string) {
   return { router, ...wrapper(<RouterProvider router={router} />) }
 }
 function binding(expires = 300): Schema['DeviceBindingDTO'] { return { binding_id: crypto.randomUUID(), code: crypto.randomUUID(), qr_content: 'vanillapay://bind?code=fixture', expires_at: new Date(Date.now() + expires * 1000).toISOString() } }
+
+describe('monitor installer', () => {
+  const manifest = {
+    version: '1.0.0', file: 'vanillapay-monitor-1.0.0.apk', sha256: 'a'.repeat(64),
+    size: 2_048, published_at: '2026-11-09T00:00:00Z',
+  }
+  it('shows the versioned same-origin download, file size and expandable checksum', async () => {
+    server.use(http.get('*/downloads/latest.json', () => HttpResponse.json(manifest)))
+    mount('/devices')
+    const link = await screen.findByRole('link', { name: '下载 VanillaPay Monitor 1.0.0' })
+    expect(link).toHaveAttribute('href', '/downloads/vanillapay-monitor-1.0.0.apk')
+    expect(screen.getByText(/2,048/)).toBeVisible()
+    await userEvent.click(screen.getByText('查看 SHA-256'))
+    expect(screen.getByText(manifest.sha256)).toBeVisible()
+  })
+  it.each([null, { ...manifest, file: 'https://elsewhere.test/download.apk' }])('treats a missing or invalid installer as unpublished', async (value) => {
+    if (value) server.use(http.get('*/downloads/latest.json', () => HttpResponse.json(value)))
+    mount('/devices')
+    expect(await screen.findByText('安装包暂未发布')).toBeVisible()
+    expect(screen.queryByRole('link', { name: /下载 VanillaPay/ })).not.toBeInTheDocument()
+  })
+})
 
 describe('binding lifecycle', () => {
   it('invalidates a late binding creation once without polling after unmount', async () => {
