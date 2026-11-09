@@ -200,6 +200,7 @@ object MonitorNotifications {
         return NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_notification).setColor(ContextCompat.getColor(context, R.color.notification_accent))
             .setContentTitle(copy.title).setContentText(copy.body).setSubText(copy.status)
             .setStyle(NotificationCompat.BigTextStyle().bigText(copy.body)).setContentIntent(open)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setOngoing(true).setSilent(true).setOnlyAlertOnce(true).setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
     }
 }

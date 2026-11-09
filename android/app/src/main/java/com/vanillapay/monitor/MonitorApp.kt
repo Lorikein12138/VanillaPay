@@ -55,11 +55,8 @@ class MonitorApp : Application() {
             val session = withContext(Dispatchers.IO) { vault.load() }
             mutableState.value = MonitorState(loaded = true, session = session)
         }
-        val workManager = WorkManager.getInstance(this)
-        workManager.enqueueUniquePeriodicWork("monitor-history-retention", ExistingPeriodicWorkPolicy.KEEP,
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork("monitor-history-retention", ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<RetentionWorker>(1, TimeUnit.DAYS).build())
-        workManager.enqueueUniquePeriodicWork("monitor-revive", ExistingPeriodicWorkPolicy.KEEP,
-            PeriodicWorkRequestBuilder<ReviveWorker>(15, TimeUnit.MINUTES).build())
     }
 
     suspend fun bind(base: String, code: String, name: String) = sessionLock.withLock {
@@ -82,14 +79,14 @@ class MonitorApp : Application() {
         ContextCompat.startForegroundService(this, Intent(this, MonitorService::class.java))
     }
 
-    suspend fun revive(rebindOnly: Boolean = false) = withContext(Dispatchers.Main.immediate) {
+    suspend fun revive(tryRebind: Boolean = true) = withContext(Dispatchers.Main.immediate) {
         state.first { it.loaded }
         val actions = reviveActions(state.value, notificationAccess(this@MonitorApp), listenerConnected)
-        // Background foreground-service starts can be refused by Android or vendor firmware.
-        if (!rebindOnly && actions.launchService) runCatching { launchService() }
-        if (actions.requestRebind) runCatching {
+        if (tryRebind && actions.requestRebind) runCatching {
             NotificationListenerService.requestRebind(ComponentName(this@MonitorApp, PaymentNotificationListener::class.java))
         }
+        // Background foreground-service starts can be refused by Android or vendor firmware.
+        if (actions.launchService) runCatching { launchService() }
     }
 
     suspend fun heartbeat(deviceId: String, answer: Heartbeat) = sessionLock.withLock {
@@ -144,15 +141,8 @@ class MonitorApp : Application() {
 internal data class ReviveActions(val launchService: Boolean, val requestRebind: Boolean)
 
 internal fun reviveActions(state: MonitorState, hasNotificationAccess: Boolean, listenerConnected: Boolean): ReviveActions {
-    val started = state.loaded && state.session?.started == true
-    return ReviveActions(started, started && hasNotificationAccess && !listenerConnected)
-}
-
-class ReviveWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
-        (applicationContext as MonitorApp).revive()
-        return Result.success()
-    }
+    val active = state.loaded && state.session?.started == true && hasNotificationAccess
+    return ReviveActions(active, active && !listenerConnected)
 }
 
 class RetentionWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {

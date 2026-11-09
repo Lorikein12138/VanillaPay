@@ -12,14 +12,23 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class PaymentNotificationListener : NotificationListenerService() {
+    override fun onCreate() {
+        super.onCreate()
+        val app = application as MonitorApp
+        // The system is already binding this listener.
+        app.scope.launch { app.revive(tryRebind = false) }
+    }
+
     override fun onListenerConnected() {
-        (application as MonitorApp).listenerConnected = true
+        val app = application as MonitorApp
+        app.listenerConnected = true
+        app.scope.launch { app.revive() }
     }
 
     override fun onListenerDisconnected() {
         val app = application as MonitorApp
         app.listenerConnected = false
-        app.scope.launch { app.revive(rebindOnly = true) }
+        app.scope.launch { app.revive() }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {

@@ -1,12 +1,9 @@
 package com.vanillapay.monitor
 
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.os.Looper
 import android.provider.Settings
-import androidx.work.ListenableWorker.Result
-import androidx.work.WorkManager
-import androidx.work.testing.TestListenableWorkerBuilder
-import androidx.work.testing.WorkManagerTestInitHelper
 import com.vanillapay.monitor.parse.Channel
 import com.vanillapay.monitor.parse.PaymentNotice
 import kotlinx.coroutines.cancel
@@ -28,8 +25,6 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.annotation.LooperMode
-import org.robolectric.annotation.RealObject
-import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowApplication
 import org.robolectric.util.ReflectionHelpers
 import java.util.concurrent.TimeUnit
@@ -37,12 +32,12 @@ import java.util.concurrent.TimeUnit
 class ReviveActionsTest {
     private val session = Credential("https://example.test/", "device-a", "fixture", "Phone", 0, 60, 0, started = true)
 
-    @Test fun onlyStartedSessionsCanReviveAndOnlyDisconnectedAuthorizedListenersRebind() {
+    @Test fun onlyStartedAuthorizedSessionsCanReviveAndOnlyDisconnectedListenersRebind() {
         assertEquals(ReviveActions(false, false), reviveActions(MonitorState(session = session), true, false))
         assertEquals(ReviveActions(false, false), reviveActions(MonitorState(loaded = true), true, false))
         val state = MonitorState(loaded = true, session = session)
         assertEquals(ReviveActions(false, false), reviveActions(state.copy(session = session.copy(started = false)), true, false))
-        assertEquals(ReviveActions(true, false), reviveActions(state, false, false))
+        assertEquals(ReviveActions(false, false), reviveActions(state, false, false))
         assertEquals(ReviveActions(true, false), reviveActions(state, true, true))
         assertEquals(ReviveActions(true, true), reviveActions(state, true, false))
     }
@@ -57,41 +52,83 @@ class MonitorReviveTest {
 
     @Before fun setUp() {
         app = RuntimeEnvironment.getApplication() as MonitorApp
-        waitFor { app.state.value.loaded }
     }
 
     @After fun tearDown() {
         app.scope.cancel()
     }
 
-    @Test fun applicationKeepsOnePeriodicWorkWithTheSameId() {
-        val manager = WorkManager.getInstance(app)
-        val first = manager.getWorkInfosForUniqueWork("monitor-revive").get(5, TimeUnit.SECONDS).single()
-        assertTrue(first.tags.contains(ReviveWorker::class.java.name))
-        assertEquals(TimeUnit.MINUTES.toMillis(15), first.periodicityInfo?.repeatIntervalMillis)
-
-        Shadow.directlyOn<Any, MonitorApp>(app, MonitorApp::class.java, "onCreate")
-        assertEquals(first.id, manager.getWorkInfosForUniqueWork("monitor-revive").get(5, TimeUnit.SECONDS).single().id)
+    @Test fun listenerStartsMonitorWhenCreatedConnectedAndDisconnected() {
+        setNotificationAccess(true)
+        setState(MonitorState(loaded = true, session = session))
+        val service = Robolectric.buildService(PaymentNotificationListener::class.java).create()
+        try {
+            val monitor = ComponentName(app, MonitorService::class.java)
+            assertEquals("create", monitor, shadowOf(app).nextStartedService?.component)
+            service.get().onListenerConnected()
+            assertTrue(app.listenerConnected)
+            assertEquals("connect", monitor, shadowOf(app).nextStartedService?.component)
+            service.get().onListenerDisconnected()
+            assertFalse(app.listenerConnected)
+            assertEquals("disconnect", monitor, shadowOf(app).nextStartedService?.component)
+        } finally {
+            service.destroy()
+        }
     }
 
-    @Test fun workerAttemptsToStartTheServiceForAStartedSession() = runBlocking {
-        setSession(session)
-        assertEquals(Result.success(), TestListenableWorkerBuilder<ReviveWorker>(app).build().doWork())
-        assertEquals(ComponentName(app, MonitorService::class.java), shadowOf(app).nextStartedService?.component)
+    @Test fun listenerDoesNotStartMonitorWhenPausedNotStartedOrUnbound() {
+        val cases = listOf(
+            Triple("paused", MonitorState(loaded = true, session = session), false),
+            Triple("not started", MonitorState(loaded = true, session = session.copy(started = false)), true),
+            Triple("unbound or stopped", MonitorState(loaded = true), true),
+        )
+        for ((label, state, hasAccess) in cases) {
+            setNotificationAccess(hasAccess)
+            setState(state)
+            val service = Robolectric.buildService(PaymentNotificationListener::class.java).create()
+            try {
+                assertNull("$label on create", shadowOf(app).nextStartedService)
+                service.get().onListenerConnected()
+                assertNull("$label on connect", shadowOf(app).nextStartedService)
+                service.get().onListenerDisconnected()
+                assertNull("$label on disconnect", shadowOf(app).nextStartedService)
+            } finally {
+                service.destroy()
+            }
+        }
     }
 
-    @Test fun workerLeavesTheServiceStoppedWhenMonitoringHasNotStarted() = runBlocking {
-        setSession(session.copy(started = false))
-        assertEquals(Result.success(), TestListenableWorkerBuilder<ReviveWorker>(app).build().doWork())
-        assertNull(shadowOf(app).nextStartedService)
+    @Test fun listenerWaitsUntilTheStartedSessionIsLoaded() {
+        setNotificationAccess(true)
+        setState(MonitorState(session = session))
+        val service = Robolectric.buildService(PaymentNotificationListener::class.java).create()
+        try {
+            assertNull("create before load", shadowOf(app).nextStartedService)
+            service.get().onListenerConnected()
+            assertNull("connect before load", shadowOf(app).nextStartedService)
+
+            setState(MonitorState(loaded = true, session = session))
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(ComponentName(app, MonitorService::class.java), shadowOf(app).nextStartedService?.component)
+        } finally {
+            service.destroy()
+        }
+    }
+
+    @Test fun foregroundNotificationShowsImmediatelyWithLowImportance() {
+        val notice = MonitorNotifications.build(app, MonitorNotifications.offline(0))
+        // Read the platform's display policy from the built notification (hidden from the SDK stubs).
+        assertTrue(ReflectionHelpers.callInstanceMethod<Boolean>(notice, "shouldShowForegroundImmediately"))
+        val channel = app.getSystemService(NotificationManager::class.java).getNotificationChannel(notice.channelId)
+        assertEquals("payment-monitor", channel.id)
+        assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
     }
 
     @Test fun successfulUploadWhileOfflineWakesHeartbeatBeforeItsNormalInterval() {
         MockWebServer().use { server ->
             server.start()
-            setSession(session.copy(base = server.url("/").toString()), online = true)
-            Settings.Secure.putString(app.contentResolver, "enabled_notification_listeners",
-                ComponentName(app, PaymentNotificationListener::class.java).flattenToString())
+            setState(MonitorState(loaded = true, session = session.copy(base = server.url("/").toString()), online = true))
+            setNotificationAccess(true)
             server.enqueue(MockResponse().setResponseCode(503))
             server.enqueue(MockResponse().setBody("""{"data":{"match_state":"matched","trade_no":"order-1"}}"""))
             server.enqueue(MockResponse().setResponseCode(503))
@@ -117,10 +154,13 @@ class MonitorReviveTest {
         }
     }
 
-    private fun setSession(session: Credential, online: Boolean = false) {
-        // Seed an already-loaded session without depending on the device's Android Keystore.
-        ReflectionHelpers.getField<MutableStateFlow<MonitorState>>(app, "mutableState").value =
-            MonitorState(loaded = true, session = session, online = online)
+    private fun setState(state: MonitorState) {
+        ReflectionHelpers.getField<MutableStateFlow<MonitorState>>(app, "mutableState").value = state
+    }
+
+    private fun setNotificationAccess(enabled: Boolean) {
+        val listener = ComponentName(app, PaymentNotificationListener::class.java).flattenToString()
+        Settings.Secure.putString(app.contentResolver, "enabled_notification_listeners", if (enabled) listener else "")
     }
 
     private fun nextRequestPath(server: MockWebServer): String? {
@@ -145,11 +185,6 @@ class MonitorReviveTest {
 
 @Implements(MonitorApp::class)
 class ShadowMonitorAppStartup : ShadowApplication() {
-    @RealObject private lateinit var app: MonitorApp
-
-    @Implementation fun onCreate() {
-        // Robolectric does not run the AndroidX Startup provider before Application.onCreate.
-        WorkManagerTestInitHelper.initializeTestWorkManager(app)
-        Shadow.directlyOn<Any, MonitorApp>(app, MonitorApp::class.java, "onCreate")
-    }
+    // The fixture supplies credential state without opening the vault or scheduling retention work.
+    @Implementation fun onCreate() = Unit
 }
