@@ -149,7 +149,7 @@ export function PortalUser({ name, role, to, onClose, mono = false }: { name: st
     <>
       <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-oat text-label">{name.slice(0, 1)}</span>
       <span className={cn(textTransition, collapsed ? 'max-w-0 opacity-0' : 'ml-2.5 max-w-full')}>
-        <span className="block truncate text-label">{name}</span>
+        <span className="block truncate text-label" title={name}>{name}</span>
         <span className={`text-caption ${roleClassName}`}>{role}</span>
       </span>
     </>
