@@ -20,6 +20,7 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	sqlc "vanillapay/internal/db/sqlc"
+	"vanillapay/internal/mailtmpl"
 	"vanillapay/internal/platform"
 )
 
@@ -310,7 +311,7 @@ func (s *Service) Bootstrap(ctx context.Context, req BootstrapRequest) (SessionR
 	return result, err
 }
 
-func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req EmailCodeRequest) (EmailCodeResult, error) {
+func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req EmailCodeRequest, locale string) (EmailCodeResult, error) {
 	allowed := map[string]bool{"register": true, "reset_password": true, "change_username": true, "change_email_old": true, "change_email_new": true, "change_password": true, "reset_key": true}
 	if !allowed[req.Purpose] {
 		return EmailCodeResult{}, appError("VALIDATION_ERROR", 400)
@@ -330,7 +331,7 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 		var current string
 		if role == "merchant" {
 			var banned bool
-			if err := s.pool.QueryRow(ctx, `SELECT email_normalized,banned_at IS NOT NULL FROM merchants WHERE id=$1`, actor.SubjectID).Scan(&current, &banned); err != nil {
+			if err := s.pool.QueryRow(ctx, `SELECT email_normalized,banned_at IS NOT NULL,COALESCE(preferences->>'locale','zh-CN') FROM merchants WHERE id=$1`, actor.SubjectID).Scan(&current, &banned, &locale); err != nil {
 				return EmailCodeResult{}, err
 			}
 			if banned {
@@ -371,7 +372,7 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 			return EmailCodeResult{}, appError("EMAIL_DOMAIN_DENIED", 403)
 		}
 	}
-	result, err := s.issueEmailCode(ctx, req, email, role, subject)
+	result, err := s.issueEmailCode(ctx, req, email, role, subject, locale)
 	if req.Purpose != "reset_password" {
 		return result, err
 	}
@@ -384,13 +385,15 @@ func (s *Service) SendEmailCode(ctx context.Context, actor platform.Actor, req E
 	return EmailCodeResult{Sent: true, RetryAfterSeconds: 60}, nil
 }
 
-func (s *Service) issueEmailCode(ctx context.Context, req EmailCodeRequest, email, role string, subject any) (EmailCodeResult, error) {
-	if req.Purpose == "reset_password" {
-		var exists bool
-		if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM merchants WHERE email_normalized=$1)`, email).Scan(&exists); err != nil {
+func (s *Service) issueEmailCode(ctx context.Context, req EmailCodeRequest, email, role string, subject any, locale string) (EmailCodeResult, error) {
+	if role == "public" {
+		var accountLocale *string
+		if err := s.pool.QueryRow(ctx, `SELECT (SELECT COALESCE(preferences->>'locale','zh-CN') FROM merchants WHERE email_normalized=$1)`, email).Scan(&accountLocale); err != nil {
 			return EmailCodeResult{}, err
 		}
-		if !exists {
+		if accountLocale != nil {
+			locale = *accountLocale
+		} else if req.Purpose == "reset_password" {
 			return EmailCodeResult{Sent: true, RetryAfterSeconds: 60}, nil
 		}
 	}
@@ -428,7 +431,10 @@ func (s *Service) issueEmailCode(ctx context.Context, req EmailCodeRequest, emai
 	if err != nil {
 		return EmailCodeResult{}, err
 	}
-	if err := s.mailer.Send(ctx, platform.MailMessage{To: email, Subject: "VanillaPay verification code", Text: "Your verification code is " + code + ". It expires in 10 minutes."}); err != nil {
+	if err := s.mailer.Send(ctx, platform.MailMessage{
+		To: email, Template: mailtmpl.Verification,
+		Payload: mailtmpl.Payload{Locale: locale, Purpose: req.Purpose, Code: code},
+	}); err != nil {
 		_, _ = s.pool.Exec(ctx, `UPDATE email_codes SET consumed_at=$1 WHERE id=$2 AND consumed_at IS NULL`, s.clock.Now(), rowID)
 		return EmailCodeResult{}, appError("MAIL_UNAVAILABLE", 503)
 	}

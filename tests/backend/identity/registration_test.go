@@ -25,10 +25,18 @@ func TestHTTP_RegistrationLoginAndEmailFlows(t *testing.T) {
 	}
 	firstEmail := "first-user@personal.example.test"
 	firstUsername := "first_user"
-	codeResponse := fixture.Request(t, http.MethodPost, "/api/v1/auth/email-codes", map[string]any{
+	body, err := json.Marshal(map[string]any{
 		"purpose": "register", "email": firstEmail, "target_username": firstUsername, "turnstile_token": "ok:register",
-	}, "guest")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	codeResponse := fixture.RequestWithHeaders(t, http.MethodPost, "/api/v1/auth/email-codes", strings.NewReader(string(body)), "guest",
+		http.Header{"Content-Type": {"application/json"}, "Accept-Language": {"fr-FR, en-GB;q=0.8, zh-CN;q=0.3"}})
 	assertIdentityResponse(t, codeResponse, http.StatusOK, "registration email code")
+	if messages := fixture.Mailer.Messages(); len(messages) != 1 || messages[0].Payload.Locale != "en" || messages[0].Payload.Purpose != "register" {
+		t.Fatal("registration mail did not use the supported request language and purpose")
+	}
 	firstCode := fixture.Mailer.LastCode()
 	if len(firstCode) != 6 {
 		t.Fatalf("registration mail code = %q", firstCode)

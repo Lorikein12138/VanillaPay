@@ -62,8 +62,8 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 	}
 	t.Run("V03.B.r01/v01", func(t *testing.T) {
 		var version int64
-		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 7 {
-			t.Fatalf("empty isolated schema goose version=%d err=%v, want 7", version, err)
+		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 8 {
+			t.Fatalf("empty isolated schema goose version=%d err=%v, want 8", version, err)
 		}
 	})
 
@@ -89,7 +89,7 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 		if remaining := applicationCatalog(ctx, t, admin, schema); len(remaining) != 0 {
 			t.Fatalf("down to 0 left application constraints/indexes: %s", strings.Join(remaining, "\n"))
 		}
-		if _, err := provider.UpTo(ctx, 7); err != nil {
+		if _, err := provider.Up(ctx); err != nil {
 			t.Fatalf("reapply all application migrations: %v", err)
 		}
 		after := applicationCatalog(ctx, t, admin, schema)

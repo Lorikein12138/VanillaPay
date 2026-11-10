@@ -174,19 +174,25 @@ func (q *Queries) InsertReceipt(ctx context.Context, arg InsertReceiptParams) (I
 }
 
 const listOfflineDevices = `-- name: ListOfflineDevices :many
-SELECT id,merchant_id,last_seen_at,offline_episode,offline_notified_episode FROM devices WHERE revoked_at IS NULL AND ever_online=true AND last_seen_at < now()-interval '90 seconds' AND offline_notified_episode<offline_episode ORDER BY last_seen_at LIMIT $1 FOR UPDATE SKIP LOCKED
+SELECT id,merchant_id FROM devices
+WHERE revoked_at IS NULL AND ever_online
+    AND (offline_alert_armed OR last_seen_at > online_since + interval '210 seconds')
+    AND last_seen_at <= $1::timestamptz
+ORDER BY last_seen_at,id LIMIT $2
 `
 
-type ListOfflineDevicesRow struct {
-	ID                     int64              `json:"id"`
-	MerchantID             int64              `json:"merchant_id"`
-	LastSeenAt             pgtype.Timestamptz `json:"last_seen_at"`
-	OfflineEpisode         int32              `json:"offline_episode"`
-	OfflineNotifiedEpisode int32              `json:"offline_notified_episode"`
+type ListOfflineDevicesParams struct {
+	Cutoff    pgtype.Timestamptz `json:"cutoff"`
+	BatchSize int32              `json:"batch_size"`
 }
 
-func (q *Queries) ListOfflineDevices(ctx context.Context, limit int32) ([]ListOfflineDevicesRow, error) {
-	rows, err := q.db.Query(ctx, listOfflineDevices, limit)
+type ListOfflineDevicesRow struct {
+	ID         int64 `json:"id"`
+	MerchantID int64 `json:"merchant_id"`
+}
+
+func (q *Queries) ListOfflineDevices(ctx context.Context, arg ListOfflineDevicesParams) ([]ListOfflineDevicesRow, error) {
+	rows, err := q.db.Query(ctx, listOfflineDevices, arg.Cutoff, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -194,13 +200,7 @@ func (q *Queries) ListOfflineDevices(ctx context.Context, limit int32) ([]ListOf
 	items := []ListOfflineDevicesRow{}
 	for rows.Next() {
 		var i ListOfflineDevicesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.MerchantID,
-			&i.LastSeenAt,
-			&i.OfflineEpisode,
-			&i.OfflineNotifiedEpisode,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.MerchantID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -34,15 +34,7 @@ func (m QueueMailer) Send(ctx context.Context, message platform.MailMessage) err
 	if err != nil {
 		return err
 	}
-	body := message.Text
-	if body == "" {
-		body = message.HTML
-	}
-	payload, err := json.Marshal(map[string]any{
-		"title":   map[string]string{"zh_cn": message.Subject, "en": message.Subject},
-		"summary": map[string]string{"zh_cn": body, "en": body},
-		"locale":  "zh_cn",
-	})
+	payload, err := json.Marshal(message.Payload)
 	if err != nil {
 		return err
 	}
@@ -54,6 +46,6 @@ func (m QueueMailer) Send(ctx context.Context, message platform.MailMessage) err
 	if err != nil {
 		return err
 	}
-	_, err = m.Pool.Exec(ctx, `INSERT INTO mail_deliveries(public_id,dedupe_key,template,recipient_cipher,payload_cipher,state) VALUES($1,$2,'transactional',$3,$4,'queued')`, id, dedupe, recipientCipher, payloadCipher)
+	_, err = m.Pool.Exec(ctx, `INSERT INTO mail_deliveries(public_id,dedupe_key,template,recipient_cipher,payload_cipher,state) VALUES($1,$2,$3,$4,$5,'queued')`, id, dedupe, message.Template, recipientCipher, payloadCipher)
 	return err
 }

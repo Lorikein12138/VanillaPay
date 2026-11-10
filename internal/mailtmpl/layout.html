@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="{{.Locale}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>{{.Title}}</title>
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (max-width: 480px) {
+      .gutter { padding: 24px 14px !important; }
+      .content { padding: 28px 22px !important; }
+      .heading { font-size: 30px !important; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .page { background-color: #1a1918 !important; }
+      .card { background-color: #262624 !important; border-color: #403f3c !important; }
+      .panel { background-color: #30302e !important; border-color: #4b4944 !important; }
+      .ink { color: #faf9f5 !important; }
+      .muted { color: #c2c0b6 !important; }
+      .accent { color: #e39a7e !important; }
+    }
+  </style>
+</head>
+<body class="page" style="margin:0; padding:0; background-color:#faf9f5; -webkit-text-size-adjust:100%; font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
+  <table role="presentation" class="page" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#faf9f5" style="width:100%; background-color:#faf9f5;">
+    <tr>
+      <td class="gutter" align="center" style="padding:42px 16px;">
+        {{outlookOpen}}
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; max-width:576px;">
+          <tr>
+            <td class="ink" style="padding:0 4px 15px; color:#141413; font-family:'Source Serif 4 Variable','Noto Serif SC Variable',Georgia,'Noto Serif SC','Songti SC',serif; font-size:21px; line-height:1.35; font-weight:600; overflow-wrap:anywhere;">{{.SiteName}}</td>
+          </tr>
+          <tr>
+            <td class="card content" bgcolor="#ffffff" style="background-color:#ffffff; border:1px solid #dedcd6; border-radius:16px; padding:36px 38px; color:#141413; font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
+              <table role="presentation" width="34" cellspacing="0" cellpadding="0" border="0"><tr><td bgcolor="#d97757" height="4" style="background-color:#d97757; border-radius:4px; height:4px; font-size:0; line-height:0;">&nbsp;</td></tr></table>
+              <p class="accent" style="margin:17px 0 7px; color:#b5532f; font-size:12px; line-height:1.5; font-weight:700; letter-spacing:0.07em;">{{.Category}}</p>
+              <h1 class="ink heading" style="margin:0; color:#141413; font-family:'Source Serif 4 Variable','Noto Serif SC Variable',Georgia,'Noto Serif SC','Songti SC',serif; font-size:36px; line-height:1.2; font-weight:600; overflow-wrap:anywhere;">{{.Title}}</h1>
+              {{if .Intro}}<p class="muted" style="margin:16px 0 0; color:#5e5d59; font-size:15px; line-height:1.65; white-space:pre-line; overflow-wrap:anywhere;">{{.Intro}}</p>{{end}}
+              {{if .Details}}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; margin-top:22px;">
+                <tr><td class="panel" bgcolor="#f0eee6" style="background-color:#f0eee6; border:1px solid #dedcd6; border-radius:10px; padding:15px 18px;">
+                  {{range .Details}}<p class="muted" style="margin:0 0 2px; color:#5e5d59; font-size:12px; line-height:1.5;">{{.Label}}</p>
+                  <p class="ink" style="margin:0 0 8px; color:#141413; font-size:15px; line-height:1.45; font-weight:600; overflow-wrap:anywhere;">{{.Value}}</p>{{end}}
+                </td></tr>
+              </table>
+              {{end}}
+              {{if .Code}}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; margin-top:22px;">
+                <tr><td class="panel ink" align="center" dir="ltr" bgcolor="#f0eee6" style="background-color:#f0eee6; border:1px solid #dedcd6; border-radius:10px; padding:18px 10px; color:#141413; font-family:'JetBrains Mono',Consolas,'Courier New',monospace; font-size:34px; line-height:1.15; font-weight:700; letter-spacing:0.17em; overflow-wrap:anywhere;">{{.Code}}</td></tr>
+              </table>
+              {{end}}
+              {{if .Note}}<p class="muted" style="margin:18px 0 0; color:#5e5d59; font-size:14px; line-height:1.65;">{{.Note}}</p>{{end}}
+              {{if .URL}}
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:24px;">
+                <tr><td bgcolor="#b5532f" style="background-color:#b5532f; border-radius:8px; mso-padding-alt:11px 20px;">
+                  <a href="{{.URL}}" style="display:inline-block; border-radius:8px; padding:11px 20px; mso-padding-alt:0; color:#ffffff; text-decoration:none; font-size:17px; line-height:1.4; font-weight:700;">{{.Action}}</a>
+                </td></tr>
+              </table>
+              {{end}}
+            </td>
+          </tr>
+          <tr>
+            <td class="muted" style="padding:17px 4px 0; color:#5e5d59; font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif; font-size:12px; line-height:1.55; overflow-wrap:anywhere;"><strong>{{.SiteName}}</strong><br>{{.Footer}}</td>
+          </tr>
+        </table>
+        {{outlookClose}}
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

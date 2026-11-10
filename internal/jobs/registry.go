@@ -11,7 +11,6 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"vanillapay/internal/device"
 	"vanillapay/internal/payment"
-	"vanillapay/internal/platform"
 	"vanillapay/internal/subscription"
 )
 
@@ -55,7 +54,7 @@ type Registry struct {
 	started bool
 }
 
-func NewRegistry(pool *pgxpool.Pool, key [32]byte, queue *RiverQueue, pay *payment.Service, subs *subscription.Service, devices *device.Service, _ platform.SafeHTTPClient) (*Registry, error) {
+func NewRegistry(pool *pgxpool.Pool, key [32]byte, queue *RiverQueue, pay *payment.Service, subs *subscription.Service, devices *device.Service, publicBaseURL string) (*Registry, error) {
 	if pool == nil || queue == nil {
 		return nil, errors.New("river database and queue are required")
 	}
@@ -64,7 +63,7 @@ func NewRegistry(pool *pgxpool.Pool, key [32]byte, queue *RiverQueue, pay *payme
 	river.AddWorker(workers, &callbackScanWorker{pool: pool, queue: queue})
 	river.AddWorker(workers, &expiryWorker{pool: pool, payments: pay, subscriptions: subs})
 	river.AddWorker(workers, &offlineWorker{devices: devices})
-	river.AddWorker(workers, &mailWorker{pool: pool, key: key})
+	river.AddWorker(workers, &mailWorker{pool: pool, key: key, publicBaseURL: publicBaseURL})
 	periodic := []*river.PeriodicJob{
 		river.NewPeriodicJob(river.PeriodicInterval(15*time.Second), func() (river.JobArgs, *river.InsertOpts) {
 			return CallbackScanArgs{}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true, ByPeriod: 15 * time.Second}}
@@ -145,8 +144,9 @@ type offlineWorker struct {
 
 type mailWorker struct {
 	river.WorkerDefaults[MailArgs]
-	pool *pgxpool.Pool
-	key  [32]byte
+	pool          *pgxpool.Pool
+	key           [32]byte
+	publicBaseURL string
 }
 
 func (r *Registry) EnqueueMailTx(ctx context.Context, tx pgx.Tx, dedupeKey string) error {

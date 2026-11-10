@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -67,11 +66,9 @@ func (m *RecordingMailer) Messages() []platform.MailMessage {
 func (m *RecordingMailer) LastCode() string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	codePattern := regexp.MustCompile(`\b([0-9]{6})\b`)
 	for i := len(m.messages) - 1; i >= 0; i-- {
-		match := codePattern.FindStringSubmatch(m.messages[i].Text)
-		if len(match) == 2 {
-			return match[1]
+		if code := m.messages[i].Payload.Code; code != "" {
+			return code
 		}
 	}
 	return ""

@@ -16,7 +16,7 @@ import (
 	"io"
 	"math/big"
 	"mime"
-	"mime/quotedprintable"
+	"mime/multipart"
 	"net"
 	"net/mail"
 	"net/netip"
@@ -94,6 +94,9 @@ func TestDB_RefundOfflineAndAnnouncementMailJobs(t *testing.T) {
 func TestDB_MailWorkerDeliversThroughLocalTLS(t *testing.T) {
 	db := testsupport.NewDatabase(t)
 	app := db.NewApplication(t)
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE site_settings SET site=site||'{"site_name":"示例支付"}'`); err != nil {
+		t.Fatal(err)
+	}
 	sink := newTrustedLocalSMTPSink(t)
 	configureMailWorker(t, db, app, "127.0.0.1", sink.port, "contract-smtp-user", fixturePassword)
 	admin := platform.Actor{Role: "admin", SubjectID: 1}
@@ -114,12 +117,14 @@ func TestDB_MailWorkerDeliversThroughLocalTLS(t *testing.T) {
 		}
 		decoder := new(mime.WordDecoder)
 		subject, err := decoder.DecodeHeader(message.Header.Get("Subject"))
-		if err != nil || subject != "VanillaPay SMTP test" {
+		if err != nil || subject != "【示例支付】SMTP 测试邮件" {
 			t.Fatalf("SMTP subject=%q err=%v", subject, err)
 		}
-		body, err := readMIMEBody(message)
-		if err != nil || !strings.Contains(body, "SMTP 配置测试邮件。") {
-			t.Fatalf("SMTP body did not preserve the configured Chinese test content: %q err=%v", body, err)
+		parts := readMIMEAlternatives(t, message)
+		if !strings.Contains(parts["text/plain"], "这是一封 SMTP 配置测试邮件。") ||
+			!strings.Contains(parts["text/html"], "<html lang=\"zh-CN\">") ||
+			!strings.Contains(parts["text/html"], "这是一封 SMTP 配置测试邮件。") {
+			t.Fatal("SMTP test mail did not include both Chinese alternatives")
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("local SMTP server did not receive the queued mail")
@@ -135,6 +140,45 @@ func TestDB_MailWorkerDeliversThroughLocalTLS(t *testing.T) {
 			t.Fatal("local SMTP endpoint did not receive configured authentication")
 		}
 	})
+}
+
+func TestDB_MailWorkerDoesNotRetryAcceptedDataAfterSMTPError(t *testing.T) {
+	for _, command := range []string{"RSET", "QUIT"} {
+		t.Run(command, func(t *testing.T) {
+			db := testsupport.NewDatabase(t)
+			application := db.NewApplication(t)
+			sink := newLocalSMTPSink(t, command)
+			configureMailWorker(t, db, application, "127.0.0.1", sink.port, "contract-smtp-user", fixturePassword)
+			admin := platform.Actor{Role: "admin", SubjectID: 1}
+			delivery, err := application.Services.Settings.QueueMailTest(t.Context(), admin, "operator@example.test")
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := delivery["delivery_id"].(string)
+			startMailWorkers(t, application)
+			select {
+			case <-sink.message:
+			case <-time.After(10 * time.Second):
+				t.Fatal("SMTP fixture did not accept DATA")
+			}
+			waitCompletedMailScan(t, db, 0, 10*time.Second)
+			status, err := application.Services.Settings.MailTestStatus(t.Context(), admin, id)
+			if err != nil || status["state"] != "sent" || mailStatusErrorCode(status) != "" {
+				t.Fatalf("accepted SMTP DATA must be marked sent after %s fails: status=%#v err=%v", command, status, err)
+			}
+			if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET updated_at=now()-interval '31 minutes' WHERE public_id=$1`, id); err != nil {
+				t.Fatal(err)
+			}
+			before := completedMailScanCount(t, db)
+			enqueueMailScan(t, db)
+			waitCompletedMailScan(t, db, before, 10*time.Second)
+			var attempts int
+			var sentAt *time.Time
+			if err := db.Pool.QueryRow(t.Context(), `SELECT attempts,sent_at FROM mail_deliveries WHERE public_id=$1`, id).Scan(&attempts, &sentAt); err != nil || attempts != 1 || sentAt == nil {
+				t.Fatalf("accepted SMTP DATA attempts=%d sent_at=%v err=%v", attempts, sentAt, err)
+			}
+		})
+	}
 }
 
 func TestDB_MailWorkerRetriesFailuresWithoutRollingBackFacts(t *testing.T) {
@@ -439,6 +483,11 @@ var localSMTPCertificate = sync.OnceValues(func() (smtpCertificates, error) {
 
 func newTrustedLocalSMTPSink(t *testing.T) *localSMTPSink {
 	t.Helper()
+	return newLocalSMTPSink(t, "")
+}
+
+func newLocalSMTPSink(t *testing.T, failCommand string) *localSMTPSink {
+	t.Helper()
 	certificates, err := localSMTPCertificate()
 	if err != nil {
 		t.Fatalf("create local SMTP certificates: %v", err)
@@ -450,11 +499,11 @@ func newTrustedLocalSMTPSink(t *testing.T) *localSMTPSink {
 	tlsListener := tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{certificates.server}, MinVersion: tls.VersionTLS12})
 	sink := &localSMTPSink{port: listener.Addr().(*net.TCPAddr).Port, message: make(chan string, 1)}
 	t.Cleanup(func() { _ = tlsListener.Close() })
-	go sink.serve(tlsListener)
+	go sink.serve(tlsListener, failCommand)
 	return sink
 }
 
-func (sink *localSMTPSink) serve(listener net.Listener) {
+func (sink *localSMTPSink) serve(listener net.Listener, failCommand string) {
 	connection, err := listener.Accept()
 	if err != nil {
 		return
@@ -479,6 +528,10 @@ func (sink *localSMTPSink) serve(listener net.Listener) {
 		command := strings.TrimSpace(line)
 		upper := strings.ToUpper(command)
 		switch {
+		case upper == failCommand:
+			if !write("451 simulated SMTP error after DATA acceptance") {
+				return
+			}
 		case strings.HasPrefix(upper, "EHLO ") || strings.HasPrefix(upper, "HELO "):
 			if _, err := writer.WriteString("250-smtp-test\r\n250 AUTH PLAIN\r\n"); err != nil || writer.Flush() != nil {
 				return
@@ -523,10 +576,10 @@ func (sink *localSMTPSink) serve(listener net.Listener) {
 				body.WriteString(dataLine)
 				body.WriteString("\r\n")
 			}
-			sink.message <- body.String()
 			if !write("250 queued") {
 				return
 			}
+			sink.message <- body.String()
 		case upper == "QUIT":
 			_ = write("221 bye")
 			return
@@ -538,17 +591,35 @@ func (sink *localSMTPSink) serve(listener net.Listener) {
 	}
 }
 
-func readMIMEBody(message *mail.Message) (string, error) {
-	body := message.Body
-	var reader = body
-	switch strings.ToLower(message.Header.Get("Content-Transfer-Encoding")) {
-	case "quoted-printable":
-		reader = quotedprintable.NewReader(body)
-	case "base64":
-		reader = base64.NewDecoder(base64.StdEncoding, body)
+func readMIMEAlternatives(t *testing.T, message *mail.Message) map[string]string {
+	t.Helper()
+	mediaType, params, err := mime.ParseMediaType(message.Header.Get("Content-Type"))
+	if err != nil || mediaType != "multipart/alternative" {
+		t.Fatalf("mail content type = %q, err=%v", mediaType, err)
 	}
-	decoded, err := io.ReadAll(reader)
-	return string(decoded), err
+	reader := multipart.NewReader(message.Body, params["boundary"])
+	parts := make(map[string]string)
+	for _, wantType := range []string{"text/plain", "text/html"} {
+		part, err := reader.NextPart()
+		if err != nil {
+			t.Fatal(err)
+		}
+		partType, _, parseErr := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		var body io.Reader = part
+		if strings.EqualFold(part.Header.Get("Content-Transfer-Encoding"), "base64") {
+			body = base64.NewDecoder(base64.StdEncoding, part)
+		}
+		decoded, readErr := io.ReadAll(body)
+		_ = part.Close()
+		if parseErr != nil || partType != wantType || readErr != nil || len(decoded) == 0 {
+			t.Fatalf("mail part = %q, want %q, parse=%v read=%v", partType, wantType, parseErr, readErr)
+		}
+		parts[partType] = string(decoded)
+	}
+	if _, err := reader.NextPart(); err != io.EOF {
+		t.Fatalf("unexpected third MIME part: %v", err)
+	}
+	return parts
 }
 
 func unusedLocalPort(t *testing.T) int {

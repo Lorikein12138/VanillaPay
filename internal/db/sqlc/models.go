@@ -130,6 +130,8 @@ type Device struct {
 	RevokedAt              pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	OnlineSince            pgtype.Timestamptz `json:"online_since"`
+	OfflineAlertArmed      bool               `json:"offline_alert_armed"`
 }
 
 type DeviceBinding struct {

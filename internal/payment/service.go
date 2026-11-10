@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	sqlc "vanillapay/internal/db/sqlc"
+	"vanillapay/internal/mailtmpl"
 	"vanillapay/internal/platform"
 )
 
@@ -867,15 +868,11 @@ func (s *Service) createRefundNotificationTx(ctx context.Context, tx pgx.Tx, mer
 }
 
 func (s *Service) createRefundMailTx(ctx context.Context, tx pgx.Tx, merchantID int64, refundID, trade string) error {
-	var recipient string
-	if err := tx.QueryRow(ctx, `SELECT email_normalized FROM merchants WHERE id=$1`, merchantID).Scan(&recipient); err != nil {
+	var recipient, locale string
+	if err := tx.QueryRow(ctx, `SELECT email_normalized,COALESCE(preferences->>'locale','zh-CN') FROM merchants WHERE id=$1`, merchantID).Scan(&recipient, &locale); err != nil {
 		return err
 	}
-	payload, err := json.Marshal(map[string]any{
-		"title":   map[string]string{"zh_cn": "退款申请", "en": "Refund request"},
-		"summary": map[string]string{"zh_cn": "订单 " + trade + " 有新的退款申请", "en": "A refund was requested for order " + trade},
-		"locale":  "zh_cn",
-	})
+	payload, err := json.Marshal(mailtmpl.Payload{Locale: locale, TradeNo: trade})
 	if err != nil {
 		return err
 	}
@@ -891,7 +888,7 @@ func (s *Service) createRefundMailTx(ctx context.Context, tx pgx.Tx, merchantID 
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO mail_deliveries(public_id,dedupe_key,template,recipient_cipher,payload_cipher,state) VALUES($1,$2,'refund_request',$3,$4,'queued') ON CONFLICT(dedupe_key) DO NOTHING`, public, "refund:"+refundID, recipientCipher, payloadCipher)
+	_, err = tx.Exec(ctx, `INSERT INTO mail_deliveries(public_id,dedupe_key,template,recipient_cipher,payload_cipher,state) VALUES($1,$2,$3,$4,$5,'queued') ON CONFLICT(dedupe_key) DO NOTHING`, public, "refund:"+refundID, mailtmpl.RefundRequest, recipientCipher, payloadCipher)
 	return err
 }
 

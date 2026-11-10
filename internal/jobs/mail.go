@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	mail "github.com/wneessen/go-mail"
+	"vanillapay/internal/mailtmpl"
 	"vanillapay/internal/platform"
 )
 
@@ -59,10 +60,17 @@ func (w *mailWorker) deliverQueued(ctx context.Context, limit int) error {
 	for _, item := range batch {
 		err := w.send(ctx, item)
 		state, code := "sent", ""
+		updateCtx := ctx
+		cancel := func() {}
 		if err != nil {
 			state, code = "failed", "smtp_delivery_failed"
+		} else {
+			// Persist SMTP acceptance even if the scan was canceled during delivery.
+			updateCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		}
-		if _, dbErr := w.pool.Exec(ctx, `UPDATE mail_deliveries SET state=$1,last_error=NULLIF($2,''),sent_at=CASE WHEN $1='sent' THEN now() ELSE sent_at END,updated_at=now() WHERE id=$3`, state, code, item.id); dbErr != nil {
+		_, dbErr := w.pool.Exec(updateCtx, `UPDATE mail_deliveries SET state=$1,last_error=NULLIF($2,''),sent_at=CASE WHEN $1='sent' THEN now() ELSE sent_at END,updated_at=now() WHERE id=$3`, state, code, item.id)
+		cancel()
+		if dbErr != nil {
 			return dbErr
 		}
 	}
@@ -78,35 +86,18 @@ func (w *mailWorker) send(ctx context.Context, item queuedMail) error {
 	if err != nil {
 		return err
 	}
-	var payload struct {
-		Title   map[string]string `json:"title"`
-		Summary map[string]string `json:"summary"`
-		Code    string            `json:"code"`
-		Locale  string            `json:"locale"`
-	}
+	var payload mailtmpl.Payload
 	if err := json.Unmarshal(plain, &payload); err != nil {
 		return err
 	}
-	locale := strings.ToLower(payload.Locale)
-	if locale != "en" {
-		locale = "zh_cn"
-	}
-	subject := payload.Title[locale]
-	body := payload.Summary[locale]
-	if body == "" {
-		body = payload.Code
-	}
-	if subject == "" {
-		subject = item.template
-	}
-	if body == "" {
-		body = subject
-	}
-	var host, user, from, fromName, tlsMode string
-	var port int
+	var siteName string
 	var passwordCipher []byte
 	var raw []byte
-	if err := w.pool.QueryRow(ctx, `SELECT mail FROM site_settings WHERE singleton=true`).Scan(&raw); err != nil {
+	if err := w.pool.QueryRow(ctx, `SELECT mail,COALESCE(site->>'site_name','') FROM site_settings WHERE singleton=true`).Scan(&raw, &siteName); err != nil {
+		return err
+	}
+	rendered, err := mailtmpl.Render(item.template, payload, siteName, w.publicBaseURL)
+	if err != nil {
 		return err
 	}
 	var cfg struct {
@@ -120,7 +111,6 @@ func (w *mailWorker) send(ctx context.Context, item queuedMail) error {
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return err
 	}
-	host, user, from, fromName, tlsMode, port = cfg.Host, cfg.Username, cfg.FromAddress, cfg.FromName, cfg.TLSMode, cfg.Port
 	if err := w.pool.QueryRow(ctx, `SELECT encrypted_value FROM secret_settings WHERE name='smtp_password'`).Scan(&passwordCipher); err != nil {
 		return err
 	}
@@ -128,24 +118,39 @@ func (w *mailWorker) send(ctx context.Context, item queuedMail) error {
 	if err != nil {
 		return err
 	}
-	opts := []mail.Option{mail.WithPort(port), mail.WithUsername(user), mail.WithPassword(string(password)), mail.WithSMTPAuth(mail.SMTPAuthPlain), mail.WithTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12, ServerName: host})}
-	if tlsMode == "tls" {
+	opts := []mail.Option{mail.WithPort(cfg.Port), mail.WithUsername(cfg.Username), mail.WithPassword(string(password)), mail.WithSMTPAuth(mail.SMTPAuthPlain), mail.WithTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12, ServerName: cfg.Host})}
+	if cfg.TLSMode == "tls" {
 		opts = append(opts, mail.WithSSL())
 	} else {
 		opts = append(opts, mail.WithTLSPolicy(mail.TLSMandatory))
 	}
-	client, err := mail.NewClient(host, opts...)
+	client, err := mail.NewClient(cfg.Host, opts...)
 	if err != nil {
 		return err
 	}
 	msg := mail.NewMsg()
-	if err := msg.FromFormat(fromName, from); err != nil {
+	if err := msg.FromFormat(cfg.FromName, cfg.FromAddress); err != nil {
 		return err
 	}
 	if err := msg.To(string(recipient)); err != nil {
 		return err
 	}
-	msg.Subject(subject)
-	msg.SetBodyString(mail.TypeTextPlain, body)
-	return client.DialAndSendWithContext(ctx, msg)
+	msg.Subject(rendered.Subject)
+	msg.SetBodyString(mail.TypeTextPlain, rendered.Text)
+	msg.AddAlternativeString(mail.TypeTextHTML, rendered.HTML)
+	smtp, err := client.DialToSMTPClientWithContext(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := client.CloseWithSMTPClient(smtp); err != nil {
+			_ = smtp.Close() // A failed QUIT can leave the socket open.
+		}
+	}()
+	err = client.SendWithSMTPClient(smtp, msg)
+	// go-mail records DATA acceptance before RSET or QUIT can fail.
+	if msg.IsDelivered() {
+		return nil
+	}
+	return err
 }
