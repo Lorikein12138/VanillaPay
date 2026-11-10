@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"net/url"
 	"sort"
@@ -166,9 +167,7 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("sub2api-style V1 query response=%d body=%s", sub2apiResponse.Code, sub2apiResponse.Body.String())
 	}
 	conflicting := fixture.RequestWithHeaders(t, http.MethodPost, "/api.php?"+sub2apiQuery.Encode(), strings.NewReader("act=order&pid="+pid+"&key="+url.QueryEscape(merchantKey)+"&out_trade_no=other"), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
-	if conflicting.Code == http.StatusOK && strings.Contains(conflicting.Body.String(), `"code":1`) {
-		t.Fatalf("V1 query accepted differing query and form values: %s", conflicting.Body.String())
-	}
+	assertEchoRejected(t, conflicting, "V1 api.php query with differing query and form values")
 	secondOrder := create("v1", "return-v1-snapshot", "https://merchant.example.test/return?campaign=snapshot")
 	keyCipher, err := platform.Encrypt(db.Key[:], []byte("rotated-v1-key-after-order"), rand.Reader)
 	if err != nil {
@@ -228,6 +227,24 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		}
 	})
 
+	// Only POST /api.php tolerates an echoed query; the contract forbids any
+	// query/form duplicate on the V1 create entries, even with equal values.
+	t.Run("V1 create rejects echoed query", func(t *testing.T) {
+		echo := url.Values{"pid": {pid}, "out_trade_no": {"return-v1-echo"}, "notify_url": {notifyURL}, "return_url": {"https://merchant.example.test/return"}, "name": {"Echo order"}, "money": {"2.00"}, "type": {"alipay"}, "clientip": {"198.51.100.80"}}
+		echo.Set("sign", mustV1ContractSignature(echo, "rotated-v1-key-after-order"))
+		query := url.Values{"sign": {echo.Get("sign")}}.Encode()
+		mapi := fixture.RequestWithHeaders(t, http.MethodPost, "/mapi.php?"+query, strings.NewReader(echo.Encode()), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+		assertEchoRejected(t, mapi, "V1 mapi.php with an echoed query")
+		submit := fixture.RequestWithHeaders(t, http.MethodPost, "/submit.php?"+query, strings.NewReader(echo.Encode()), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+		if submit.Code != http.StatusOK || submit.Header().Get("Content-Type") != "text/html; charset=utf-8" || !strings.Contains(submit.Body.String(), "<code>INVALID_SIGNATURE</code>") {
+			t.Fatalf("V1 submit.php with an echoed query: status=%d location=%q body=%s", submit.Code, submit.Header().Get("Location"), submit.Body.String())
+		}
+		accepted := fixture.RequestWithHeaders(t, http.MethodPost, "/mapi.php", strings.NewReader(echo.Encode()), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+		if accepted.Code != http.StatusOK || !strings.Contains(accepted.Body.String(), `"code":1`) {
+			t.Fatalf("the same V1 form without the echo must be valid: status=%d body=%s", accepted.Code, accepted.Body.String())
+		}
+	})
+
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal("generate independent V2 merchant signing key")
@@ -257,6 +274,16 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("V2 query amount response=%d body=%s; want money 1.00 and actual_money 0.99", v2QueryResponse.Code, v2QueryResponse.Body.String())
 	}
 	verifyPlatformV2Response(t, fixture, v2QueryResponse.Body.Bytes())
+	// V2 entries reject any query/form duplicate, even with equal values; each
+	// form below is valid on its own, so only the echoed sign can fail it.
+	v2Echo := url.Values{"pid": {pid}, "out_trade_no": {"return-v2-echo"}, "notify_url": {notifyURL}, "return_url": {"https://merchant.example.test/v2-return"}, "name": {"Echo order"}, "money": {"1.00"}, "type": {"alipay"}, "clientip": {"198.51.100.80"}, "timestamp": {strconv.FormatInt(db.Clock.Now().Unix(), 10)}, "sign_type": {"RSA"}}
+	v2Echo.Set("sign", signV2Independent(t, v2Echo, privateKey))
+	v2RefundEcho := url.Values{"pid": {pid}, "trade_no": {v2.TradeNo}, "money": {"1.00"}, "timestamp": {strconv.FormatInt(db.Clock.Now().Unix(), 10)}, "sign_type": {"RSA"}}
+	v2RefundEcho.Set("sign", signV2Independent(t, v2RefundEcho, privateKey))
+	for path, form := range map[string]url.Values{"/api/pay/query": v2Query, "/api/pay/create": v2Echo, "/api/pay/submit": v2Echo, "/api/pay/refund": v2RefundEcho} {
+		echoed := fixture.RequestWithHeaders(t, http.MethodPost, path+"?"+url.Values{"sign": {form.Get("sign")}}.Encode(), strings.NewReader(form.Encode()), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+		assertEchoRejected(t, echoed, "V2 "+path+" with an echoed query")
+	}
 	markPaid(v2)
 	v2ID, err := fixture.App.Services.Payment.OrderID(t.Context(), v2.TradeNo)
 	if err != nil {
@@ -460,4 +487,14 @@ func mustParseURLQuery(t *testing.T, raw string) url.Values {
 		t.Fatalf("parse signed return URL: %v", err)
 	}
 	return u.Query()
+}
+
+// assertEchoRejected requires the exact protocol rejection for a request whose
+// query string repeats a form parameter that the endpoint does not tolerate.
+func assertEchoRejected(t *testing.T, res *httptest.ResponseRecorder, what string) {
+	t.Helper()
+	var body map[string]json.RawMessage
+	if res.Code != http.StatusOK || json.Unmarshal(res.Body.Bytes(), &body) != nil || string(body["code"]) != "-1" || string(body["error_code"]) != `"INVALID_SIGNATURE"` {
+		t.Fatalf("%s: status=%d body=%s; want 200 code=-1 error_code=INVALID_SIGNATURE", what, res.Code, res.Body.String())
+	}
 }

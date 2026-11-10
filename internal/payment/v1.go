@@ -130,7 +130,7 @@ func (h *Handler) externalCommand(r *http.Request, p url.Values, merchantID int6
 }
 
 func (h *Handler) V1API(w http.ResponseWriter, r *http.Request) {
-	p, err := parseProtocolParams(r)
+	p, err := parseV1ActionParams(r)
 	if err != nil {
 		v1Error(w, "INVALID_SIGNATURE")
 		return

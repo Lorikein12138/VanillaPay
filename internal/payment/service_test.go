@@ -70,14 +70,29 @@ func TestUnit_ProtocolFormRejectsDuplicatesMixedSourcesAndInvalidUTF8(t *testing
 	}
 }
 
+// Only POST /api.php tolerates an echoed parameter; every other protocol
+// entry keeps rejecting a key in both the query and the form.
+func TestUnit_ProtocolFormRejectsEchoOutsideV1Actions(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/pay/query?sign=s", strings.NewReader("pid=1&sign=s"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if values, err := parseProtocolParams(req); err == nil {
+		t.Fatalf("parseProtocolParams() = %#v, want error for echoed sign", values)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api.php?out_trade_no=a", strings.NewReader("out_trade_no=b"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if values, err := parseV1ActionParams(req); err == nil {
+		t.Fatalf("parseV1ActionParams() = %#v, want error for differing values", values)
+	}
+}
+
 // sub2api's act=order query sends every parameter in both the query and the
 // form; identical values must be accepted as one parameter.
 func TestUnit_ProtocolFormAcceptsIdenticalQueryAndBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api.php?act=order&pid=1001&key=k&out_trade_no=o1", strings.NewReader("act=order&pid=1001&key=k&out_trade_no=o1&extra=x"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	values, err := parseProtocolParams(req)
+	values, err := parseV1ActionParams(req)
 	if err != nil {
-		t.Fatalf("parseProtocolParams() error = %v", err)
+		t.Fatalf("parseV1ActionParams() error = %v", err)
 	}
 	for k, want := range map[string]string{"act": "order", "pid": "1001", "key": "k", "out_trade_no": "o1", "extra": "x"} {
 		if got := values[k]; len(got) != 1 || got[0] != want {

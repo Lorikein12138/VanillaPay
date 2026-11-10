@@ -631,7 +631,21 @@ func (h *Handler) requestActor(r *http.Request, merchantID int64) platform.Actor
 	return actor
 }
 
+// parseProtocolParams reads a payment protocol request. A POST must not
+// supply the same parameter in both the query string and the form.
 func parseProtocolParams(r *http.Request) (url.Values, error) {
+	return readProtocolParams(r, false)
+}
+
+// parseV1ActionParams reads POST /api.php. Epay clients (sub2api among them)
+// send act=order/refund parameters in both the query and the form so either
+// kind of gateway can read them; the same value in both places is one
+// parameter, while different values stay ambiguous and are rejected.
+func parseV1ActionParams(r *http.Request) (url.Values, error) {
+	return readProtocolParams(r, true)
+}
+
+func readProtocolParams(r *http.Request, allowEcho bool) (url.Values, error) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		return nil, errors.New("unsupported method")
 	}
@@ -678,12 +692,9 @@ func parseProtocolParams(r *http.Request) (url.Values, error) {
 			return nil, errors.New("form parameter is not valid UTF-8")
 		}
 	}
-	// Epay clients (sub2api among them) send act=order/refund parameters in
-	// both the query and the form so either kind of gateway can read them.
-	// The same value twice is one parameter; different values stay ambiguous.
 	for k, v := range query {
-		if other, ok := form[k]; ok && other[0] != v[0] {
-			return nil, errors.New("parameter supplied in query and form with different values")
+		if other, ok := form[k]; ok && (!allowEcho || other[0] != v[0]) {
+			return nil, errors.New("parameter supplied in query and form")
 		}
 	}
 	for k, v := range form {
