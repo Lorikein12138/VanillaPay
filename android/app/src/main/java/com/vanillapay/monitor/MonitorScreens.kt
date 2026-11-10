@@ -13,9 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -87,6 +91,62 @@ private fun Input(
 internal data class SetupChecks(
     val access: Boolean, val posting: Boolean, val battery: Boolean, val startup: Boolean, val sources: Boolean,
 )
+
+internal data class StartupGuide(val startup: String, val background: String? = null)
+
+internal fun startupGuide(manufacturer: String): StartupGuide = if (isVivoManufacturer(manufacturer)) {
+    StartupGuide(
+        startup = "i 管家 → 应用管理 → 自启动，开启 VanillaPay Monitor。",
+        background = "未开启时，切到后台约 1 分钟后可能停止监听，到账要等打开 app 才上报。\n" +
+            "设置 → 电池 → 后台耗电管理 → VanillaPay Monitor → 允许后台高耗电",
+    )
+} else {
+    StartupGuide(
+        "小米：手机管家 → 应用管理 → 自启动。\n" +
+            "华为：设置 → 应用启动管理，手动允许后台运行。\n" +
+            "OPPO：手机管家 → 权限隐私 → 自启动管理。\n" +
+            "vivo：i 管家 → 应用管理 → 自启动。另需在设置 → 电池 → 后台耗电管理 → " +
+            "VanillaPay Monitor 中选择「允许后台高耗电」。",
+    )
+}
+
+@Composable
+internal fun StartupGuideDialog(
+    guide: StartupGuide, openStartup: () -> Unit, openBackground: () -> Unit,
+    onConfirm: () -> Unit, onDismiss: () -> Unit,
+) {
+    val background = guide.background
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = if (background == null) AlertDialogDefaults.containerColor else MaterialTheme.colorScheme.surface,
+        title = { Text("自启动与后台运行") },
+        text = {
+            if (background == null) {
+                Text(guide.startup)
+            } else {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("第一步：自启动", style = MaterialTheme.typography.titleMedium)
+                    Paragraph(guide.startup)
+                    TextAction("打开自启动设置", openStartup)
+                    Rule()
+                    Text("第二步：允许后台高耗电", style = MaterialTheme.typography.titleMedium)
+                    Paragraph(background)
+                    TextAction("打开后台耗电设置", openBackground)
+                }
+            }
+        },
+        confirmButton = {
+            if (background == null) TextAction("去设置", openStartup)
+            else TextAction("我已确认", onConfirm)
+        },
+        dismissButton = {
+            if (background == null) TextAction("我已确认", onConfirm)
+        },
+    )
+}
 
 @Composable
 internal fun SetupScreen(

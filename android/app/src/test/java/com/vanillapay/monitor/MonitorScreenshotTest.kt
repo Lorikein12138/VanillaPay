@@ -45,7 +45,7 @@ class MonitorScreenshotTest {
             Diagnostic("1", time, "wxpay", "微信支付\n微信支付收款0.01元(朋友到店)", 1),
             Diagnostic("2", time - 50_000, "alipay", "支付宝\n付款38.00元", null),
         )
-        val screens = listOf("bind", "setup", "main", "settings", "diagnostics")
+        val screens = listOf("bind", "setup", "main", "settings", "diagnostics", "startup-vivo")
         for (screen in if (width == 360) screens + "receipt-error" else screens) {
             val theme = if (dark) "dark" else "light"
             val file = File(directory, "$screen-$theme-$width.png")
@@ -55,6 +55,10 @@ class MonitorScreenshotTest {
                         "bind" -> BindScreen("7KQF-MNT2-8WXJ", "Redmi Note 12", "https://pay.example.test", false,
                             null, {}, {}, {}, {}, {}, {})
                         "setup" -> SetupScreen(SetupChecks(true, false, false, false, false), {}, {}, {}, {}, {}, {})
+                        "startup-vivo" -> {
+                            SetupScreen(SetupChecks(true, false, false, false, false), {}, {}, {}, {}, {}, {})
+                            StartupGuideDialog(startupGuide("vivo"), {}, {}, {}, {})
+                        }
                         "main" -> HomeScreen(MonitorState(true, session, true, true, time - 12_000), true,
                             Channel.entries.toSet(), receipts, 18, 1, time, {}, {}, {})
                         "settings" -> SettingsScreen(session, {}, {}, {}, {})
