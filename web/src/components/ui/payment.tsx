@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Check, Clock, RotateCcw, Store } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, type ButtonProps } from './button'
+import { channelPaths } from './channel-paths'
 import { CopyText } from './copy-button'
 import { Card } from './layout'
 
@@ -20,20 +21,69 @@ export function PaymentShell({ merchant, controls, footer, children }: { merchan
 }
 
 // Shared brand tokens, with brighter dark-theme variants for legibility.
-const channelColors: Record<string, string> = {
+const channelColors: Record<keyof typeof channelPaths, string> = {
   alipay: '[--channel-color:#1677ff] dark:[--channel-color:#6ba6ff]',
   wxpay: '[--channel-color:#07a855] dark:[--channel-color:#47d68a]',
   qqpay: '[--channel-color:#008cdb] dark:[--channel-color:#58bfff]',
 }
-function ChannelDot({ channel }: { channel: string }) {
-  return <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-full bg-[var(--channel-color)]', channelColors[channel] ?? '[--channel-color:var(--vp-text-3)]')} />
+/**
+ * `brand` is a coloured tile for places where the channel is the thing being
+ * chosen or identified (checkout, collection-code cards). `plain` is a muted
+ * glyph for dense lists and tables, where colour would only add noise.
+ */
+export function ChannelIcon({ channel, size = 'sm', tone = 'brand', className }: {
+  channel: string; size?: 'sm' | 'md'; tone?: 'brand' | 'plain'; className?: string
+}) {
+  const brand = Object.hasOwn(channelPaths, channel) ? channel as keyof typeof channelPaths : null
+  if (tone === 'plain') {
+    return brand
+      ? <svg aria-hidden="true" className={cn('size-3.5 shrink-0 text-text-3', className)} viewBox="0 0 24 24" fill="currentColor"><path d={channelPaths[brand]} /></svg>
+      : null
+  }
+  return (
+    <span aria-hidden="true" className={cn(
+      'inline-grid shrink-0 place-items-center bg-[var(--channel-color)] text-white',
+      size === 'md' ? 'size-6 rounded-[6px]' : 'size-4 rounded-[4px]',
+      brand ? channelColors[brand] : '[--channel-color:var(--vp-text-3)]',
+      className,
+    )}>
+      {brand && (
+        <svg className="size-[62.5%]!" viewBox="0 0 24 24" fill="currentColor">
+          <path d={channelPaths[brand]} />
+        </svg>
+      )}
+    </span>
+  )
+}
+
+export function ChannelLabel({ channel, children }: { channel: string; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap align-middle">
+      <ChannelIcon channel={channel} tone="plain" />
+      {children}
+    </span>
+  )
+}
+
+export function ChannelList({ channels, name }: { channels: string[]; name: (channel: string) => string }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
+      {channels.map((channel) => <ChannelLabel key={channel} channel={channel}>{name(channel)}</ChannelLabel>)}
+    </span>
+  )
 }
 
 export function ChannelOption({ channel, selected = false, children, className, ...props }: ButtonProps & { channel: string; selected?: boolean }) {
-  return <Button {...props} aria-pressed={selected} className={cn(
-    'h-14 min-w-0 justify-start gap-2.5 border-border bg-surface px-4 hover:border-border-strong hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed',
-    selected && 'border-accent bg-accent/5 ring-1 ring-accent/30', className,
-  )}><ChannelDot channel={channel} /><span className="min-w-0 truncate">{children}</span></Button>
+  return (
+    <Button {...props} aria-pressed={selected} className={cn(
+      'h-14 min-w-0 justify-start gap-2.5 border-border bg-surface px-2.5 hover:border-border-strong hover:bg-hover sm:px-4',
+      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed',
+      selected && 'border-accent bg-accent/5 ring-1 ring-accent/30', className,
+    )}>
+      <ChannelIcon channel={channel} size="md" />
+      <span className="min-w-0 truncate">{children}</span>
+    </Button>
+  )
 }
 
 export function ChannelGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
@@ -43,10 +93,13 @@ export function ChannelGroup({ label, count, children }: { label: string; count:
   </div>
 }
 
-export function ChannelBadge({ channel, name, label }: { channel: string; name: string; label: string }) {
+export function ChannelBadge({ channel, name, label }: { channel: string; name: string; label?: string }) {
   return <div className="flex flex-wrap items-center justify-center gap-2 text-caption text-text-3">
-    <span className="inline-flex items-center gap-2 rounded-full border-[0.5px] border-border bg-muted px-3 py-1.5 text-label text-text-2"><ChannelDot channel={channel} />{name}</span>
-    <span>{label}</span>
+    <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border-[0.5px] border-border bg-muted px-3 py-1.5 text-label text-text-2">
+      <ChannelIcon channel={channel} />
+      {name}
+    </span>
+    {label && <span>{label}</span>}
   </div>
 }
 

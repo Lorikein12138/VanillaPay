@@ -6,7 +6,9 @@ import { ThemeSwitch } from '@/components/ThemeSwitch'
 import { Button } from '@/components/ui/button'
 import { formatCountdown, useCountdown } from '@/components/ui/countdown'
 import { Notice } from '@/components/ui/notice'
-import { ChannelBadge, ChannelGroup, ChannelOption, PaymentAmount, PaymentOrder, PaymentQR, PaymentResult, PaymentShell } from '@/components/ui/payment'
+import {
+  ChannelBadge, ChannelGroup, ChannelOption, PaymentAmount, PaymentOrder, PaymentQR, PaymentResult, PaymentShell,
+} from '@/components/ui/payment'
 import { money } from '@/features/merchant/overview-data'
 import { useCheckout } from './useCheckout'
 import { returnToMerchant } from './return'
@@ -56,7 +58,12 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
       : !data ? state.isPending ? <p role="status">{t('checkout.loading')}</p> : <Notice tone="error">{t('checkout.retryError')} <Button variant="ghost" onClick={() => void state.refetch()}>{t('checkout.retry')}</Button></Notice>
         : terminal ? <><PaymentResult kind={data.status as 'paid' | 'expired' | 'refunded'} title={t(`checkout.status.${data.status}`, { defaultValue: data.status })}>
           {data.status === 'paid' ? <>
-            {data.actual_cents !== null && <p>{t('checkout.paidAmount', { amount: money(data.actual_cents, i18n.language) })}{data.channel && <> · {channelName(data.channel)}</>}</p>}
+            {data.actual_cents !== null && (
+              <p>
+                {t('checkout.paidAmount', { amount: money(data.actual_cents, i18n.language) })}
+                {data.channel && <> · {channelName(data.channel)}</>}
+              </p>
+            )}
             <PaidReturn key={tradeNo} url={data.return_url_signed} hasReturned={hasReturned} onReturn={returnOnce} />
           </> : <p>{t(`checkout.statusHelp.${data.status}`, { defaultValue: '' })}</p>}
         </PaymentResult><PaymentOrder value={data.trade_no} label={t('checkout.orderLabel')} copyLabel={t('checkout.order')} /></>
@@ -72,7 +79,10 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
               </ChannelGroup>
             </>}
             {(state.actionError || state.error) && <Notice tone="error">{errorMessage(state.actionError || state.error)}</Notice>}
-            {data.can_pay && data.qr_image_url ? <><PaymentQR src={data.qr_image_url} alt={t('checkout.qr')} /><p className="text-center text-label text-text-2">{t('checkout.scan', { channel: channelName(data.channel ?? '') })}</p></>
+            {data.can_pay && data.qr_image_url ? <>
+              <PaymentQR src={data.qr_image_url} alt={t('checkout.qr')} />
+              <p className="text-center text-label text-text-2">{t('checkout.scan', { channel: channelName(data.channel ?? '') })}</p>
+            </>
               : data.reason !== 'no_channel' && <Notice tone="warning">{t(`checkout.reasons.${data.reason ?? 'unavailable'}`, { defaultValue: t('checkout.reasons.unavailable') })}</Notice>}
             <p className="text-center text-caption text-text-3">{t('checkout.remaining')} <span className="font-mono tabular-nums">{formatCountdown(state.seconds)}</span></p>
             <PaymentOrder value={data.trade_no} label={t('checkout.orderLabel')} copyLabel={t('checkout.order')} />

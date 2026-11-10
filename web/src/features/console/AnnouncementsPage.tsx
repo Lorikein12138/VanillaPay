@@ -85,6 +85,7 @@ export function AnnouncementsPage() {
               { label: t('consoleAnnouncements.revision'), value: (item) => <Mono>{item.revision}</Mono> },
               {
                 label: t('manage.manage'),
+                wide: true,
                 value: (item) => (
                   <InlineActions>
                     <Button size="sm" onClick={() => open({ mode: 'edit', item })}>

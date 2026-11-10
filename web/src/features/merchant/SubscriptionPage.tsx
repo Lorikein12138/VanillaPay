@@ -12,8 +12,9 @@ import { Dialog } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/input'
 import { Card, EmptyState, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
+import { ChannelList } from '@/components/ui/payment'
 import { ModuleError, useLocalAction } from './CollectionParts'
-import { formatOrderTime, OrderChannel, OrderTime } from './OrderParts'
+import { formatOrderTime, OrderTime } from './OrderParts'
 import { money } from './overview-data'
 import { invalidateSubscription, localized, purchaseKind, subscriptionError, type Plan, type Subscription } from './subscription-data'
 
@@ -57,7 +58,8 @@ export function SubscriptionPage({ name }: { name: string }) {
 }
 
 function Channels({ channels }: { channels: string[] | null }) {
-  return channels?.length ? <>{channels.map((channel, index) => <span key={channel}>{index > 0 && ' · '}<OrderChannel channel={channel} /></span>)}</> : <>—</>
+  const { t } = useTranslation()
+  return channels?.length ? <ChannelList channels={channels} name={(channel) => t(`merchant.overview.channels.${channel}`, { defaultValue: channel })} /> : <>—</>
 }
 
 export function PurchaseDialog({ plan, current, onClose, onChanged }: { plan: Plan; current: Subscription; onClose: () => void; onChanged: () => Promise<void> }) {

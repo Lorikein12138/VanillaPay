@@ -11,10 +11,11 @@ import { FileInput } from '@/components/ui/file-input'
 import { Input, Select } from '@/components/ui/input'
 import { Card, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
+import { ChannelIcon } from '@/components/ui/payment'
 import { collectionInput, centsToYuan, invalidateCollection, uploadError, type Schema } from './collection-data'
 import { ModuleError, useLocalAction } from './CollectionParts'
 import { orderChannels } from './orders-data'
-import { OrderChannel, OrderTime } from './OrderParts'
+import { OrderTime } from './OrderParts'
 
 export function CodesPage({ name }: { name: string }) {
   const { t } = useTranslation()
@@ -54,7 +55,7 @@ function QRSlot({ name, channel, value, onNotice }: { name: string; channel: str
     })
   }
   return <Card className="flex flex-col" aria-label={t('polish.channelCollectionCode', { v0: channel })}>
-    <SectionHeader as="h2" title={<OrderChannel channel={channel} />} actions={<StatusDot tone={value?.asset_id && value.enabled ? 'ok' : 'off'}>{value?.asset_id ? value.enabled ? t('polish.active') : t('polish.inactive') : t('polish.notUploaded')}</StatusDot>} />
+    <SectionHeader as="h2" className="items-center" title={<span className="flex items-center gap-2.5"><ChannelIcon channel={channel} size="md" />{t(`merchant.overview.channels.${channel}`, { defaultValue: channel })}</span>} actions={<StatusDot tone={value?.asset_id && value.enabled ? 'ok' : 'off'}>{value?.asset_id ? value.enabled ? t('polish.active') : t('polish.inactive') : t('polish.notUploaded')}</StatusDot>} />
     <div className="mb-5 flex h-44 items-center justify-center rounded-control bg-muted p-4">{value?.image_url ? <img className="max-h-full max-w-full rounded-control" src={value.image_url} alt={t('polish.channelCodePreview', { v0: channel })} /> : <p className="text-label text-text-3">{t('polish.yourUploadedImageAppearsHere')}</p>}</div>
     <p className="mb-5 text-caption text-text-3">{t('polish.updated')}<OrderTime value={value?.updated_at ?? null} /></p>
     <div className="mt-auto flex flex-col gap-4"><Field htmlFor={id} label={value?.asset_id ? t('polish.replaceImage') : t('polish.uploadImage')} hint={t('polish.pngJpegUpTo5MibUp')}><FileInput id={id} accept="image/png,image/jpeg" disabled={action.busy} onChange={(event) => { const next = event.target.files?.[0]; event.target.value = ''; onNotice(''); if (next) { const error = uploadError(next); onNotice(error ? t(error) : '', 'error'); if (!error) { setFile(next); setConfirm('upload') } } }} /></Field>

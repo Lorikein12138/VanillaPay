@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
 import { StatusDot } from '@/components/StatusDot'
 import { Identifier } from '@/components/ui/layout'
+import { ChannelLabel } from '@/components/ui/payment'
 import { RecordLink } from '@/components/ui/records'
 import { Table, Td, Th } from '@/components/ui/table'
 import { money } from './overview-data'
-import { orderStatuses, type OrderFilters } from './orders-data'
+import { orderChannels, orderStatuses, type OrderFilters } from './orders-data'
 
 const statusTones = { paid: 'ok', pending: 'wait', expired: 'off', refunded: 'info' } as const
 
@@ -24,7 +25,9 @@ export function OrderStatus({ status }: { status: string }) {
 
 export function OrderChannel({ channel }: { channel: string | null }) {
   const { t } = useTranslation()
-  return t(channel === 'alipay' || channel === 'wxpay' || channel === 'qqpay' ? `merchant.overview.channels.${channel}` : 'merchant.overview.channels.unassigned')
+  const known = orderChannels.find((value) => value === channel)
+  if (!known) return t('merchant.overview.channels.unassigned')
+  return <ChannelLabel channel={known}>{t(`merchant.overview.channels.${known}`)}</ChannelLabel>
 }
 
 export function OrderTime({ value }: { value: string | null }) {
