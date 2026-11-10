@@ -3,9 +3,12 @@ package identity
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"vanillapay/internal/auth"
 	"vanillapay/tests/backend/testsupport"
@@ -17,6 +20,22 @@ import (
 func TestHTTP_PasswordResetAttemptLimitWithoutTurnstile(t *testing.T) {
 	db := testsupport.NewDatabase(t)
 	merchantID, _ := db.SeedMerchant(t)
+	// Fewer main-pool connections than concurrent resets: every reset holds a
+	// connection while it waits on the merchant row lock, so counting an
+	// attempt on the main pool would starve forever.
+	small, err := url.Parse(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := small.Query()
+	query.Set("pool_max_conns", "2")
+	small.RawQuery = query.Encode()
+	pool, err := pgxpool.New(t.Context(), small.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	db.Pool = pool
 	fixture := testsupport.NewHTTPFixture(t, db)
 	hash, err := auth.HashPassword(fixturePassword, nil)
 	if err != nil {
@@ -78,7 +97,16 @@ func TestHTTP_PasswordResetAttemptLimitWithoutTurnstile(t *testing.T) {
 			}
 		})
 	}
-	wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("concurrent wrong resets did not finish: attempt counting starved the connection pool")
+	}
 	if got := failures(t); got != 5 {
 		t.Fatalf("concurrent wrong attempts counted %d, want exactly the limit 5", got)
 	}

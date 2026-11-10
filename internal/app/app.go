@@ -73,6 +73,7 @@ type App struct {
 	mailer       platform.Mailer
 	readiness    []ReadinessCheck
 	Services     *Services
+	attemptPool  *pgxpool.Pool
 	closeOnce    sync.Once
 }
 
@@ -148,6 +149,13 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 			deps.Turnstile = auth.Siteverify{}
 		}
 		identity := auth.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, mailer, deps.Turnstile, cfg.PublicBaseURL)
+		attemptPool, err := newAttemptPool(ctx, pool)
+		if err != nil {
+			database.Close()
+			return nil, errors.New("database pool initialization failed")
+		}
+		a.attemptPool = attemptPool
+		identity.SetAttemptPool(attemptPool)
 		merchants := merchant.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, billing, identity)
 		merchants.SetPurchasePort(subs)
 		merchants.SetPlatformKeyPort(billing)
@@ -155,6 +163,7 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 		settingsService := settings.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, cfg.PublicBaseURL, cfg.DataDir, deps.Turnstile)
 		registry, err := jobs.NewRegistry(pool, cfg.EncryptionKey, queue, billing, subs, devices, deps.HTTPClient)
 		if err != nil {
+			attemptPool.Close()
 			database.Close()
 			return nil, errors.New("background worker initialization failed")
 		}
@@ -212,6 +221,22 @@ func newPGXPool(ctx context.Context, cfg config.Config) (Database, error) {
 		return nil, errors.New("unable to create PostgreSQL pool")
 	}
 	return pool, nil
+}
+
+// newAttemptPool opens the small pool that counts verification-code attempts.
+// Callers count while their own transaction holds a main-pool connection and
+// row locks, so sharing the main pool deadlocks once concurrent requests for
+// the same account occupy every connection. lock_timeout bounds the rare wait
+// on a code row locked by a transaction that itself still has to count.
+func newAttemptPool(ctx context.Context, main *pgxpool.Pool) (*pgxpool.Pool, error) {
+	poolConfig := main.Config()
+	poolConfig.MaxConns = 4
+	poolConfig.MinConns = 0
+	if poolConfig.ConnConfig.RuntimeParams == nil {
+		poolConfig.ConnConfig.RuntimeParams = map[string]string{}
+	}
+	poolConfig.ConnConfig.RuntimeParams["lock_timeout"] = "5000"
+	return pgxpool.NewWithConfig(ctx, poolConfig)
 }
 
 // Ready checks the database and any configured migration and worker health
@@ -287,6 +312,9 @@ func (a *App) Close() error {
 		return nil
 	}
 	a.closeOnce.Do(func() {
+		if a.attemptPool != nil {
+			a.attemptPool.Close()
+		}
 		if a.database != nil {
 			a.database.Close()
 		}
