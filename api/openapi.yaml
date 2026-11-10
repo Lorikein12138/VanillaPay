@@ -4204,7 +4204,7 @@ paths:
                   - $ref: '#/components/schemas/V1Order'
                   - $ref: '#/components/schemas/V1Refund'
                   - $ref: '#/components/schemas/ProtocolError'
-      description: V1 查询/退款：key 必填；提供 sign 时也校验 MD5。act=order 查询，act=refund 请求退款。
+      description: V1 查询/退款：key 必填；提供 sign 时也校验 MD5。act=order 查询，act=refund 请求退款。兼容易支付客户端在查询串与表单中重复发送同一参数：同名参数两处值相同视为一个参数，值不同返回 INVALID_SIGNATURE。
       requestBody:
         required: true
         content:

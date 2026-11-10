@@ -425,9 +425,6 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	if param != "" {
 		params.Set("param", param)
 	}
-	loc := time.FixedZone("CST", 8*3600)
-	params.Set("addtime", created.In(loc).Format("2006-01-02 15:04:05"))
-	params.Set("endtime", paid.In(loc).Format("2006-01-02 15:04:05"))
 	switch protocol {
 	case "v1":
 		key, decErr := platform.Decrypt(h.Service.key[:], cipher)
@@ -440,6 +437,10 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 		}
 		params.Set("sign", signature)
 	case "v2":
+		// V1 return URLs keep the classic epay field set; V2 adds its extras.
+		loc := time.FixedZone("CST", 8*3600)
+		params.Set("addtime", created.In(loc).Format("2006-01-02 15:04:05"))
+		params.Set("endtime", paid.In(loc).Format("2006-01-02 15:04:05"))
 		params.Set("api_trade_no", provider)
 		params.Set("buyer", buyer)
 		params.Set("timestamp", strconv.FormatInt(h.Service.clock.Now().Unix(), 10))
@@ -630,7 +631,21 @@ func (h *Handler) requestActor(r *http.Request, merchantID int64) platform.Actor
 	return actor
 }
 
+// parseProtocolParams reads a payment protocol request. A POST must not
+// supply the same parameter in both the query string and the form.
 func parseProtocolParams(r *http.Request) (url.Values, error) {
+	return readProtocolParams(r, false)
+}
+
+// parseV1ActionParams reads POST /api.php. Epay clients (sub2api among them)
+// send act=order/refund parameters in both the query and the form so either
+// kind of gateway can read them; the same value in both places is one
+// parameter, while different values stay ambiguous and are rejected.
+func parseV1ActionParams(r *http.Request) (url.Values, error) {
+	return readProtocolParams(r, true)
+}
+
+func readProtocolParams(r *http.Request, allowEcho bool) (url.Values, error) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		return nil, errors.New("unsupported method")
 	}
@@ -677,8 +692,8 @@ func parseProtocolParams(r *http.Request) (url.Values, error) {
 			return nil, errors.New("form parameter is not valid UTF-8")
 		}
 	}
-	for k := range query {
-		if _, ok := form[k]; ok {
+	for k, v := range query {
+		if other, ok := form[k]; ok && (!allowEcho || other[0] != v[0]) {
 			return nil, errors.New("parameter supplied in query and form")
 		}
 	}
