@@ -59,31 +59,15 @@ func (s *Service) UploadQR(ctx context.Context, actor platform.Actor, channel st
 	if !validQRPayload(channel, payload) {
 		return QRDTO{}, &platform.Error{Code: "INVALID_QR", HTTPStatus: 400}
 	}
-	matrix, err := qrcode.NewQRCodeWriter().Encode(payload, gozxing.BarcodeFormat_QR_CODE, 512, 512, map[gozxing.EncodeHintType]any{
-		gozxing.EncodeHintType_ERROR_CORRECTION: "M",
-		gozxing.EncodeHintType_MARGIN:           4,
-		gozxing.EncodeHintType_CHARACTER_SET:    "UTF-8",
-	})
+	data, err := renderQR(payload)
 	if err != nil {
-		return QRDTO{}, &platform.Error{Code: "INVALID_QR", HTTPStatus: 400}
-	}
-	qr := image.NewPaletted(image.Rect(0, 0, matrix.GetWidth(), matrix.GetHeight()), color.Palette{color.White, color.Black})
-	for y := range matrix.GetHeight() {
-		for x := range matrix.GetWidth() {
-			if matrix.Get(x, y) {
-				qr.SetColorIndex(x, y, 1)
-			}
-		}
-	}
-	var data bytes.Buffer
-	if err := png.Encode(&data, qr); err != nil {
 		return QRDTO{}, err
 	}
 	payloadCipher, err := platform.Encrypt(s.key[:], []byte(payload), s.random)
 	if err != nil {
 		return QRDTO{}, err
 	}
-	return s.saveAsset(ctx, actor, channel, "qr", "png", data.Bytes(), payloadCipher)
+	return s.saveAsset(ctx, actor, channel, "qr", "png", data, payloadCipher)
 }
 
 func (s *Service) UploadLogo(ctx context.Context, actor platform.Actor, src io.Reader) (map[string]string, error) {
@@ -321,4 +305,38 @@ func (s *Service) openMediaPath(path string) (*os.File, error) {
 		return nil, fmt.Errorf("media path is outside data directory")
 	}
 	return os.Open(full)
+}
+
+// renderQR re-encodes a decoded payload as a clean QR code. The uploaded code
+// may have used a lower error-correction level than M, so a payload that does
+// not fit at M falls back to L; only a payload that overflows L is rejected.
+func renderQR(payload string) ([]byte, error) {
+	var matrix *gozxing.BitMatrix
+	var err error
+	for _, level := range []string{"M", "L"} {
+		matrix, err = qrcode.NewQRCodeWriter().Encode(payload, gozxing.BarcodeFormat_QR_CODE, 512, 512, map[gozxing.EncodeHintType]any{
+			gozxing.EncodeHintType_ERROR_CORRECTION: level,
+			gozxing.EncodeHintType_MARGIN:           4,
+			gozxing.EncodeHintType_CHARACTER_SET:    "UTF-8",
+		})
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, &platform.Error{Code: "INVALID_QR", HTTPStatus: 400}
+	}
+	qr := image.NewPaletted(image.Rect(0, 0, matrix.GetWidth(), matrix.GetHeight()), color.Palette{color.White, color.Black})
+	for y := range matrix.GetHeight() {
+		for x := range matrix.GetWidth() {
+			if matrix.Get(x, y) {
+				qr.SetColorIndex(x, y, 1)
+			}
+		}
+	}
+	var data bytes.Buffer
+	if err := png.Encode(&data, qr); err != nil {
+		return nil, err
+	}
+	return data.Bytes(), nil
 }

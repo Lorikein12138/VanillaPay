@@ -372,7 +372,7 @@ test('signs in with console TOTP using the shared second-factor form', async ({ 
   await expect(page).toHaveURL(/\/console$/)
 })
 
-test('repairs only the existing security values and consumes both the terminal code and repair session', async ({ page, request }) => {
+test('repairs only the existing security values and consumes both the terminal code and repair session', async ({ page, request, context }) => {
   await seed(request)
   const issued = await request.post('/__e2e/console/recovery', { data: {} })
   expect(issued.status()).toBe(200)
@@ -380,6 +380,9 @@ test('repairs only the existing security values and consumes both the terminal c
   await page.goto('/console/recovery')
   await expect(page.getByText('docker exec vanillapay /usr/local/bin/server console-recovery', { exact: true })).toBeVisible()
   await shots(page, 'recovery-code')
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.getByRole('button', { name: '复制', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('docker exec vanillapay /usr/local/bin/server console-recovery')
   const recovered = page.waitForResponse((response) => response.url().endsWith('/console/recovery'))
   await page.getByLabel('终端恢复码').fill(code)
   await page.getByRole('button', { name: '验证恢复码' }).click()

@@ -113,13 +113,25 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 			if _, err := provider.UpTo(ctx, 7); err != nil {
 				t.Fatal(err)
 			}
-			var enabled, legacy bool
-			if err := migrationDB.QueryRowContext(ctx, `SELECT (security->>'turnstile_enabled')::boolean, security ? 'allowed_hostname' FROM site_settings`).Scan(&enabled, &legacy); err != nil || enabled != configured || legacy {
-				t.Fatalf("configured=%t enabled=%t legacy=%t err=%v", configured, enabled, legacy, err)
+			var enabled bool
+			var legacyHost string
+			if err := migrationDB.QueryRowContext(ctx, `SELECT (security->>'turnstile_enabled')::boolean, COALESCE(security->>'allowed_hostname','') FROM site_settings`).Scan(&enabled, &legacyHost); err != nil || enabled != configured || legacyHost != "old.example.test" {
+				t.Fatalf("configured=%t enabled=%t legacy=%q err=%v", configured, enabled, legacyHost, err)
 			}
 			if _, err := migrationDB.ExecContext(ctx, `DELETE FROM secret_settings WHERE name='turnstile_secret'`); err != nil {
 				t.Fatal(err)
 			}
+		}
+		if _, err := provider.DownTo(ctx, 6); err != nil {
+			t.Fatal(err)
+		}
+		var legacyHost string
+		var hasEnabled bool
+		if err := migrationDB.QueryRowContext(ctx, `SELECT security->>'allowed_hostname', security ? 'turnstile_enabled' FROM site_settings`).Scan(&legacyHost, &hasEnabled); err != nil || legacyHost != "old.example.test" || hasEnabled {
+			t.Fatalf("down to 6 lost the legacy hostname: %q enabled-key=%t err=%v", legacyHost, hasEnabled, err)
+		}
+		if _, err := provider.UpTo(ctx, 7); err != nil {
+			t.Fatal(err)
 		}
 	})
 	t.Run("V03.B.r05/v01", func(t *testing.T) {

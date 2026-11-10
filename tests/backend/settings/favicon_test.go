@@ -9,6 +9,8 @@ import (
 	"image/draw"
 	"image/png"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"vanillapay/internal/platform"
@@ -120,4 +122,32 @@ func TestHTTP_FaviconSourcesAndCache(t *testing.T) {
 	if etag, _ := get("/favicon.ico"); etag != defaultETag || getVersion() != defaultVersion {
 		t.Fatal("removal did not restore default icon")
 	}
+	corrupt := func(assetID string) {
+		t.Helper()
+		var path string
+		if err := db.Pool.QueryRow(t.Context(), `SELECT file_path FROM media_assets WHERE id=$1`, assetID).Scan(&path); err != nil {
+			t.Fatal("read icon asset path")
+		}
+		if err := os.WriteFile(filepath.Join(fixture.DataDir, filepath.FromSlash(path)), []byte("not an image"), 0o600); err != nil {
+			t.Fatal("corrupt icon asset")
+		}
+	}
+	save(logoID, iconID, http.StatusOK, "")
+	corrupt(iconID)
+	corrupt(logoID)
+	if etag, _ := get("/favicon.ico"); etag != defaultETag {
+		t.Fatal("undecodable icon sources did not fall back to the default icon")
+	}
+	freshLogo, err := service.UploadLogo(t.Context(), actor, imgBytes(red))
+	if err != nil {
+		t.Fatal(err)
+	}
+	freshIcon, err := service.UploadFavicon(t.Context(), actor, imgBytes(blue))
+	if err != nil {
+		t.Fatal(err)
+	}
+	save(freshLogo["asset_id"], freshIcon["asset_id"], http.StatusOK, "")
+	corrupt(freshIcon["asset_id"])
+	_, data = get("/favicon-32.png")
+	assertPNG(data, 32, red)
 }

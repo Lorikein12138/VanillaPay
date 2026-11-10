@@ -273,7 +273,7 @@ func updateSettingsGroupTx(ctx context.Context, tx pgx.Tx, group string, clean j
 	case "mail":
 		query = `UPDATE site_settings SET mail=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	case "security":
-		query = `UPDATE site_settings SET security=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
+		query = `UPDATE site_settings SET security=$1::jsonb || jsonb_strip_nulls(jsonb_build_object('allowed_hostname',security->'allowed_hostname')),version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	case "payment":
 		query = `UPDATE site_settings SET payment=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	case "billing":
@@ -315,7 +315,7 @@ func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Act
 		}
 		var current int64
 		var currentSecurity json.RawMessage
-		if err := tx.QueryRow(ctx, `SELECT version,security FROM site_settings WHERE singleton=true FOR UPDATE`).Scan(&current, &currentSecurity); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT version,security - 'allowed_hostname' FROM site_settings WHERE singleton=true FOR UPDATE`).Scan(&current, &currentSecurity); err != nil {
 			return err
 		}
 		if current != expectedVersion {
@@ -348,7 +348,7 @@ func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Act
 			}
 		}
 		var nextVersion int64
-		if err := tx.QueryRow(ctx, `UPDATE site_settings SET security=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`, clean, s.clock.Now(), current).Scan(&nextVersion); err != nil {
+		if err := tx.QueryRow(ctx, `UPDATE site_settings SET security=$1::jsonb || jsonb_strip_nulls(jsonb_build_object('allowed_hostname',security->'allowed_hostname')),version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`, clean, s.clock.Now(), current).Scan(&nextVersion); err != nil {
 			return err
 		}
 		if raw, ok := secrets["turnstile_secret"]; ok {

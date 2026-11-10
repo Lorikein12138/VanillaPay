@@ -24,7 +24,7 @@ type SettingsRow struct {
 func (r Repository) Get(ctx context.Context) (SettingsRow, error) {
 	var row SettingsRow
 	var site, home, footer, mail, security, payment, billing []byte
-	err := r.DB.QueryRow(ctx, `SELECT version,site,home,footer_legal,mail,security,payment,billing FROM site_settings WHERE singleton=true`).Scan(&row.Version, &site, &home, &footer, &mail, &security, &payment, &billing)
+	err := r.DB.QueryRow(ctx, `SELECT version,site,home,footer_legal,mail,security - 'allowed_hostname',payment,billing FROM site_settings WHERE singleton=true`).Scan(&row.Version, &site, &home, &footer, &mail, &security, &payment, &billing)
 	if err != nil {
 		return row, err
 	}

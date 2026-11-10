@@ -179,12 +179,7 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 	if err != nil {
 		return s.finishCallbackAttempt(ctx, work, 0, "", "INVALID_URL", err)
 	}
-	query := request.URL.Query()
-	stripPaymentFields(query)
-	for field := range work.params {
-		query.Del(field)
-	}
-	request.URL.RawQuery = query.Encode()
+	request.URL.RawQuery = stripReservedRawQuery(request.URL.RawQuery)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	work.startedWall = time.Now()
 	response, err := s.httpClient.DoPublic(ctx, request)

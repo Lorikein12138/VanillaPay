@@ -37,6 +37,7 @@ type HTTPFixture struct {
 	Network     *PublicNetwork
 	Siteverify  *LocalSiteverify
 	DeviceToken string
+	DataDir     string
 
 	mu   sync.Mutex
 	jars map[string]*cookiejar.Jar
@@ -205,6 +206,7 @@ func NewHTTPFixtureWithTrustedProxyCIDRs(t *testing.T, db *Database, trusted []n
 		DB:         db,
 		App:        application,
 		Handler:    httpx.NewRouter(application),
+		DataDir:    cfg.DataDir,
 		Mailer:     mailer,
 		Network:    network,
 		Siteverify: siteverify,

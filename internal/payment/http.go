@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"io"
+	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -383,7 +384,10 @@ func (h *Handler) checkoutData(ctx context.Context, trade string) (CheckoutDTO, 
 		dto.QRImageURL = stringPtr("/media/" + url.PathEscape(asset.String) + "?trade_no=" + url.QueryEscape(trade) + "&expires=" + expiresText + "&signature=" + url.QueryEscape(sig))
 	}
 	if dto.Status == "paid" && returnURL.Valid {
-		if signed, signErr := h.signedReturnURL(ctx, trade, returnURL.String); signErr == nil {
+		signed, signErr := h.signedReturnURL(ctx, trade, returnURL.String)
+		if signErr != nil {
+			slog.WarnContext(ctx, "checkout_return_url_unsigned", "trade_no", trade, "error", signErr)
+		} else {
 			dto.ReturnURLSigned = &signed
 		}
 	}

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"log/slog"
 	"net/http"
 	"os"
 	"sync"
@@ -106,7 +107,10 @@ func (s *Service) siteIcon(ctx context.Context, path string) (iconRepresentation
 		img, _, err := image.Decode(file)
 		_ = file.Close() // Preserve the decoding result.
 		if err != nil {
-			return iconRepresentation{}, err
+			// A damaged or unsupported file must not take the icon down: try the
+			// next source and finally the built-in icon.
+			slog.WarnContext(ctx, "site_icon_undecodable", "source", source, "error", err)
+			continue
 		}
 		return s.cacheIcons(source, path, img)
 	}
