@@ -58,7 +58,7 @@ test('keeps date segments and a long order number usable at the active width', a
   await expect(link).toBeVisible()
   const start = page.getByLabel('开始时间', { exact: true })
   const end = page.getByLabel('结束时间', { exact: true })
-  const dateValues = ['2026-11-01T08:15:09', '2026-11-30T18:45:17'] as const
+  const dateValues = ['2026-11-01 08:15:09', '2026-11-30 18:45:17'] as const
   async function fillDates() {
     await start.fill(dateValues[0])
     await end.fill(dateValues[1])
@@ -119,7 +119,7 @@ test('filters orders, restores shared URLs, loads cursors and exports only the c
   await expect(page.getByLabel('状态', { exact: true })).toHaveAttribute('data-value', 'paid')
   await expect(page.getByLabel('通道', { exact: true })).toHaveAttribute('data-value', 'alipay')
   await expect(page.getByLabel('搜索订单')).toHaveValue('')
-  await expect(page.getByLabel('开始时间', { exact: true })).toHaveValue('2000-01-01T00:00')
+  await expect(page.getByLabel('开始时间', { exact: true })).toHaveValue('2000-01-01 00:00')
   await page.getByRole('button', { name: '加载更多' }).click()
   await expect(rows(page)).toHaveCount(21)
   const downloadPromise = page.waitForEvent('download')

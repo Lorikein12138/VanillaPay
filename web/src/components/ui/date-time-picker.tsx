@@ -8,6 +8,19 @@ import { Button } from './button'
 import { Field } from './field'
 import { Input } from './input'
 
+// Values stay in the `YYYY-MM-DDTHH:mm[:ss]` form the filters and URLs use;
+// only the text box shows a space instead of the ISO `T`.
+const isoSeparator = /^(\d{4}-\d{2}-\d{2})T/
+const spaceSeparator = /^(\d{4}-\d{2}-\d{2}) +/
+
+function displayDateTime(value: string) {
+  return value.replace(isoSeparator, '$1 ')
+}
+
+function storedDateTime(value: string) {
+  return value.replace(spaceSeparator, '$1T')
+}
+
 export function DateTimePicker({ id, value, onValueChange, disabled, invalid, describedBy }: {
   id: string
   value: string
@@ -21,10 +34,10 @@ export function DateTimePicker({ id, value, onValueChange, disabled, invalid, de
   return (
     <Popover.Root>
       <div className="relative min-w-0">
-        <Input ref={input} id={id} value={value} disabled={disabled} aria-invalid={invalid || undefined}
+        <Input ref={input} id={id} value={displayDateTime(value)} disabled={disabled} aria-invalid={invalid || undefined}
           aria-describedby={describedBy} data-empty={!value} autoComplete="off" spellCheck={false}
-          placeholder="YYYY-MM-DDTHH:mm:ss" className={value && !disabled ? 'pr-[76px]' : 'pr-10'}
-          onChange={(event) => onValueChange(event.target.value)} />
+          placeholder="YYYY-MM-DD HH:mm:ss" className={value && !disabled ? 'pr-[76px]' : 'pr-10'}
+          onChange={(event) => onValueChange(storedDateTime(event.target.value))} />
         <div className="absolute inset-y-0 right-0 flex items-center">
           {value && !disabled && (
             <Button size="icon" variant="ghost" className="size-9" aria-label={t('ui.clearDateTime')} onClick={() => {
@@ -115,17 +128,19 @@ function Calendar({ value, onApply }: { value: string; onApply: (value: string) 
           const focused = active.getDate() === date.getDate()
           return <Button key={index} variant="ghost" size="icon" ref={focused ? activeDay : undefined}
             tabIndex={focused ? 0 : -1} onKeyDown={moveDay} aria-label={dateFormat.format(date)}
-            aria-pressed={focused} className={cn('h-9 w-full', focused && 'bg-muted text-text')}
+            aria-pressed={focused} className={cn('h-8 w-full', focused && 'bg-muted text-text')}
             onClick={() => setActive(date)}>{index + 1}</Button>
         })}
       </div>
-      <Field label={t('ui.time')} htmlFor={timeId}>
-        <Input id={timeId} value={time} placeholder="HH:mm:ss" aria-invalid={!validTime || undefined}
-          onChange={(event) => setTime(event.target.value)} />
-      </Field>
-      <Popover.Close asChild>
-        <Button variant="primary" disabled={!validTime} onClick={() => onApply(nextValue)}>{t('ui.applyDateTime')}</Button>
-      </Popover.Close>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+        <Field label={t('ui.time')} htmlFor={timeId}>
+          <Input id={timeId} value={time} placeholder="HH:mm:ss" aria-invalid={!validTime || undefined}
+            onChange={(event) => setTime(event.target.value)} />
+        </Field>
+        <Popover.Close asChild>
+          <Button variant="primary" disabled={!validTime} onClick={() => onApply(nextValue)}>{t('ui.applyDateTime')}</Button>
+        </Popover.Close>
+      </div>
     </div>
   )
 }
