@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { formatCountdown, useCountdown } from '@/components/ui/countdown'
 import { Notice } from '@/components/ui/notice'
 import {
-  ChannelBadge, ChannelGroup, ChannelOption, PaymentAmount, PaymentOrder, PaymentQR, PaymentResult, PaymentShell,
+  ChannelBadge, ChannelGroup, ChannelOption, PaymentAmount, sortChannels, PaymentOrder, PaymentQR, PaymentResult, PaymentShell,
 } from '@/components/ui/payment'
 import { money } from '@/features/merchant/overview-data'
 import { useCheckout } from './useCheckout'
@@ -75,7 +75,7 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
             </> : <>
               <p className="text-center text-label text-text-2">{t('checkout.chooseHelp')}</p>
               <ChannelGroup label={t('checkout.choose')} count={data.available_channels?.length ?? 0}>
-                {(data.available_channels ?? []).map((channel) => <ChannelOption key={channel} channel={channel} disabled={state.busy || data.reason !== 'no_channel'} onClick={() => void state.select(channel)}>{channelName(channel)}</ChannelOption>)}
+                {sortChannels(data.available_channels ?? []).map((channel) => <ChannelOption key={channel} channel={channel} disabled={state.busy || data.reason !== 'no_channel'} onClick={() => void state.select(channel)}>{channelName(channel)}</ChannelOption>)}
               </ChannelGroup>
             </>}
             {(state.actionError || state.error) && <Notice tone="error">{errorMessage(state.actionError || state.error)}</Notice>}

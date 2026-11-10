@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { I18nextProvider } from 'react-i18next'
 import { describe, expect, it } from 'vitest'
 import type { operations } from '@/api/schema'
-import { ChannelIcon, ChannelOption } from '@/components/ui/payment'
+import { ChannelIcon, ChannelList, ChannelOption, sortChannels } from '@/components/ui/payment'
 import { OrderChannel } from '@/features/merchant/OrderParts'
 import { createI18n } from '@/lib/i18n'
 
@@ -55,5 +55,13 @@ describe('channel icons', () => {
 
     expect(screen.getByText('未分配')).toBeVisible()
     expect(container.querySelector('[aria-hidden]')).toBeNull()
+  })
+
+  it('lists channels in one canonical order whatever order the API returns', () => {
+    expect(sortChannels(['qqpay', 'future-channel', 'wxpay', 'alipay'])).toEqual(['alipay', 'wxpay', 'qqpay', 'future-channel'])
+    render(<ChannelList channels={['alipay', 'qqpay', 'wxpay']} name={(channel) => labels[channel as Channel]} />)
+
+    const text = screen.getAllByText(/支付宝|微信支付|QQ 钱包/).map((node) => node.textContent)
+    expect(text).toEqual(['支付宝', '微信支付', 'QQ 钱包'])
   })
 })

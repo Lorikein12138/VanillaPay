@@ -52,12 +52,19 @@ async function screenshots(page: Page, name: string) {
 async function expectChannelLayout(page: Page) {
   const buttons = Object.values(channelNames).map((name) => page.getByRole('button', { name, exact: true }))
   for (const button of buttons) await expect(button).toBeVisible()
-  const [alipay, wxpay, qqpay] = await Promise.all(buttons.map((button) => button.boundingBox()))
-  expect(alipay!.y).toBe(wxpay!.y)
-  expect(alipay!.x).toBeLessThan(wxpay!.x)
-  expect(qqpay!.y).toBeGreaterThan(alipay!.y)
-  expect(qqpay!.x).toBe(alipay!.x)
-  expect(qqpay!.x + qqpay!.width).toBeCloseTo(wxpay!.x + wxpay!.width)
+  const boxes = (await Promise.all(buttons.map((button) => button.boundingBox()))).map((box) => box!)
+  // Three channels share one row from the `sm` breakpoint and stack as full-width rows below it.
+  const row = page.viewportSize()!.width >= 640
+  for (const [previous, next] of boxes.slice(1).map((box, index) => [boxes[index]!, box] as const)) {
+    expect(next.width).toBeCloseTo(previous.width)
+    if (row) {
+      expect(next.y).toBe(previous.y)
+      expect(next.x).toBeGreaterThan(previous.x + previous.width)
+    } else {
+      expect(next.x).toBe(previous.x)
+      expect(next.y).toBeGreaterThan(previous.y + previous.height)
+    }
+  }
 }
 
 test('public v1 checkout locks a channel, serves its signed QR and receives a real device payment', async ({ page, request }) => {

@@ -20,6 +20,13 @@ export function PaymentShell({ merchant, controls, footer, children }: { merchan
   </div>
 }
 
+/** Display order shared by every channel list; unknown channels keep their relative order at the end. */
+const channelOrder = Object.keys(channelPaths)
+export function sortChannels<T extends string>(channels: readonly T[]): T[] {
+  const rank = (channel: string) => { const index = channelOrder.indexOf(channel); return index < 0 ? channelOrder.length : index }
+  return [...channels].sort((a, b) => rank(a) - rank(b))
+}
+
 // Shared brand tokens, with brighter dark-theme variants for legibility.
 const channelColors: Record<keyof typeof channelPaths, string> = {
   alipay: '[--channel-color:#1677ff] dark:[--channel-color:#6ba6ff]',
@@ -68,7 +75,7 @@ export function ChannelLabel({ channel, children }: { channel: string; children:
 export function ChannelList({ channels, name }: { channels: string[]; name: (channel: string) => string }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
-      {channels.map((channel) => <ChannelLabel key={channel} channel={channel}>{name(channel)}</ChannelLabel>)}
+      {sortChannels(channels).map((channel) => <ChannelLabel key={channel} channel={channel}>{name(channel)}</ChannelLabel>)}
     </span>
   )
 }
@@ -89,7 +96,7 @@ export function ChannelOption({ channel, selected = false, children, className, 
 export function ChannelGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
   return <div role="group" aria-label={label} className="flex flex-col gap-2.5">
     <p className="text-caption text-text-3">{label}</p>
-    <div className={cn('grid gap-2.5 [&>:last-child:nth-child(odd)]:col-span-full', count > 1 ? 'grid-cols-2' : 'grid-cols-1')}>{children}</div>
+    <div className={cn('grid gap-2.5', count === 2 ? 'grid-cols-2' : count > 2 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1')}>{children}</div>
   </div>
 }
 
