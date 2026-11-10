@@ -56,7 +56,7 @@ class MonitorScreenshotTest {
                             null, {}, {}, {}, {}, {}, {})
                         "setup" -> SetupScreen(SetupChecks(true, false, false, false, false), {}, {}, {}, {}, {}, {})
                         "main" -> HomeScreen(MonitorState(true, session, true, true, time - 12_000), true,
-                            setOf(Channel.Alipay, Channel.WeChat), receipts, 18, 1, time, {}, {}, {})
+                            Channel.entries.toSet(), receipts, 18, 1, time, {}, {}, {})
                         "settings" -> SettingsScreen(session, {}, {}, {}, {})
                         "diagnostics" -> DiagnosticsScreen(true, diagnostics, {}, {}, {})
                         "receipt-error" -> HomeScreen(MonitorState(true, session, true, false, time - 12_000), true,

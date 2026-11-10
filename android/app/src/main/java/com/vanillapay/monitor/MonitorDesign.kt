@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -41,8 +42,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vanillapay.monitor.parse.Channel
 
 private val sans = FontFamily(Font(R.font.instrument_sans))
 internal val serif = FontFamily(Font(R.font.source_serif))
@@ -50,7 +53,7 @@ internal val mono = FontFamily(Font(R.font.jetbrains_mono))
 
 internal data class Palette(
     val muted: Color, val secondary: Color, val subtle: Color, val accent: Color,
-    val good: Color, val wait: Color, val danger: Color,
+    val good: Color, val wait: Color, val danger: Color, val dark: Boolean,
 )
 
 internal val LocalPalette = staticCompositionLocalOf<Palette> { error("MonitorTheme required") }
@@ -58,9 +61,9 @@ internal val LocalPalette = staticCompositionLocalOf<Palette> { error("MonitorTh
 @Composable
 internal fun MonitorTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val palette = if (dark) Palette(Color(0xff30302e), Color(0xffc2c0b6), Color(0xff9c9a92),
-        Color(0xffe39a7e), Color(0xffa6cb97), Color(0xffd9bc52), Color(0xffe0857a))
+        Color(0xffe39a7e), Color(0xffa6cb97), Color(0xffd9bc52), Color(0xffe0857a), dark = true)
     else Palette(Color(0xfff0eee6), Color(0xff5e5d59), Color(0xff73726c),
-        Color(0xffb5532f), Color(0xff3d6b2e), Color(0xff8a6d12), Color(0xffa8413a))
+        Color(0xffb5532f), Color(0xff3d6b2e), Color(0xff8a6d12), Color(0xffa8413a), dark = false)
     val colors = if (dark) darkColorScheme(
         primary = Color(0xfffaf9f5), onPrimary = Color(0xff141413), background = Color(0xff1a1918),
         surface = Color(0xff262624), onSurface = Color(0xfffaf9f5), onBackground = Color(0xfffaf9f5),
@@ -85,6 +88,42 @@ internal fun MonitorTheme(dark: Boolean = isSystemInDarkTheme(), content: @Compo
         MaterialTheme(colorScheme = colors, typography = type) {
             Surface(Modifier.fillMaxSize(), color = colors.background, content = content)
         }
+    }
+}
+
+internal enum class ChannelTone { Brand, Plain }
+
+internal class ChannelArtwork(@get:DrawableRes val drawable: Int, private val light: Color, private val dark: Color) {
+    fun color(darkTheme: Boolean): Color = if (darkTheme) dark else light
+}
+
+internal fun channelArtwork(channel: Channel): ChannelArtwork = when (channel) {
+    Channel.Alipay -> ChannelArtwork(R.drawable.channel_alipay, Color(0xff1677ff), Color(0xff6ba6ff))
+    Channel.WeChat -> ChannelArtwork(R.drawable.channel_wechat, Color(0xff07a855), Color(0xff47d68a))
+    Channel.QQ -> ChannelArtwork(R.drawable.channel_qq, Color(0xff008cdb), Color(0xff58bfff))
+}
+
+internal fun pendingUploadColor(count: Int, accent: Color, normal: Color): Color =
+    if (count > 0) accent else normal
+
+@Composable
+internal fun ChannelIcon(channel: Channel, size: Dp, tone: ChannelTone, enabled: Boolean = true) {
+    val palette = LocalPalette.current
+    val artwork = channelArtwork(channel)
+    val painter = painterResource(artwork.drawable)
+    if (tone == ChannelTone.Brand) {
+        val background = if (enabled) artwork.color(palette.dark) else palette.muted
+        Box(
+            Modifier.size(size).background(background, RoundedCornerShape(size / 4)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter, contentDescription = null, modifier = Modifier.size(size * 0.6f),
+                tint = if (enabled) Color.White else palette.subtle,
+            )
+        }
+    } else {
+        Icon(painter, contentDescription = null, modifier = Modifier.size(size), tint = palette.subtle)
     }
 }
 

@@ -152,7 +152,8 @@ internal fun HomeScreen(
             Headline(if (access) "正在监听到账" else "通知监听已暂停")
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Metric("今日上报", reported, Modifier.weight(1f), MaterialTheme.colorScheme.onSurface)
-                Metric("待上传", pending, Modifier.weight(1f), palette.accent)
+                Metric("待上传", pending, Modifier.weight(1f),
+                    pendingUploadColor(pending, palette.accent, MaterialTheme.colorScheme.onSurface))
             }
             if (!access) TextAction("重新开启通知读取权限", restoreAccess)
         }
@@ -162,16 +163,15 @@ internal fun HomeScreen(
                 if (index > 0) Rule()
                 Row(Modifier.height(48.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(28.dp).background(palette.muted, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                        Text(channel.mark, color = palette.secondary)
-                    }
+                    val enabled = channel in channels && access
+                    ChannelIcon(channel, size = 28.dp, tone = ChannelTone.Brand, enabled = enabled)
                     Text(channel.display, Modifier.weight(1f))
                     val label = when {
                         channel !in channels -> "未安装"
                         access -> "通知可读取"
                         else -> "读取已暂停"
                     }
-                    StatusLabel(label, if (channel in channels && access) palette.good else palette.subtle)
+                    StatusLabel(label, if (enabled) palette.good else palette.subtle)
                 }
             }
         }
@@ -237,8 +237,15 @@ internal fun ReceiptRow(receipt: Receipt) {
     Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(yuan(receipt.cents), Modifier.alignByBaseline(), fontFamily = mono, fontSize = 16.sp, maxLines = 1)
-            Text(channel.display, Modifier.weight(1f).alignByBaseline(), color = palette.secondary,
-                fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(
+                Modifier.weight(1f).alignByBaseline(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                ChannelIcon(channel, size = 14.dp, tone = ChannelTone.Plain)
+                Text(channel.display, color = palette.secondary, fontSize = 13.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             Text(localTime(receipt.occurredAt, "HH:mm:ss"), Modifier.alignByBaseline(), color = palette.subtle,
                 fontFamily = mono, fontSize = 12.sp, maxLines = 1)
         }
@@ -334,12 +341,17 @@ internal fun DiagnosticsScreen(
         entries.forEach { entry ->
             val channel = Channel.entries.first { it.wire == entry.channel }
             Panel {
-                Caption("${channel.display} · ${localTime(entry.postTime, "MM-dd HH:mm:ss")}")
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ChannelIcon(channel, size = 14.dp, tone = ChannelTone.Plain)
+                    Caption("${channel.display} · ${localTime(entry.postTime, "MM-dd HH:mm:ss")}")
+                }
                 val cents = entry.cents
                 Pill(if (cents == null) "未识别" else "识别为 ${channel.display} · ${yuan(cents)}",
                     if (cents == null) LocalPalette.current.secondary else LocalPalette.current.good)
-                Text(entry.raw)
-                TextAction("复制原文", { copy(entry.raw) })
+                Column {
+                    Text(entry.raw)
+                    TextAction("复制原文", { copy(entry.raw) })
+                }
             }
         }
     }
