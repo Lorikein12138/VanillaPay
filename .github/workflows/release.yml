@@ -157,15 +157,8 @@ jobs:
             exit 1
           fi
 
-          # Make the public files readable by the non-root runtime user.
           context="$RUNNER_TEMP/vanillapay-release"
-          downloads="$context/downloads"
-          umask 022
-          mkdir -p "$downloads"
-          install -m 0644 "$apk" "$downloads/"
-          published_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          bash ../scripts/download-manifest.sh "$apk" "$published_at" > "$downloads/latest.json"
-          version=$(jq -er .version "$downloads/latest.json")
+          version=$(bash ../scripts/release-context.sh "$apk" "$context")
           if [[ -n $VERSION_TAG && $VERSION_TAG != "$version" ]]; then
             echo 'The version tag must match the APK versionName' >&2
             exit 1
@@ -173,7 +166,7 @@ jobs:
           {
             echo "version=$version"
             echo "context=$context"
-            echo "path=$downloads/${apk##*/}"
+            echo "path=$context/downloads/${apk##*/}"
           } >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
