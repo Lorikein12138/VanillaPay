@@ -40,7 +40,7 @@ func TestHTTP_V2CreateUsesMerchantKeyAndReturnsPlatformSignedJump(t *testing.T) 
 	if err := db.Pool.QueryRow(context.Background(), `SELECT pid FROM merchants WHERE id=$1`, merchantID).Scan(&pid); err != nil {
 		t.Fatal(err)
 	}
-	params := url.Values{"pid": {pid}, "out_trade_no": {"v2-order-1"}, "notify_url": {"https://merchant.example/notify"}, "name": {"商品"}, "money": {"2.00"}, "clientip": {"198.51.100.9"}, "timestamp": {strconv.FormatInt(db.Clock.Now().Unix(), 10)}, "sign_type": {"RSA"}, "method": {"web"}}
+	params := url.Values{"pid": {pid}, "out_trade_no": {"v2-order-1"}, "notify_url": {"https://merchant.example/notify?out_trade_no=old"}, "return_url": {"https://merchant.example/return?out_trade_no=old"}, "name": {"商品"}, "money": {"2.00"}, "clientip": {"198.51.100.9"}, "timestamp": {strconv.FormatInt(db.Clock.Now().Unix(), 10)}, "sign_type": {"RSA"}, "method": {"web"}}
 	params.Set("sign", mustSignV2(t, params, private))
 	request := httptest.NewRequest(http.MethodPost, "/api/pay/create", strings.NewReader(params.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")

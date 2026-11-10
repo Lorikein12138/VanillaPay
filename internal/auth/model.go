@@ -63,7 +63,7 @@ type ConsoleRecoverySession struct {
 
 type ConsoleRecoverySecurity struct {
 	TurnstileSiteKey          string `json:"turnstile_site_key"`
-	AllowedHostname           string `json:"allowed_hostname"`
+	TurnstileEnabled          bool   `json:"turnstile_enabled"`
 	TurnstileSecretConfigured bool   `json:"turnstile_secret_configured"`
 }
 
@@ -77,7 +77,7 @@ type RegisterRequest struct {
 	AcceptPrivacy        bool   `json:"accept_privacy"`
 	TermsRevision        int64  `json:"terms_revision"`
 	PrivacyRevision      int64  `json:"privacy_revision"`
-	TurnstileToken       string `json:"turnstile_token"`
+	TurnstileToken       string `json:"turnstile_token,omitempty"`
 }
 
 type BootstrapRequest struct {
@@ -90,7 +90,7 @@ type BootstrapRequest struct {
 type LoginRequest struct {
 	Identifier     string `json:"identifier"`
 	Password       string `json:"password"`
-	TurnstileToken string `json:"turnstile_token"`
+	TurnstileToken string `json:"turnstile_token,omitempty"`
 }
 
 type LoginResult struct {
@@ -130,7 +130,7 @@ type ResetPasswordRequest struct {
 	EmailCode            string `json:"email_code"`
 	Password             string `json:"password"`
 	PasswordConfirmation string `json:"password_confirmation"`
-	TurnstileToken       string `json:"turnstile_token"`
+	TurnstileToken       string `json:"turnstile_token,omitempty"`
 }
 
 type TOTPSetup struct {

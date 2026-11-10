@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { APIError, consoleApi } from '@/api/client'
 import { refreshPublicConfig } from '@/lib/public-config'
@@ -62,6 +62,8 @@ export function useSettingsEditor(group: SettingsGroup) {
   const [oversize, setOversize] = useState(false)
   const [refreshFailed, setRefreshFailed] = useState(false)
   const [saved, setSaved] = useState<{ group: SettingsGroup; affected: number } | null>(null)
+  const [verification, setVerification] = useState<{ key: string; token: string }>()
+  const [verificationAttempt, setVerificationAttempt] = useState(0)
   const lock = useRef(false)
   const minimumVersion = useRef(0)
 
@@ -76,6 +78,17 @@ export function useSettingsEditor(group: SettingsGroup) {
   const conflict = conflicts.includes(group)
   const secret = draft?.secret
   const secretInput = secret?.kind === 'replace' ? secret.value : secret?.kind === 'clear' ? null : undefined
+
+  const security = group === 'security' && settings ? groupValue('security', settings) : undefined
+  const needsProof = !!security?.turnstile_enabled && !!settings && (
+    !settings.security.turnstile_enabled || security.turnstile_site_key !== settings.security.turnstile_site_key || secret !== undefined
+  )
+  const hasSecret = secret?.kind === 'replace' ? !!secret.value.trim() : secret?.kind !== 'clear' && !!settings?.security.secret_configured
+  const canVerify = needsProof && !!security?.turnstile_site_key.trim() && hasSecret
+  const proofKey = `${settings?.version}:${verificationAttempt}`
+  const proofToken = verification?.key === proofKey ? verification.token : ''
+  const onProof = useCallback((token: string) => setVerification({ key: proofKey, token }), [proofKey])
+  const resetProof = () => setVerificationAttempt((value) => value + 1)
 
   function clearErrors() {
     setError(null)
@@ -106,11 +119,17 @@ export function useSettingsEditor(group: SettingsGroup) {
   }
 
   function update<K extends SettingsGroup>(key: K, patch: Partial<SettingsDrafts[K]>) {
+    if (key === 'security' && settings) {
+      const before = groupValue('security', settings)
+      const next = { ...before, ...patch }
+      if (before.turnstile_site_key !== next.turnstile_site_key || before.turnstile_enabled !== next.turnstile_enabled) resetProof()
+    }
     edit(key, (entry) => ({ ...entry, value: { ...entry.value, ...patch } }))
   }
 
   function updateSecret(value: string | null) {
     if (!settings) return
+    if (group === 'security') resetProof()
     edit(group, (entry) => ({
       ...entry,
       // A background GET may reach the cache before its configuration status is rendered.
@@ -163,11 +182,13 @@ export function useSettingsEditor(group: SettingsGroup) {
       if (secret?.kind === 'clear' && (current as SettingsDrafts['billing']).merchant_pid)
         errors.merchant_key = 'billing_clear'
     }
+    if (security?.turnstile_enabled && !hasSecret) errors.turnstile_secret = 'security_secret'
     clearErrors()
     if (Object.keys(errors).length) {
       setFieldErrors(errors)
       return
     }
+    if (needsProof && !proofToken) return
     const value = { ...current }
     if (group === 'footer_legal') {
       const items =
@@ -178,7 +199,7 @@ export function useSettingsEditor(group: SettingsGroup) {
       const email_domains = normalizeDomains(
         ((current as SettingsDrafts['security']).email_domains ?? []).join('\n'),
       )
-      Object.assign(value, { email_domains })
+      Object.assign(value, { email_domains, ...(needsProof ? { turnstile_token: proofToken } : {}) })
     }
     if (secret && group in secretFields) {
       const field = secretFields[group as keyof typeof secretFields]
@@ -192,6 +213,7 @@ export function useSettingsEditor(group: SettingsGroup) {
     lock.current = true
     setBusy(true)
     setSaved(null)
+    if (needsProof) resetProof()
     try {
       const result = await consoleApi.saveSettings(group, input)
       minimumVersion.current = result.version
@@ -242,6 +264,11 @@ export function useSettingsEditor(group: SettingsGroup) {
     refreshFailed,
     saved,
     secretInput,
+    canVerify,
+    proofKey,
+    proofToken,
+    onProof,
+    resetProof,
     groupValue,
     update,
     updateSecret,

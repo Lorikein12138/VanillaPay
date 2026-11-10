@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/jpeg"
 	"image/png"
 	"io"
@@ -86,28 +87,61 @@ func TestDB_QRAssetLifecycle(t *testing.T) {
 	})
 }
 
-func TestDB_QRUploadReencodesWithoutExif(t *testing.T) {
+func TestDB_QRUploadRegeneratesPNGWithoutFrameOrExif(t *testing.T) {
 	db := testsupport.NewDatabase(t)
 	merchantID, _ := db.SeedMerchant(t)
 	application := db.NewApplication(t)
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 	t.Run("V19.B.r03/v01", func(t *testing.T) {
-		encoded := qrJPEGWithExif(t, qrPNG(t, "https://qr.alipay.com/exif-clean"))
+		const payload = "https://qr.alipay.com/exif-clean"
+		source, err := png.Decode(bytes.NewReader(qrPNG(t, payload)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		frame := image.NewRGBA(image.Rect(0, 0, 464, 484))
+		draw.Draw(frame, frame.Bounds(), image.NewUniform(color.RGBA{R: 40, G: 140, B: 205, A: 255}), image.Point{}, draw.Src)
+		draw.Draw(frame, source.Bounds().Add(image.Pt(40, 50)), source, image.Point{}, draw.Src)
+		var framed bytes.Buffer
+		if err := png.Encode(&framed, frame); err != nil {
+			t.Fatal(err)
+		}
+		encoded := qrJPEGWithExif(t, framed.Bytes())
 		asset, err := application.Services.Settings.UploadQR(t.Context(), actor, "alipay", bytes.NewReader(encoded))
 		if err != nil || asset.AssetID == nil {
 			t.Fatalf("upload JPEG with EXIF fixture: asset=%#v err=%v", asset, err)
 		}
 		media, err := application.Services.Settings.OpenAsset(t.Context(), *asset.AssetID, merchantID, "", "", "")
 		if err != nil {
-			t.Fatalf("read sanitized JPEG asset: %v", err)
+			t.Fatalf("read generated QR asset: %v", err)
 		}
 		defer func() { _ = media.Reader.Close() }() // Cleanup must not replace the operation result.
 		cleaned, err := io.ReadAll(media.Reader)
 		if err != nil {
-			t.Fatalf("read sanitized JPEG bytes: %v", err)
+			t.Fatalf("read generated QR bytes: %v", err)
 		}
 		if bytes.Contains(cleaned, []byte("Exif\x00\x00")) || bytes.Contains(cleaned, []byte("private-location-marker")) {
 			t.Fatal("re-encoded image retained original EXIF metadata")
+		}
+		img, err := png.Decode(bytes.NewReader(cleaned))
+		if err != nil || media.MIME != "image/png" || img.Bounds().Size() != (image.Point{X: 512, Y: 512}) {
+			t.Fatalf("generated QR format/size: mime=%s err=%v", media.MIME, err)
+		}
+		for y := range 512 {
+			for x := range 512 {
+				p := color.GrayModel.Convert(img.At(x, y)).(color.Gray)
+				r, g, b, a := img.At(x, y).RGBA()
+				if r != g || g != b || a != 65535 || (p.Y != 0 && p.Y != 255) {
+					t.Fatal("generated QR contains pixels other than black and white")
+				}
+			}
+		}
+		bitmap, err := gozxing.NewBinaryBitmapFromImage(img)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := qrcode.NewQRCodeReader().DecodeWithoutHints(bitmap)
+		if err != nil || decoded.GetText() != payload {
+			t.Fatalf("regenerated QR payload did not match: %v", err)
 		}
 		checksum := sha256.Sum256(cleaned)
 		var stored []byte

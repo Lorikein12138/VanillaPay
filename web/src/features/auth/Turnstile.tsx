@@ -43,18 +43,20 @@ export function Turnstile({ siteKey, action, onToken, onError }: {
     let size: WidgetOptions['size'] | undefined
     void loadScript().then(() => {
       if (disposed || !container.current || !window.turnstile) return
+      let generation = 0
       const render = () => {
         if (!container.current || !window.turnstile) return
         const nextSize = container.current.clientWidth < 300 ? 'compact' : 'flexible'
         if (nextSize === size) return
+        const current = ++generation
         if (id) window.turnstile.remove(id)
         size = nextSize
         onToken('')
         id = window.turnstile.render(container.current, {
           sitekey: siteKey, action, size,
-          callback: onToken,
-          'expired-callback': () => { onToken(''); onError() },
-          'error-callback': () => { onToken(''); onError() },
+          callback: (token) => { if (!disposed && generation === current) onToken(token) },
+          'expired-callback': () => { if (!disposed && generation === current) { onToken(''); onError() } },
+          'error-callback': () => { if (!disposed && generation === current) { onToken(''); onError() } },
         })
       }
       render()

@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Trans, useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
+import { Turnstile } from '@/features/auth/Turnstile'
 import { FormError } from '@/components/FormError'
 import { Checkbox, Select, Textarea } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
@@ -17,9 +19,11 @@ export function SecurityForm({
   onSecret,
   onChange,
   errorText,
+  proof,
 }: SecretProps & {
   value: SettingsDrafts['security']
   configured: boolean
+  proof?: { key: string; onToken: (token: string) => void; retry: () => void }
   onChange: (value: SettingsDrafts['security']) => void
   errorText: (key: string) => string | undefined
 }) {
@@ -28,27 +32,24 @@ export function SecurityForm({
   const domainError = errorText('email_domains')
   return (
     <div className="space-y-5">
-      <FieldGrid>
-        <AccountField
-          label={t('consoleSettings.turnstileSite')}
-          value={value.turnstile_site_key}
-          error={errorText('turnstile_site_key')}
-          onChange={(e) => onChange({ ...value, turnstile_site_key: e.target.value })}
-        />
-        <AccountField
-          label={t('consoleSettings.allowedHost')}
-          value={value.allowed_hostname}
-          error={errorText('turnstile_site_key')}
-          onChange={(e) => onChange({ ...value, allowed_hostname: e.target.value })}
-        />
-      </FieldGrid>
+      <Checkbox checked={value.turnstile_enabled} onChange={(e) => onChange({ ...value, turnstile_enabled: e.target.checked })}>
+        {t('consoleSettings.turnstileEnabled')}
+      </Checkbox>
+      <AccountField
+        label={t('consoleSettings.turnstileSite')}
+        value={value.turnstile_site_key}
+        error={errorText('turnstile_site_key')}
+        onChange={(e) => onChange({ ...value, turnstile_site_key: e.target.value })}
+      />
       <SecretField
         label={t('consoleSettings.turnstileSecret')}
         configured={configured}
         turnstile
         secret={secret}
         onSecret={onSecret}
+        error={errorText('turnstile_secret')}
       />
+      {proof && <SecurityVerification key={proof.key} siteKey={value.turnstile_site_key} onToken={proof.onToken} retry={proof.retry} />}
       <div className="space-y-2">
         <Checkbox
           checked={value.restrict_email_domains}
@@ -86,6 +87,21 @@ export function SecurityForm({
       ))}
     </div>
   )
+}
+
+function SecurityVerification({ siteKey, onToken, retry }: { siteKey: string; onToken: (token: string) => void; retry: () => void }) {
+  const { t } = useTranslation()
+  const [failed, setFailed] = useState(false)
+  const handleToken = useCallback((token: string) => {
+    onToken(token)
+    if (token) setFailed(false)
+  }, [onToken])
+  const onError = useCallback(() => setFailed(true), [])
+  return <div className="space-y-2">
+    <Notice tone="info">{t('consoleSettings.turnstileProof')}</Notice>
+    <Turnstile siteKey={siteKey} action="settings_security" onToken={handleToken} onError={onError} />
+    {failed && <Button onClick={retry}>{t('polish.retryVerification')}</Button>}
+  </div>
 }
 
 export function PaymentForm({

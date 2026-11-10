@@ -19,14 +19,14 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 		unconfigured := fixture.Request(t, http.MethodPost, "/api/v1/console/login", map[string]any{
 			"identifier": "missing-turnstile-admin", "password": fixturePassword, "turnstile_token": "ok:login",
 		}, "guest")
-		assertRecoveryAPIError(t, unconfigured, http.StatusServiceUnavailable, "SETUP_REQUIRED")
+		assertRecoveryAPIError(t, unconfigured, http.StatusUnauthorized, "INVALID_CREDENTIALS")
 
 		adminSession := bootstrapRecoveryAdmin(t, fixture, "recovery-bootstrap")
 		version := recoverySettingsVersion(t, fixture)
 		configured := fixture.Request(t, http.MethodPut, "/api/v1/console/settings/security", map[string]any{
 			"expected_version": version,
 			"value": map[string]any{
-				"turnstile_site_key": "recovery-test-site-key", "turnstile_secret": "recovery-test-secret", "allowed_hostname": "pay.example.test",
+				"turnstile_site_key": "recovery-test-site-key", "turnstile_secret": "recovery-test-secret", "turnstile_enabled": true, "turnstile_token": "ok:settings_security",
 				"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
 			},
 		}, adminSession)
@@ -79,7 +79,7 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 		}
 
 		repair := map[string]any{"expected_version": recoverySettingsVersion(t, fixture), "value": map[string]any{
-			"turnstile_site_key": "recovery-site-key", "allowed_hostname": "pay.example.test", "turnstile_secret": "recovery-secret",
+			"turnstile_site_key": "recovery-site-key", "turnstile_enabled": true, "turnstile_secret": "recovery-secret",
 		}}
 		encoded, err := json.Marshal(repair)
 		if err != nil {
@@ -118,7 +118,7 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 		cookie := findRecoveryCookie(t, recovered.Header().Values("Set-Cookie"))
 		db.Clock.Set(db.Clock.Now().Add(10 * time.Minute))
 		payload, _ := json.Marshal(map[string]any{"expected_version": recoverySettingsVersion(t, fixture), "value": map[string]any{
-			"turnstile_site_key": "expired-site-key", "allowed_hostname": "pay.example.test", "turnstile_secret": "expired-secret",
+			"turnstile_site_key": "expired-site-key", "turnstile_enabled": true, "turnstile_secret": "expired-secret",
 		}})
 		response := fixture.RequestWithHeaders(t, http.MethodPut, "/api/v1/console/settings/security", strings.NewReader(string(payload)), "guest", recoveryHeaders(cookie, csrf))
 		assertRecoveryAPIError(t, response, http.StatusUnauthorized, "UNAUTHENTICATED")
@@ -129,7 +129,7 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 		fixture := testsupport.NewHTTPFixture(t, db)
 		admin := bootstrapRecoveryAdmin(t, fixture, "recovery-existing-secret")
 		initial := updateSettingsGroupHTTP(t, fixture, admin, "security", map[string]any{
-			"turnstile_site_key": "existing-site-key", "turnstile_secret": "existing-recovery-secret", "allowed_hostname": "pay.example.test",
+			"turnstile_site_key": "existing-site-key", "turnstile_secret": "existing-recovery-secret", "turnstile_enabled": true, "turnstile_token": "ok:settings_security",
 			"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
 		})
 		assertRecoveryAPIError(t, initial, http.StatusOK, "")
@@ -143,7 +143,7 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 			t.Fatalf("recovery session creation status=%d body=%s", recovered.Code, recovered.Body.String())
 		}
 		payload, err := json.Marshal(map[string]any{"expected_version": recoverySettingsVersion(t, fixture), "value": map[string]any{
-			"turnstile_site_key": "updated-site-key", "allowed_hostname": "pay.example.test",
+			"turnstile_site_key": "updated-site-key", "turnstile_enabled": true,
 		}})
 		if err != nil {
 			t.Fatal("encode recovery update without a replacement secret")
@@ -185,14 +185,14 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 			t.Fatalf("recovery session creation status=%d body=%s", recovered.Code, recovered.Body.String())
 		}
 		payload, err := json.Marshal(map[string]any{"expected_version": recoverySettingsVersion(t, fixture), "value": map[string]any{
-			"turnstile_site_key": "new-site-key", "allowed_hostname": "pay.example.test",
+			"turnstile_site_key": "new-site-key", "turnstile_enabled": true,
 		}})
 		if err != nil {
 			t.Fatal("encode recovery update without a configured secret")
 		}
 		cookie := findRecoveryCookie(t, recovered.Header().Values("Set-Cookie"))
 		response := fixture.RequestWithHeaders(t, http.MethodPut, "/api/v1/console/settings/security", strings.NewReader(string(payload)), "guest", recoveryHeaders(cookie, responseCSRF(t, recovered.Body.Bytes())))
-		assertRecoveryAPIError(t, response, http.StatusServiceUnavailable, "SETUP_REQUIRED")
+		assertRecoveryAPIError(t, response, http.StatusBadRequest, "VALIDATION_ERROR")
 	})
 }
 

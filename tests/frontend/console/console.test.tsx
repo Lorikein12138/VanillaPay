@@ -23,13 +23,13 @@ vi.mock('@/features/auth/Turnstile', () => ({
 type Schema = components['schemas']
 const user: Schema['AuthUserDTO'] = { id: '1', role: 'admin', username: 'console_admin', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }
 const session: Schema['AuthSessionResult'] = { user, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 43200000).toISOString(), next_path: '/console' }
-const config: Schema['PublicConfig'] = { site_name: 'VanillaPay', logo_url: '', turnstile: { configured: true, site_key: 'public-site', login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
+const config: Schema['PublicConfig'] = { site_name: 'VanillaPay', logo_url: '', favicon_url: '/favicon.ico?v=default', turnstile: { enabled: true, site_key: 'public-site', login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
 const success = <T,>(data: T) => HttpResponse.json({ data })
 const failure = (status: number, code: Schema['ErrorCode']) => HttpResponse.json({ error: { code, message: code } }, { status })
 let signedIn = false
 const server = setupServer(
   http.get('*/api/v1/public/config', () => success(config)),
-  http.get('*/api/v1/console/bootstrap-status', () => success({ initialized: true, turnstile_configured: true })),
+  http.get('*/api/v1/console/bootstrap-status', () => success({ initialized: true, turnstile_enabled: true })),
   http.get('*/api/v1/console/me', () => signedIn ? success(session) : failure(401, 'UNAUTHENTICATED')),
   http.get('*/api/v1/merchant/me', () => failure(403, 'FORBIDDEN')),
   http.get('*/api/v1/console/stats', () => success(emptyStats())),
@@ -45,7 +45,7 @@ function mount(path = '/console/login') {
   return { router, client, ...view }
 }
 function recovery(overrides: Partial<ConsoleRecovery> = {}): ConsoleRecovery {
-  return { csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 600000).toISOString(), repair_only: true, settings_version: 7, security: { turnstile_site_key: 'public-site', allowed_hostname: 'pay.example.test', turnstile_secret_configured: true }, ...overrides }
+  return { csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 600000).toISOString(), repair_only: true, settings_version: 7, security: { turnstile_site_key: 'public-site', turnstile_enabled: true, turnstile_secret_configured: true }, ...overrides }
 }
 async function enterRecovery() {
   const actor = userEvent.setup()
@@ -94,7 +94,7 @@ describe('role-scoped CSRF', () => {
       http.put('*/api/v1/console/settings/security', ({ request }) => { expect(request.headers.get('X-CSRF-Token')).toBe(proof); return failure(401, 'UNAUTHENTICATED') }),
       http.patch('*/api/v1/console/preferences', ({ request }) => { expect(request.headers.get('X-CSRF-Token')).toBe(session.csrf_token); return success({ locale: 'en', theme: 'dark' }) }))
     await consoleApi.recover(crypto.randomUUID())
-    await expect(consoleApi.repair(proof, { expected_version: 1, value: { turnstile_site_key: 'site', allowed_hostname: 'pay.example.test' } })).rejects.toMatchObject({ status: 401 })
+    await expect(consoleApi.repair(proof, { expected_version: 1, value: { turnstile_site_key: 'site', turnstile_enabled: true } })).rejects.toMatchObject({ status: 401 })
     expect(unauthorized).not.toHaveBeenCalled()
     await consoleApi.preferences({ locale: 'en', theme: 'dark' })
   })
@@ -138,7 +138,7 @@ describe('console guards and login', () => {
     expect(router.state.location.pathname).toBe('/login')
   })
   it('redirects uninitialized login to setup', async () => {
-    server.use(http.get('*/api/v1/console/bootstrap-status', () => success({ initialized: false, turnstile_configured: true })))
+    server.use(http.get('*/api/v1/console/bootstrap-status', () => success({ initialized: false, turnstile_enabled: true })))
     const { router } = mount()
     await screen.findByRole('heading', { name: '初始化管理员' })
     expect(router.state.location.pathname).toBe('/console/setup')
@@ -155,7 +155,7 @@ describe('console guards and login', () => {
   })
   it('handles a setup race', async () => {
     let initialized = false
-    server.use(http.get('*/api/v1/console/bootstrap-status', () => success({ initialized, turnstile_configured: true })),
+    server.use(http.get('*/api/v1/console/bootstrap-status', () => success({ initialized, turnstile_enabled: true })),
       http.post('*/api/v1/console/bootstrap', () => { initialized = true; return failure(409, 'ALREADY_INITIALIZED') }))
     mount('/console/setup')
     const actor = userEvent.setup(), password = crypto.randomUUID()
@@ -168,7 +168,7 @@ describe('console guards and login', () => {
   })
   it('initializes with matching validation and follows the returned console session', async () => {
     const password = crypto.randomUUID(), code = crypto.randomUUID()
-    server.use(http.get('*/api/v1/console/bootstrap-status', () => success({ initialized: false, turnstile_configured: true })),
+    server.use(http.get('*/api/v1/console/bootstrap-status', () => success({ initialized: false, turnstile_enabled: true })),
       http.post('*/api/v1/console/bootstrap', async ({ request }) => {
         const body = await request.json() as Schema['AuthBootstrapRequest']
         expect(body.username).toBe('valid_admin'); expect(body.initialization_code === code && body.password === password && body.password_confirmation === password).toBe(true)
@@ -212,16 +212,21 @@ describe('console guards and login', () => {
     expect(await screen.findByText('页面不存在')).toBeVisible()
     expect(screen.getByRole('navigation', { name: '管理控制台' })).toBeVisible()
   })
-  it('shows recovery instead of merchant registration/reset links when Turnstile is unavailable', async () => {
-    server.use(http.get('*/api/v1/public/config', () => success({ ...config, turnstile: { ...config.turnstile, configured: false } })))
+  it('shows recovery and permits login when Turnstile is disabled', async () => {
+    server.use(http.get('*/api/v1/public/config', () => success({ ...config, turnstile: { ...config.turnstile, enabled: false } })))
     mount()
     expect(await screen.findByRole('link', { name: '恢复管理端访问' })).toHaveAttribute('href', '/console/recovery')
     expect(screen.queryByRole('link', { name: /注册|忘记密码/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '登录' })).toBeDisabled()
+    await waitFor(() => expect(screen.getByRole('button', { name: '登录' })).toBeEnabled())
   })
   it('points administrators to recovery instead of a platform administrator when setup is required', async () => {
-    server.use(http.get('*/api/v1/public/config', () => success({ ...config, turnstile: { ...config.turnstile, configured: false } })))
+    server.use(http.get('*/api/v1/public/config', () => success({ ...config, turnstile: { ...config.turnstile, enabled: false } })))
+    server.use(http.post('*/api/v1/console/login', () => HttpResponse.json({ error: { code: 'SETUP_REQUIRED' } }, { status: 503 })))
     mount()
+    const actor = userEvent.setup()
+    await actor.type(await screen.findByLabelText('用户名 / 邮箱'), 'admin')
+    await actor.type(screen.getByLabelText('密码', { exact: true }), crypto.randomUUID())
+    await actor.click(screen.getByRole('button', { name: '登录' }))
     expect(await screen.findByText('站点尚未完成 Turnstile 配置，请通过页面底部的「恢复管理端访问」修复。')).toBeVisible()
     expect(screen.queryByText(/联系平台管理员/)).not.toBeInTheDocument()
   })
@@ -250,7 +255,7 @@ describe('repair-only recovery', () => {
     expect(await screen.findByText('已修复，请登录。')).toBeVisible()
     expect(attempts).toEqual(['public-site', 'updated-site-key'].map((turnstile_site_key) => ({
       token: result.csrf_token,
-      body: { expected_version: 7, value: { turnstile_site_key, allowed_hostname: 'pay.example.test' } },
+      body: { expected_version: 7, value: { turnstile_site_key, turnstile_enabled: true } },
     })))
   })
 
@@ -282,8 +287,8 @@ describe('repair-only recovery', () => {
   })
 
   it('refreshes the Turnstile key before going to login in the same document', async () => {
-    const result = recovery({ security: { turnstile_site_key: '', allowed_hostname: '', turnstile_secret_configured: false } })
-    let published = { ...config.turnstile, configured: false, site_key: '' }
+    const result = recovery({ security: { turnstile_site_key: '', turnstile_enabled: false, turnstile_secret_configured: false } })
+    let published = { ...config.turnstile, enabled: false, site_key: '' }
     const fetched: string[] = []
     server.use(
       http.get('*/api/v1/public/config', () => {
@@ -293,15 +298,15 @@ describe('repair-only recovery', () => {
       http.post('*/api/v1/console/recovery', () => success(result)),
       http.put('*/api/v1/console/settings/security', async ({ request }) => {
         const { value } = await request.json() as { value: { turnstile_site_key: string } }
-        published = { ...published, configured: true, site_key: value.turnstile_site_key }
+        published = { ...published, enabled: true, site_key: value.turnstile_site_key }
         return success({ version: 8, value: {} })
       }),
     )
     const { router, client } = mount('/console/recovery')
-    await waitFor(() => expect(client.getQueryData(publicConfigQuery.queryKey)?.turnstile.configured).toBe(false))
+    await waitFor(() => expect(client.getQueryData(publicConfigQuery.queryKey)?.turnstile.enabled).toBe(false))
     const actor = await enterRecovery()
     await actor.type(screen.getByLabelText('Turnstile Site Key'), 'repaired-site')
-    await actor.type(screen.getByLabelText('允许的主机名'), 'pay.example.test')
+    await actor.click(screen.getByRole('checkbox', { name: '要求人机验证（Turnstile）' }))
     await actor.type(screen.getByLabelText('Turnstile Secret'), crypto.randomUUID())
     await actor.click(screen.getByRole('button', { name: '保存并结束修复' }))
 
@@ -317,15 +322,15 @@ describe('repair-only recovery', () => {
   })
 
   it('cancels the initial public config GET after recovery and waits for the post-write snapshot', async () => {
-    const result = recovery({ security: { turnstile_site_key: '', allowed_hostname: '', turnstile_secret_configured: false } })
-    let turnstile = { ...config.turnstile, configured: false, site_key: '' }
+    const result = recovery({ security: { turnstile_site_key: '', turnstile_enabled: false, turnstile_secret_configured: false } })
+    let turnstile = { ...config.turnstile, enabled: false, site_key: '' }
     const { handler, reads, releaseFirst, releaseSecond, firstReturned } = controlPublicConfigReads(() => ({ ...config, turnstile }))
     server.use(
       handler,
       http.post('*/api/v1/console/recovery', () => success(result)),
       http.put('*/api/v1/console/settings/security', async ({ request }) => {
         const { value } = await request.json() as { value: { turnstile_site_key: string } }
-        turnstile = { ...turnstile, configured: true, site_key: value.turnstile_site_key }
+        turnstile = { ...turnstile, enabled: true, site_key: value.turnstile_site_key }
         return success({ version: 8, value: {} })
       }),
     )
@@ -340,7 +345,7 @@ describe('repair-only recovery', () => {
       expect(client.getQueryData(publicConfigQuery.queryKey)).toBeUndefined()
       const actor = await enterRecovery()
       await actor.type(screen.getByLabelText('Turnstile Site Key'), 'repaired-site')
-      await actor.type(screen.getByLabelText('允许的主机名'), 'pay.example.test')
+      await actor.click(screen.getByRole('checkbox', { name: '要求人机验证（Turnstile）' }))
       await actor.type(screen.getByLabelText('Turnstile Secret'), crypto.randomUUID())
       await actor.click(screen.getByRole('button', { name: '保存并结束修复' }))
 
@@ -374,7 +379,7 @@ describe('repair-only recovery', () => {
   })
 
   it.each([[true, 'Secret 已配置，留空保留原值。'], [false, '尚未配置 Secret，本次必须填写。']] as const)('describes the secret field when configured=%s', async (configured, hint) => {
-    server.use(http.post('*/api/v1/console/recovery', () => success(recovery({ security: { turnstile_site_key: 'public-site', allowed_hostname: 'pay.example.test', turnstile_secret_configured: configured } }))))
+    server.use(http.post('*/api/v1/console/recovery', () => success(recovery({ security: { turnstile_site_key: 'public-site', turnstile_enabled: true, turnstile_secret_configured: configured } }))))
     mount('/console/recovery')
     await enterRecovery()
     expect(screen.getByLabelText('Turnstile Secret')).toHaveAccessibleDescription(hint)
@@ -395,7 +400,7 @@ describe('repair-only recovery', () => {
     const result = recovery(), requests: string[] = []
     server.use(http.post('*/api/v1/console/recovery', () => success(result)), http.put('*/api/v1/console/settings/security', async ({ request }) => {
       requests.push(request.headers.get('X-CSRF-Token') ?? '')
-      expect(await request.json()).toEqual({ expected_version: 7, value: { turnstile_site_key: 'public-site', allowed_hostname: 'pay.example.test' } })
+      expect(await request.json()).toEqual({ expected_version: 7, value: { turnstile_site_key: 'public-site', turnstile_enabled: true } })
       await delay(100); return success({ version: 8, value: {} })
     }))
     const { router } = mount('/console/recovery'); const actor = await enterRecovery()

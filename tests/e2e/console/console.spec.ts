@@ -297,6 +297,24 @@ test('manages platform settings, protects stored secrets and captures every grou
   await page.unroute('**/api/v1/console/settings')
 
   await page.goto('/console/settings?group=site')
+  await expect(page.locator('#site-icon')).toHaveAttribute('href', /^\/favicon\.ico\?v=/)
+  const beforeIcon = await page.locator('#site-icon').getAttribute('href')
+  const image = await QRCode.toBuffer('fixture icon', { width: 144 })
+  const uploadedIcon = page.waitForResponse((response) => response.url().endsWith('/console/assets/favicon'))
+  await page.getByLabel('网站图标', { exact: true }).setInputFiles({ name: 'website-icon.png', mimeType: 'image/png', buffer: image })
+  expect((await uploadedIcon).status()).toBe(201)
+  await expect(page.getByRole('img', { name: '网站图标', exact: true })).toBeVisible()
+  await expect(page.locator('#site-icon')).toHaveAttribute('href', beforeIcon!)
+  await page.getByRole('button', { name: '保存站点信息' }).click()
+  await expect(page.getByText('站点信息已保存。')).toBeVisible()
+  await expect(page.locator('#site-icon')).not.toHaveAttribute('href', beforeIcon!)
+  await expect(page.locator('#apple-icon')).toHaveAttribute('href', /^\/apple-touch-icon\.png\?v=/)
+  await settingsStateShots(page, 'favicon-published', true)
+  await page.getByRole('button', { name: '移除网站图标' }).click()
+  await expect(page.getByRole('img', { name: '网站图标', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '撤销网站图标更改' }).click()
+  await expect(page.getByRole('img', { name: '网站图标', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '移除网站图标' }).click()
   await page.getByRole('button', { name: '移除标识' }).click()
   await expect(page.getByRole('img', { name: '站点标识' })).toHaveCount(0)
   await settingsStateShots(page, 'logo-removed')
@@ -306,24 +324,26 @@ test('manages platform settings, protects stored secrets and captures every grou
   await page.getByRole('button', { name: '保存站点信息' }).click()
   const removalResponse = await removeLogoSave
   expect(removalResponse.status()).toBe(200)
-  expect(removalResponse.request().postDataJSON()).toMatchObject({ value: { logo_asset_id: null } })
+  expect(removalResponse.request().postDataJSON()).toMatchObject({ value: { logo_asset_id: null, favicon_asset_id: null } })
 })
 
-test('shares login, preserves console redirect, isolates role guards, and offers recovery when unconfigured', async ({ page, request }) => {
+test('shares login, preserves console redirect, isolates role guards, and offers recovery when verification is off', async ({ page, request }) => {
   const admin = await seed(request); await captcha(page, admin.turnstileToken)
   await page.goto('/console/not-implemented?state=paid')
   await expect(page).toHaveURL(/\/console\/login\?redirect=/)
-  await shots(page, 'login')
+  await expect(page.getByRole('button', { name: '完成验证' })).toBeVisible()
+  await shots(page, 'login-turnstile-enabled')
   await page.route('**/api/v1/public/config', async (route) => {
     const response = await route.fetch()
-    const body = await response.json() as { data: { turnstile: { configured: boolean } } }
-    body.data.turnstile.configured = false
+    const body = await response.json() as { data: { turnstile: { enabled: boolean } } }
+    body.data.turnstile.enabled = false
     await route.fulfill({ response, json: body })
   })
   await page.reload()
-  await expect(page.getByRole('button', { name: '登录', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '登录', exact: true })).toBeEnabled()
   await expect(page.getByRole('link', { name: '恢复管理端访问' })).toBeVisible()
-  await shots(page, 'turnstile-unconfigured')
+  await expect(page.getByRole('button', { name: '完成验证' })).toHaveCount(0)
+  await shots(page, 'login-turnstile-disabled')
   await page.unroute('**/api/v1/public/config'); await page.reload()
   await login(page, { ...admin, pid: '' })
   await expect(page).toHaveURL(/\/console\/not-implemented\?state=paid$/)
@@ -357,13 +377,15 @@ test('repairs only the existing security values and consumes both the terminal c
   const issued = await request.post('/__e2e/console/recovery', { data: {} })
   expect(issued.status()).toBe(200)
   const { recovery_code: code } = await issued.json() as { recovery_code: string }
-  await page.goto('/console/recovery'); await shots(page, 'recovery-code')
+  await page.goto('/console/recovery')
+  await expect(page.getByText('docker exec vanillapay /usr/local/bin/server console-recovery', { exact: true })).toBeVisible()
+  await shots(page, 'recovery-code')
   const recovered = page.waitForResponse((response) => response.url().endsWith('/console/recovery'))
   await page.getByLabel('终端恢复码').fill(code)
   await page.getByRole('button', { name: '验证恢复码' }).click()
   const recovery = (await (await recovered).json() as { data: ConsoleRecovery }).data
   await expect(page.getByLabel('Turnstile Site Key')).toHaveValue(recovery.security.turnstile_site_key)
-  await expect(page.getByLabel('允许的主机名')).toHaveValue(recovery.security.allowed_hostname)
+  expect(await page.getByRole('checkbox', { name: '要求人机验证（Turnstile）' }).isChecked()).toBe(recovery.security.turnstile_enabled)
   await expect(page.getByLabel('Turnstile Secret')).toHaveValue('')
   await shots(page, 'recovery-settings')
   const repair = page.waitForResponse((response) => response.url().endsWith('/console/settings/security'))
@@ -371,7 +393,7 @@ test('repairs only the existing security values and consumes both the terminal c
   const saved = await repair
   expect(saved.status()).toBe(200)
   const body = saved.request().postDataJSON() as { value: Record<string, string> }
-  expect(Object.keys(body.value).sort()).toEqual(['allowed_hostname', 'turnstile_site_key'])
+  expect(Object.keys(body.value).sort()).toEqual(['turnstile_enabled', 'turnstile_site_key'])
   await expect(page).toHaveURL(/\/console\/login\?notice=repaired$/)
   await expect(page.getByText('已修复，请登录。')).toBeVisible()
   const origin = new URL(page.url()).origin

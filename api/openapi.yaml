@@ -26,11 +26,11 @@ paths:
                         properties:
                           initialized:
                             type: boolean
-                          turnstile_configured:
+                          turnstile_enabled:
                             type: boolean
                         required:
                           - initialized
-                          - turnstile_configured
+                          - turnstile_enabled
                         additionalProperties: false
         '500':
           $ref: '#/components/responses/Error500'
@@ -294,13 +294,13 @@ paths:
                             properties:
                               turnstile_site_key:
                                 type: string
-                              allowed_hostname:
-                                type: string
+                              turnstile_enabled:
+                                type: boolean
                               turnstile_secret_configured:
                                 type: boolean
                             required:
                               - turnstile_site_key
-                              - allowed_hostname
+                              - turnstile_enabled
                               - turnstile_secret_configured
                             additionalProperties: false
                         required:
@@ -2118,6 +2118,67 @@ paths:
     post:
       operationId: post_api_v1_console_assets_logo
       summary: POST /api/v1/console/assets/logo
+      security:
+        - AdminSession: []
+          CSRF: []
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          asset_id:
+                            type: string
+                          url:
+                            type: string
+                        required:
+                          - asset_id
+                          - url
+                        additionalProperties: false
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '413':
+          $ref: '#/components/responses/Error413'
+        '415':
+          $ref: '#/components/responses/Error415'
+        '500':
+          $ref: '#/components/responses/Error500'
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+              additionalProperties: false
+  /api/v1/console/assets/favicon:
+    post:
+      operationId: post_api_v1_console_assets_favicon
+      summary: POST /api/v1/console/assets/favicon
       security:
         - AdminSession: []
           CSRF: []
@@ -4552,9 +4613,15 @@ paths:
         '200':
           description: 协议结果；业务失败亦使用 HTTP 200
           content:
-            application/json:
+            text/html:
               schema:
-                $ref: '#/components/schemas/ProtocolError'
+                type: string
+          headers:
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-store]
         '302':
           description: 跳转收银台
           headers:
@@ -4643,9 +4710,15 @@ paths:
         '200':
           description: 协议结果；业务失败亦使用 HTTP 200
           content:
-            application/json:
+            text/html:
               schema:
-                $ref: '#/components/schemas/ProtocolError'
+                type: string
+          headers:
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-store]
         '303':
           description: 跳转收银台
           headers:
@@ -4660,6 +4733,240 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/V1CreateForm'
+  /favicon.ico:
+    get:
+      operationId: get_favicon_ico
+      summary: GET /favicon.ico
+      security: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 当前网站图标
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+          content:
+            image/x-icon:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: 图标未变化
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '500':
+          description: 图标暂时不可用
+    head:
+      operationId: head_favicon_ico
+      summary: HEAD /favicon.ico
+      security: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 当前网站图标
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '304':
+          description: 图标未变化
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '500':
+          description: 图标暂时不可用
+  /favicon-32.png:
+    get:
+      operationId: get_favicon_png
+      summary: GET /favicon-32.png
+      security: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 当前网站图标
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: 图标未变化
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '500':
+          description: 图标暂时不可用
+    head:
+      operationId: head_favicon_png
+      summary: HEAD /favicon-32.png
+      security: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 当前网站图标
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '304':
+          description: 图标未变化
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '500':
+          description: 图标暂时不可用
+  /apple-touch-icon.png:
+    get:
+      operationId: get_favicon_apple_touch_icon
+      summary: GET /apple-touch-icon.png
+      security: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 当前网站图标
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: 图标未变化
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '500':
+          description: 图标暂时不可用
+    head:
+      operationId: head_favicon_apple_touch_icon
+      summary: HEAD /apple-touch-icon.png
+      security: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 当前网站图标
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '304':
+          description: 图标未变化
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum: [no-cache]
+        '500':
+          description: 图标暂时不可用
 components:
   securitySchemes:
     MerchantSession:
@@ -4922,7 +5229,6 @@ components:
       required:
         - identifier
         - password
-        - turnstile_token
       type: object
     AuthLoginResult:
       additionalProperties: false
@@ -4976,7 +5282,6 @@ components:
         - accept_privacy
         - terms_revision
         - privacy_revision
-        - turnstile_token
       type: object
     AuthResetPasswordRequest:
       additionalProperties: false
@@ -4996,7 +5301,6 @@ components:
         - email_code
         - password
         - password_confirmation
-        - turnstile_token
       type: object
     AuthSecurityProof:
       additionalProperties: false
@@ -6839,12 +7143,15 @@ components:
           type: string
         logo_url:
           type: string
+        favicon_url:
+          type: string
+          description: 带版本参数的同源 ICO 路径。
         turnstile:
           type: object
           properties:
             site_key:
               type: string
-            configured:
+            enabled:
               type: boolean
             login_action:
               type: string
@@ -6852,7 +7159,7 @@ components:
               type: string
           required:
             - site_key
-            - configured
+            - enabled
             - login_action
             - register_action
           additionalProperties: false
@@ -6895,6 +7202,7 @@ components:
       required:
         - site_name
         - logo_url
+        - favicon_url
         - turnstile
         - registration_open
         - email_domain_restriction
@@ -6907,12 +7215,16 @@ components:
       properties:
         site_name:
           type: string
+        favicon_asset_id:
+          type: string
+          nullable: true
         logo_asset_id:
           type: string
           nullable: true
       required:
         - site_name
         - logo_asset_id
+        - favicon_asset_id
       additionalProperties: false
     MailSettings:
       type: object
@@ -6962,8 +7274,8 @@ components:
       properties:
         turnstile_site_key:
           type: string
-        allowed_hostname:
-          type: string
+        turnstile_enabled:
+          type: boolean
         restrict_email_domains:
           type: boolean
         email_domains:
@@ -6977,7 +7289,7 @@ components:
           type: boolean
       required:
         - turnstile_site_key
-        - allowed_hostname
+        - turnstile_enabled
         - restrict_email_domains
         - email_domains
         - ban_contact
@@ -7071,8 +7383,8 @@ components:
     SecuritySettingsInput:
       type: object
       properties:
-        allowed_hostname:
-          type: string
+        turnstile_enabled:
+          type: boolean
         ban_contact:
           $ref: '#/components/schemas/SettingsLanguageText'
         email_domains:
@@ -7085,11 +7397,14 @@ components:
         turnstile_secret:
           type: string
           nullable: true
+        turnstile_token:
+          type: string
+          description: 开启人机验证或更换启用中的密钥时必填。
         turnstile_site_key:
           type: string
       required:
         - turnstile_site_key
-        - allowed_hostname
+        - turnstile_enabled
         - restrict_email_domains
         - email_domains
         - ban_contact
@@ -7099,13 +7414,13 @@ components:
       properties:
         turnstile_site_key:
           type: string
-        allowed_hostname:
-          type: string
+        turnstile_enabled:
+          type: boolean
         turnstile_secret:
           type: string
       required:
         - turnstile_site_key
-        - allowed_hostname
+        - turnstile_enabled
       additionalProperties: false
     BillingSettingsInput:
       type: object

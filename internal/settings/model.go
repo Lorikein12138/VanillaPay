@@ -102,15 +102,17 @@ type MailGroupRequest struct {
 type SecurityGroupRequest struct {
 	TurnstileSiteKey     string       `json:"turnstile_site_key"`
 	TurnstileSecret      *string      `json:"turnstile_secret,omitempty"`
-	AllowedHostname      string       `json:"allowed_hostname"`
+	TurnstileToken       string       `json:"turnstile_token,omitempty"`
+	TurnstileEnabled     bool         `json:"turnstile_enabled"`
 	RestrictEmailDomains bool         `json:"restrict_email_domains"`
 	EmailDomains         *[]string    `json:"email_domains"`
 	BanContact           LanguageText `json:"ban_contact"`
 }
 
 type SiteGroupRequest struct {
-	SiteName    string  `json:"site_name"`
-	LogoAssetID *string `json:"logo_asset_id"`
+	SiteName       string  `json:"site_name"`
+	LogoAssetID    *string `json:"logo_asset_id"`
+	FaviconAssetID *string `json:"favicon_asset_id"`
 }
 
 type HomeGroupRequest struct {
@@ -125,9 +127,9 @@ type BillingGroupRequest struct {
 }
 
 type RecoverySecurityRequest struct {
-	SiteKey  string `json:"turnstile_site_key"`
-	Hostname string `json:"allowed_hostname"`
-	Secret   string `json:"turnstile_secret,omitempty"`
+	SiteKey string `json:"turnstile_site_key"`
+	Enabled bool   `json:"turnstile_enabled"`
+	Secret  string `json:"turnstile_secret,omitempty"`
 }
 
 func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[string]json.RawMessage, error) {
@@ -192,10 +194,10 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		if v.EmailDomains != nil {
 			domains = *v.EmailDomains
 		}
-		if textLength(v.TurnstileSiteKey) > 512 || textLength(v.AllowedHostname) > 253 || len(domains) > 100 {
+		if textLength(v.TurnstileSiteKey) > 512 || len(domains) > 100 {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
-		if (v.TurnstileSiteKey == "") != (v.AllowedHostname == "") || (v.RestrictEmailDomains && len(domains) == 0) {
+		if (v.TurnstileEnabled && strings.TrimSpace(v.TurnstileSiteKey) == "") || (v.RestrictEmailDomains && len(domains) == 0) {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		for i, domain := range domains {
@@ -205,13 +207,14 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 			}
 			domains[i] = domain
 		}
-		if v.TurnstileSecret != nil && *v.TurnstileSecret == "" {
+		if v.TurnstileSecret != nil && strings.TrimSpace(*v.TurnstileSecret) == "" {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
 		if secret := groupField(value, "turnstile_secret"); secret != nil {
 			secrets["turnstile_secret"] = secret
 		}
 		v.TurnstileSecret = nil
+		v.TurnstileToken = ""
 		return marshal(v), secrets, nil
 	case "payment":
 		var v GroupBounds

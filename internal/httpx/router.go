@@ -55,6 +55,10 @@ func NewRouter(a *app.App) http.Handler {
 			settingsHandler := &settings.Handler{Service: s.Settings, SecureCookies: a.AppEnvironment() != "development"}
 			settingsHandler.RegisterRoutes(api)
 			router.Get("/media/{asset_id}", settingsHandler.OpenAsset)
+			for _, path := range []string{"/favicon.ico", "/favicon-32.png", "/apple-touch-icon.png"} {
+				router.Get(path, settingsHandler.Favicon)
+				router.Head(path, settingsHandler.Favicon)
+			}
 		}
 		if s.Subscription != nil {
 			(&subscription.Handler{Service: s.Subscription}).RegisterRoutes(api)

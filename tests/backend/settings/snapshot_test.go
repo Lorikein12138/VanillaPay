@@ -61,7 +61,7 @@ func TestHTTP_SettingsGETUsesOneSnapshotDuringPUT(t *testing.T) {
 		}
 	}
 
-	newSite := map[string]any{"site_name": "Concurrent site update", "logo_asset_id": nil}
+	newSite := map[string]any{"site_name": "Concurrent site update", "logo_asset_id": nil, "favicon_asset_id": nil}
 	write := fixture.Request(t, http.MethodPut, path+"/site", map[string]any{
 		"expected_version": before["version"], "value": newSite,
 	}, admin)

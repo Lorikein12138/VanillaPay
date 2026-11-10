@@ -103,8 +103,8 @@ func TestOpenAPI_JSONRequestTypes(t *testing.T) {
 							"Home":                  settings.HomeGroupRequest{},
 							"SettingsFooterLegal":   settings.FooterLegal{},
 							"MailSettingsInput":     settings.MailGroupRequest{},
-							"SecuritySettingsInput": settings.SecurityGroupRequest{},
-							"RecoverySecurityInput": settings.RecoverySecurityRequest{},
+							"SecuritySettingsInput": settings.SecurityGroupRequest{},    // Includes the optional proof for enabling or changing Turnstile.
+							"RecoverySecurityInput": settings.RecoverySecurityRequest{}, // The one-time recovery session provides its own proof.
 							"SettingsGroupBounds":   settings.GroupBounds{},
 							"BillingSettingsInput":  settings.BillingGroupRequest{},
 						}

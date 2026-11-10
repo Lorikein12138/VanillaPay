@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -31,6 +32,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/console/settings/mail/test", h.QueueMailTest)
 	r.Get("/console/settings/mail/test/{id}", h.MailTestStatus)
 	r.Post("/console/assets/logo", h.UploadLogo)
+	r.Post("/console/assets/favicon", h.UploadFavicon)
 	r.Get("/merchant/collection/codes", h.QRSlots)
 	r.Put("/merchant/collection/codes/{channel}", h.UploadQR)
 	r.Patch("/merchant/collection/codes/{channel}", h.SetQREnabled)
@@ -104,6 +106,14 @@ func (h *Handler) UploadQR(w http.ResponseWriter, r *http.Request) {
 	settingsResult(w, r, result, err, http.StatusCreated)
 }
 func (h *Handler) UploadLogo(w http.ResponseWriter, r *http.Request) {
+	h.uploadSiteImage(w, r, h.Service.UploadLogo)
+}
+
+func (h *Handler) UploadFavicon(w http.ResponseWriter, r *http.Request) {
+	h.uploadSiteImage(w, r, h.Service.UploadFavicon)
+}
+
+func (h *Handler) uploadSiteImage(w http.ResponseWriter, r *http.Request, upload func(context.Context, platform.Actor, io.Reader) (map[string]string, error)) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxImageBytes+(1<<16))
 	file, _, err := r.FormFile("file")
 	if err != nil {
@@ -112,7 +122,7 @@ func (h *Handler) UploadLogo(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = file.Close() }() // Cleanup must not replace the operation result.
 	actor, _ := platform.ActorFromContext(r.Context())
-	data, err := h.Service.UploadLogo(r.Context(), actor, file)
+	data, err := upload(r.Context(), actor, file)
 	settingsResult(w, r, data, err, http.StatusCreated)
 }
 func (h *Handler) QueueMailTest(w http.ResponseWriter, r *http.Request) {

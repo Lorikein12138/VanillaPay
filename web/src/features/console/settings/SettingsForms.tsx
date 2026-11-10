@@ -29,6 +29,7 @@ export function SettingsForms({
         <SiteForm
           value={groupValue(group, settings)}
           update={(patch) => update(group, patch)}
+          saved={settings.site}
           error={errorText('site_name')}
           setUploading={setUploading}
         />
@@ -66,6 +67,7 @@ export function SettingsForms({
           value={groupValue(group, settings)}
           onChange={(value) => update(group, value)}
           configured={settings.security.secret_configured}
+          proof={editor.canVerify ? { key: editor.proofKey, onToken: editor.onProof, retry: editor.resetProof } : undefined}
           errorText={errorText}
           {...secretProps}
         />

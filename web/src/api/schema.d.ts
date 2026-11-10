@@ -882,6 +882,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/console/assets/favicon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/console/assets/favicon */
+        post: operations["post_api_v1_console_assets_favicon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/merchant/collection/codes/{channel}": {
         parameters: {
             query?: never;
@@ -1688,6 +1705,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/favicon.ico": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /favicon.ico */
+        get: operations["get_favicon_ico"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** HEAD /favicon.ico */
+        head: operations["head_favicon_ico"];
+        patch?: never;
+        trace?: never;
+    };
+    "/favicon-32.png": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /favicon-32.png */
+        get: operations["get_favicon_png"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** HEAD /favicon-32.png */
+        head: operations["head_favicon_png"];
+        patch?: never;
+        trace?: never;
+    };
+    "/apple-touch-icon.png": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /apple-touch-icon.png */
+        get: operations["get_favicon_apple_touch_icon"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** HEAD /apple-touch-icon.png */
+        head: operations["head_favicon_apple_touch_icon"];
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1724,7 +1795,7 @@ export interface components {
         AuthLoginRequest: {
             identifier: string;
             password: string;
-            turnstile_token: string;
+            turnstile_token?: string;
         };
         AuthLoginResult: {
             challenge_id: string;
@@ -1744,7 +1815,7 @@ export interface components {
             privacy_revision: number;
             /** Format: int64 */
             terms_revision: number;
-            turnstile_token: string;
+            turnstile_token?: string;
             username: string;
         };
         AuthResetPasswordRequest: {
@@ -1752,7 +1823,7 @@ export interface components {
             email_code: string;
             password: string;
             password_confirmation: string;
-            turnstile_token: string;
+            turnstile_token?: string;
         };
         AuthSecurityProof: {
             email_code: string;
@@ -2422,9 +2493,11 @@ export interface components {
         PublicConfig: {
             site_name: string;
             logo_url: string;
+            /** @description 带版本参数的同源 ICO 路径。 */
+            favicon_url: string;
             turnstile: {
                 site_key: string;
-                configured: boolean;
+                enabled: boolean;
                 login_action: string;
                 register_action: string;
             };
@@ -2444,6 +2517,7 @@ export interface components {
         };
         SiteGroup: {
             site_name: string;
+            favicon_asset_id: string | null;
             logo_asset_id: string | null;
         };
         MailSettings: {
@@ -2464,7 +2538,7 @@ export interface components {
         /** @description 更新响应仅在提交新密钥时包含 secret_configured；省略密钥时保留已保存的值。 */
         SecuritySettingsUpdate: {
             turnstile_site_key: string;
-            allowed_hostname: string;
+            turnstile_enabled: boolean;
             restrict_email_domains: boolean;
             email_domains: string[] | null;
             ban_contact: components["schemas"]["SettingsLanguageText"];
@@ -2503,16 +2577,18 @@ export interface components {
             username: string;
         };
         SecuritySettingsInput: {
-            allowed_hostname: string;
+            turnstile_enabled: boolean;
             ban_contact: components["schemas"]["SettingsLanguageText"];
             email_domains: string[] | null;
             restrict_email_domains: boolean;
             turnstile_secret?: string | null;
+            /** @description 开启人机验证或更换启用中的密钥时必填。 */
+            turnstile_token?: string;
             turnstile_site_key: string;
         };
         RecoverySecurityInput: {
             turnstile_site_key: string;
-            allowed_hostname: string;
+            turnstile_enabled: boolean;
             turnstile_secret?: string;
         };
         BillingSettingsInput: {
@@ -3017,7 +3093,7 @@ export interface operations {
                     "application/json": components["schemas"]["SuccessEnvelope"] & {
                         data?: {
                             initialized: boolean;
-                            turnstile_configured: boolean;
+                            turnstile_enabled: boolean;
                         };
                     };
                 };
@@ -3265,7 +3341,7 @@ export interface operations {
                             settings_version: number;
                             security: {
                                 turnstile_site_key: string;
-                                allowed_hostname: string;
+                                turnstile_enabled: boolean;
                                 turnstile_secret_configured: boolean;
                             };
                         };
@@ -4676,6 +4752,47 @@ export interface operations {
         };
     };
     post_api_v1_console_assets_logo: {
+        parameters: {
+            query?: never;
+            header: {
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: {
+                            asset_id: string;
+                            url: string;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            409: components["responses"]["Error409"];
+            413: components["responses"]["Error413"];
+            415: components["responses"]["Error415"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    post_api_v1_console_assets_favicon: {
         parameters: {
             query?: never;
             header: {
@@ -6456,10 +6573,11 @@ export interface operations {
             /** @description 协议结果；业务失败亦使用 HTTP 200 */
             200: {
                 headers: {
+                    "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProtocolError"];
+                    "text/html": string;
                 };
             };
             /** @description 跳转收银台 */
@@ -6488,16 +6606,251 @@ export interface operations {
             /** @description 协议结果；业务失败亦使用 HTTP 200 */
             200: {
                 headers: {
+                    "Cache-Control": "no-store";
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProtocolError"];
+                    "text/html": string;
                 };
             };
             /** @description 跳转收银台 */
             303: {
                 headers: {
                     Location: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_favicon_ico: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前网站图标 */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/x-icon": string;
+                };
+            };
+            /** @description 图标未变化 */
+            304: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标暂时不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    head_favicon_ico: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前网站图标 */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标未变化 */
+            304: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标暂时不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_favicon_png: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前网站图标 */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                };
+            };
+            /** @description 图标未变化 */
+            304: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标暂时不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    head_favicon_png: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前网站图标 */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标未变化 */
+            304: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标暂时不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_favicon_apple_touch_icon: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前网站图标 */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                };
+            };
+            /** @description 图标未变化 */
+            304: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标暂时不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    head_favicon_apple_touch_icon: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前网站图标 */
+            200: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标未变化 */
+            304: {
+                headers: {
+                    ETag: string;
+                    "Cache-Control": "no-cache";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 图标暂时不可用 */
+            500: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content?: never;

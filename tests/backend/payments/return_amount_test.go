@@ -36,6 +36,7 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	type callback struct {
 		mu     sync.Mutex
 		values []url.Values
+		query  []url.Values
 	}
 	seen := &callback{}
 	callbackURL := fixture.Network.ServeTLS(t, "merchant.example.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,15 +50,19 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 			copyValues[key] = append([]string(nil), entries...)
 		}
 		seen.values = append(seen.values, copyValues)
+		seen.query = append(seen.query, r.URL.Query())
 		seen.mu.Unlock()
 		_, _ = w.Write([]byte("success"))
 	}))
+	const preserved = "order_id=38&resume_token=resume&status=success"
+	const collisions = "&out_trade_no=old&%6fut_trade_no=older&sign=old&param=old&key_id=old&clientip=old"
+	notifyURL := callbackURL + "/notify?" + preserved + collisions
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 	createWithReturnURL := func(protocol, outTrade, returnURL string) (payment.OrderDTO, error) {
 		t.Helper()
 		return fixture.App.Services.Payment.Create(t.Context(), payment.CreateCommand{
 			MerchantID: merchantID, Protocol: protocol, Purpose: "external", OutTradeNo: outTrade, Name: "One dollar order",
-			OriginalCents: 100, NotifyURL: callbackURL + "/notify", ReturnURL: returnURL, ClientIP: "198.51.100.80", SourceIP: "192.0.2.80",
+			OriginalCents: 100, NotifyURL: notifyURL, ReturnURL: returnURL, ClientIP: "198.51.100.80", SourceIP: "192.0.2.80",
 			Channel: "alipay", Actor: actor,
 		})
 	}
@@ -89,7 +94,17 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	}
 
 	create("v1", "return-v1-reservation", "https://merchant.example.test/reservation")
-	v1 := create("v1", "return-v1-amount", "https://merchant.example.test/return?campaign=original")
+	var pid string
+	if err := db.Pool.QueryRow(t.Context(), `SELECT pid FROM merchants WHERE id=$1`, merchantID).Scan(&pid); err != nil {
+		t.Fatal("read protocol PID")
+	}
+	v1Params := url.Values{"pid": {pid}, "out_trade_no": {"return-v1-amount"}, "notify_url": {notifyURL}, "return_url": {"https://api.lorikein.com/payment/result?campaign=original&" + preserved + collisions}, "name": {"One dollar order"}, "money": {"1.00"}, "type": {"alipay"}, "clientip": {"198.51.100.80"}}
+	v1Params.Set("sign", mustV1ContractSignature(v1Params, merchantKey))
+	v1Create := fixture.Request(t, http.MethodGet, "/submit.php?"+v1Params.Encode(), nil, "guest")
+	if v1Create.Code != http.StatusFound || !strings.HasPrefix(v1Create.Header().Get("Location"), "/pay/") {
+		t.Fatalf("V1 submit status=%d body=%s", v1Create.Code, v1Create.Body.String())
+	}
+	v1 := payment.OrderDTO{TradeNo: strings.TrimPrefix(v1Create.Header().Get("Location"), "/pay/")}
 	v1Pending := fixture.Request(t, http.MethodGet, "/api/v1/checkout/"+v1.TradeNo, nil, "guest")
 	var pendingEnvelope struct {
 		Data struct {
@@ -100,10 +115,6 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	}
 	if v1Pending.Code != http.StatusOK || json.Unmarshal(v1Pending.Body.Bytes(), &pendingEnvelope) != nil || pendingEnvelope.Data.Status != "pending" || pendingEnvelope.Data.ActualCents == nil || *pendingEnvelope.Data.ActualCents != 99 || pendingEnvelope.Data.ReturnURLSigned != nil {
 		t.Fatalf("floating pending checkout status=%d data=%#v body=%s; want 100 original/99 actual and no success return", v1Pending.Code, pendingEnvelope.Data, v1Pending.Body.String())
-	}
-	var pid string
-	if err := db.Pool.QueryRow(t.Context(), `SELECT pid FROM merchants WHERE id=$1`, merchantID).Scan(&pid); err != nil {
-		t.Fatal("read V1 protocol PID")
 	}
 	v1Query := url.Values{"pid": {pid}, "key": {merchantKey}, "act": {"order"}, "trade_no": {v1.TradeNo}, "sign_type": {"MD5"}}
 	v1Query.Set("sign", mustV1ContractSignature(v1Query, merchantKey))
@@ -121,11 +132,15 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("deliver real V1 callback through local TLS: %v", err)
 	}
 	seen.mu.Lock()
-	v1Notice := seen.values[0]
+	v1Notice, v1NotifyQuery := seen.values[0], seen.query[0]
 	seen.mu.Unlock()
+	if v1NotifyQuery.Has("out_trade_no") || v1NotifyQuery.Has("sign") || v1NotifyQuery.Has("param") || v1NotifyQuery.Has("key_id") || v1NotifyQuery.Has("clientip") {
+		t.Fatal("V1 notify query retained reserved collisions")
+	}
 	if v1Notice.Get("money") != "1.00" || v1Notice.Get("trade_no") != v1.TradeNo || !verifyV1Independent(v1Notice, merchantKey) {
 		t.Fatalf("V1 callback amount/signature = money %q trade %q", v1Notice.Get("money"), v1Notice.Get("trade_no"))
 	}
+	assertCompatibleQuery(t, v1NotifyQuery, v1Notice, "return-v1-amount")
 	checkoutV1 := fixture.Request(t, http.MethodGet, "/api/v1/checkout/"+v1.TradeNo, nil, "guest")
 	var paidEnvelope struct {
 		Data struct {
@@ -140,6 +155,7 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	if err != nil || v1Return.Query().Get("campaign") != "original" || v1Return.Query().Get("money") != "1.00" || v1Return.Query().Get("trade_no") != v1.TradeNo || v1Return.Query().Get("trade_status") != "TRADE_SUCCESS" || !verifyV1Independent(v1Return.Query(), merchantKey) {
 		t.Fatalf("V1 signed return did not preserve original query and sign original cents: %s err=%v", *paidEnvelope.Data.ReturnURLSigned, err)
 	}
+	assertCompatibleQuery(t, v1Return.Query(), v1Return.Query(), "return-v1-amount")
 	secondOrder := create("v1", "return-v1-snapshot", "https://merchant.example.test/return?campaign=snapshot")
 	keyCipher, err := platform.Encrypt(db.Key[:], []byte("rotated-v1-key-after-order"), rand.Reader)
 	if err != nil {
@@ -178,16 +194,24 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	}
 	mutableSignedURL := signedURL
 	t.Run("V35.B.r04/v02", func(t *testing.T) {
-		_, err := createWithReturnURL("v1", "return-reserved-collision", "https://merchant.example.test/return?campaign=ok&money=forged")
-		if err == nil {
-			t.Fatal("order with a reserved protocol field in return_url was accepted")
-		}
-		var count int
-		if err := db.Pool.QueryRow(t.Context(), `SELECT count(*) FROM orders WHERE merchant_id=$1 AND out_trade_no=$2`, merchantID, "return-reserved-collision").Scan(&count); err != nil {
-			t.Fatalf("check rejected return URL left no order: %v", err)
-		}
-		if count != 0 {
-			t.Fatalf("rejected return URL persisted %d orders", count)
+		v1Params.Set("return_url", "javascript:alert(1)")
+		v1Params.Set("name", "<script>alert(1)</script>")
+		v1Params.Set("key", "do-not-echo")
+		v1Params.Set("sign", mustV1ContractSignature(v1Params, "rotated-v1-key-after-order"))
+		for _, path := range []string{"/submit.php", "/mapi.php"} {
+			res := fixture.RequestWithHeaders(t, http.MethodPost, path, strings.NewReader(v1Params.Encode()), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+			if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), "INVALID_URL") {
+				t.Fatalf("invalid URL %s: status=%d body=%s", path, res.Code, res.Body.String())
+			}
+			if path == "/mapi.php" {
+				if !strings.HasPrefix(res.Header().Get("Content-Type"), "application/json") {
+					t.Fatal("mapi response must be JSON")
+				}
+				continue
+			}
+			if res.Header().Get("Content-Type") != "text/html; charset=utf-8" || res.Header().Get("Cache-Control") != "no-store" || strings.Contains(res.Body.String(), "<script>") || strings.Contains(res.Body.String(), "do-not-echo") || strings.Contains(res.Body.String(), v1Params.Get("sign")) {
+				t.Fatal("submit error is unsafe or not HTML")
+			}
 		}
 	})
 
@@ -199,7 +223,19 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	if _, err := db.Pool.Exec(t.Context(), `UPDATE merchants SET rsa_public_key_pem=$1 WHERE id=$2`, string(publicPEM), merchantID); err != nil {
 		t.Fatal("install V2 merchant public key")
 	}
-	v2 := create("v2", "return-v2-amount", "https://merchant.example.test/v2-return?campaign=original")
+	v2Params := url.Values{"pid": {pid}, "out_trade_no": {"return-v2-amount"}, "notify_url": {notifyURL}, "return_url": {"https://merchant.example.test/v2-return?" + preserved + collisions}, "name": {"One dollar order"}, "money": {"1.00"}, "type": {"alipay"}, "clientip": {"198.51.100.80"}, "timestamp": {strconv.FormatInt(db.Clock.Now().Unix(), 10)}, "sign_type": {"RSA"}}
+	v2Params.Set("sign", signV2Independent(t, v2Params, privateKey))
+	v2Create := fixture.RequestWithHeaders(t, http.MethodPost, "/api/pay/submit", strings.NewReader(v2Params.Encode()), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+	if v2Create.Code != http.StatusSeeOther || !strings.HasPrefix(v2Create.Header().Get("Location"), "/pay/") {
+		t.Fatalf("V2 submit status=%d body=%s", v2Create.Code, v2Create.Body.String())
+	}
+	v2 := payment.OrderDTO{TradeNo: strings.TrimPrefix(v2Create.Header().Get("Location"), "/pay/")}
+	v2Params.Set("notify_url", "https://localhost/notify")
+	v2Params.Set("sign", signV2Independent(t, v2Params, privateKey))
+	invalidV2 := fixture.RequestWithHeaders(t, http.MethodPost, "/api/pay/create", strings.NewReader(v2Params.Encode()), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+	if invalidV2.Code != http.StatusOK || !strings.Contains(invalidV2.Body.String(), "INVALID_URL") {
+		t.Fatalf("invalid V2 notify URL: status=%d body=%s", invalidV2.Code, invalidV2.Body.String())
+	}
 	v2Query := url.Values{"pid": {pid}, "trade_no": {v2.TradeNo}, "timestamp": {strconv.FormatInt(db.Clock.Now().Unix(), 10)}, "sign_type": {"RSA"}}
 	v2Query.Set("sign", signV2Independent(t, v2Query, privateKey))
 	v2QueryResponse := fixture.RequestWithHeaders(t, http.MethodPost, "/api/pay/query", strings.NewReader(v2Query.Encode()), "guest", http.Header{"Content-Type": []string{"application/x-www-form-urlencoded"}})
@@ -217,12 +253,16 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("deliver real V2 callback through local TLS: %v", err)
 	}
 	seen.mu.Lock()
-	v2Notice := seen.values[len(seen.values)-1]
+	v2Notice, v2NotifyQuery := seen.values[len(seen.values)-1], seen.query[len(seen.query)-1]
 	seen.mu.Unlock()
+	if v2NotifyQuery.Has("out_trade_no") || v2NotifyQuery.Has("sign") || v2NotifyQuery.Has("param") || v2NotifyQuery.Has("key_id") || v2NotifyQuery.Has("clientip") {
+		t.Fatal("V2 notify query retained reserved collisions")
+	}
 	if v2Notice.Get("money") != "1.00" || v2Notice.Get("trade_no") != v2.TradeNo {
 		t.Fatalf("V2 callback amount=%q trade=%q", v2Notice.Get("money"), v2Notice.Get("trade_no"))
 	}
 	verifyPlatformV2Values(t, fixture, v2Notice)
+	assertCompatibleQuery(t, v2NotifyQuery, v2Notice, "return-v2-amount")
 	v2Checkout := fixture.Request(t, http.MethodGet, "/api/v1/checkout/"+v2.TradeNo, nil, "guest")
 	if v2Checkout.Code != http.StatusOK || json.Unmarshal(v2Checkout.Body.Bytes(), &reservedData) != nil {
 		t.Fatalf("read paid V2 checkout: status=%d body=%s", v2Checkout.Code, v2Checkout.Body.String())
@@ -231,6 +271,7 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("V2 signed return did not preserve allowed target: %s", signedURL)
 	}
 	v2ReturnValues := mustParseURLQuery(t, signedURL)
+	assertCompatibleQuery(t, v2ReturnValues, v2ReturnValues, "return-v2-amount")
 	verifyPlatformV2Values(t, fixture, v2ReturnValues)
 
 	t.Run("V35.B.r01/v01", func(t *testing.T) {
@@ -273,6 +314,16 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 			t.Fatalf("untrusted request parameter changed the order's return target: %s", mutableSignedURL)
 		}
 	})
+}
+
+func assertCompatibleQuery(t *testing.T, original, signed url.Values, outTrade string) {
+	t.Helper()
+	if original.Get("order_id") != "38" || original.Get("resume_token") != "resume" || original.Get("status") != "success" {
+		t.Fatal("lost merchant routing parameters")
+	}
+	if len(signed["out_trade_no"]) != 1 || signed.Get("out_trade_no") != outTrade || len(signed["sign"]) != 1 || signed.Get("sign") == "old" || signed.Has("param") || signed.Get("key_id") == "old" {
+		t.Fatal("platform parameters did not replace merchant collisions")
+	}
 }
 
 func mustMarshalPKIX(t *testing.T, key *rsa.PublicKey) []byte {

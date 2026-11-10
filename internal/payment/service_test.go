@@ -70,13 +70,13 @@ func TestUnit_ProtocolFormRejectsDuplicatesMixedSourcesAndInvalidUTF8(t *testing
 	}
 }
 
-func TestUnit_ReturnURLRejectsReservedPaymentFields(t *testing.T) {
-	for _, raw := range []string{"https://merchant.example/return?trade_no=forged", "https://merchant.example/return?sign=forged", "javascript:alert(1)", "https://user:pass@merchant.example/return"} {
+func TestUnit_ReturnURLAcceptsReservedPaymentFields(t *testing.T) {
+	for _, raw := range []string{"javascript:alert(1)", "https://user:pass@merchant.example/return"} {
 		if validReturnURL(raw) {
 			t.Errorf("validReturnURL(%q) unexpectedly accepted", raw)
 		}
 	}
-	if !validReturnURL("https://merchant.example/return?campaign=spring") {
+	if !validReturnURL("https://merchant.example/return?campaign=spring&trade_no=old&sign=old") {
 		t.Fatal("ordinary HTTPS return URL was rejected")
 	}
 }

@@ -75,15 +75,16 @@ func (v Siteverify) Verify(ctx context.Context, secret, token, action, hostname 
 }
 
 type Service struct {
-	pool          *pgxpool.Pool
-	clock         platform.Clock
-	random        io.Reader
-	encryptionKey [32]byte
-	mailer        platform.Mailer
-	turnstile     TurnstileVerifier
+	pool           *pgxpool.Pool
+	clock          platform.Clock
+	random         io.Reader
+	encryptionKey  [32]byte
+	mailer         platform.Mailer
+	turnstile      TurnstileVerifier
+	publicHostname string
 }
 
-func NewService(pool *pgxpool.Pool, key [32]byte, clock platform.Clock, random io.Reader, mailer platform.Mailer, turnstile TurnstileVerifier) *Service {
+func NewService(pool *pgxpool.Pool, key [32]byte, clock platform.Clock, random io.Reader, mailer platform.Mailer, turnstile TurnstileVerifier, publicBaseURL string) *Service {
 	if clock == nil {
 		clock = platform.SystemClock{}
 	}
@@ -93,7 +94,12 @@ func NewService(pool *pgxpool.Pool, key [32]byte, clock platform.Clock, random i
 	if mailer == nil {
 		mailer = platform.DisabledMailer{}
 	}
-	return &Service{pool: pool, clock: clock, random: random, encryptionKey: key, mailer: mailer, turnstile: turnstile}
+	publicURL, _ := url.Parse(publicBaseURL)
+	var hostname string
+	if publicURL != nil {
+		hostname = publicURL.Hostname()
+	}
+	return &Service{publicHostname: hostname, pool: pool, clock: clock, random: random, encryptionKey: key, mailer: mailer, turnstile: turnstile}
 }
 
 func (s *Service) RotateBootstrapCode(ctx context.Context) (string, error) {
@@ -198,7 +204,7 @@ func (s *Service) RecoverConsole(ctx context.Context, code string) (ConsoleRecov
 		result.Token = token
 		result.CSRFToken = csrf
 		result.ExpiresAt = expires
-		if err := tx.QueryRow(ctx, `SELECT version,security->>'turnstile_site_key',security->>'allowed_hostname',EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND encrypted_value IS NOT NULL) FROM site_settings WHERE singleton=true`).Scan(&result.SettingsVersion, &result.Security.TurnstileSiteKey, &result.Security.AllowedHostname, &result.Security.TurnstileSecretConfigured); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT version,security->>'turnstile_site_key',(security->>'turnstile_enabled')::boolean,EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND encrypted_value IS NOT NULL) FROM site_settings WHERE singleton=true`).Scan(&result.SettingsVersion, &result.Security.TurnstileSiteKey, &result.Security.TurnstileEnabled, &result.Security.TurnstileSecretConfigured); err != nil {
 			return err
 		}
 		return recordAudit(ctx, tx, platform.Actor{Role: "admin", SubjectID: 1}, nil, "auth.console_recovery", "admin", "1", "success", nil)
@@ -227,15 +233,11 @@ func (s *Service) ResolveConsoleRecovery(ctx context.Context, token, csrf string
 }
 
 func (s *Service) BootstrapStatus(ctx context.Context) (map[string]bool, error) {
-	var initialized bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM admins)`).Scan(&initialized); err != nil {
+	var initialized, enabled bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM admins), (security->>'turnstile_enabled')::boolean AND btrim(security->>'turnstile_site_key') <> '' AND EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND octet_length(encrypted_value)>0) FROM site_settings WHERE singleton`).Scan(&initialized, &enabled); err != nil {
 		return nil, err
 	}
-	var configured bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND encrypted_value IS NOT NULL)`).Scan(&configured); err != nil {
-		return nil, err
-	}
-	return map[string]bool{"initialized": initialized, "turnstile_configured": configured}, nil
+	return map[string]bool{"initialized": initialized, "turnstile_enabled": enabled}, nil
 }
 
 func (s *Service) Bootstrap(ctx context.Context, req BootstrapRequest) (SessionResult, error) {
@@ -1031,29 +1033,30 @@ func nextPath(account Account) string {
 }
 
 func (s *Service) requireTurnstile(ctx context.Context, token, action string) error {
-	if s.turnstile == nil {
-		return appError("SETUP_REQUIRED", 503)
-	}
-	var security []byte
-	if err := s.pool.QueryRow(ctx, `SELECT security FROM site_settings WHERE singleton=true`).Scan(&security); err != nil {
+	var enabled bool
+	var siteKey string
+	var encrypted []byte
+	if err := s.pool.QueryRow(ctx, `SELECT (security->>'turnstile_enabled')::boolean, security->>'turnstile_site_key', (SELECT encrypted_value FROM secret_settings WHERE name='turnstile_secret') FROM site_settings WHERE singleton`).Scan(&enabled, &siteKey, &encrypted); err != nil {
 		return err
 	}
-	var cfg struct {
-		SiteKey  string `json:"turnstile_site_key"`
-		Hostname string `json:"allowed_hostname"`
+	if !enabled {
+		return nil
 	}
-	if err := json.Unmarshal(security, &cfg); err != nil || cfg.SiteKey == "" || cfg.Hostname == "" {
-		return appError("SETUP_REQUIRED", 503)
-	}
-	var encrypted []byte
-	if err := s.pool.QueryRow(ctx, `SELECT encrypted_value FROM secret_settings WHERE name='turnstile_secret'`).Scan(&encrypted); err != nil || len(encrypted) == 0 {
+	if s.turnstile == nil || s.publicHostname == "" || strings.TrimSpace(siteKey) == "" || len(encrypted) == 0 {
 		return appError("SETUP_REQUIRED", 503)
 	}
 	secret, err := platform.Decrypt(s.encryptionKey[:], encrypted)
 	if err != nil {
 		return appError("TURNSTILE_UNAVAILABLE", 503)
 	}
-	valid, err := s.turnstile.Verify(ctx, string(secret), token, action, cfg.Hostname)
+	return VerifyTurnstile(ctx, s.turnstile, string(secret), token, action, s.publicHostname)
+}
+
+func VerifyTurnstile(ctx context.Context, verifier TurnstileVerifier, secret, token, action, hostname string) error {
+	if token == "" {
+		return appError("TURNSTILE_FAILED", 400)
+	}
+	valid, err := verifier.Verify(ctx, secret, token, action, hostname)
 	if err != nil {
 		return appError("TURNSTILE_UNAVAILABLE", 503)
 	}

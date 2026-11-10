@@ -62,7 +62,7 @@ func TestDB_SettingsGroupsUseOptimisticVersion(t *testing.T) {
 	db := testsupport.NewDatabase(t)
 	application := db.NewApplication(t)
 	ctx := context.Background()
-	value := json.RawMessage(`{"site_name":"Updated site","logo_asset_id":null}`)
+	value := json.RawMessage(`{"site_name":"Updated site","logo_asset_id":null,"favicon_asset_id":null}`)
 	request := settings.UpdateGroup{ExpectedVersion: 1, Value: value}
 	result, err := application.Services.Settings.UpdateGroup(ctx, platform.Actor{Role: "admin", SubjectID: 1}, "site", request)
 	if err != nil || result.Version != 2 {

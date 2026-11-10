@@ -25,6 +25,9 @@ import (
 )
 
 var loadOpenAPI = sync.OnceValues(func() (*openapi3.T, error) {
+	openapi3filter.RegisterBodyDecoder("text/html", openapi3filter.PlainBodyDecoder)
+	openapi3filter.RegisterBodyDecoder("image/png", openapi3filter.FileBodyDecoder)
+	openapi3filter.RegisterBodyDecoder("image/x-icon", openapi3filter.FileBodyDecoder)
 	_, source, _, ok := runtime.Caller(0)
 	if !ok {
 		return nil, fmt.Errorf("locate API contract")

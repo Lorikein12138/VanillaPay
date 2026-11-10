@@ -17,7 +17,7 @@ export function LatestSettings({ group, settings }: { group: SettingsGroup; sett
     case 'site': {
       const value = settings.site
       return (
-        <DetailList columns={2} items={[row('siteName', value.site_name), row('logo', value.logo_asset_id)]} />
+        <DetailList columns={2} items={[row('siteName', value.site_name), row('logo', value.logo_asset_id), row('favicon', value.favicon_asset_id)]} />
       )
     }
     case 'home': {
@@ -75,7 +75,7 @@ export function LatestSettings({ group, settings }: { group: SettingsGroup; sett
           columns={2}
           items={[
             row('turnstileSite', value.turnstile_site_key),
-            row('allowedHost', value.allowed_hostname),
+            row('turnstileEnabled', t(value.turnstile_enabled ? 'consoleSettings.enabled' : 'consoleSettings.disabled')),
             row('restrictDomains', enabled(value.restrict_email_domains)),
             row('emailDomains', value.email_domains?.join(', ')),
             row('banContactZh', value.ban_contact.zh_CN),

@@ -52,25 +52,28 @@ function PublicAccountForm({ mode, config }: { mode: 'register' | 'reset_passwor
   const [token, setToken] = useState(''), [attempt, setAttempt] = useState(0), [captchaError, setCaptchaError] = useState(false), [invalid, setInvalid] = useState('')
   const onToken = useCallback((value: string) => { setToken(value); if (value) setCaptchaError(false) }, [])
   const onError = useCallback(() => { setToken(''); setCaptchaError(true) }, [])
+  const enabled = config.turnstile.enabled
+  const needsToken = enabled && !token
+  const verification = enabled ? { turnstile_token: token } : {}
   const busy = action.busy || mail.busy
   const emailValid = /^[^\s@]+@[^\s@]+$/.test(email.trim()) && (!register || allowedEmail(email, config.email_domain_restriction))
   function resetCaptcha() { if (action.active.current) { setToken(''); setAttempt((value) => value + 1) } }
   async function send() {
-    if (!token || !emailValid || (register && !validUsername(username))) return
-    try { await mail.send({ email: email.trim(), purpose: mode, turnstile_token: token, ...(register ? { target_username: username.trim() } : {}) }) }
+    if (needsToken || !emailValid || (register && !validUsername(username))) return
+    try { await mail.send({ email: email.trim(), purpose: mode, ...verification, ...(register ? { target_username: username.trim() } : {}) }) }
     finally { resetCaptcha() }
   }
   async function submit() {
     if (!emailValid || (register && (!validUsername(username) || !terms || !privacy)) || !code.trim() || !validPassword(password, confirmation)) { setInvalid(t('polish.checkYourUsernameEmailVerificationCodeAnd')); return }
-    if (!token) return
+    if (needsToken) return
     setInvalid('')
     await action.run(async () => {
       try {
         if (register) {
-          const result = await api.register({ username: username.trim(), email: email.trim(), email_code: code.trim(), password, password_confirmation: confirmation, accept_terms: terms, accept_privacy: privacy, terms_revision: config.legal_revisions.terms, privacy_revision: config.legal_revisions.privacy, turnstile_token: token })
+          const result = await api.register({ username: username.trim(), email: email.trim(), email_code: code.trim(), password, password_confirmation: confirmation, accept_terms: terms, accept_privacy: privacy, terms_revision: config.legal_revisions.terms, privacy_revision: config.legal_revisions.privacy, ...verification })
           if (action.active.current) { setPassword(''); setConfirmation(''); setCode(''); await navigate({ to: safePath(result.next_path) ?? '/login', search: { notice: 'registered' }, replace: true }) }
         } else {
-          await api.resetPassword({ email: email.trim(), email_code: code.trim(), password, password_confirmation: confirmation, turnstile_token: token })
+          await api.resetPassword({ email: email.trim(), email_code: code.trim(), password, password_confirmation: confirmation, ...verification })
           api.forgetSession(); client.clear()
           if (action.active.current) { setPassword(''); setConfirmation(''); setCode(''); await navigate({ to: '/login', search: { notice: 'password_reset' }, replace: true }) }
         }
@@ -87,14 +90,14 @@ function PublicAccountForm({ mode, config }: { mode: 'register' | 'reset_passwor
     {register && <AccountField label={t('polish.username')} autoComplete="username" required disabled={busy} value={username} onChange={(event) => { setUsername(event.target.value); setCode('') }} pattern="[A-Za-z0-9_-]{3,32}" title={t('polish.332LettersNumbersUnderscoresOrHyphens')} />}
     <AccountField label={t('polish.email')} type="email" autoComplete="email" required disabled={busy} value={email} onChange={(event) => { setEmail(event.target.value); setCode('') }} />
     {register && config.email_domain_restriction.enabled && !!config.email_domain_restriction.domains?.length && <p className="text-caption text-text-2">{t('polish.emailDomainHint', { domains: config.email_domain_restriction.domains.join(i18n.resolvedLanguage === 'en' ? ', ' : '、') })}</p>}
-    <AccountField label={t('polish.emailVerificationCode')} autoComplete="one-time-code" inputMode="numeric" required disabled={busy} value={code} onChange={(event) => setCode(event.target.value)} action={<EmailCodeButton mail={mail} disabled={busy || !emailValid || !token || (register && !validUsername(username))} onSend={() => { void send() }} />} />
+    <AccountField label={t('polish.emailVerificationCode')} autoComplete="one-time-code" inputMode="numeric" required disabled={busy} value={code} onChange={(event) => setCode(event.target.value)} action={<EmailCodeButton mail={mail} disabled={busy || !emailValid || needsToken || (register && !validUsername(username))} onSend={() => { void send() }} />} />
     <AccountField label={t('polish.newPassword')} type="password" autoComplete="new-password" required disabled={busy} value={password} onChange={(event) => setPassword(event.target.value)} />
     <AccountField label={t('polish.confirmNewPassword')} type="password" autoComplete="new-password" required disabled={busy} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
     <p className="text-caption text-text-3">{t('polish.use12128CharactersAndEnterThe')}</p>
     {register && <div className="space-y-2"><Checkbox aria-label={t('polish.iAgreeToTheTermsOfService')} required checked={terms} disabled={busy} onChange={(event) => setTerms(event.target.checked)}>{t('polish.iAgreeTo')}<a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="text-accent-text underline">{t('polish.termsOfService')}</a></Checkbox><Checkbox aria-label={t('polish.iAgreeToThePrivacyPolicy')} required checked={privacy} disabled={busy} onChange={(event) => setPrivacy(event.target.checked)}>{t('polish.iAgreeTo')}<a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-accent-text underline">{t('polish.privacyPolicy')}</a></Checkbox></div>}
-    {config.turnstile.configured ? <Turnstile key={attempt} siteKey={config.turnstile.site_key} action={register ? config.turnstile.register_action : 'reset_password'} onToken={onToken} onError={onError} /> : <Notice tone="error">{t('polish.humanVerificationIsNotConfiguredPleaseContact')}</Notice>}
-    {captchaError && <><Notice tone="error">{t('polish.humanVerificationFailedPleaseTryAgain')}</Notice><Button onClick={resetCaptcha}>{t('polish.retryVerification')}</Button></>}
-    {!config.turnstile.configured || captchaError ? null : invalid ? <Notice tone="error">{invalid}</Notice> : action.error != null ? <AccountError error={action.error} /> : <EmailCodeNotice mails={[mail]} />}
-    <Button type="submit" variant="primary" className="w-full" disabled={busy || !token}>{busy ? t('polish.submitting') : register ? t('polish.createAccount') : t('polish.confirmPasswordReset')}</Button>
+    {enabled && <Turnstile key={attempt} siteKey={config.turnstile.site_key} action={register ? config.turnstile.register_action : 'reset_password'} onToken={onToken} onError={onError} />}
+    {enabled && captchaError && <><Notice tone="error">{t('polish.humanVerificationFailedPleaseTryAgain')}</Notice><Button onClick={resetCaptcha}>{t('polish.retryVerification')}</Button></>}
+    {enabled && captchaError ? null : invalid ? <Notice tone="error">{invalid}</Notice> : action.error != null ? <AccountError error={action.error} /> : <EmailCodeNotice mails={[mail]} />}
+    <Button type="submit" variant="primary" className="w-full" disabled={busy || needsToken}>{busy ? t('polish.submitting') : register ? t('polish.createAccount') : t('polish.confirmPasswordReset')}</Button>
   </form>
 }

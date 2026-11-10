@@ -37,11 +37,11 @@ export function writableGroup(settings: Settings, group: SettingsGroup): Setting
       return { host, port, username, from_address, from_name, tls_mode }
     }
     case 'security': {
-      const { turnstile_site_key, allowed_hostname, restrict_email_domains, email_domains, ban_contact } =
+      const { turnstile_site_key, turnstile_enabled, restrict_email_domains, email_domains, ban_contact } =
         settings.security
       return {
         turnstile_site_key,
-        allowed_hostname,
+        turnstile_enabled,
         restrict_email_domains,
         email_domains: email_domains ?? [],
         ban_contact,
@@ -147,8 +147,7 @@ export function validateSettingsGroup(
     const value = draft as Settings['security']
     if (
       value.turnstile_site_key.length > 512 ||
-      value.allowed_hostname.length > 253 ||
-      (value.turnstile_site_key === '') !== (value.allowed_hostname === '')
+      (value.turnstile_enabled && !value.turnstile_site_key.trim())
     )
       errors.turnstile_site_key = 'security_turnstile'
     const domains = value.email_domains ?? []

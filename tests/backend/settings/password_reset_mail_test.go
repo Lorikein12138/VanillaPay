@@ -25,13 +25,13 @@ func TestHTTP_PasswordResetMailDoesNotRevealAccount(t *testing.T) {
 			merchantID, _ := db.SeedMerchant(t)
 			fixture := testsupport.NewHTTPFixture(t, db)
 			// Keep the real HTTP/Turnstile path, using the production mail queue.
-			fixture.App.Services.Auth = auth.NewService(db.Pool, db.Key, db.Clock, nil, jobs.QueueMailer{Pool: db.Pool, Key: db.Key}, fixture.Siteverify)
+			fixture.App.Services.Auth = auth.NewService(db.Pool, db.Key, db.Clock, nil, jobs.QueueMailer{Pool: db.Pool, Key: db.Key}, fixture.Siteverify, fixture.App.PublicBaseURL())
 			fixture.Handler = httpx.NewRouter(fixture.App)
 			var version int64
 			if err := db.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings WHERE singleton=true`).Scan(&version); err != nil {
 				t.Fatal(err)
 			}
-			security := json.RawMessage(`{"turnstile_site_key":"reset-site-key","turnstile_secret":"reset-site-secret","allowed_hostname":"pay.example.test","restrict_email_domains":false,"email_domains":[],"ban_contact":{"zh_CN":"support@example.test","en":"support@example.test"}}`)
+			security := json.RawMessage(`{"turnstile_site_key":"reset-site-key","turnstile_secret":"reset-site-secret","turnstile_enabled":true, "turnstile_token": "ok:settings_security","restrict_email_domains":false,"email_domains":[],"ban_contact":{"zh_CN":"support@example.test","en":"support@example.test"}}`)
 			if _, err := fixture.App.Services.Settings.UpdateGroup(t.Context(), platform.Actor{Role: "admin", SubjectID: 1}, "security", internalsettings.UpdateGroup{ExpectedVersion: version, Value: security}); err != nil {
 				t.Fatal(err)
 			}

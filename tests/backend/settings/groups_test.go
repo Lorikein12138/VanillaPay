@@ -26,7 +26,7 @@ func TestHTTP_SettingsGroupLifecycleAndValidation(t *testing.T) {
 		name  string
 		value map[string]any
 	}{
-		{"site", map[string]any{"site_name": "Contract Site", "logo_asset_id": nil}},
+		{"site", map[string]any{"site_name": "Contract Site", "logo_asset_id": nil, "favicon_asset_id": nil}},
 		{"home", map[string]any{"mode": "html", "html": "<main>Home contract</main>", "url": nil}},
 		{"footer_legal", map[string]any{
 			"items": []any{}, "terms": map[string]string{"zh_CN": "服务条款", "en": "Terms"},
@@ -37,7 +37,7 @@ func TestHTTP_SettingsGroupLifecycleAndValidation(t *testing.T) {
 			"from_address": "noreply@example.test", "from_name": "VanillaPay", "tls_mode": "starttls",
 		}},
 		{"security", map[string]any{
-			"turnstile_site_key": "settings-test-site-key", "turnstile_secret": "turnstile-secret-original", "allowed_hostname": "pay.example.test",
+			"turnstile_site_key": "settings-test-site-key", "turnstile_secret": "turnstile-secret-original", "turnstile_enabled": false,
 			"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"},
 		}},
 		{"payment", map[string]any{
@@ -167,7 +167,7 @@ func TestHTTP_SettingsGroupLifecycleAndValidation(t *testing.T) {
 		before := readConsoleSettingsGroups(t, fixture, admin)
 		beforeVersion := recoverySettingsVersion(t, fixture)
 		response := fixture.Request(t, http.MethodPut, "/api/v1/console/settings/site", map[string]any{
-			"expected_version": beforeVersion - 1, "value": map[string]any{"site_name": "must not commit", "logo_asset_id": nil},
+			"expected_version": beforeVersion - 1, "value": map[string]any{"site_name": "must not commit", "logo_asset_id": nil, "favicon_asset_id": nil},
 		}, admin)
 		assertRecoveryAPIError(t, response, http.StatusConflict, "VERSION_CONFLICT")
 		if afterVersion := recoverySettingsVersion(t, fixture); afterVersion != beforeVersion {
@@ -201,7 +201,7 @@ func TestHTTP_SettingsGroupLifecycleAndValidation(t *testing.T) {
 		}{
 			{"payment", map[string]any{"min_amount_cents": -1, "max_amount_cents": 999999999, "default_ttl_seconds": 300, "max_ttl_seconds": 3600, "float_min_cents": 0, "float_max_cents": 999, "float_default_cents": 100, "float_direction": "down"}},
 			{"payment", map[string]any{"min_amount_cents": 1, "max_amount_cents": 1000000000, "default_ttl_seconds": 300, "max_ttl_seconds": 3600, "float_min_cents": 0, "float_max_cents": 999, "float_default_cents": 100, "float_direction": "down"}},
-			{"security", map[string]any{"turnstile_site_key": "settings-test-site-key", "turnstile_secret": "turnstile-secret-original", "allowed_hostname": "pay.example.test", "restrict_email_domains": true, "email_domains": []string{"evil/domain"}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"}}},
+			{"security", map[string]any{"turnstile_site_key": "settings-test-site-key", "turnstile_secret": "turnstile-secret-original", "turnstile_enabled": false, "restrict_email_domains": true, "email_domains": []string{"evil/domain"}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"}}},
 		} {
 			response := updateSettingsGroupHTTP(t, fixture, admin, tc.group, tc.value)
 			assertRecoveryAPIError(t, response, http.StatusBadRequest, "VALIDATION_ERROR")

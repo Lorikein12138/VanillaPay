@@ -1,7 +1,6 @@
 package payments
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -145,11 +144,7 @@ func TestDB_PaymentAmountTTLAndOrderSnapshots(t *testing.T) {
 		t.Helper()
 		out := "invalid-amount-" + suffix
 		response := submit(out, money, "", "invalid amount", "")
-		var payload struct {
-			Code  int    `json:"code"`
-			Error string `json:"error_code"`
-		}
-		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &payload) != nil || payload.Code != -1 || payload.Error != "VALIDATION_ERROR" {
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "<code>VALIDATION_ERROR</code>") {
 			t.Fatalf("invalid money %q response=%d %s", money, response.Code, response.Body.String())
 		}
 		var count int
@@ -212,8 +207,7 @@ func TestDB_PaymentAmountTTLAndOrderSnapshots(t *testing.T) {
 			t.Fatalf("merchant setting above max error=%v, want TTL_OUT_OF_RANGE", err)
 		}
 		response := submit("ttl-above-max", "1.03", "", "too long", "1801")
-		var payload map[string]any
-		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &payload) != nil || payload["error_code"] != "TTL_OUT_OF_RANGE" {
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "<code>TTL_OUT_OF_RANGE</code>") {
 			t.Fatalf("order TTL above max response=%d %s", response.Code, response.Body.String())
 		}
 		var count int

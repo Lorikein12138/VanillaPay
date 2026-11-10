@@ -11,7 +11,7 @@ import (
 
 func TestDB_BootstrapConsumesTheInitializationCodeOnce(t *testing.T) {
 	db := testsupport.NewDatabase(t)
-	service := auth.NewService(db.Pool, db.Key, db.Clock, nil, platform.DisabledMailer{}, nil)
+	service := auth.NewService(db.Pool, db.Key, db.Clock, nil, platform.DisabledMailer{}, nil, "")
 	ctx := context.Background()
 	code, err := service.RotateBootstrapCode(ctx)
 	if err != nil {

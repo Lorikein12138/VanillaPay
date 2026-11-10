@@ -47,6 +47,7 @@ type Dependencies struct {
 	RandomSource       io.Reader
 	HTTPClient         platform.SafeHTTPClient
 	Mailer             platform.Mailer
+	Turnstile          auth.TurnstileVerifier
 	DatabaseFactory    DatabaseFactory
 	MigrationReadiness ReadinessCheck
 	WorkerReadiness    ReadinessCheck
@@ -143,12 +144,15 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 		subs := subscription.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, billing)
 		billing.SetFulfillment(subs)
 		devices := device.NewService(pool, cfg.EncryptionKey, cfg.PublicBaseURL, deps.Clock, deps.RandomSource, billing)
-		identity := auth.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, mailer, auth.Siteverify{})
+		if deps.Turnstile == nil {
+			deps.Turnstile = auth.Siteverify{}
+		}
+		identity := auth.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, mailer, deps.Turnstile, cfg.PublicBaseURL)
 		merchants := merchant.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, billing, identity)
 		merchants.SetPurchasePort(subs)
 		merchants.SetPlatformKeyPort(billing)
 		portalService := portal.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource)
-		settingsService := settings.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, cfg.PublicBaseURL, cfg.DataDir)
+		settingsService := settings.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, cfg.PublicBaseURL, cfg.DataDir, deps.Turnstile)
 		registry, err := jobs.NewRegistry(pool, cfg.EncryptionKey, queue, billing, subs, devices, deps.HTTPClient)
 		if err != nil {
 			database.Close()
@@ -160,7 +164,7 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 				if err := pool.QueryRow(ctx, `SELECT COALESCE(max(version_id),0) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
 					return err
 				}
-				if version < 6 {
+				if version < 7 {
 					return errors.New("application migrations are incomplete")
 				}
 				return nil

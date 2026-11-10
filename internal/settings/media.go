@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/jpeg"
 	"image/png"
 	"io"
@@ -23,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/makiuchi-d/gozxing"
 	multiqr "github.com/makiuchi-d/gozxing/multi/qrcode"
+	"github.com/makiuchi-d/gozxing/qrcode"
 	sqlc "vanillapay/internal/db/sqlc"
 	"vanillapay/internal/platform"
 )
@@ -41,7 +43,7 @@ func (s *Service) UploadQR(ctx context.Context, actor platform.Actor, channel st
 	if channel != "alipay" && channel != "wxpay" && channel != "qqpay" {
 		return QRDTO{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
-	data, format, img, err := readCleanImage(src)
+	img, _, err := readImage(src)
 	if err != nil {
 		return QRDTO{}, err
 	}
@@ -57,52 +59,95 @@ func (s *Service) UploadQR(ctx context.Context, actor platform.Actor, channel st
 	if !validQRPayload(channel, payload) {
 		return QRDTO{}, &platform.Error{Code: "INVALID_QR", HTTPStatus: 400}
 	}
+	matrix, err := qrcode.NewQRCodeWriter().Encode(payload, gozxing.BarcodeFormat_QR_CODE, 512, 512, map[gozxing.EncodeHintType]any{
+		gozxing.EncodeHintType_ERROR_CORRECTION: "M",
+		gozxing.EncodeHintType_MARGIN:           4,
+		gozxing.EncodeHintType_CHARACTER_SET:    "UTF-8",
+	})
+	if err != nil {
+		return QRDTO{}, &platform.Error{Code: "INVALID_QR", HTTPStatus: 400}
+	}
+	qr := image.NewPaletted(image.Rect(0, 0, matrix.GetWidth(), matrix.GetHeight()), color.Palette{color.White, color.Black})
+	for y := range matrix.GetHeight() {
+		for x := range matrix.GetWidth() {
+			if matrix.Get(x, y) {
+				qr.SetColorIndex(x, y, 1)
+			}
+		}
+	}
+	var data bytes.Buffer
+	if err := png.Encode(&data, qr); err != nil {
+		return QRDTO{}, err
+	}
 	payloadCipher, err := platform.Encrypt(s.key[:], []byte(payload), s.random)
 	if err != nil {
 		return QRDTO{}, err
 	}
-	return s.saveAsset(ctx, actor, channel, "qr", format, data, payloadCipher)
+	return s.saveAsset(ctx, actor, channel, "qr", "png", data.Bytes(), payloadCipher)
 }
 
 func (s *Service) UploadLogo(ctx context.Context, actor platform.Actor, src io.Reader) (map[string]string, error) {
+	return s.uploadSiteImage(ctx, actor, src, "logo")
+}
+
+func (s *Service) UploadFavicon(ctx context.Context, actor platform.Actor, src io.Reader) (map[string]string, error) {
+	return s.uploadSiteImage(ctx, actor, src, "favicon")
+}
+
+func (s *Service) uploadSiteImage(ctx context.Context, actor platform.Actor, src io.Reader, kind string) (map[string]string, error) {
 	if actor.Role != "admin" {
 		return nil, &platform.Error{Code: "FORBIDDEN", HTTPStatus: 403}
 	}
-	data, format, _, err := readCleanImage(src)
+	data, format, img, err := readCleanImage(src)
 	if err != nil {
 		return nil, err
 	}
-	dto, err := s.saveAsset(ctx, actor, "", "logo", format, data, nil)
+	if kind == "favicon" {
+		data, err = iconPNG(img, 180)
+		if err != nil {
+			return nil, err
+		}
+		format = "png"
+	}
+	dto, err := s.saveAsset(ctx, actor, "", kind, format, data, nil)
 	if err != nil {
 		return nil, err
 	}
 	if dto.AssetID == nil {
-		return nil, errors.New("logo asset was not persisted")
+		return nil, errors.New("site image was not persisted")
 	}
 	return map[string]string{"asset_id": *dto.AssetID, "url": "/media/" + *dto.AssetID}, nil
 }
 
-func readCleanImage(src io.Reader) ([]byte, string, image.Image, error) {
+func readImage(src io.Reader) (image.Image, string, error) {
 	if src == nil {
-		return nil, "", nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+		return nil, "", &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
 	original, err := io.ReadAll(io.LimitReader(src, maxImageBytes+1))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", err
 	}
 	if len(original) > maxImageBytes {
-		return nil, "", nil, &platform.Error{Code: "UPLOAD_TOO_LARGE", HTTPStatus: 413}
+		return nil, "", &platform.Error{Code: "UPLOAD_TOO_LARGE", HTTPStatus: 413}
 	}
 	config, format, err := image.DecodeConfig(bytes.NewReader(original))
 	if err != nil || (format != "png" && format != "jpeg") {
-		return nil, "", nil, &platform.Error{Code: "UNSUPPORTED_MEDIA_TYPE", HTTPStatus: 415}
+		return nil, "", &platform.Error{Code: "UNSUPPORTED_MEDIA_TYPE", HTTPStatus: 415}
 	}
 	if config.Width < 1 || config.Height < 1 || config.Width > 4096 || config.Height > 4096 {
-		return nil, "", nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
+		return nil, "", &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
 	img, decodedFormat, err := image.Decode(bytes.NewReader(original))
 	if err != nil || decodedFormat != format {
-		return nil, "", nil, &platform.Error{Code: "UNSUPPORTED_MEDIA_TYPE", HTTPStatus: 415}
+		return nil, "", &platform.Error{Code: "UNSUPPORTED_MEDIA_TYPE", HTTPStatus: 415}
+	}
+	return img, format, nil
+}
+
+func readCleanImage(src io.Reader) ([]byte, string, image.Image, error) {
+	img, format, err := readImage(src)
+	if err != nil {
+		return nil, "", nil, err
 	}
 	var cleaned bytes.Buffer
 	if format == "png" {
@@ -239,7 +284,7 @@ func (s *Service) OpenAsset(ctx context.Context, assetID string, merchantID int6
 	if !active && kind != "qr" {
 		return MediaFile{}, &platform.Error{Code: "NOT_FOUND", HTTPStatus: 404}
 	}
-	allowed := kind == "logo" && owner == nil
+	allowed := (kind == "logo" || kind == "favicon") && owner == nil
 	if owner != nil && merchantID == *owner {
 		allowed = true
 	}
@@ -258,18 +303,22 @@ func (s *Service) OpenAsset(ctx context.Context, assetID string, merchantID int6
 	if !allowed {
 		return MediaFile{}, &platform.Error{Code: "NOT_FOUND", HTTPStatus: 404}
 	}
-	full := filepath.Join(s.dataDir, filepath.FromSlash(path))
-	root, err := filepath.Abs(s.dataDir)
-	if err != nil {
-		return MediaFile{}, err
-	}
-	full, err = filepath.Abs(full)
-	if err != nil || !strings.HasPrefix(full, root+string(os.PathSeparator)) {
-		return MediaFile{}, fmt.Errorf("media path is outside data directory")
-	}
-	file, err := os.Open(full)
+	file, err := s.openMediaPath(path)
 	if err != nil {
 		return MediaFile{}, err
 	}
 	return MediaFile{Reader: file, MIME: mime}, nil
+}
+
+func (s *Service) openMediaPath(path string) (*os.File, error) {
+	full := filepath.Join(s.dataDir, filepath.FromSlash(path))
+	root, err := filepath.Abs(s.dataDir)
+	if err != nil {
+		return nil, err
+	}
+	full, err = filepath.Abs(full)
+	if err != nil || !strings.HasPrefix(full, root+string(os.PathSeparator)) {
+		return nil, fmt.Errorf("media path is outside data directory")
+	}
+	return os.Open(full)
 }

@@ -27,7 +27,7 @@ func TestHTTP_V1SubmitCreatesOneSignedOrderAndRejectsDuplicateTradeNumber(t *tes
 		t.Fatal(err)
 	}
 	router := paymentProtocolRouter(t, application.Services.Payment)
-	params := url.Values{"pid": {pid}, "out_trade_no": {"v1-order-1"}, "notify_url": {"https://merchant.example/notify"}, "return_url": {"https://merchant.example/return"}, "name": {"测试商品"}, "money": {"1.00"}, "clientip": {"198.51.100.8"}, "type": {"alipay"}}
+	params := url.Values{"pid": {pid}, "out_trade_no": {"v1-order-1"}, "notify_url": {"https://merchant.example/notify?out_trade_no=old"}, "return_url": {"https://merchant.example/return?out_trade_no=old"}, "name": {"测试商品"}, "money": {"1.00"}, "clientip": {"198.51.100.8"}, "type": {"alipay"}}
 	params.Set("sign", mustV1ContractSignature(params, merchantKey))
 	request := httptest.NewRequest(http.MethodGet, "/submit.php?"+params.Encode(), nil)
 	request.RemoteAddr = "192.0.2.8:32000"

@@ -34,7 +34,8 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
   const [captchaError, setCaptchaError] = useState(false)
   const onToken = useCallback((value: string) => { setToken(value); if (value) setCaptchaError(false) }, [])
   const onCaptchaError = useCallback(() => { setCaptchaError(true); setToken('') }, [])
-  const setupMissing = config.data?.turnstile.configured === false || (problem instanceof APIError && problem.problem?.code === 'SETUP_REQUIRED')
+  const enabled = config.data?.turnstile.enabled === true
+  const setupMissing = problem instanceof APIError && problem.problem?.code === 'SETUP_REQUIRED'
   const admin = role === 'console'
   const client = admin ? consoleApi : api
   const errorKey = <K extends string>(key: K) => (admin && key === 'auth.errors.setup' ? 'console.setupMissing' : key)
@@ -49,13 +50,13 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
       : { identifier: !identifier.trim(), password: !password }
     setFields(invalid)
     setProblem(undefined)
-    if (Object.values(invalid).some(Boolean) || (!challenge && !token)) return
+    if (Object.values(invalid).some(Boolean) || (!challenge && (!config.data || (enabled && !token)))) return
     submitting.current = true
     setBusy(true)
     try {
       const result = challenge
         ? await client.secondFactor({ challenge_id: challenge.challenge_id, ...(mode === 'totp' ? { totp_code: code } : { recovery_code: code.trim() }) })
-        : await client.login({ identifier: identifier.trim(), password, turnstile_token: token })
+        : await client.login({ identifier: identifier.trim(), password, ...(enabled ? { turnstile_token: token } : {}) })
       if ('requires_2fa' in result) {
         setChallenge(result)
         setPassword('')
@@ -97,18 +98,18 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
             <Field label={t('auth.password')} htmlFor="password"><Input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} aria-invalid={!!fields.password} aria-describedby={fields.password ? 'password-error' : undefined} /></Field>
 
             {!admin && <a href="/reset-password" className="inline-flex min-h-11 items-center justify-end text-label text-accent-text">{t('auth.forgotPassword')}</a>}
-            {config.data?.turnstile.configured && !setupMissing && <Turnstile key={attempt} siteKey={config.data.turnstile.site_key} action={config.data.turnstile.login_action} onToken={onToken} onError={onCaptchaError} />}
+            {config.data?.turnstile.enabled && !setupMissing && <Turnstile key={attempt} siteKey={config.data.turnstile.site_key} action={config.data.turnstile.login_action} onToken={onToken} onError={onCaptchaError} />}
             {config.isPending && <p role={notice ? undefined : 'status'} className="m-0 text-label text-text-2">{t('auth.loading')}</p>}
             {config.error && <><Button variant="ghost" onClick={() => { void config.refetch() }}>{t('error.retry')}</Button></>}
 
-            {captchaError && <><Button variant="ghost" onClick={() => { setCaptchaError(false); setAttempt((value) => value + 1) }}>{t('error.retry')}</Button></>}
+            {enabled && captchaError && <><Button variant="ghost" onClick={() => { setCaptchaError(false); setAttempt((value) => value + 1) }}>{t('error.retry')}</Button></>}
           </> : <>
             <div role="group" aria-label={t('auth.factorMethod')} className="flex rounded-control border-[0.5px] border-border p-1">{(['totp', 'recovery'] as const).map((method) => <Button key={method} variant="ghost" aria-pressed={mode === method} disabled={busy} className={`min-h-11 flex-1 rounded-control px-2 text-label ${mode === method ? 'bg-hover text-text' : 'text-text-2'}`} onClick={() => { setMode(method); setCode(''); setFields({}); setProblem(undefined) }}>{t(`auth.${method}`)}</Button>)}</div>
             <Field label={t(mode === 'totp' ? 'auth.totpCode' : 'auth.recoveryCode')} htmlFor="factor-code"><Input id="factor-code" autoComplete="one-time-code" inputMode={mode === 'totp' ? 'numeric' : 'text'} value={code} onChange={(event) => setCode(event.target.value)} disabled={busy} aria-invalid={!!fields.code} aria-describedby={fields.code ? 'code-error' : undefined} /></Field>
 
           </>}
-          {(problem != null || config.error || setupMissing || captchaError || Object.values(fields).some(Boolean)) && <Notice tone="error">{setupMissing ? t(errorKey('auth.errors.setup')) : captchaError ? t('auth.errors.turnstile') : problem != null ? <>{t(errorKey(authErrorKey(problem)))}{fields.identifier && <p id="identifier-error">{t('auth.requiredIdentifier')}</p>}{fields.password && <p id="password-error">{t('auth.requiredPassword')}</p>}{fields.code && <p id="code-error">{t(mode === 'totp' ? 'auth.requiredTOTP' : 'auth.requiredRecovery')}</p>}</> : config.error ? t(errorKey(authErrorKey(config.error))) : <>{fields.identifier && <p id="identifier-error">{t('auth.requiredIdentifier')}</p>}{fields.password && <p id="password-error">{t('auth.requiredPassword')}</p>}{fields.code && <p id="code-error">{t(mode === 'totp' ? 'auth.requiredTOTP' : 'auth.requiredRecovery')}</p>}</>}</Notice>}
-          <Button type="submit" variant="primary" loading={busy} disabled={busy || (!challenge && (!token || setupMissing || config.isPending))}>{t(busy ? 'auth.submitting' : challenge ? 'auth.verify' : 'auth.submit')}</Button>
+          {(problem != null || config.error || setupMissing || (enabled && captchaError) || Object.values(fields).some(Boolean)) && <Notice tone="error">{setupMissing ? t(errorKey('auth.errors.setup')) : enabled && captchaError ? t('auth.errors.turnstile') : problem != null ? <>{t(errorKey(authErrorKey(problem)))}{fields.identifier && <p id="identifier-error">{t('auth.requiredIdentifier')}</p>}{fields.password && <p id="password-error">{t('auth.requiredPassword')}</p>}{fields.code && <p id="code-error">{t(mode === 'totp' ? 'auth.requiredTOTP' : 'auth.requiredRecovery')}</p>}</> : config.error ? t(errorKey(authErrorKey(config.error))) : <>{fields.identifier && <p id="identifier-error">{t('auth.requiredIdentifier')}</p>}{fields.password && <p id="password-error">{t('auth.requiredPassword')}</p>}{fields.code && <p id="code-error">{t(mode === 'totp' ? 'auth.requiredTOTP' : 'auth.requiredRecovery')}</p>}</>}</Notice>}
+          <Button type="submit" variant="primary" loading={busy} disabled={busy || (!challenge && (!config.data || (enabled && !token)))}>{t(busy ? 'auth.submitting' : challenge ? 'auth.verify' : 'auth.submit')}</Button>
           {challenge && <Button variant="ghost" disabled={busy} onClick={() => { setChallenge(undefined); setCode(''); setProblem(undefined); setFields({}); setToken(''); setAttempt((value) => value + 1) }}>{t('auth.restart')}</Button>}
         </form>
       </main>

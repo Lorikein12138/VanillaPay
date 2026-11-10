@@ -61,7 +61,7 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 		return OrderDTO{}, apiErr("VALIDATION_ERROR", 400)
 	}
 	if err := validateExternalCommand(in); err != nil {
-		return OrderDTO{}, apiErr("VALIDATION_ERROR", 400)
+		return OrderDTO{}, err
 	}
 	tradeNo, err := randomTradeNo(s.random)
 	if err != nil {
@@ -1008,24 +1008,24 @@ func (s *Service) reserveAmountTx(ctx context.Context, tx pgx.Tx, merchantID int
 
 func validateExternalCommand(in CreateCommand) error {
 	if !validOutTradeNo(in.OutTradeNo) || len([]byte(strings.TrimSpace(in.Name))) == 0 || len([]byte(in.Name)) > 4096 || len([]byte(in.Param)) > 1024 || len([]byte(in.ProductID)) > 64 || in.OriginalCents < 1 || in.OriginalCents > MaxAmountCents {
-		return errors.New("invalid order fields")
+		return apiErr("VALIDATION_ERROR", 400)
 	}
 	if in.NotifyURL == "" || !validCallbackURL(in.NotifyURL) {
-		return errors.New("invalid callback URL")
+		return apiErr("INVALID_URL", 400)
 	}
 	if in.ReturnURL != "" && !validReturnURL(in.ReturnURL) {
-		return errors.New("invalid return URL")
+		return apiErr("INVALID_URL", 400)
 	}
 	if in.ClientIP != "" {
 		if _, err := netip.ParseAddr(in.ClientIP); err != nil {
-			return errors.New("invalid client IP")
+			return apiErr("VALIDATION_ERROR", 400)
 		}
 	}
 	if in.Channel != "" && !validChannel(in.Channel) {
-		return errors.New("invalid channel")
+		return apiErr("VALIDATION_ERROR", 400)
 	}
 	if len(in.Channels) > 0 {
-		return errors.New("channels cannot be client selected")
+		return apiErr("VALIDATION_ERROR", 400)
 	}
 	return nil
 }
@@ -1066,16 +1066,14 @@ func validReturnURL(raw string) bool {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
 		return false
 	}
-	query, err := url.ParseQuery(u.RawQuery)
-	if err != nil {
-		return false
-	}
+	_, err = url.ParseQuery(u.RawQuery)
+	return err == nil
+}
+
+func stripPaymentFields(query url.Values) {
 	for _, field := range []string{"pid", "trade_no", "out_trade_no", "type", "name", "money", "trade_status", "param", "sign_type", "sign", "api_trade_no", "buyer", "addtime", "endtime", "timestamp", "key_id"} {
-		if _, exists := query[field]; exists {
-			return false
-		}
+		query.Del(field)
 	}
-	return true
 }
 func intersectChannels(subscription, requested []string, assets map[string]string) []string {
 	out := []string{}

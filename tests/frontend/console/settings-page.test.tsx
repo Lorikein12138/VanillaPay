@@ -15,10 +15,16 @@ import { publicConfigQuery } from '@/lib/public-config'
 import { setupServer } from 'msw/node'
 import { controlPublicConfigReads, defaultPublicConfig } from '../public-config-fixture'
 
+vi.mock('@/features/auth/Turnstile', () => ({
+  Turnstile: ({ siteKey, action, onToken }: { siteKey: string; action: string; onToken: (token: string) => void }) => (
+    <button type="button" data-site-key={siteKey} data-action={action} onClick={() => onToken(crypto.randomUUID())}>完成人机验证</button>
+  ),
+}))
+
 type S = components['schemas']
 const settings: S['Settings'] = {
   version: 12,
-  site: { site_name: 'VanillaPay', logo_asset_id: null },
+  site: { site_name: 'VanillaPay', logo_asset_id: null, favicon_asset_id: null },
   home: { mode: 'default', html: null, url: null },
   footer_legal: { items: [], terms: { zh_CN: '服务条款', en: '' }, privacy: { zh_CN: '隐私政策', en: '' } },
   mail: {
@@ -33,7 +39,7 @@ const settings: S['Settings'] = {
   },
   security: {
     turnstile_site_key: '',
-    allowed_hostname: '',
+    turnstile_enabled: false,
     restrict_email_domains: false,
     email_domains: [],
     ban_contact: { zh_CN: '', en: '' },
@@ -64,6 +70,7 @@ function saveResponse(group: SettingsGroup, body: S['SettingsUpdateGroup'], affe
     current.mail.masked_password = current.mail.password_configured ? '••••••••' : ''
     delete fields.password
   }
+  delete fields.turnstile_token
   Object.assign(current[group], fields)
   current.version += 1
   return success({ version: current.version, group, value: fields, affected_merchants: affected })
@@ -102,8 +109,8 @@ beforeEach(() => {
     http.get('*/api/v1/public/config', () =>
       success({
         site_name: 'VanillaPay',
-        logo_url: '',
-        turnstile: { configured: true, site_key: 'site', login_action: 'login', register_action: 'register' },
+        logo_url: '', favicon_url: '/favicon.ico?v=default',
+        turnstile: { enabled: true, site_key: 'site', login_action: 'login', register_action: 'register' },
         registration_open: true,
         email_domain_restriction: { enabled: false, domains: [] },
         home: { mode: 'default', html: null, url: null },
@@ -186,7 +193,7 @@ describe('console settings page', () => {
       const security = current.security
       return success({
         ...defaultPublicConfig,
-        turnstile: { ...defaultPublicConfig.turnstile, configured: security.secret_configured, site_key: security.turnstile_site_key },
+        turnstile: { ...defaultPublicConfig.turnstile, enabled: security.turnstile_enabled && security.secret_configured, site_key: security.turnstile_site_key },
         email_domain_restriction: { enabled: security.restrict_email_domains, domains: security.email_domains },
       })
     }))
@@ -196,15 +203,21 @@ describe('console settings page', () => {
       turnstile: { site_key: '' }, email_domain_restriction: { enabled: false, domains: [] },
     }))
     fireEvent.change(await screen.findByLabelText('人机验证站点密钥'), { target: { value: 'updated-site' } })
-    fireEvent.change(screen.getByLabelText('允许的主机名'), { target: { value: 'pay.example.test' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: '要求人机验证（Turnstile）' }))
+    expect(screen.getByRole('button', { name: '保存安全设置' })).toBeDisabled()
+    const captcha = screen.getByRole('button', { name: '完成人机验证' })
+    expect(captcha).toHaveAttribute('data-site-key', 'updated-site')
+    expect(captcha).toHaveAttribute('data-action', 'settings_security')
+    fireEvent.click(captcha)
     fireEvent.click(screen.getByRole('checkbox', { name: '限制注册邮箱域名' }))
     fireEvent.change(screen.getByLabelText('允许的邮箱域名（每行一个）'), { target: { value: 'merchant.example' } })
     fireEvent.click(screen.getByRole('button', { name: '保存安全设置' }))
 
     expect(await screen.findByText('安全与注册设置已保存。')).toBeVisible()
     expect(bodies).toHaveLength(1)
+    expect(bodies[0]?.value).toHaveProperty('turnstile_token')
     await waitFor(() => expect(published()).toMatchObject({
-      turnstile: { configured: true, site_key: 'updated-site' },
+      turnstile: { enabled: true, site_key: 'updated-site' },
       email_domain_restriction: { enabled: true, domains: ['merchant.example'] },
     }))
   })
@@ -215,7 +228,7 @@ describe('console settings page', () => {
       const security = current.security
       return {
         ...defaultPublicConfig,
-        turnstile: { ...defaultPublicConfig.turnstile, configured: security.secret_configured, site_key: security.turnstile_site_key },
+        turnstile: { ...defaultPublicConfig.turnstile, enabled: security.turnstile_enabled && security.secret_configured, site_key: security.turnstile_site_key },
         email_domain_restriction: { enabled: security.restrict_email_domains, domains: security.email_domains },
       }
     })
@@ -231,7 +244,6 @@ describe('console settings page', () => {
       await waitFor(() => expect(reads).toHaveLength(1))
       expect(published()).toBeUndefined()
       fireEvent.change(await screen.findByLabelText('人机验证站点密钥'), { target: { value: 'updated-site' } })
-      fireEvent.change(screen.getByLabelText('允许的主机名'), { target: { value: 'pay.example.test' } })
       fireEvent.click(screen.getByRole('checkbox', { name: '限制注册邮箱域名' }))
       fireEvent.change(screen.getByLabelText('允许的邮箱域名（每行一个）'), { target: { value: 'merchant.example' } })
       fireEvent.click(screen.getByRole('button', { name: '保存安全设置' }))
@@ -249,7 +261,7 @@ describe('console settings page', () => {
       releaseSecond()
 
       await waitFor(() => expect(published()).toMatchObject({
-        turnstile: { configured: true, site_key: 'updated-site' },
+        turnstile: { enabled: false, site_key: 'updated-site' },
         email_domain_restriction: { enabled: true, domains: ['merchant.example'] },
       }))
       expect(cached).not.toContainEqual(reads[0]?.data)
@@ -427,7 +439,7 @@ describe('console settings page', () => {
     await screen.findByText('站点信息已保存。')
     expect(bodies).toMatchObject([
       { expected_version: 13, value: { host: 'smtp.draft.test', from_name: 'Sender from server' } },
-      { expected_version: 14, value: { site_name: 'Draft site', logo_asset_id: 'logo-from-server' } },
+      { expected_version: 14, value: { site_name: 'Draft site', logo_asset_id: 'logo-from-server', favicon_asset_id: null } },
     ])
   })
 
@@ -859,8 +871,8 @@ describe('settings logo upload', () => {
 
   it('cancels a pending replacement when removing the logo and saves null', async () => {
     current.site.logo_asset_id = 'existing-logo'
-    const pending = deferred<Awaited<ReturnType<typeof consoleApi.uploadLogo>>>()
-    const upload = vi.spyOn(consoleApi, 'uploadLogo').mockReturnValue(pending.promise)
+    const pending = deferred<Awaited<ReturnType<typeof consoleApi.uploadSiteImage>>>()
+    const upload = vi.spyOn(consoleApi, 'uploadSiteImage').mockReturnValue(pending.promise)
     const bodies = recordSaves()
     const actor = userEvent.setup()
     mount()
@@ -868,7 +880,7 @@ describe('settings logo upload', () => {
     await actor.upload(screen.getByLabelText('站点标识'), file())
     await waitFor(() => expect(upload).toHaveBeenCalledOnce())
     await actor.click(screen.getByRole('button', { name: '移除标识' }))
-    expect(upload.mock.calls[0]?.[1]?.aborted).toBe(true)
+    expect(upload.mock.calls[0]?.[2]?.aborted).toBe(true)
     expect(screen.queryByRole('img', { name: '站点标识' })).not.toBeInTheDocument()
     await act(async () => {
       pending.resolve({ asset_id: 'obsolete-logo', url: '/media/obsolete-logo' })
@@ -881,8 +893,8 @@ describe('settings logo upload', () => {
   })
 
   it('adds only the asset ID when the site name changes during upload', async () => {
-    const pending = deferred<Awaited<ReturnType<typeof consoleApi.uploadLogo>>>()
-    const upload = vi.spyOn(consoleApi, 'uploadLogo').mockReturnValue(pending.promise)
+    const pending = deferred<Awaited<ReturnType<typeof consoleApi.uploadSiteImage>>>()
+    const upload = vi.spyOn(consoleApi, 'uploadSiteImage').mockReturnValue(pending.promise)
     const bodies = recordSaves()
     const actor = userEvent.setup()
     mount()
@@ -902,16 +914,16 @@ describe('settings logo upload', () => {
   })
 
   it.each(['switch', 'unmount', 'replace'])('discards a late response after %s', async (action) => {
-    const pending = deferred<Awaited<ReturnType<typeof consoleApi.uploadLogo>>>()
+    const pending = deferred<Awaited<ReturnType<typeof consoleApi.uploadSiteImage>>>()
     const upload = vi
-      .spyOn(consoleApi, 'uploadLogo')
+      .spyOn(consoleApi, 'uploadSiteImage')
       .mockReturnValueOnce(pending.promise)
       .mockResolvedValue({ asset_id: 'new-logo', url: '/media/new-logo' })
     const actor = userEvent.setup()
     const view = mount()
     await actor.upload(await screen.findByLabelText('站点标识'), file())
     await waitFor(() => expect(upload).toHaveBeenCalledOnce())
-    const signal = upload.mock.calls[0]?.[1]
+    const signal = upload.mock.calls[0]?.[2]
     if (action === 'switch') await actor.click(groupButton('首页'))
     else if (action === 'unmount') view.unmount()
     else await actor.upload(screen.getByLabelText('站点标识'), file())
@@ -934,7 +946,7 @@ describe('settings logo upload', () => {
   it.each(['decode', 'dimensions'])('releases the blob without uploading when %s fails', async (failure) => {
     if (failure === 'decode') decode.mockRejectedValueOnce(new Error('invalid image'))
     else vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(4097)
-    const upload = vi.spyOn(consoleApi, 'uploadLogo')
+    const upload = vi.spyOn(consoleApi, 'uploadSiteImage')
     const actor = userEvent.setup()
     mount()
     await actor.upload(await screen.findByLabelText('站点标识'), file())
@@ -946,7 +958,7 @@ describe('settings logo upload', () => {
   it('releases the blob immediately when unmounting during image decode', async () => {
     const pending = deferred<void>()
     decode.mockReturnValueOnce(pending.promise)
-    const upload = vi.spyOn(consoleApi, 'uploadLogo')
+    const upload = vi.spyOn(consoleApi, 'uploadSiteImage')
     const actor = userEvent.setup()
     const view = mount()
     await actor.upload(await screen.findByLabelText('站点标识'), file())
