@@ -1,50 +1,17 @@
-import { Check, ChevronDown } from 'lucide-react'
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import { Check } from 'lucide-react'
+import type { ComponentPropsWithRef, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
-import './input.css'
 
 /** Base look for every text-like control: 44px, 1px strong border, accent focus ring. */
 export const controlClass =
   'w-full min-w-0 rounded-control border border-border-strong bg-surface px-3 text-[15px] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--color-focus-ring)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-text-2 aria-invalid:border-danger'
 
-export function Input({ className, onInput, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  const dateTime = props.type === 'datetime-local'
-  return (
-    <input
-      data-empty={dateTime ? !((props.value ?? props.defaultValue) || '') : undefined}
-      className={cn(
-        controlClass,
-        'h-11 read-only:bg-muted/60',
-        dateTime && 'date-time-input',
-        className,
-      )}
-      onInput={dateTime ? (event) => {
-        if (props.value === undefined) event.currentTarget.dataset.empty = String(!event.currentTarget.value)
-        onInput?.(event)
-      } : onInput}
-      {...props}
-    />
-  )
+export function Input({ className, ...props }: ComponentPropsWithRef<'input'>) {
+  return <input className={cn(controlClass, 'h-11 read-only:bg-muted/60', className)} {...props} />
 }
 
 export function Textarea({ className, rows = 3, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea rows={rows} className={cn(controlClass, 'block min-h-11 resize-y read-only:bg-muted/60 py-2.5 leading-relaxed', className)} {...props} />
-}
-
-/** Native select (keeps keyboard, mobile pickers and tests) with the template's chevron. */
-export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <span className="relative block min-w-0">
-      <select className={cn(controlClass, 'h-11 cursor-pointer appearance-none pr-10', className)} {...props}>
-        {children}
-      </select>
-      <ChevronDown
-        aria-hidden="true"
-        strokeWidth={1.8}
-        className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-text-3"
-      />
-    </span>
-  )
 }
 
 /** Input with a trailing action in the same row, e.g. a code field with its send button. */

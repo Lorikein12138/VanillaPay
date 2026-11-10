@@ -1,3 +1,4 @@
+import { readRFC3339 } from '@/lib/date-time'
 import type { components, operations } from '@/api/schema'
 import { APIError } from '@/api/client'
 
@@ -10,7 +11,9 @@ export function orderSearch(search: Record<string, unknown>): OrderFilters {
   const result: OrderFilters = {}
   for (const key of ['status', 'channel', 'start', 'end', 'query'] as const) {
     const value = search[key]
-    if (typeof value === 'string' && value.trim()) result[key] = value.trim()
+    const parsed = typeof value === 'string' ? value.trim() : ''
+    const valid = key === 'start' || key === 'end' ? readRFC3339(parsed) : parsed
+    if (valid) result[key] = valid
   }
   return result
 }
@@ -46,13 +49,6 @@ export function orderErrorKey(error: unknown) {
   if (error.status === 400) return 'merchant.orders.errors.validation'
   if (error.status === 429) return 'auth.errors.rateLimit'
   return 'merchant.orders.errors.unavailable'
-}
-
-export function localDateInput(value?: string) {
-  if (!value || Number.isNaN(Date.parse(value))) return ''
-  const date = new Date(value)
-  const part = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}T${part(date.getHours())}:${part(date.getMinutes())}:${part(date.getSeconds())}`
 }
 
 export function validReason(reason: string, action: OrderAction) {

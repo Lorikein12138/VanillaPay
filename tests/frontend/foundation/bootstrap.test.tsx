@@ -1,3 +1,5 @@
+import { http, HttpResponse } from 'msw'
+import { chooseMenu } from '../portal-controls'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -9,7 +11,7 @@ import { createI18n } from '@/lib/i18n'
 import { initTheme } from '@/lib/theme'
 import { publicConfigHandler } from '../public-config-fixture'
 
-const server = setupServer(publicConfigHandler)
+const server = setupServer(publicConfigHandler, http.get('*/api/v1/merchant/me', () => new HttpResponse(null, { status: 401 })))
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterAll(() => server.close())
 
@@ -20,9 +22,10 @@ function renderApp(path = '/') {
   initTheme()
   const i18n = createI18n()
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
+  const client = createQueryClient()
   const view = render(
-    <AppProviders i18n={i18n} queryClient={createQueryClient()}>
-      <RouterProvider router={router} />
+    <AppProviders i18n={i18n} queryClient={client}>
+      <RouterProvider router={router} context={{ queryClient: client }} />
     </AppProviders>,
   )
   return { router, view }
@@ -30,16 +33,18 @@ function renderApp(path = '/') {
 
 describe('foundation bootstrap', () => {
   it('renders the lazy home page in zh-CN with language and theme controls', async () => {
+    const user = userEvent.setup()
     renderApp('/')
 
     expect(await screen.findByRole('heading', { level: 1, name: zhTitle })).toBeVisible()
     expect(document.documentElement.lang).toBe('zh-CN')
-    expect(screen.getByRole('button', { name: '切换语言为 English' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '语言' })).toBeVisible()
 
-    const theme = screen.getByRole('group', { name: '主题' })
-    expect(within(theme).getByRole('button', { name: '跟随系统' })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(theme).getByRole('button', { name: '浅色' })).toHaveAttribute('aria-pressed', 'false')
-    expect(within(theme).getByRole('button', { name: '深色' })).toHaveAttribute('aria-pressed', 'false')
+    await user.click(screen.getByRole('button', { name: '主题' }))
+    const theme = screen.getByRole('menu')
+    expect(within(theme).getByRole('menuitemradio', { name: '跟随系统' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(theme).getByRole('menuitemradio', { name: '浅色' })).toHaveAttribute('aria-checked', 'false')
+    expect(within(theme).getByRole('menuitemradio', { name: '深色' })).toHaveAttribute('aria-checked', 'false')
     expect(document.documentElement).not.toHaveAttribute('data-theme')
   })
 
@@ -48,10 +53,10 @@ describe('foundation bootstrap', () => {
     const { router, view } = renderApp('/')
     await screen.findByRole('heading', { level: 1, name: zhTitle })
 
-    await user.click(screen.getByRole('button', { name: '切换语言为 English' }))
+    await chooseMenu(user, '语言', 'English')
 
     expect(screen.getByRole('heading', { level: 1, name: enTitle })).toBeVisible()
-    expect(screen.getByRole('group', { name: 'Theme' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Theme' })).toBeVisible()
     expect(document.documentElement.lang).toBe('en')
     expect(localStorage.getItem('vp-language')).toBe('en')
     expect(router.state.location.pathname).toBe('/')
@@ -59,7 +64,7 @@ describe('foundation bootstrap', () => {
     view.unmount()
     renderApp('/')
     expect(await screen.findByRole('heading', { level: 1, name: enTitle })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Switch language to 中文' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Language' })).toBeVisible()
     expect(document.documentElement.lang).toBe('en')
   })
 
@@ -67,18 +72,16 @@ describe('foundation bootstrap', () => {
     const user = userEvent.setup()
     renderApp('/')
     await screen.findByRole('heading', { level: 1, name: zhTitle })
-    const theme = screen.getByRole('group', { name: '主题' })
-
-    await user.click(within(theme).getByRole('button', { name: '深色' }))
+    await chooseMenu(user, '主题', '深色')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
     expect(localStorage.getItem('vp-theme')).toBe('dark')
-    expect(within(theme).getByRole('button', { name: '深色' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '主题' })).toHaveAttribute('data-value', 'dark')
 
-    await user.click(within(theme).getByRole('button', { name: '浅色' }))
+    await chooseMenu(user, '主题', '浅色')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     expect(localStorage.getItem('vp-theme')).toBe('light')
 
-    await user.click(within(theme).getByRole('button', { name: '跟随系统' }))
+    await chooseMenu(user, '主题', '跟随系统')
     expect(document.documentElement).not.toHaveAttribute('data-theme')
     expect(localStorage.getItem('vp-theme')).toBe('system')
   })
@@ -89,8 +92,8 @@ describe('foundation bootstrap', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: '页面不存在' })).toBeVisible()
     expect(router.state.location.pathname).toBe('/no-such-page')
-    expect(screen.getByRole('button', { name: '切换语言为 English' })).toBeVisible()
-    expect(screen.getByRole('group', { name: '主题' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '语言' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '主题' })).toBeVisible()
 
     await user.click(screen.getByRole('link', { name: '返回首页' }))
     expect(await screen.findByRole('heading', { level: 1, name: zhTitle })).toBeVisible()

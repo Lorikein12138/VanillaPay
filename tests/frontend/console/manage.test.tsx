@@ -1,3 +1,4 @@
+import { chooseSelect } from '../portal-controls'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -40,7 +41,7 @@ afterEach(() => { server.resetHandlers(); vi.restoreAllMocks() })
 afterAll(() => server.close())
 function mount(path = '/console/merchants') {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) }), client = createQueryClient()
-  const view = render(<AppProviders i18n={createI18n()} queryClient={client}><RouterProvider router={router} /></AppProviders>)
+  const view = render(<AppProviders i18n={createI18n()} queryClient={client}><RouterProvider router={router} context={{ queryClient: client }} /></AppProviders>)
   return { router, client, ...view }
 }
 async function open(name: string) {
@@ -53,8 +54,7 @@ function fill(dialog: HTMLElement, name: string, value: string) {
 function submit(dialog: HTMLElement, name: string) { fireEvent.click(within(dialog).getByRole('button', { name })) }
 async function grant() {
   const dialog = await open('调整订阅')
-  await waitFor(() => expect(within(dialog).getByRole('option', { name: '专业套餐' })).toBeInTheDocument())
-  fill(dialog, '套餐', '3'); fill(dialog, '原因', '人工开通')
+  await chooseSelect(userEvent.setup(), within(dialog).getByLabelText('套餐', { exact: true }), '3'); fill(dialog, '原因', '人工开通')
   return dialog
 }
 
@@ -103,7 +103,9 @@ it('renders text safely, sends filters and restarts cursor pagination', async ()
   expect(calls.at(-1)?.searchParams.has('cursor')).toBe(false)
   await actor.click(await screen.findByRole('button', { name: '加载更多' }))
   await waitFor(() => expect(calls.at(-1)?.searchParams.get('cursor')).toBe('next-page'))
-  fill(document.body, '搜索', '安全'); fill(document.body, '状态', 'true'); fill(document.body, '订阅', 'false')
+  fill(document.body, '搜索', '安全')
+  await chooseSelect(actor, screen.getByLabelText('状态', { exact: true }), 'true')
+  await chooseSelect(actor, screen.getByLabelText('订阅', { exact: true }), 'false')
   await actor.click(screen.getByRole('button', { name: '应用筛选' }))
   await waitFor(() => expect(router.state.location.search).toMatchObject({ query: '安全', banned: true, subscription_active: false }))
   await waitFor(() => expect(calls.at(-1)?.searchParams.get('query')).toBe('安全'))
@@ -214,7 +216,7 @@ it('uses only plan channels, byte validation and the latest subscription revisio
   fill(dialog, '原因', '人工开通'); submit(dialog, '调整订阅')
   await within(dialog).findByText('订阅已被修改，已刷新详情，请检查并重新提交。')
   expect(within(dialog).getByLabelText('原因')).toHaveValue('人工开通')
-  expect(within(dialog).getByLabelText('套餐')).toHaveValue('3')
+  expect(within(dialog).getByLabelText('套餐')).toHaveAttribute('data-value', '3')
   await waitFor(() => expect(within(dialog).getByRole('button', { name: '调整订阅' })).toBeEnabled())
   clock.mockReturnValue(Date.parse('2030-01-01T00:01:00Z'))
   const grantRequest = vi.spyOn(consoleApi, 'grantSubscription')
@@ -435,7 +437,8 @@ it('syncs purchase filters to the URL, preserves and clears merchant_id, and lin
   }))
   const { router } = mount('/console/purchases?merchant_id=42')
   expect((await screen.findAllByRole('link', { name: '#42' }))[0]).toHaveAttribute('href', '/console/merchants/42')
-  fill(document.body, '状态', 'paid'); fill(document.body, '套餐', '3')
+  await chooseSelect(userEvent.setup(), screen.getByLabelText('状态', { exact: true }), 'paid')
+  await chooseSelect(userEvent.setup(), screen.getByLabelText('套餐', { exact: true }), '3')
   fireEvent.click(screen.getByRole('button', { name: '应用筛选' }))
   await waitFor(() => expect(router.state.location.search).toMatchObject({ merchant_id: 42, state: 'paid', plan_id: 3 }))
   expect(calls.at(-1)?.searchParams.get('merchant_id')).toBe('42')
@@ -466,7 +469,7 @@ it('resets channels to the selected plan subset before submitting', async () => 
     }))
   mount('/console/merchants/42')
   const dialog = await grant()
-  fill(dialog, '套餐', '4')
+  await chooseSelect(userEvent.setup(), within(dialog).getByLabelText('套餐', { exact: true }), '4')
   expect(within(dialog).queryByRole('checkbox', { name: '支付宝' })).toBeNull()
   expect(within(dialog).getByRole('checkbox', { name: 'QQ 钱包' })).toBeChecked()
   submit(dialog, '调整订阅'); await screen.findByText('订阅已更新。')

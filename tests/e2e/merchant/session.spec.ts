@@ -94,6 +94,10 @@ for (const signedIn of [false, true]) {
       await expect(page).toHaveURL(/\/dashboard$/)
       // Finish the first dashboard render before observing script loads of the gated reload.
       await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
+      // The signed-in shell preloads sidebar chunks when idle. Let that finish so
+      // its requests cannot straddle the gated reload and stay pending forever.
+      await page.clock.runFor(2000)
+      await page.waitForLoadState('networkidle')
     }
     let release: () => void = () => { throw new Error('uninitialized response gate') }
     const gate = new Promise<void>((resolve) => { release = resolve })

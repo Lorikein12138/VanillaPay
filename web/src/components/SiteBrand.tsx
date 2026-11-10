@@ -38,12 +38,12 @@ function SiteLogo({ url, name, className }: { url: string; name: string; classNa
   return <img src={url} alt={name} className={cn('shrink-0 object-contain', className)} onError={() => setFailed(true)} />
 }
 
-export function SiteBrand({ compact = false }: { compact?: boolean }) {
+export function SiteBrand({ compact = false, labelClassName }: { compact?: boolean; labelClassName?: string }) {
   const { name, logoUrl = '' } = useSiteBrand()
   return (
     <>
       <SiteLogo key={logoUrl} url={logoUrl} name={name} className={compact ? 'size-5' : 'size-7'} />
-      <span className={compact ? 'min-w-0 break-words' : 'min-w-0 truncate font-serif text-xl font-medium'}>{name}</span>
+      <span className={cn(compact ? 'min-w-0 break-words' : 'min-w-0 truncate font-serif text-xl font-medium', labelClassName)}>{name}</span>
     </>
   )
 }

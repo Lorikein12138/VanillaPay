@@ -1,7 +1,7 @@
+import { announcementsQuery } from '@/app/portal-queries'
 import { useState } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { consoleApi } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Button } from '@/components/ui/button'
 import { EmptyState, Mono, Page, PageHeader } from '@/components/ui/layout'
@@ -11,19 +11,14 @@ import { OrderTime } from '@/features/merchant/OrderParts'
 import { AnnouncementDialog, type AnnouncementEditor, type AnnouncementOutcome } from './AnnouncementDialog'
 
 type Announcement = components['schemas']['PortalAnnouncementDTO']
-const announcementKey = ['console', 'announcements'] as const
+const options = announcementsQuery()
 
 export function AnnouncementsPage() {
   const { t } = useTranslation()
   const client = useQueryClient()
   const [editor, setEditor] = useState<AnnouncementEditor | null>(null)
   const [notice, setNotice] = useState<AnnouncementOutcome | null>(null)
-  const query = useInfiniteQuery({
-    queryKey: announcementKey,
-    queryFn: ({ pageParam, signal }) => consoleApi.announcements({ cursor: pageParam, limit: 20 }, signal),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.next_cursor ?? undefined,
-  })
+  const query = useInfiniteQuery(options)
   const items = query.data?.pages.flatMap((page) => page.items ?? []) ?? []
 
   async function refreshAnnouncement(id: string) {
@@ -113,7 +108,7 @@ export function AnnouncementsPage() {
           editor={editor}
           onClose={() => setEditor(null)}
           refresh={refreshAnnouncement}
-          onWrite={() => client.invalidateQueries({ queryKey: announcementKey })}
+          onWrite={() => client.invalidateQueries({ queryKey: options.queryKey })}
           onSuccess={(outcome) => {
             setEditor(null)
             setNotice(outcome)

@@ -1,3 +1,4 @@
+import { chooseSelect } from '../portal-controls'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { focusManager } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -12,7 +13,7 @@ import type { components } from '@/api/schema'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
 import { PurchaseDialog, SubscriptionPage } from '@/features/merchant/SubscriptionPage'
-import { PopupAnnouncements, UnreadBadge } from '@/features/merchant/NotificationsPage'
+import { PopupAnnouncements, UnreadBadge } from '@/features/merchant/PopupAnnouncements'
 import { invalidateNotifications, notificationTarget, useNotificationSummary } from '@/features/merchant/notification-data'
 import { invalidateSubscription } from '@/features/merchant/subscription-data'
 import { auditSearch } from '@/features/merchant/audit-data'
@@ -40,13 +41,13 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())
-function wrap(children: ReactNode) {
-  const client = createQueryClient()
+function wrap(children: ReactNode, client = createQueryClient()) {
   return { client, ...render(<AppProviders queryClient={client} i18n={createI18n()}>{children}</AppProviders>) }
 }
 function mount(path: string) {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
-  return { router, ...wrap(<RouterProvider router={router} />) }
+  const client = createQueryClient()
+  return { router, ...wrap(<RouterProvider router={router} context={{ queryClient: client }} />, client) }
 }
 
 describe('subscription confirmations', () => {
@@ -248,7 +249,7 @@ describe('notifications and announcements', () => {
     server.use(http.get('*/api/v1/merchant/notifications', () => success({ items: [{ id: 'n1', kind: 'device_offline', source_id: 'd1', title: { zh_CN: '设备消息', en: 'Device alert' }, summary: { zh_CN: '<b>纯文本</b>', en: 'Text' }, created_at: new Date().toISOString(), read_at: unread ? null : new Date().toISOString(), action: { page: '/dashboard/collection', entity_id: '' } }], unread_count: unread, total: 1, next_cursor: null, popup_announcements: [] })), http.post('*/api/v1/merchant/notifications/read', async ({ request }) => { expect(await request.json()).toEqual({ ids: ['n1'] }); marked = true; unread = 0; return success({ unread_count: 0 }) }), http.get('*/api/v1/merchant/device', () => { expect(marked).toBe(true); return success({ bound: false, heartbeat_interval_seconds: 30, offline_threshold_seconds: 90 }) }), http.get('*/api/v1/merchant/receipts', () => success({ items: [], next_cursor: null, total: 0 })))
     const { router } = mount('/notifications')
     await screen.findByText('<b>纯文本</b>')
-    expect(screen.getAllByLabelText('1 条未读通知').length).toBeGreaterThan(0)
+    expect(await screen.findByLabelText('1 条未读通知')).toBeVisible()
     await userEvent.click(screen.getByRole('link', { name: '查看详情' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/devices'))
     await waitFor(() => expect(screen.queryByLabelText('1 条未读通知')).not.toBeInTheDocument())
@@ -328,11 +329,11 @@ describe('audit logs', () => {
     }))
     const { router } = mount('/account/logs')
     await screen.findAllByText('request-one')
-    await userEvent.selectOptions(screen.getByLabelText('操作类型'), 'auth.login')
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('操作类型'), 'auth.login')
     await userEvent.click(screen.getByRole('button', { name: '重置' }))
     expect(screen.getByLabelText('操作类型')).toHaveValue('')
-    await userEvent.selectOptions(screen.getByLabelText('操作类型'), 'subscription.purchase')
-    await userEvent.selectOptions(screen.getByLabelText('结果'), 'success')
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('操作类型'), 'subscription.purchase')
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('结果'), 'success')
     fireEvent.change(screen.getByLabelText('开始时间'), { target: { value: '2026-11-01T00:00:00' } })
     fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2026-11-02T00:00:00' } })
     await userEvent.click(screen.getByRole('button', { name: '应用筛选' }))

@@ -1,3 +1,5 @@
+import type { QueryClient } from '@tanstack/react-query'
+import { createQueryClient } from './providers'
 import { createRouter, defaultParseSearch, type RouterHistory } from '@tanstack/react-router'
 import { routeTree } from '@/routeTree.gen'
 import { onUnauthorized } from '@/api/client'
@@ -33,15 +35,18 @@ function parseSearch(search: string) {
   return parsed
 }
 
-export function createAppRouter(options: { history?: RouterHistory } = {}) {
+export function createAppRouter(options: { history?: RouterHistory; queryClient?: QueryClient } = {}) {
+  let hasMountedPortal = () => false
   const router = createRouter({
     routeTree,
     history: options.history,
     parseSearch,
-    // Pages and their data load only when visited.
-    defaultPreload: false,
+    context: { queryClient: options.queryClient ?? createQueryClient(), hasMountedPortal: () => hasMountedPortal() },
+    defaultPreload: 'intent',
+    defaultPreloadStaleTime: 0,
     scrollRestoration: true,
   })
+  hasMountedPortal = () => router.state.matches.some(({ routeId }) => routeId === '/_merchant' || routeId === '/console')
   onUnauthorized(() => {
     const path = router.state.location.pathname
     if (path === '/console' || path.startsWith('/console/')) {

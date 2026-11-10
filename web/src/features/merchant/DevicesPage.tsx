@@ -1,3 +1,4 @@
+import { deviceQuery } from '@/app/portal-queries'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QRCode from 'qrcode'
@@ -23,7 +24,7 @@ export function DevicesPage({ name, filters, onFilters }: { name: string; filter
   const { t } = useTranslation()
   const client = useQueryClient()
   const changed = useCallback(() => invalidateCollection(client, name), [client, name])
-  const device = useQuery({ queryKey: ['merchant', name, 'device'], queryFn: api.device, refetchInterval: 15000 })
+  const device = useQuery({ ...deviceQuery(name), refetchInterval: 15000 })
   const [dialog, setDialog] = useState<'bind' | 'unbind' | null>(null)
   return <Page>
     <PageHeader title={t('polish.monitoringDevice')} description={t('polish.bindAPaymentMonitorAndReviewDevice')} />

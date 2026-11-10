@@ -16,7 +16,7 @@ import { initTheme } from '@/lib/theme'
 initTheme()
 const i18n = createI18n()
 const queryClient = createQueryClient()
-const router = createAppRouter()
+const router = createAppRouter({ queryClient })
 
 const container = document.getElementById('root')
 if (!container) {

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +20,7 @@ type Challenge = components['schemas']['AuthLoginResult']
 export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: string; notice?: 'registered' | 'password_reset' | 'password_changed' | 'initialized' | 'repaired'; role?: 'merchant' | 'console' }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const config = usePublicConfig()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -63,6 +65,7 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
       } else {
         setPassword('')
         setCode('')
+        queryClient.removeQueries({ queryKey: [admin ? 'console' : 'merchant'] })
         await navigate({ to: (admin ? consoleDestination : loginDestination)(redirect, result.next_path), replace: true })
       }
     } catch (error) {

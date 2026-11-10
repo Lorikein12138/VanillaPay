@@ -97,27 +97,37 @@ const MerchantCodesRoute = MerchantCodesRouteImport.update({
   id: '/codes',
   path: '/codes',
   getParentRoute: () => MerchantRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_merchant.codes.lazy').then((d) => d.Route),
+)
 const MerchantDashboardRoute = MerchantDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => MerchantRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_merchant.dashboard.lazy').then((d) => d.Route),
+)
 const MerchantDevicesRoute = MerchantDevicesRouteImport.update({
   id: '/devices',
   path: '/devices',
   getParentRoute: () => MerchantRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_merchant.devices.lazy').then((d) => d.Route),
+)
 const MerchantIntegrationRoute = MerchantIntegrationRouteImport.update({
   id: '/integration',
   path: '/integration',
   getParentRoute: () => MerchantRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_merchant.integration.lazy').then((d) => d.Route),
+)
 const MerchantNotificationsRoute = MerchantNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
   getParentRoute: () => MerchantRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_merchant.notifications.lazy').then((d) => d.Route),
+)
 const MerchantOrdersRoute = MerchantOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -127,12 +137,14 @@ const MerchantSubscriptionRoute = MerchantSubscriptionRouteImport.update({
   id: '/subscription',
   path: '/subscription',
   getParentRoute: () => MerchantRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_merchant.subscription.lazy').then((d) => d.Route),
+)
 const ConsoleIndexRoute = ConsoleIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ConsoleRoute,
-} as any)
+} as any).lazy(() => import('./routes/console.index.lazy').then((d) => d.Route))
 const ConsoleSplatRoute = ConsoleSplatRouteImport.update({
   id: '/$',
   path: '/$',
@@ -152,7 +164,9 @@ const ConsoleAuditLogsRoute = ConsoleAuditLogsRouteImport.update({
   id: '/audit-logs',
   path: '/audit-logs',
   getParentRoute: () => ConsoleRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/console.audit-logs.lazy').then((d) => d.Route),
+)
 const ConsoleMerchantsRoute = ConsoleMerchantsRouteImport.update({
   id: '/merchants',
   path: '/merchants',
@@ -172,12 +186,16 @@ const ConsolePurchasesRoute = ConsolePurchasesRouteImport.update({
   id: '/purchases',
   path: '/purchases',
   getParentRoute: () => ConsoleRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/console.purchases.lazy').then((d) => d.Route),
+)
 const ConsoleSettingsRoute = ConsoleSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => ConsoleRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/console.settings.lazy').then((d) => d.Route),
+)
 const ConsoleLoginRoute = ConsoleLoginRouteImport.update({
   id: '/console_/login',
   path: '/console/login',
@@ -212,12 +230,16 @@ const MerchantAccountLogsRoute = MerchantAccountLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
   getParentRoute: () => MerchantAccountRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_merchant.account.logs.lazy').then((d) => d.Route),
+)
 const MerchantOrdersIndexRoute = MerchantOrdersIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => MerchantOrdersRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_merchant.orders.index.lazy').then((d) => d.Route),
+)
 const MerchantOrdersTradeNoRoute = MerchantOrdersTradeNoRouteImport.update({
   id: '/$tradeNo',
   path: '/$tradeNo',
@@ -227,7 +249,9 @@ const ConsoleMerchantsIndexRoute = ConsoleMerchantsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ConsoleMerchantsRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/console.merchants.index.lazy').then((d) => d.Route),
+)
 const ConsoleMerchantsIdRoute = ConsoleMerchantsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -237,7 +261,9 @@ const ConsoleOrdersIndexRoute = ConsoleOrdersIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ConsoleOrdersRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/console.orders.index.lazy').then((d) => d.Route),
+)
 const ConsoleOrdersTradeNoRoute = ConsoleOrdersTradeNoRouteImport.update({
   id: '/$tradeNo',
   path: '/$tradeNo',

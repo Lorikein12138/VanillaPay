@@ -1,14 +1,14 @@
+import { deviceQuery, recentOrdersQuery, statsQuery } from '@/app/portal-queries'
 import { Button } from '@/components/ui/button'
 import { Page } from '@/components/ui/layout'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, consoleApi } from '@/api/client'
 import { amountChange, money, previousRange, statsRange, successRate, type OverviewDays, type StatsRange } from './overview-data'
 import { DeviceCard, RecentOrders, Skeleton, TrendChart, QueryProblem } from './OverviewCards'
 
 function useStats(name: string, range: StatsRange, role: 'merchant' | 'console') {
-  return useQuery({ queryKey: [role, name, 'stats', range], queryFn: () => (role === 'console' ? consoleApi : api).stats(range), staleTime: 60000 })
+  return useQuery(statsQuery(role, name, range))
 }
 
 export function Overview({ name, role = 'merchant' }: { name: string; role?: 'merchant' | 'console' }) {
@@ -25,8 +25,8 @@ export function Overview({ name, role = 'merchant' }: { name: string; role?: 'me
   const current = useStats(name, range, role)
   const previous = useStats(name, previousRange(range), role)
   const chart = useStats(name, statsRange(now, 7, timezone), role)
-  const device = useQuery({ queryKey: ['merchant', name, 'device'], queryFn: api.device, enabled: role === 'merchant', refetchInterval: 30000 })
-  const orders = useQuery({ queryKey: ['merchant', name, 'orders', 6], enabled: role === 'merchant', queryFn: () => api.orders(6) })
+  const device = useQuery({ ...deviceQuery(name), enabled: role === 'merchant', refetchInterval: 30000 })
+  const orders = useQuery({ ...recentOrdersQuery(name), enabled: role === 'merchant' })
   const paid = current.data?.status_counts?.paid ?? 0
   const pending = current.data?.status_counts?.pending ?? 0
   const rate = successRate(paid, current.data?.status_counts?.expired ?? 0)

@@ -1,3 +1,6 @@
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { api, APIError } from '@/api/client'
 import { buttonVariants } from '@/components/ui/button'
 import { ArrowDown, BellRing, ChartColumn, CodeXml, CreditCard, QrCode, ShieldCheck, ShoppingCart, Smartphone, Target, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
@@ -6,6 +9,7 @@ import { PublicFooter } from '@/components/PublicFooter'
 import { useSiteBrand } from '@/components/SiteBrand'
 import { TopBar } from '@/components/TopBar'
 import { parsePublicURL, usePublicConfig } from '@/lib/public-config'
+import { cn } from '@/lib/utils'
 
 const featureIcons = {
   matching: Target,
@@ -52,18 +56,44 @@ export function HomePage() {
   }
   if (home?.mode === 'html' && home.html != null) {
     return (
-      <main id="main">
-        <iframe
-          title={name}
-          className="block h-dvh w-full border-0"
-          srcDoc={home.html}
-          sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
-        />
-      </main>
+      <div className="flex h-dvh flex-col">
+        <TopBar compact><HomeAccess registrationOpen={config.data?.registration_open} /></TopBar>
+        <main id="main" className="min-h-0 flex-1">
+          <iframe
+            title={name}
+            className="block h-full w-full border-0"
+            srcDoc={home.html}
+            sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+          />
+        </main>
+      </div>
     )
   }
   if (destination) return <HomeRedirect url={destination} />
-  return <DefaultHome />
+  return <DefaultHome registrationOpen={!config.isError && config.data?.registration_open} />
+}
+
+function HomeAccess({ registrationOpen }: { registrationOpen?: boolean }) {
+  const { t } = useTranslation()
+  const session = useQuery({
+    queryKey: ['home-merchant-session'],
+    gcTime: 0,
+    queryFn: async ({ signal }) => {
+      try { return (await api.peekSession(signal)).user.banned ? 'banned' : 'active' }
+      catch (error) {
+        if (error instanceof APIError && (error.status === 401 || error.status === 403)) return null
+        throw error
+      }
+    },
+  })
+  if (session.isPending) return null
+  const primary = cn(buttonVariants({ variant: 'primary', size: 'sm' }), 'px-2 sm:px-3')
+  const secondary = cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'px-2 sm:px-3')
+  if (session.data) return <Link to={session.data === 'banned' ? '/banned' : '/dashboard'} className={primary}>{t('home.dashboard')}</Link>
+  return <>
+    <Link to="/login" className={registrationOpen ? secondary : primary}>{t('auth.submit')}</Link>
+    {registrationOpen && <Link to="/register" className={primary}>{t('home.register')}</Link>}
+  </>
 }
 
 function HomeRedirect({ url }: { url: string }) {
@@ -86,7 +116,7 @@ function HomeRedirect({ url }: { url: string }) {
   )
 }
 
-function DefaultHome() {
+function DefaultHome({ registrationOpen }: { registrationOpen?: boolean }) {
   const { t } = useTranslation()
 
   return (
@@ -100,6 +130,7 @@ function DefaultHome() {
             {t('home.nav.steps')}
           </a>
         </nav>
+        <HomeAccess registrationOpen={registrationOpen} />
       </TopBar>
 
       <main id="main">

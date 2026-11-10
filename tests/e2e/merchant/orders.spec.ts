@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
-import { expect, login, merchantVisualShots, noOverflow, test, selectScreenshotTheme, openMenu, polishShot } from './fixtures'
+import { chooseSelect, expect, login, merchantVisualShots, noOverflow, test, selectScreenshotTheme, openMenu, polishShot } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Shanghai' })
 function fixtureOrder(status = 'pending', index = 0) {
@@ -38,7 +38,7 @@ test('persists the screenshot theme before an order page reload', async ({ page,
     await patch
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     // The button has applied the theme locally, but the PATCH is still held.
-    await expect(page.getByRole('button', { name: '深色', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '主题', exact: true })).toBeDisabled()
     expect(switchingFinished).toBe(false)
   } finally {
     release()
@@ -58,7 +58,7 @@ test('keeps date segments and a long order number usable at the active width', a
   await expect(link).toBeVisible()
   const start = page.getByLabel('开始时间', { exact: true })
   const end = page.getByLabel('结束时间', { exact: true })
-  const dateValues = ['2026-11-01T08:15:09', '2026-11-30T18:45:17'] as const
+  const dateValues = ['2026-11-01 08:15:09', '2026-11-30 18:45:17'] as const
   async function fillDates() {
     await start.fill(dateValues[0])
     await end.fill(dateValues[1])
@@ -106,8 +106,8 @@ test('filters orders, restores shared URLs, loads cursors and exports only the c
   await expect(rows(page)).toHaveCount(20)
   await page.getByRole('button', { name: '加载更多' }).click()
   await expect(rows(page)).toHaveCount(23)
-  await page.getByLabel('状态', { exact: true }).selectOption('paid')
-  await page.getByLabel('通道', { exact: true }).selectOption('alipay')
+  await chooseSelect(page, page.getByLabel('状态', { exact: true }), 'paid')
+  await chooseSelect(page, page.getByLabel('通道', { exact: true }), 'alipay')
   await page.getByLabel('开始时间', { exact: true }).fill('2000-01-01T00:00')
   await page.getByLabel('结束时间', { exact: true }).fill('2099-01-01T00:00')
   await page.getByRole('button', { name: '应用筛选' }).click()
@@ -116,10 +116,10 @@ test('filters orders, restores shared URLs, loads cursors and exports only the c
   const shared = page.url()
   expect(new URL(shared).searchParams.get('start')).toBe('1999-12-31T16:00:00.000Z')
   await page.reload()
-  await expect(page.getByLabel('状态', { exact: true })).toHaveValue('paid')
-  await expect(page.getByLabel('通道', { exact: true })).toHaveValue('alipay')
+  await expect(page.getByLabel('状态', { exact: true })).toHaveAttribute('data-value', 'paid')
+  await expect(page.getByLabel('通道', { exact: true })).toHaveAttribute('data-value', 'alipay')
   await expect(page.getByLabel('搜索订单')).toHaveValue('')
-  await expect(page.getByLabel('开始时间', { exact: true })).toHaveValue('2000-01-01T00:00')
+  await expect(page.getByLabel('开始时间', { exact: true })).toHaveValue('2000-01-01 00:00')
   await page.getByRole('button', { name: '加载更多' }).click()
   await expect(rows(page)).toHaveCount(21)
   const downloadPromise = page.waitForEvent('download')
@@ -176,10 +176,13 @@ test('shows order details, supplements a payment and records a confirmed offline
   await expect(page.getByText(pending.out_trade_no, { exact: true })).toBeVisible()
   await screenshot(page, 'detail')
   await page.getByRole('button', { name: '补单', exact: true }).click()
-  await expect(page.getByLabel('补单通道').locator('option[value="wxpay"]')).toBeDisabled()
-  await expect(page.getByLabel('补单通道').locator('option[value="alipay"]')).toBeEnabled()
+  await page.getByRole('combobox', { name: '补单通道' }).click()
+  const channels = page.getByRole('listbox')
+  await expect(channels.locator('[role=option][data-value="wxpay"]')).toBeDisabled()
+  await expect(channels.locator('[role=option][data-value="alipay"]')).toBeEnabled()
+  await page.keyboard.press('Escape')
   await polishShot(page, 'supplement-channels-dialog', false, 'contract-backend-fixes-shots')
-  await page.getByLabel('补单通道').selectOption('alipay')
+  await chooseSelect(page, page.getByLabel('补单通道'), 'alipay')
   await page.getByLabel('原因', { exact: true }).fill('已核对银行收款记录')
   await screenshot(page, 'confirmation')
   const supplementResponse = page.waitForResponse((response) => response.url().endsWith('/supplement') && response.request().method() === 'POST')

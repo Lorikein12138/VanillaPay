@@ -1,5 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { lazy } from 'react'
+import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
 
-const Page = lazy(() => import('@/features/console/AccountPage').then((module) => ({ default: module.ConsoleAccountPage })))
-export const Route = createFileRoute('/console/account')({ component: Page })
+export const Route = createFileRoute('/console/account')({
+  component: lazyRouteComponent(() => import('@/features/console/AccountPage'), 'ConsoleAccountPage'),
+})

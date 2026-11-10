@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { lazy } from 'react'
+import { ConsoleLayout } from '@/features/console/ConsoleLayout'
 import { APIError, consoleApi } from '@/api/client'
 import { consoleSafePath } from '@/lib/redirect'
 
@@ -13,5 +13,4 @@ export const Route = createFileRoute('/console')({
   },
   component: Console,
 })
-const Layout = lazy(() => import('@/features/console/ConsoleLayout').then((module) => ({ default: module.ConsoleLayout })))
-function Console() { return <Layout session={Route.useRouteContext().session} /> }
+function Console() { return <ConsoleLayout session={Route.useRouteContext().session} /> }

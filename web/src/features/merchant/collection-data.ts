@@ -1,3 +1,4 @@
+import { readRFC3339 } from '@/lib/date-time'
 import type { QueryClient } from '@tanstack/react-query'
 import { APIError } from '@/api/client'
 import type { components, operations } from '@/api/schema'
@@ -8,7 +9,9 @@ export function receiptSearch(search: Record<string, unknown>): ReceiptFilters {
   const result: ReceiptFilters = {}
   for (const key of ['start', 'end', 'channel', 'match_state'] as const) {
     const value = search[key]
-    if (typeof value === 'string' && value.trim()) result[key] = value.trim()
+    const parsed = typeof value === 'string' ? value.trim() : ''
+    const valid = key === 'start' || key === 'end' ? readRFC3339(parsed) : parsed
+    if (valid) result[key] = valid
   }
   return result
 }

@@ -1,3 +1,4 @@
+import { readRFC3339 } from '@/lib/date-time'
 import type { operations } from '@/api/schema'
 import type { ConsoleAuditQuery } from '@/api/client'
 
@@ -7,25 +8,12 @@ type MerchantAuditFilters = Pick<
 export type AuditFilters = MerchantAuditFilters & Pick<ConsoleAuditQuery, 'merchant_id' | 'actor_role'>
 export const auditRoles = ['merchant', 'admin', 'system', 'device'] as const satisfies NonNullable<AuditFilters['actor_role']>[]
 
-const auditDateTime = /^(\d{4})-(\d{2})-(\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/
-
-function validAuditDateTime(value: string) {
-  const match = auditDateTime.exec(value)
-  if (!match || match[0] !== value) return false
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  if (!month || month > 12 || !day) return false
-  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
-  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-  return day <= daysInMonth[month - 1]!
-}
-
 export function auditSearch(search: Record<string, unknown>): MerchantAuditFilters {
   const filters: MerchantAuditFilters = {}
   for (const key of ['start', 'end'] as const) {
     const value = search[key]
-    if (typeof value === 'string' && validAuditDateTime(value)) filters[key] = value
+    const date = readRFC3339(value)
+    if (date) filters[key] = date
   }
   for (const key of ['action', 'result'] as const) {
     if (typeof search[key] === 'string' && search[key].trim()) filters[key] = search[key].trim()

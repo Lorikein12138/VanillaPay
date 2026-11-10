@@ -1,3 +1,5 @@
+import userEvent from '@testing-library/user-event'
+import { chooseSelect } from '../portal-controls'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
@@ -7,7 +9,7 @@ import type { components } from '@/api/schema'
 import { api, consoleApi } from '@/api/client'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
-import { PopupAnnouncements } from '@/features/merchant/NotificationsPage'
+import { PopupAnnouncements } from '@/features/merchant/PopupAnnouncements'
 import { createI18n } from '@/lib/i18n'
 import { publicConfigHandler } from '../public-config-fixture'
 
@@ -52,9 +54,10 @@ afterAll(() => server.close())
 
 function mount(path = '/console/announcements') {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
+  const client = createQueryClient()
   render(
-    <AppProviders i18n={createI18n()} queryClient={createQueryClient()}>
-      <RouterProvider router={router} />
+    <AppProviders i18n={createI18n()} queryClient={client}>
+      <RouterProvider router={router} context={{ queryClient: client }} />
     </AppProviders>,
   )
   return router
@@ -301,7 +304,7 @@ describe('role-aware audit log', () => {
     fireEvent.click(screen.getByRole('button', { name: '加载更多' }))
     await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(3))
     expect(requests[1]?.get('cursor')).toBe('older')
-    fireEvent.change(screen.getByLabelText('操作类型'), { target: { value: 'auth.login' } })
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('操作类型'), 'auth.login')
     fireEvent.click(screen.getByRole('button', { name: '应用筛选' }))
     await waitFor(() => expect(requests[2]?.get('action')).toBe('auth.login'))
     expect(requests[2]?.has('cursor')).toBe(false)
@@ -320,7 +323,7 @@ describe('role-aware audit log', () => {
     expect(within(table).getByRole('columnheader', { name: '商户' })).toBeVisible()
     expect(within(table).getByRole('link', { name: '51' })).toHaveAttribute('href', '/console/merchants/51')
     expect(screen.getByLabelText('商户 ID')).toHaveValue('9223372036854775807')
-    expect(screen.getByLabelText('操作者角色')).toHaveValue('admin')
+    expect(screen.getByLabelText('操作者角色')).toHaveAttribute('data-value', 'admin')
     fireEvent.click(within(table).getByRole('button', { name: '详情' }))
     const dialog = await screen.findByRole('dialog', { name: '操作详情' })
     expect(within(dialog).getByText(/管理员 ·/)).toHaveTextContent('管理员 · 7')
@@ -329,7 +332,7 @@ describe('role-aware audit log', () => {
     await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(3))
     expect(requests[1]?.get('cursor')).toBe('older')
     fireEvent.change(screen.getByLabelText('商户 ID'), { target: { value: '99' } })
-    fireEvent.change(screen.getByLabelText('操作者角色'), { target: { value: 'device' } })
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('操作者角色'), 'device')
     fireEvent.click(screen.getByRole('button', { name: '应用筛选' }))
     await waitFor(() => expect(requests).toHaveLength(3))
     expect(Object.fromEntries(requests[0]!)).toMatchObject({ merchant_id: '9223372036854775807', actor_role: 'admin' })

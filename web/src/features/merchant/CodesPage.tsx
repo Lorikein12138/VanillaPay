@@ -1,3 +1,5 @@
+import { codesQuery, collectionQuery } from '@/app/portal-queries'
+import { Select, SelectOption } from '@/components/ui/select'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { DetailList } from '@/components/ui/detail-list'
 import { Field, FieldGrid, FormActions } from '@/components/ui/field'
 import { FileInput } from '@/components/ui/file-input'
-import { Input, Select } from '@/components/ui/input'
+import { Input } from '@/components/ui/input'
 import { Card, Page, PageHeader, SectionHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
 import { ChannelIcon } from '@/components/ui/payment'
@@ -22,8 +24,8 @@ export function CodesPage({ name }: { name: string }) {
   const [notice, setNotice] = useState('')
   const [noticeTone, setNoticeTone] = useState<'success' | 'error' | 'warning'>('success')
   function showNotice(message: string, tone: typeof noticeTone = 'success') { setNotice(message); setNoticeTone(tone) }
-  const collection = useQuery({ queryKey: ['merchant', name, 'collection'], queryFn: api.collection })
-  const codes = useQuery({ queryKey: ['merchant', name, 'codes'], queryFn: api.qrSlots })
+  const collection = useQuery(collectionQuery(name))
+  const codes = useQuery(codesQuery(name))
   return <Page>
     <PageHeader title={t('polish.collectionCodes')} description={t('polish.manageCollectionCodesAndPaymentSettingsFor')} />
     {notice && <Notice tone={noticeTone} onDismiss={() => setNotice('')}>{notice}</Notice>}
@@ -104,7 +106,7 @@ function CollectionForm({ name, value, onNotice }: {
     }}>
       <FieldGrid><Field label={t('polish.orderLifetimeSeconds')} htmlFor={`${id}-ttl`} hint={t('polish.ttlBounds', { v0: value.bounds.ttl_max_seconds })}><Input id={`${id}-ttl`} inputMode="numeric" value={ttl} onChange={(event) => setTTL(event.target.value)} /></Field>
         <Field label={t('polish.adjustmentLimitYuan')} htmlFor={`${id}-amount`} hint={t('polish.amountBounds', { v0: centsToYuan(value.bounds.float_min_cents), v1: centsToYuan(value.bounds.float_max_cents) })}><Input id={`${id}-amount`} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></Field>
-        <Field label={t('polish.adjustmentDirection')} htmlFor={`${id}-direction`}><Select id={`${id}-direction`} value={direction} onChange={(event) => setDirection(event.target.value)}><option value="">{t('polish.platformDefault')}</option><option value="up">{t('polish.adjustUp')}</option><option value="down">{t('polish.adjustDown')}</option></Select></Field>
+        <Field label={t('polish.adjustmentDirection')} htmlFor={`${id}-direction`}><Select id={`${id}-direction`} value={direction} onValueChange={setDirection}><SelectOption value="">{t('polish.platformDefault')}</SelectOption><SelectOption value="up">{t('polish.adjustUp')}</SelectOption><SelectOption value="down">{t('polish.adjustDown')}</SelectOption></Select></Field>
       </FieldGrid>
       {invalid && <Notice tone="error">{t('polish.enterWholeSecondsAndAnAmountWith')}</Notice>}{action.error != null && !pending && !invalid && <ModuleError error={action.error} />}
       <FormActions className="border-t-[0.5px] border-border pt-5"><Button variant="primary" type="submit" disabled={action.busy}>{t('polish.saveCollectionSettings')}</Button></FormActions>

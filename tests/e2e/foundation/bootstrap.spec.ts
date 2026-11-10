@@ -1,3 +1,4 @@
+import { chooseMenu } from '../merchant/fixtures'
 // Foundation skeleton in a real browser: home, 404, error state, top bar, lazy HomePage.
 // Runs against E2E_BASE_URL in every viewport project of tests/playwright.config.ts.
 import { expect, test, type Page, type Request } from '@playwright/test'
@@ -46,8 +47,8 @@ test.describe('foundation bootstrap', () => {
     await expect(page.getByRole('heading', { level: 1, name: zhTitle })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
     await expect(topBar(page).getByRole('link', { name: 'VanillaPay 首页' })).toBeVisible()
-    await expect(topBar(page).getByRole('button', { name: '切换语言为 English' })).toBeVisible()
-    await expect(topBar(page).getByRole('group', { name: '主题' })).toBeVisible()
+    await expect(topBar(page).getByRole('button', { name: '语言' })).toBeVisible()
+    await expect(topBar(page).getByRole('button', { name: '主题' })).toBeVisible()
     expect(requests.homeChunks()).toHaveLength(1)
     expect(requests.documents()).toHaveLength(1)
     expect(requests.external(new URL(baseURL ?? '').origin)).toEqual([])
@@ -59,8 +60,8 @@ test.describe('foundation bootstrap', () => {
 
     await expect(page.getByRole('heading', { level: 1, name: '页面不存在' })).toBeVisible()
     await expect(page.getByText('404', { exact: true })).toBeVisible()
-    await expect(topBar(page).getByRole('button', { name: '切换语言为 English' })).toBeVisible()
-    await expect(topBar(page).getByRole('group', { name: '主题' })).toBeVisible()
+    await expect(topBar(page).getByRole('button', { name: '语言' })).toBeVisible()
+    await expect(topBar(page).getByRole('button', { name: '主题' })).toBeVisible()
     expect(new URL(page.url()).pathname).toBe('/no-such-page')
     expect(requests.homeChunks()).toHaveLength(0)
 
@@ -80,7 +81,7 @@ test.describe('foundation bootstrap', () => {
 
     await expect(page.getByRole('heading', { level: 1, name: '页面出了点问题' })).toBeVisible()
     await expect(page.getByRole('button', { name: '重试' })).toBeVisible()
-    await expect(topBar(page).getByRole('button', { name: '切换语言为 English' })).toBeVisible()
+    await expect(topBar(page).getByRole('button', { name: '语言' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 1, name: zhTitle })).toHaveCount(0)
   })
 
@@ -90,22 +91,21 @@ test.describe('foundation bootstrap', () => {
     await expect(page.getByRole('heading', { level: 1, name: zhTitle })).toBeVisible()
     await markDocument(page)
 
-    await topBar(page).getByRole('button', { name: '切换语言为 English' }).click()
+    await chooseMenu(page, '语言', 'English')
     await expect(page.getByRole('heading', { level: 1, name: enTitle })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
 
-    const theme = topBar(page).getByRole('group', { name: 'Theme' })
     for (const [label, value] of [
       ['Dark', 'dark'],
       ['Light', 'light'],
     ] as const) {
-      await theme.getByRole('button', { name: label }).click()
+      await chooseMenu(page, 'Theme', label)
       await expect(page.locator('html')).toHaveAttribute('data-theme', value)
-      await expect(theme.getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true')
+      await expect(topBar(page).getByRole('button', { name: 'Theme' })).toHaveAttribute('data-value', value)
     }
-    await theme.getByRole('button', { name: 'System' }).click()
+    await chooseMenu(page, 'Theme', 'System')
     await expect(page.locator('html')).not.toHaveAttribute('data-theme')
-    await theme.getByRole('button', { name: 'Dark' }).click()
+    await chooseMenu(page, 'Theme', 'Dark')
 
     await expectSameDocument(page)
     expect(requests.documents()).toHaveLength(1)
@@ -114,22 +114,21 @@ test.describe('foundation bootstrap', () => {
     await expect(page.getByRole('heading', { level: 1, name: enTitle })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-    await expect(topBar(page).getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(topBar(page).getByRole('button', { name: 'Theme' })).toHaveAttribute('data-value', 'dark')
   })
 
   test('system theme follows the color scheme and matches the explicit themes', async ({ page }) => {
     const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1, name: zhTitle })).toBeVisible()
-    const theme = topBar(page).getByRole('group', { name: '主题' })
 
-    await theme.getByRole('button', { name: '浅色' }).click()
+    await chooseMenu(page, '主题', '浅色')
     const light = await background()
-    await theme.getByRole('button', { name: '深色' }).click()
+    await chooseMenu(page, '主题', '深色')
     const dark = await background()
     expect(dark).not.toBe(light)
 
-    await theme.getByRole('button', { name: '跟随系统' }).click()
+    await chooseMenu(page, '主题', '跟随系统')
     await page.emulateMedia({ colorScheme: 'dark' })
     await expect.poll(background).toBe(dark)
     await page.emulateMedia({ colorScheme: 'light' })
@@ -166,10 +165,8 @@ test.describe('foundation bootstrap', () => {
 
     const controls = [
       topBar(page).getByRole('link', { name: 'VanillaPay 首页' }),
-      topBar(page).getByRole('button', { name: '切换语言为 English' }),
-      topBar(page).getByRole('button', { name: '跟随系统' }),
-      topBar(page).getByRole('button', { name: '浅色' }),
-      topBar(page).getByRole('button', { name: '深色' }),
+      topBar(page).getByRole('button', { name: '语言' }),
+      topBar(page).getByRole('button', { name: '主题' }),
     ]
     for (const control of controls) {
       await page.keyboard.press('Tab')
@@ -183,21 +180,26 @@ test.describe('foundation bootstrap', () => {
     }
 
     await page.keyboard.press('Enter')
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-    await page.keyboard.press('Shift+Tab')
-    await page.keyboard.press('Space')
+    await expect(page.getByRole('menuitemradio', { name: '跟随系统' })).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(page.getByRole('menuitemradio', { name: '浅色' })).toBeFocused()
+    await page.keyboard.press('Enter')
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
-
-    await topBar(page).getByRole('button', { name: '切换语言为 English' }).focus()
+    await expect(topBar(page).getByRole('button', { name: '主题' })).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('menuitemradio', { name: '中文' })).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(page.getByRole('menuitemradio', { name: 'English' })).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible()
-    await expect(topBar(page).getByRole('button', { name: 'Switch language to 中文' })).toBeFocused()
+    await expect(topBar(page).getByRole('button', { name: 'Language' })).toBeFocused()
   })
 
   test('reduced motion shortens transitions', async ({ page }) => {
     const duration = () =>
       topBar(page)
-        .getByRole('button', { name: '切换语言为 English' })
+        .getByRole('button', { name: '语言' })
         .evaluate((element) => Number.parseFloat(getComputedStyle(element).transitionDuration))
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1, name: zhTitle })).toBeVisible()

@@ -1,3 +1,7 @@
+import { plansQuery } from '@/app/portal-queries'
+import { DateTimeField } from '@/components/ui/date-time-picker'
+import { localDateInput, parseLocalDateTime } from '@/lib/date-time'
+import { SelectOption } from '@/components/ui/select'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +13,6 @@ import { FormActions } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
 import { AccountError, AccountField, validPassword } from '@/features/auth/account-shared'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
-import { localDateInput } from '@/features/merchant/orders-data'
 import { ChannelChoices, Choice, Reason } from './ManageParts'
 import { invalidateConsole, planName, validBanReason, validGrantReason, type Schema } from './manage-data'
 
@@ -23,9 +26,9 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
   const [expires, setExpires] = useState(localDateInput(detail.subscription.expires_at ?? undefined))
   const [expiryError, setExpiryError] = useState(false)
   const [conflict, setConflict] = useState<'subscriptionConflict' | 'planUnavailable' | null>(null)
-  const plans = useQuery({ queryKey: ['console', 'plans', false], queryFn: ({ signal }) => consoleApi.plans(false, signal), enabled: mode === 'grant' })
+  const plans = useQuery({ ...plansQuery(false), enabled: mode === 'grant' })
   const plan = plans.data?.items?.find((item) => item.id === planId && !item.deleted)
-  const expiry = Date.parse(expires)
+  const expiry = parseLocalDateTime(expires)
   const valid = mode === 'unban' || (mode === 'ban' ? validBanReason(reason) :
     mode === 'reset' ? validPassword(password, confirmation) :
       !!plan && !!selected.length && selected.every((channel) => plan.channels?.includes(channel)) &&
@@ -77,12 +80,12 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
         <Choice label={t('manage.plan')} value={planId} disabled={action.busy} onChange={(id) => {
           setPlanId(id); setSelected(plans.data?.items?.find((item) => item.id === id)?.channels ?? [])
         }}>
-          <option value="">{t('manage.plan')}</option>
-          {plans.data?.items?.filter((item) => !item.deleted).map((item) => <option key={item.id} value={item.id}>{planName(item, i18n.language)}</option>)}
+          <SelectOption value="">{t('manage.plan')}</SelectOption>
+          {plans.data?.items?.filter((item) => !item.deleted).map((item) => <SelectOption key={item.id} value={item.id}>{planName(item, i18n.language)}</SelectOption>)}
         </Choice>
         <ChannelChoices allowed={plan?.channels ?? []} value={selected} onChange={setSelected} disabled={action.busy} />
-        <AccountField label={t('manage.expiry')} type="datetime-local" step="1" value={expires} disabled={action.busy}
-          error={expiryError && t('manage.expiryFuture')} onChange={(event) => { setExpires(event.target.value); setExpiryError(false) }} />
+        <DateTimeField label={t('manage.expiry')} value={expires} disabled={action.busy}
+          error={expiryError && t('manage.expiryFuture')} onValueChange={(next) => { setExpires(next); setExpiryError(false) }} />
       </>}
       {(mode === 'ban' || mode === 'grant') && <Reason value={reason} onChange={setReason} disabled={action.busy}
         hint={t(mode === 'ban' ? 'manage.banHint' : 'manage.grantHint')} />}

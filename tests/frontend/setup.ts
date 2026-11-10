@@ -6,6 +6,8 @@ import { afterEach, beforeEach, expect, vi } from 'vitest'
 // restoration calls it on every navigation.
 Object.defineProperty(window, 'scrollTo', { configurable: true, writable: true, value: () => undefined })
 
+Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: () => undefined })
+
 // Any console.warn / console.error not explicitly consumed by a test fails it.
 const unexpected: string[] = []
 

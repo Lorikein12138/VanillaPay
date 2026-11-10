@@ -1,3 +1,4 @@
+import { chooseSelect } from '../portal-controls'
 import { emptyNotifications } from './notification-fixture'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -33,7 +34,7 @@ afterAll(() => server.close())
 function mount(path = '/orders') {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
   const client = createQueryClient()
-  render(<AppProviders i18n={createI18n()} queryClient={client}><RouterProvider router={router} /></AppProviders>)
+  render(<AppProviders i18n={createI18n()} queryClient={client}><RouterProvider router={router} context={{ queryClient: client }} /></AppProviders>)
   return { router, client }
 }
 
@@ -60,25 +61,25 @@ describe('order filters and cursor pagination', () => {
     const { router } = mount()
     const actor = userEvent.setup()
     await actor.type(await screen.findByLabelText('搜索订单'), 'unsubmitted')
-    await actor.selectOptions(screen.getByLabelText('状态'), 'paid')
+    await chooseSelect(actor, screen.getByLabelText('状态'), 'paid')
     await actor.click(screen.getByRole('button', { name: '重置' }))
     expect(screen.getByLabelText('搜索订单')).toHaveValue('')
-    expect(screen.getByLabelText('状态')).toHaveValue('')
+    expect(screen.getByLabelText('状态')).toHaveAttribute('data-value', '')
     expect(router.state.location.search).toEqual({})
   })
   it('restores shared URL filters and writes changed filters back as RFC3339', async () => {
     const requests: URL[] = []
     server.use(http.get('*/api/v1/merchant/orders', ({ request }) => { requests.push(new URL(request.url)); return success({ items: [], total: 0, next_cursor: null }) }))
     const { router } = mount('/orders?status=paid&channel=alipay&query=shared&start=2026-11-01T00%3A00%3A00Z&end=2026-11-04T00%3A00%3A00Z')
-    expect(await screen.findByLabelText('状态')).toHaveValue('paid')
-    expect(screen.getByLabelText('通道')).toHaveValue('alipay')
+    expect(await screen.findByLabelText('状态')).toHaveAttribute('data-value', 'paid')
+    expect(screen.getByLabelText('通道')).toHaveAttribute('data-value', 'alipay')
     expect(screen.getByLabelText('搜索订单')).toHaveValue('shared')
     await waitFor(() => expect(requests).toHaveLength(1))
     expect(requests[0]!.searchParams.get('start')).toBe('2026-11-01T00:00:00Z')
     fireEvent.change(screen.getByLabelText('开始时间'), { target: { value: '2026-11-02T10:30' } })
     fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2026-11-03T11:30' } })
     const actor = userEvent.setup()
-    await actor.selectOptions(screen.getByLabelText('状态'), 'expired')
+    await chooseSelect(actor, screen.getByLabelText('状态'), 'expired')
     await actor.click(screen.getByRole('button', { name: '应用筛选' }))
     await waitFor(() => expect(router.state.location.search.status).toBe('expired'))
     expect(router.state.location.search.start).toBe(new Date('2026-11-02T10:30').toISOString())
@@ -100,7 +101,7 @@ describe('order filters and cursor pagination', () => {
     await screen.findAllByRole('link', { name: second.trade_no })
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3)
     expect(urls.at(-1)!.searchParams.get('cursor')).toBe('cursor-fixture')
-    await actor.selectOptions(screen.getByLabelText('状态'), 'paid')
+    await chooseSelect(actor, screen.getByLabelText('状态'), 'paid')
     await actor.click(screen.getByRole('button', { name: '应用筛选' }))
     await waitFor(() => expect(urls.at(-1)!.searchParams.get('status')).toBe('paid'))
     expect(urls.at(-1)!.searchParams.has('cursor')).toBe(false)
@@ -110,12 +111,37 @@ describe('order filters and cursor pagination', () => {
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2)
   })
 
+  it('keeps the previous rows visible while the next filter is loading', async () => {
+    const first = order('pending', null), next = order('paid', 'alipay')
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    server.use(http.get('*/api/v1/merchant/orders', async ({ request }) => {
+      const filtered = new URL(request.url).searchParams.has('status')
+      if (filtered) await gate
+      return success({ items: [filtered ? next : first], total: 1, next_cursor: null })
+    }))
+    const { router } = mount()
+    const actor = userEvent.setup()
+    const list = () => within(screen.getByRole('table'))
+    await screen.findAllByRole('link', { name: first.trade_no })
+    try {
+      await chooseSelect(actor, screen.getByLabelText('状态'), 'paid')
+      await actor.click(screen.getByRole('button', { name: '应用筛选' }))
+      await waitFor(() => expect(router.state.location.search.status).toBe('paid'))
+      expect(list().getByRole('link', { name: first.trade_no })).toBeVisible()
+      expect(screen.queryByText('没有符合筛选条件的订单')).not.toBeInTheDocument()
+    } finally {
+      release()
+    }
+    expect(await list().findByRole('link', { name: next.trade_no })).toBeVisible()
+  })
+
   it('shows initial loading, an error with retry, and the empty result independently', async () => {
     let release: () => void = () => {}
     const gate = new Promise<void>((resolve) => { release = resolve })
     server.use(http.get('*/api/v1/merchant/orders', async () => { await gate; return failure(500, 'INTERNAL_ERROR') }))
     mount()
-    await waitFor(() => expect(screen.getByRole('region', { name: '订单列表' })).toHaveAttribute('aria-busy', 'true'))
+    expect(await screen.findByRole('status', { name: '正在加载…' })).toBeVisible()
     expect(screen.queryByText('没有符合筛选条件的订单')).not.toBeInTheDocument()
     release()
     expect(await screen.findByRole('alert')).toHaveTextContent('服务暂时不可用')
@@ -132,10 +158,12 @@ describe('order actions', () => {
     mount(`/orders/${value.order.trade_no}`)
     const actor = userEvent.setup()
     await actor.click(await screen.findByRole('button', { name: '补单' }))
-    const channel = within(screen.getByLabelText('补单通道'))
-    expect(channel.getByRole('option', { name: '支付宝' })).toBeEnabled()
-    expect(channel.getByRole('option', { name: '微信支付' })).toBeDisabled()
-    expect(channel.getByRole('option', { name: 'QQ 钱包' })).toBeDisabled()
+    screen.getByLabelText('补单通道').focus()
+    await actor.keyboard('{Enter}')
+    const channel = within(await screen.findByRole('listbox'))
+    expect(channel.getByRole('option', { name: '支付宝' })).not.toHaveAttribute('aria-disabled', 'true')
+    expect(channel.getByRole('option', { name: '微信支付' })).toHaveAttribute('aria-disabled', 'true')
+    expect(channel.getByRole('option', { name: 'QQ 钱包' })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('keeps replay visible but disabled at the generation limit', async () => {

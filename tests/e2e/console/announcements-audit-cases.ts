@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
-import { login, polishShot } from '../merchant/fixtures'
+import { chooseSelect, selectScreenshotTheme, login, polishShot } from '../merchant/fixtures'
 
 type Announcement = components['schemas']['PortalAnnouncementDTO']
 type Account = Parameters<typeof login>[1]
@@ -8,7 +8,6 @@ type Helpers = {
   seed: (request: APIRequestContext) => Promise<Omit<Account, 'pid'>>
   captcha: (page: Page, token: string) => Promise<void>
   signIn: (page: Page, admin: Omit<Account, 'pid'>, redirect?: string) => Promise<void>
-  control: (page: Page, name: string) => Promise<void>
 }
 const announcements = '/api/v1/console/announcements'
 const initialTitle = '平台结算服务维护通知'
@@ -32,17 +31,12 @@ function announcementRow(page: Page, title: string) {
   ).filter({ hasText: title })
 }
 
-export function registerAnnouncementAuditTests({ seed, captcha, signIn, control }: Helpers) {
+export function registerAnnouncementAuditTests({ seed, captcha, signIn }: Helpers) {
   async function shots(page: Page, state: string, prepare?: () => Promise<void>, visualState?: string) {
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
-      for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
-        const saved = page.waitForResponse((response) =>
-          response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH',
-        )
-        await control(page, label)
-        expect((await saved).status()).toBe(200)
-        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      for (const theme of ['light', 'dark'] as const) {
+        await selectScreenshotTheme(page, theme, 'console')
         await prepare?.()
         if (state) await polishShot(page, state, !prepare, 'console-announcements-audit-shots')
         if (visualState && process.env.WEB_VISUAL_POLISH === '1') {
@@ -158,8 +152,8 @@ export function registerAnnouncementAuditTests({ seed, captcha, signIn, control 
     await page.goto('/console/audit-logs')
     await expect(page.getByRole('heading', { name: '审计日志' })).toBeVisible()
     async function filter(action: 'announcement.save' | 'announcement.delete') {
-      await page.getByLabel('操作类型').selectOption(action)
-      await page.getByLabel('操作者角色').selectOption('admin')
+      await chooseSelect(page, page.getByLabel('操作类型'), action)
+      await chooseSelect(page, page.getByLabel('操作者角色'), 'admin')
       const loading = page.waitForResponse((response) => {
         const url = new URL(response.url())
         return url.pathname.endsWith('/console/audit-logs') && url.searchParams.get('action') === action

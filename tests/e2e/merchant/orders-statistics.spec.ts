@@ -1,6 +1,6 @@
 import type { Response } from '@playwright/test'
 import type { components } from '@/api/schema'
-import { expect, login, test, openMenu } from './fixtures'
+import { chooseSelect, expect, login, test, openMenu } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Shanghai' })
 
@@ -35,7 +35,7 @@ for (const action of ['supplement', 'refund', 'resolve'] as const) {
     await openMenu(page); await page.getByRole('link', { name: '订单', exact: true }).click()
     await page.getByRole('link', { name: trade, exact: true }).filter({ visible: true }).click()
     await page.getByRole('button', { name: action === 'supplement' ? '补单' : action === 'refund' ? '标记退款' : '处理退款', exact: true }).click()
-    if (pending) await page.getByLabel('补单通道').selectOption('alipay')
+    if (pending) await chooseSelect(page, page.getByLabel('补单通道'), 'alipay')
     await page.getByLabel('原因', { exact: true }).fill('已核实线下收付款')
     if (!pending) await page.getByRole('checkbox').check()
     await page.getByRole('button', { name: pending ? '确认补单' : action === 'refund' ? '确认退款' : '确认处理退款', exact: true }).click()

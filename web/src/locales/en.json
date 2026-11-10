@@ -28,6 +28,8 @@
     "dark": "Dark"
   },
   "home": {
+    "register": "Register",
+    "dashboard": "Go to dashboard",
     "redirecting": "Redirecting…",
     "continueToDestination": "Continue if you are not redirected automatically",
     "nav": {
@@ -372,6 +374,14 @@
     }
   },
   "ui": {
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "clearDateTime": "Clear date and time",
+    "openDateTime": "Choose date and time",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "time": "Time",
+    "applyDateTime": "Apply",
     "close": "Close",
     "dismiss": "Dismiss",
     "copy": "Copy",

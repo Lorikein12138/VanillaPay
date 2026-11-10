@@ -1,7 +1,8 @@
+import { Select, SelectOption } from '@/components/ui/select'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Input, Select } from '@/components/ui/input'
+import { Input } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
 import { Card, SectionHeader } from '@/components/ui/layout'
@@ -64,10 +65,10 @@ export function MailForm({
           <Select
             id="mail-tls"
             value={value.tls_mode}
-            onChange={(e) => patch({ tls_mode: e.target.value as SettingsDrafts['mail']['tls_mode'] })}
+            onValueChange={(next) => patch({ tls_mode: next as SettingsDrafts['mail']['tls_mode'] })}
           >
-            <option value="tls">TLS</option>
-            <option value="starttls">STARTTLS</option>
+            <SelectOption value="tls">TLS</SelectOption>
+            <SelectOption value="starttls">STARTTLS</SelectOption>
           </Select>
         </Field>
       </FieldGrid>

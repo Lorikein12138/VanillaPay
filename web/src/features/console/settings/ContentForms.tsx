@@ -1,7 +1,8 @@
+import { Select, SelectOption } from '@/components/ui/select'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Checkbox, Select, Textarea } from '@/components/ui/input'
+import { Checkbox, Textarea } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
 import { Card, SubsectionTitle } from '@/components/ui/layout'
@@ -24,11 +25,11 @@ export function HomeForm({
         <Select
           id="home-mode"
           value={value.mode}
-          onChange={(e) => onChange({ mode: e.target.value as S['Home']['mode'], html: null, url: null })}
+          onValueChange={(next) => onChange({ mode: next as S['Home']['mode'], html: null, url: null })}
         >
-          <option value="default">{t('consoleSettings.homeDefault')}</option>
-          <option value="html">HTML</option>
-          <option value="url">URL</option>
+          <SelectOption value="default">{t('consoleSettings.homeDefault')}</SelectOption>
+          <SelectOption value="html">HTML</SelectOption>
+          <SelectOption value="url">URL</SelectOption>
         </Select>
       </Field>
       {value.mode === 'html' && (

@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { MerchantsPage } from '@/features/console/MerchantsPage'
+import { merchantsQuery } from '@/app/portal-queries'
+import { preparePortalRoute } from '@/app/portal-preload'
 import { merchantSearch } from '@/features/console/manage-data'
-export const Route = createFileRoute('/console/merchants/')({ validateSearch: merchantSearch, component: Merchants })
-function Merchants() {
-  const filters = Route.useSearch(), navigate = Route.useNavigate()
-  return <MerchantsPage filters={filters} onFilters={(search) => { void navigate({ search }) }} />
-}
+
+export const Route = createFileRoute('/console/merchants/')({
+  validateSearch: merchantSearch,
+  loaderDeps: ({ search }) => merchantSearch(search),
+  loader: ({ context: { queryClient, hasMountedPortal }, cause, deps }) => preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureInfiniteQueryData(merchantsQuery(deps))]),
+})
