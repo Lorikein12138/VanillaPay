@@ -2,10 +2,10 @@ package com.vanillapay.monitor.parse
 
 import java.math.BigDecimal
 
-enum class Channel(val wire: String, val packageName: String, val display: String, val mark: String) {
-    Alipay("alipay", "com.eg.android.AlipayGphone", "支付宝", "支"),
-    WeChat("wxpay", "com.tencent.mm", "微信", "微"),
-    QQ("qqpay", "com.tencent.mobileqq", "QQ", "Q"),
+enum class Channel(val wire: String, val packageName: String, val display: String) {
+    Alipay("alipay", "com.eg.android.AlipayGphone", "支付宝"),
+    WeChat("wxpay", "com.tencent.mm", "微信"),
+    QQ("qqpay", "com.tencent.mobileqq", "QQ"),
 }
 
 data class PaymentNotice(
