@@ -46,7 +46,7 @@ class MonitorScreenshotTest {
             Diagnostic("2", time - 50_000, "alipay", "支付宝\n付款38.00元", null),
         )
         val screens = listOf("bind", "setup", "main", "settings", "diagnostics", "startup-vivo")
-        for (screen in if (width == 360) screens + "receipt-error" else screens) {
+        for (screen in if (width == 360) screens + listOf("receipt-error", "scan", "scan-denied", "scan-photo-error") else screens) {
             val theme = if (dark) "dark" else "light"
             val file = File(directory, "$screen-$theme-$width.png")
             captureRoboImage(file = file) {
@@ -63,6 +63,17 @@ class MonitorScreenshotTest {
                             Channel.entries.toSet(), receipts, 18, 1, time, {}, {}, {})
                         "settings" -> SettingsScreen(session, {}, {}, {}, {})
                         "diagnostics" -> DiagnosticsScreen(true, diagnostics, {}, {}, {})
+                        "scan", "scan-denied", "scan-photo-error" -> ScannerScreen(
+                            permissionDenied = screen == "scan-denied",
+                            cameraUnavailable = false,
+                            previewActive = false,
+                            torchAvailable = screen != "scan-denied",
+                            torchOn = false,
+                            reading = false,
+                            photoError = if (screen == "scan-photo-error") PHOTO_QR_ERROR else null,
+                            back = {}, toggleTorch = {}, choosePhoto = {}, openSettings = {},
+                            preview = {},
+                        )
                         "receipt-error" -> HomeScreen(MonitorState(true, session, true, false, time - 12_000), true,
                             setOf(Channel.Alipay, Channel.WeChat), listOf(receipts.last(),
                                 receipts.last().copy(eventId = "5", cents = 1_000_000_000, detail = "VALIDATION_ERROR")),

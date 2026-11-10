@@ -14,6 +14,11 @@ require(defaultBase.all { it.code in 33..126 && it != '"' && it != '\\' }) {
     "vanillapayBaseUrl must be an ASCII URL without whitespace, quotes or backslashes"
 }
 
+val monitorVersion = "1.1.0"
+val (major, minor, patch) = monitorVersion.split('.').map(String::toInt)
+require(minor in 0..99 && patch in 0..99) { "versionName requires minor and patch below 100" }
+val monitorVersionCode = major * 10_000 + minor * 100 + patch
+
 android {
     namespace = "com.vanillapay.monitor"
     compileSdk = 37
@@ -21,8 +26,8 @@ android {
         applicationId = "com.vanillapay.monitor"
         minSdk = 26
         targetSdk = 37
-        versionName = "1.0.0"
-        versionCode = 1
+        versionName = monitorVersion
+        versionCode = monitorVersionCode
         buildConfigField("String", "DEFAULT_BASE_URL", "\"$defaultBase\"")
     }
     buildFeatures {
@@ -89,7 +94,11 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.1")
     ksp("androidx.room:room-compiler:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    val cameraX = "1.5.3"
+    implementation("androidx.camera:camera-camera2:$cameraX")
+    implementation("androidx.camera:camera-lifecycle:$cameraX")
+    implementation("androidx.camera:camera-view:$cameraX")
+    implementation("com.google.zxing:core:3.5.4")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     debugImplementation("androidx.compose.ui:ui-test-manifest")

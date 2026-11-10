@@ -27,8 +27,8 @@ func TestDownloads(t *testing.T) {
 		method, name, byteRange, body, contentType, cache string
 		status                                            int
 	}{
-		{"GET", apk, "bytes=1-3", "bcd", "application/vnd.android.package-archive", "public, max-age=31536000, immutable", 206},
-		{"HEAD", apk, "", "", "application/vnd.android.package-archive", "public, max-age=31536000, immutable", 200},
+		{"GET", apk, "bytes=1-3", "bcd", "application/vnd.android.package-archive", "no-cache", 206},
+		{"HEAD", apk, "", "", "application/vnd.android.package-archive", "no-cache", 200},
 		{"GET", "latest.json", "", manifest, "application/json", "no-cache", 200},
 		{"POST", apk, "", "", "", "", 405},
 		{"GET", "vanillapay-monitor-2.0.0.apk", "", "", "", "", 404},
@@ -40,7 +40,7 @@ func TestDownloads(t *testing.T) {
 			request := httptest.NewRequest(tt.method, "/downloads/"+tt.name, nil)
 			request.Header.Set("Range", tt.byteRange)
 			response := httptest.NewRecorder()
-			downloadHandler(dir, "")(response, request)
+			downloadHandler(dir)(response, request)
 			if response.Code != tt.status {
 				t.Fatalf("status=%d want=%d", response.Code, tt.status)
 			}
@@ -62,7 +62,7 @@ func TestDownloads(t *testing.T) {
 			t.Skipf("system cannot create symlinks: %v", err)
 		}
 		response := httptest.NewRecorder()
-		downloadHandler(dir, "")(response, httptest.NewRequest(http.MethodGet, "/downloads/"+link, nil))
+		downloadHandler(dir)(response, httptest.NewRequest(http.MethodGet, "/downloads/"+link, nil))
 		if response.Code != http.StatusNotFound {
 			t.Fatalf("symbolic link served: %d", response.Code)
 		}
@@ -104,7 +104,7 @@ func TestManifestRevalidationByContent(t *testing.T) {
 		req.Header.Set("If-None-Match", etag)
 		req.Header.Set("If-Modified-Since", modifiedSince)
 		res := httptest.NewRecorder()
-		downloadHandler(dir, "")(res, req)
+		downloadHandler(dir)(res, req)
 		if res.Code != status || res.Body.String() != body || res.Header().Get("Last-Modified") != "" {
 			t.Fatalf("status=%d body=%q headers=%v", res.Code, res.Body, res.Header())
 		}

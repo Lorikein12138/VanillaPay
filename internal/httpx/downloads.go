@@ -25,19 +25,10 @@ type downloadManifest struct {
 	PublishedAt string `json:"published_at"`
 }
 
-func downloadHandler(manifestDir, apkDir string) http.HandlerFunc {
-	if apkDir == "" {
-		apkDir = manifestDir
-	}
+func downloadHandler(dir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/downloads/")
-		dir := apkDir
-		if name == "latest.json" {
-			dir = manifestDir
-		} else if !apkName.MatchString(name) {
-			dir = ""
-		}
-		if dir == "" {
+		if dir == "" || (name != "latest.json" && !apkName.MatchString(name)) {
 			http.NotFound(w, r)
 			return
 		}
@@ -86,8 +77,9 @@ func downloadHandler(manifestDir, apkDir string) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/vnd.android.package-archive")
 		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		http.ServeContent(w, r, name, actual.ModTime(), file)
+		// A new image can contain a rebuilt APK with the same version and URL.
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeContent(w, r, name, time.Time{}, file)
 	}
 }
 

@@ -1,0 +1,230 @@
+name: Release
+
+on:
+  pull_request:
+    branches: [master]
+    types: [closed]
+  # Tag creation publishes the version alias without a branch push workflow.
+  create:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'master, a merged commit SHA, or a vX.Y.Z tag'
+        type: string
+        default: master
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.base.ref == 'master' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'create' && github.event.ref_type == 'tag' &&
+       startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    concurrency:
+      group: vanillapay-release
+      queue: max
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Validate release ref
+        id: ref
+        env:
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          REQUESTED_REF: ${{ inputs.ref }}
+        run: |
+          if [[ $GITHUB_EVENT_NAME == pull_request ]]; then
+            [[ $MERGE_SHA =~ ^[a-f0-9]{40}$ ]]
+            echo "checkout=$MERGE_SHA" >> "$GITHUB_OUTPUT"
+          else
+            if [[ $GITHUB_EVENT_NAME == create ]]; then
+              ref=${GITHUB_REF#refs/tags/}
+            else
+              ref=${REQUESTED_REF:-master}
+            fi
+            if [[ $ref == master ]]; then
+              echo 'checkout=refs/heads/master' >> "$GITHUB_OUTPUT"
+            elif [[ $ref =~ ^[a-f0-9]{40}$ ]]; then
+              echo "checkout=$ref" >> "$GITHUB_OUTPUT"
+            elif [[ $ref =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "checkout=refs/tags/$ref" >> "$GITHUB_OUTPUT"
+              echo "version_tag=${ref#v}" >> "$GITHUB_OUTPUT"
+            else
+              echo 'Expected master, a full commit SHA or a vX.Y.Z tag' >&2
+              exit 1
+            fi
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.ref.outputs.checkout }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require source on master
+        id: source
+        env:
+          DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          if [[ $GITHUB_EVENT_NAME == create && $sha != "$(git rev-parse --verify "$GITHUB_SHA^{commit}")" ]]; then
+            echo 'The version tag no longer points to the triggering commit' >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$sha" refs/remotes/origin/master; then
+            echo 'Release source must be in master history' >&2
+            exit 1
+          fi
+          if [[ ! $DOCKERHUB_NAMESPACE =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+            echo 'Configure the Docker Hub namespace in DOCKERHUB_NAMESPACE' >&2
+            exit 1
+          fi
+          {
+            echo "sha=$sha"
+            echo "hub=docker.io/$DOCKERHUB_NAMESPACE/vanillapay"
+            echo "ghcr=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vanillapay"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build and verify signed APK
+        id: apk
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          VANILLAPAY_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VANILLAPAY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          VANILLAPAY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://pay.lorikein.com' }}
+          CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+          VERSION_TAG: ${{ steps.ref.outputs.version_tag }}
+        shell: bash
+        run: |
+          sdk=${ANDROID_HOME:-/usr/local/lib/android/sdk}
+          apksigner="$sdk/build-tools/36.0.0/apksigner"
+          test -f "$sdk/platforms/android-37.0/android.jar"
+          test -x "$apksigner"
+          export ANDROID_HOME="$sdk"
+
+          expected=${CERT_SHA256//:/}
+          expected=${expected,,}
+          if [[ ! $expected =~ ^[0-9a-f]{64}$ ]]; then
+            echo 'Configure ANDROID_SIGNING_CERT_SHA256 with the production certificate digest' >&2
+            exit 1
+          fi
+          if [[ -z $ANDROID_KEYSTORE_BASE64 || -z $VANILLAPAY_KEYSTORE_PASSWORD ||
+                -z $VANILLAPAY_KEY_ALIAS || -z $VANILLAPAY_KEY_PASSWORD ]]; then
+            echo 'Configure all four Android signing secrets' >&2
+            exit 1
+          fi
+          umask 077
+          signing_dir=$(mktemp -d "$RUNNER_TEMP/vanillapay-signing.XXXXXXXX")
+          trap 'rm -rf -- "$signing_dir"' EXIT
+          export VANILLAPAY_KEYSTORE_PATH="$signing_dir/signing.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$VANILLAPAY_KEYSTORE_PATH"
+          unset ANDROID_KEYSTORE_BASE64
+          if ! ./gradlew --no-daemon assembleRelease "-PvanillapayBaseUrl=$PUBLIC_BASE_URL" > /dev/null 2>&1; then
+            echo 'Gradle release build failed. Check the Android build and signing settings.' >&2
+            exit 1
+          fi
+          unset VANILLAPAY_KEYSTORE_PATH VANILLAPAY_KEYSTORE_PASSWORD VANILLAPAY_KEY_ALIAS VANILLAPAY_KEY_PASSWORD
+          rm -rf -- "$signing_dir"
+          trap - EXIT
+
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/release/vanillapay-monitor-*.apk)
+          if (( ${#apks[@]} != 1 )); then
+            echo 'Expected one release APK' >&2
+            exit 1
+          fi
+          apk=${apks[0]}
+          certs=$("$apksigner" verify --print-certs "$apk")
+          actual=$(awk -F ': ' '/^Signer #[0-9]+ certificate SHA-256 digest:/ { print tolower($2) }' <<< "$certs")
+          if [[ $actual != "$expected" ]]; then
+            echo 'APK signing certificate does not match ANDROID_SIGNING_CERT_SHA256' >&2
+            exit 1
+          fi
+
+          # Make the public files readable by the non-root runtime user.
+          context="$RUNNER_TEMP/vanillapay-release"
+          downloads="$context/downloads"
+          umask 022
+          mkdir -p "$downloads"
+          install -m 0644 "$apk" "$downloads/"
+          published_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          bash ../scripts/download-manifest.sh "$apk" "$published_at" > "$downloads/latest.json"
+          version=$(jq -er .version "$downloads/latest.json")
+          if [[ -n $VERSION_TAG && $VERSION_TAG != "$version" ]]; then
+            echo 'The version tag must match the APK versionName' >&2
+            exit 1
+          fi
+          {
+            echo "version=$version"
+            echo "context=$context"
+            echo "path=$downloads/${apk##*/}"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vanillapay-monitor
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish release image
+        env:
+          HUB_IMAGE: ${{ steps.source.outputs.hub }}
+          GHCR_IMAGE: ${{ steps.source.outputs.ghcr }}
+          RELEASE_SHA: ${{ steps.source.outputs.sha }}
+          APK_VERSION: ${{ steps.apk.outputs.version }}
+          DOWNLOAD_CONTEXT: ${{ steps.apk.outputs.context }}
+          VERSION_TAG: ${{ steps.ref.outputs.version_tag }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          sha_tag="sha-${RELEASE_SHA:0:7}"
+          metadata="$RUNNER_TEMP/vanillapay-image.json"
+          tags=(--tag "$HUB_IMAGE:$sha_tag" --tag "$GHCR_IMAGE:$sha_tag")
+          if [[ -n $VERSION_TAG ]]; then
+            tags+=(--tag "$HUB_IMAGE:$VERSION_TAG" --tag "$GHCR_IMAGE:$VERSION_TAG")
+          fi
+          docker buildx build --platform linux/amd64 \
+            --build-context "monitor-downloads=$DOWNLOAD_CONTEXT" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$RELEASE_SHA" \
+            --label "org.opencontainers.image.version=$APK_VERSION" \
+            --provenance=mode=min --sbom=true --push --metadata-file "$metadata" "${tags[@]}" .
+
+          # A delayed run or manual rebuild of a historical ref must not roll back latest.
+          master=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq .object.sha)
+          if [[ $master == "$RELEASE_SHA" ]]; then
+            digest=$(jq -er '."containerimage.digest"' "$metadata")
+            for image in "$HUB_IMAGE" "$GHCR_IMAGE"; do
+              docker buildx imagetools create --tag "$image:latest" "$image@$digest"
+            done
+          fi
