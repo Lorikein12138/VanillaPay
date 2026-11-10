@@ -191,4 +191,4 @@ jobs:
       - run: ./gradlew lint testDebugUnitTest assembleDebug
       - run: ./gradlew testDebugUnitTest -PmonitorScreenshots --tests '*MonitorScreenshotTest'
       - name: Check screenshot outputs
-        run: test "$(find ../.artifacts/android-screens -name '*.png' -size +0c | wc -l)" -eq 22
+        run: test "$(find ../.artifacts/android-screens -name '*.png' -size +0c | wc -l)" -eq 26

@@ -111,16 +111,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun openStartup() {
-        val components = when (Build.MANUFACTURER.lowercase()) {
-            "xiaomi", "redmi" -> listOf("com.miui.securitycenter/com.miui.permcenter.autostart.AutoStartManagementActivity")
-            "huawei", "honor" -> listOf("com.huawei.systemmanager/com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")
-            "oppo", "realme", "oneplus" -> listOf("com.coloros.safecenter/com.coloros.safecenter.startupapp.StartupAppListActivity")
-            "vivo", "iqoo" -> listOf("com.vivo.permissionmanager/com.vivo.permissionmanager.activity.BgStartUpManagerActivity")
-            else -> emptyList()
+    private fun openStartupTargets(targets: List<StartupTarget>) {
+        targets.any { target ->
+            val intent = when (target) {
+                is StartupTarget.Component -> Intent().setComponent(ComponentName.unflattenFromString(target.name))
+                is StartupTarget.Action -> Intent(target.name)
+                StartupTarget.AppDetails -> appDetails()
+            }
+            open(intent)
         }
-        if (components.none { name -> open(Intent().setComponent(ComponentName.unflattenFromString(name))) }) open(appDetails())
     }
+
+    private fun openStartup() = openStartupTargets(startupTargets(Build.MANUFACTURER))
+
+    private fun openBackgroundUsage() = openStartupTargets(backgroundTargets(Build.MANUFACTURER))
 
     private fun copy(text: String) {
         val clip = ClipData.newPlainText("通知原文", text)
@@ -272,11 +276,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         when (dialog) {
-            "startup" -> AlertDialog(
-                onDismissRequest = { dialog = null }, title = { Text("自启动与后台运行") },
-                text = { Text("小米：手机管家 → 应用管理 → 自启动。\n华为：设置 → 应用启动管理，手动允许后台运行。\nOPPO：手机管家 → 权限隐私 → 自启动管理。\nvivo：i 管家 → 应用管理 → 自启动。") },
-                confirmButton = { TextAction("去设置", ::openStartup) },
-                dismissButton = { TextAction("我已确认", { startup = true; dialog = null }) },
+            "startup" -> StartupGuideDialog(
+                startupGuide(Build.MANUFACTURER), ::openStartup, ::openBackgroundUsage,
+                onConfirm = { startup = true; dialog = null }, onDismiss = { dialog = null },
             )
             "unbind", "local-unbind" -> if (session != null) {
                 val local = dialog == "local-unbind"
