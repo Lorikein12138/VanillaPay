@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import type { components } from '@/api/schema'
 import { chooseMenu, expect, login, noOverflow, openMenu, polishShot, selectScreenshotTheme, test } from './fixtures'
 
@@ -6,6 +6,14 @@ const screenshots = process.env.WEB_VISUAL_POLISH === '1'
 
 async function capture(page: Page, name: string) {
   if (screenshots) await polishShot(page, name, false, 'portal-ux-shots')
+}
+
+async function expectFullPid(user: Locator, pid: string) {
+  const role = user.getByText(pid, { exact: true })
+  await expect(role).toHaveText(pid)
+  await expect(role).toBeVisible()
+  await expect(role).toHaveCSS('font-size', '12px')
+  await expect.poll(() => role.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0)
 }
 
 test('keeps the desktop sidebar reachable and fixed through scrolling and reload', async ({ page, account, request }) => {
@@ -22,11 +30,15 @@ test('keeps the desktop sidebar reachable and fixed through scrolling and reload
   const collapse = page.getByRole('button', { name: '收起侧栏' })
   if (page.viewportSize()!.width < 1024) {
     await expect(collapse).toHaveCount(0)
+    await openMenu(page)
+    const drawer = page.getByRole('dialog', { name: '商户导航' })
+    await expectFullPid(drawer.getByRole('link', { name: account.username, exact: true }), account.pid)
+    await page.keyboard.press('Escape')
     if (!screenshots) return
     for (const theme of ['light', 'dark'] as const) {
       await selectScreenshotTheme(page, theme)
       await openMenu(page)
-      await capture(page, 'merchant-drawer')
+      await polishShot(page, 'merchant-drawer', false, 'sidebar-nav-shots')
       await page.keyboard.press('Escape')
     }
     return
@@ -38,20 +50,26 @@ test('keeps the desktop sidebar reachable and fixed through scrolling and reload
   for (const theme of ['light', 'dark'] as const) {
     await selectScreenshotTheme(page, theme)
     await expect(sidebar).toHaveCSS('width', '224px')
-    await capture(page, 'merchant-sidebar-expanded')
+    await expectFullPid(user, account.pid)
+    const toggleBox = (await collapse.boundingBox())!
+    expect(toggleBox.y + toggleBox.height).toBeLessThan((await user.boundingBox())!.y)
+    if (screenshots) await polishShot(page, 'merchant-sidebar-expanded', false, 'sidebar-nav-shots')
 
     await collapse.focus()
     await page.keyboard.press('Enter')
     await expect(expand).toBeFocused()
     await expect(expand).toHaveAttribute('aria-expanded', 'false')
     await expect(sidebar).toHaveCSS('width', '64px')
-    await capture(page, 'merchant-sidebar-collapsed')
+    if (screenshots) await polishShot(page, 'merchant-sidebar-collapsed', false, 'sidebar-nav-shots')
+    const overview = navigation.getByRole('link', { name: '概览' })
+    await sidebar.getByRole('link').first().focus()
     await page.keyboard.press('Tab')
-    await expect(navigation.getByRole('link', { name: '概览' })).toBeFocused()
+    await expect(overview).toBeFocused()
     await expect(page.getByRole('tooltip')).toHaveText('概览')
     await page.keyboard.press('Escape')
     await user.focus()
     await expect(page.getByRole('tooltip')).toContainText(account.username)
+    await expect(page.getByRole('tooltip')).toContainText(account.pid)
     await page.keyboard.press('Escape')
 
     const before = await user.boundingBox()
@@ -62,6 +80,9 @@ test('keeps the desktop sidebar reachable and fixed through scrolling and reload
     await page.reload()
     await expect(expand).toHaveAttribute('aria-expanded', 'false')
     await expect(sidebar).toHaveCSS('width', '64px')
+    await page.mouse.move(0, 0)
+    await expand.hover()
+    await expect(page.getByRole('tooltip')).toHaveText('展开侧栏')
     await expand.click()
     await expect(collapse).toHaveAttribute('aria-expanded', 'true')
     await page.evaluate(() => scrollTo(0, 0))
@@ -188,12 +209,13 @@ test('shows homepage entry points according to registration and merchant session
   registrationOpen = true
   await page.reload()
   await expect(page.getByRole('link', { name: '注册', exact: true })).toHaveAttribute('href', '/register')
+  await noOverflow(page)
 
   if (screenshots) {
     for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
       await chooseMenu(page, '主题', label)
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-      await capture(page, 'home-topbar')
+      await polishShot(page, 'home-signed-out', false, 'sidebar-nav-shots')
       for (const menu of ['语言', '主题']) {
         await page.getByRole('button', { name: menu, exact: true }).click()
         await expect(page.getByRole('menu')).toBeVisible()
@@ -216,7 +238,27 @@ test('shows homepage entry points according to registration and merchant session
   await page.getByRole('link', { name: '登录', exact: true }).click()
   await login(page, account)
   await expect(page).toHaveURL(/\/dashboard$/)
-  await page.goto('/')
-  await expect(page.getByRole('link', { name: '进入后台' })).toHaveAttribute('href', '/dashboard')
-  await expect(page.getByRole('link', { name: '注册', exact: true })).toHaveCount(0)
+  for (const html of [true, false]) {
+    customHome = html
+    await page.goto('/')
+    const bar = page.getByRole('banner')
+    const dashboard = bar.getByRole('link', { name: '进入后台' })
+    await expect(dashboard).toHaveAttribute('href', '/dashboard')
+    await expect(dashboard).not.toHaveClass(/\bbg-primary\b/)
+    await expect(bar.getByRole('link', { name: '注册', exact: true })).toHaveCount(0)
+    const action = (await dashboard.boundingBox())!
+    for (const label of ['语言', '主题']) {
+      const control = (await bar.getByRole('button', { name: label, exact: true }).boundingBox())!
+      expect(control.x + control.width).toBeLessThan(action.x)
+      expect(control.height).toBe(action.height)
+    }
+    await noOverflow(page)
+  }
+  if (screenshots) {
+    for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
+      await chooseMenu(page, '主题', label)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      await polishShot(page, 'home-signed-in', false, 'sidebar-nav-shots')
+    }
+  }
 })

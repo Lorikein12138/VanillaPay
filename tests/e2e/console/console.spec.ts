@@ -82,10 +82,14 @@ test('collapses the console sidebar and keeps its account in view on long settin
   const user = sidebar.getByRole('link', { name: admin.username, exact: true })
   for (const theme of ['light', 'dark'] as const) {
     await selectScreenshotTheme(page, theme, 'console')
-    if (process.env.WEB_VISUAL_POLISH === '1') await polishShot(page, 'console-sidebar-expanded', false, 'portal-ux-shots')
+    if (process.env.WEB_VISUAL_POLISH === '1') await polishShot(page, 'console-sidebar-expanded', false, 'sidebar-nav-shots')
     await collapse.click()
     await expect(sidebar).toHaveCSS('width', '64px')
-    if (process.env.WEB_VISUAL_POLISH === '1') await polishShot(page, 'console-sidebar-collapsed', false, 'portal-ux-shots')
+    if (process.env.WEB_VISUAL_POLISH === '1') await polishShot(page, 'console-sidebar-collapsed', false, 'sidebar-nav-shots')
+    await user.focus()
+    await expect(page.getByRole('tooltip')).toContainText(admin.username)
+    await expect(page.getByRole('tooltip')).toContainText('管理员')
+    await page.keyboard.press('Escape')
     const before = await user.boundingBox()
     await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight))
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
@@ -99,7 +103,7 @@ test('collapses the console sidebar and keeps its account in view on long settin
     for (const theme of ['light', 'dark'] as const) {
       await selectScreenshotTheme(page, theme, 'console')
       await page.getByRole('button', { name: '打开菜单', exact: true }).click()
-      await polishShot(page, 'console-drawer', false, 'portal-ux-shots')
+      await polishShot(page, 'console-drawer', false, 'sidebar-nav-shots')
       await page.keyboard.press('Escape')
     }
   }

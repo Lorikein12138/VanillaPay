@@ -13,6 +13,7 @@ import { Tooltip, TooltipProvider } from './tooltip'
 const Collapsed = createContext(false)
 const sidebarKey = 'vp-sidebar-collapsed'
 const textTransition = 'min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 motion-reduce:transition-none'
+const sidebarRow = 'flex min-h-11 items-center overflow-hidden rounded-control px-3 text-label transition-colors hover:bg-hover hover:text-text'
 
 function sidebarCollapsed() {
   try { return localStorage.getItem(sidebarKey) === 'true' }
@@ -52,6 +53,7 @@ export function PortalShell({ logo, navigation, userBlock, controls, problem, ch
   }, [pending])
   const showPending = pending && showSkeleton
   const CollapseIcon = collapsed ? PanelLeftOpen : PanelLeftClose
+  const collapseLabel = t(collapsed ? 'ui.expandSidebar' : 'ui.collapseSidebar')
 
   function toggleSidebar() {
     const next = !collapsed
@@ -65,16 +67,20 @@ export function PortalShell({ logo, navigation, userBlock, controls, problem, ch
       <div className="min-h-dvh min-w-0 lg:flex">
         <aside className={cn('hidden shrink-0 flex-col gap-7 bg-sidebar px-3 py-6 transition-[width] duration-200 motion-reduce:transition-none lg:sticky lg:top-0 lg:flex lg:h-dvh lg:overflow-x-hidden lg:overflow-y-auto', collapsed ? 'w-16' : 'w-56')}>
           <Collapsed.Provider value={collapsed}>
-            <div className="flex shrink-0 flex-col gap-1">
-              {logo}
-              <Button size="icon" variant="ghost" className={cn('size-10', !collapsed && 'self-end')}
-                aria-label={t(collapsed ? 'ui.expandSidebar' : 'ui.collapseSidebar')}
-                aria-expanded={!collapsed} onClick={toggleSidebar}>
-                <CollapseIcon aria-hidden="true" />
-              </Button>
-            </div>
+            <div className="shrink-0">{logo}</div>
             {navigation && <div className="min-h-0 overflow-y-auto">{navigation}</div>}
-            {userBlock}
+            <div className="mt-auto flex shrink-0 flex-col gap-2">
+              <Tooltip enabled={collapsed} label={collapseLabel}>
+                <button type="button" className={`${sidebarRow} text-text-2`}
+                  aria-label={collapseLabel} aria-expanded={!collapsed} onClick={toggleSidebar}>
+                  <CollapseIcon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
+                  <span aria-hidden="true" className={cn(textTransition, collapsed ? 'max-w-0 opacity-0' : 'ml-3 max-w-40')}>
+                    {t('ui.collapseSidebar')}
+                  </span>
+                </button>
+              </Tooltip>
+              {userBlock}
+            </div>
           </Collapsed.Provider>
         </aside>
         <div className="min-w-0 flex-1">
@@ -108,7 +114,7 @@ export function PortalBrand({ to, tag, onClose }: { to: string; tag?: string; on
   const collapsed = useContext(Collapsed)
   return (
     <Link to={to} aria-label={tag ? `${name} · ${tag}` : name} onClick={onClose}
-      className={cn('flex min-h-11 min-w-0 items-center overflow-hidden rounded-control px-2', collapsed ? 'px-1.5 [&>span]:max-w-0 [&>span]:opacity-0' : 'gap-2.5 [&>span]:max-w-40')}>
+      className={cn('flex min-h-11 min-w-0 items-center overflow-hidden rounded-control pl-3', collapsed ? '[&>span]:max-w-0 [&>span]:opacity-0' : 'gap-2.5 pr-1 [&>span]:max-w-40')}>
       <SiteBrand labelClassName={textTransition} />
       {tag && <span className={cn(textTransition, 'ml-auto shrink-0 text-caption text-text-3')}>{tag}</span>}
     </Link>
@@ -124,7 +130,7 @@ export function PortalNavigation({ title, items, onClose }: { title: string; ite
           <Link key={item.path} to={item.path} aria-label={collapsed ? item.label : undefined} onClick={onClose}
             activeOptions={{ exact: item.exact ?? true, includeSearch: false }}
             activeProps={{ 'aria-current': 'page', className: 'bg-hover text-text' }} inactiveProps={{ className: 'text-text-2' }}
-            className="flex min-h-11 items-center overflow-hidden rounded-control px-3 text-label transition-colors hover:bg-hover hover:text-text">
+            className={sidebarRow}>
             <item.icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
             <span className={cn(textTransition, collapsed ? 'max-w-0 opacity-0' : 'ml-3 max-w-40')}>{item.label}</span>
             {!collapsed && item.badge}
@@ -138,22 +144,23 @@ export function PortalNavigation({ title, items, onClose }: { title: string; ite
 
 export function PortalUser({ name, role, to, onClose, mono = false }: { name: string; role: string; to?: string; onClose: () => void; mono?: boolean }) {
   const collapsed = useContext(Collapsed)
+  const roleClassName = mono ? 'block font-mono tabular-nums text-text-3' : 'block text-text-3'
   const content = (
     <>
-      <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-oat text-label">{name.slice(0, 1)}</span>
-      <span className={cn(textTransition, collapsed ? 'max-w-0 opacity-0' : 'ml-3 max-w-full')}>
+      <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-oat text-label">{name.slice(0, 1)}</span>
+      <span className={cn(textTransition, collapsed ? 'max-w-0 opacity-0' : 'ml-2.5 max-w-full')}>
         <span className="block truncate text-label">{name}</span>
-        <span className={cn('block truncate text-caption text-text-3', mono && 'font-mono')}>{role}</span>
+        <span className={`text-caption ${roleClassName}`}>{role}</span>
       </span>
     </>
   )
-  const className = cn('flex min-h-11 min-w-0 items-center overflow-hidden rounded-control py-3', collapsed ? 'px-0.5' : 'px-2')
+  const className = cn('flex min-h-11 min-w-0 items-center overflow-hidden rounded-control py-3', collapsed ? 'px-1' : 'px-2')
   const link = to
     ? <Link to={to} aria-label={name} onClick={onClose} className={cn(className, 'hover:bg-hover')}>{content}</Link>
     : <div tabIndex={collapsed ? 0 : undefined} aria-label={collapsed ? name : undefined} className={className}>{content}</div>
   return (
-    <div className="mt-auto shrink-0 border-t-[0.5px] border-border pt-4">
-      <Tooltip enabled={collapsed} label={<>{name}<span className="block text-text-3">{role}</span></>}>{link}</Tooltip>
+    <div className="mt-auto shrink-0 border-t-[0.5px] border-border pt-4 lg:pt-2">
+      <Tooltip enabled={collapsed} label={<>{name}<span className={roleClassName}>{role}</span></>}>{link}</Tooltip>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { api, APIError } from '@/api/client'
 import { buttonVariants } from '@/components/ui/button'
-import { ArrowDown, BellRing, ChartColumn, CodeXml, CreditCard, QrCode, ShieldCheck, ShoppingCart, Smartphone, Target, type LucideIcon } from 'lucide-react'
+import { ArrowDown, ArrowRight, BellRing, ChartColumn, CodeXml, CreditCard, QrCode, ShieldCheck, ShoppingCart, Smartphone, Target, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PublicFooter } from '@/components/PublicFooter'
@@ -57,7 +57,7 @@ export function HomePage() {
   if (home?.mode === 'html' && home.html != null) {
     return (
       <div className="flex h-dvh flex-col">
-        <TopBar compact><HomeAccess registrationOpen={config.data?.registration_open} /></TopBar>
+        <TopBar compact actions={<HomeAccess registrationOpen={config.data?.registration_open} />} />
         <main id="main" className="min-h-0 flex-1">
           <iframe
             title={name}
@@ -87,12 +87,17 @@ function HomeAccess({ registrationOpen }: { registrationOpen?: boolean }) {
     },
   })
   if (session.isPending) return null
-  const primary = cn(buttonVariants({ variant: 'primary', size: 'sm' }), 'px-2 sm:px-3')
-  const secondary = cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'px-2 sm:px-3')
-  if (session.data) return <Link to={session.data === 'banned' ? '/banned' : '/dashboard'} className={primary}>{t('home.dashboard')}</Link>
+  const secondary = cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-9 px-2 sm:px-3')
+  const ghost = cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'h-9 px-2 sm:px-3')
+  if (session.data) return (
+    <Link to={session.data === 'banned' ? '/banned' : '/dashboard'} className={secondary}>
+      {t('home.dashboard')}
+      <ArrowRight className="hidden sm:block" strokeWidth={1.6} aria-hidden="true" />
+    </Link>
+  )
   return <>
-    <Link to="/login" className={registrationOpen ? secondary : primary}>{t('auth.submit')}</Link>
-    {registrationOpen && <Link to="/register" className={primary}>{t('home.register')}</Link>}
+    <Link to="/login" className={ghost}>{t('auth.submit')}</Link>
+    {registrationOpen && <Link to="/register" className={secondary}>{t('home.register')}</Link>}
   </>
 }
 
@@ -121,7 +126,7 @@ function DefaultHome({ registrationOpen }: { registrationOpen?: boolean }) {
 
   return (
     <>
-      <TopBar>
+      <TopBar actions={<HomeAccess registrationOpen={registrationOpen} />}>
         <nav aria-label={t('home.nav.label')} className="contents">
           <a href="#features" className={navLinkClass}>
             {t('home.nav.features')}
@@ -130,7 +135,6 @@ function DefaultHome({ registrationOpen }: { registrationOpen?: boolean }) {
             {t('home.nav.steps')}
           </a>
         </nav>
-        <HomeAccess registrationOpen={registrationOpen} />
       </TopBar>
 
       <main id="main">
