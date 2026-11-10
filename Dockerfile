@@ -12,7 +12,12 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web-build /workspace/internal/webassets/dist ./internal/webassets/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/server ./cmd/server \
+    && mkdir /out/downloads
+
+# Release builds can override this stage with --build-context monitor-downloads=DIR.
+FROM scratch AS monitor-downloads
+COPY --from=go-build /out/downloads/ /downloads/
 
 FROM debian:bookworm-20261027-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3 AS runtime
 RUN apt-get update \
@@ -21,8 +26,10 @@ RUN apt-get update \
     && mkdir -p /var/lib/vanillapay \
     && chown 65532:65532 /var/lib/vanillapay
 COPY --from=go-build --chown=65532:65532 /out/server /usr/local/bin/server
+COPY --from=monitor-downloads /downloads/ /downloads/
 ENV LISTEN_ADDR=:8080 \
-    DATA_DIR=/var/lib/vanillapay
+    DATA_DIR=/var/lib/vanillapay \
+    DOWNLOADS_DIR=/downloads
 VOLUME ["/var/lib/vanillapay"]
 EXPOSE 8080
 USER 65532:65532

@@ -36,9 +36,11 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:name=".ScannerActivity"
             android:excludeFromRecents="true"
-            android:exported="false" />
+            android:exported="false"
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity" />
         <service
             android:name=".PaymentNotificationListener"
             android:exported="true"

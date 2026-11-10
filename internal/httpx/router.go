@@ -93,7 +93,7 @@ func NewRouter(a *app.App) http.Handler {
 	router.Handle("/api", http.HandlerFunc(apiNotFound))
 	router.Handle("/api/*", http.HandlerFunc(apiNotFound))
 	router.Handle("/downloads", http.NotFoundHandler())
-	router.Handle("/downloads/*", downloadHandler(a.DownloadsDir(), a.APKDownloadsDir()))
+	router.Handle("/downloads/*", downloadHandler(a.DownloadsDir()))
 	spa := webassets.SPAHandler(webassets.FS())
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/health/") || strings.HasPrefix(r.URL.Path, "/media/") {

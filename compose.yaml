@@ -1,117 +1,55 @@
 name: vanillapay
 
-x-logging: &logging
-  driver: json-file
-  options:
-    max-size: "10m"
-    max-file: "3"
-
-x-app-environment: &app-environment
-  APP_ENV: production
-  DATABASE_URL: postgres://vanillapay:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/vanillapay?sslmode=disable
-  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL in .env}
-  APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY in .env}
-  LISTEN_ADDR: :8080
-  DATA_DIR: /var/lib/vanillapay
-  # The socket relay shares the app's network namespace. The published TCP
-  # port enters from outside that namespace and cannot supply trusted headers.
-  TRUSTED_PROXY_CIDRS: 127.0.0.1/32
-
+# 更新：docker compose pull app，然后 docker compose up -d --force-recreate app。
+# 回滚：将 latest 改为 sha-xxxxxxx 后按更新步骤操作。迁移只前进，跨迁移回滚须恢复对应数据库备份。
+# 宿主机 nginx 反代至 http://127.0.0.1:18080，覆盖 X-Real-IP（$remote_addr），
+# 追加 X-Forwarded-For（$proxy_add_x_forwarded_for），并设置 X-Forwarded-Proto（$scheme）。
+# 宿主机负责定时备份 PostgreSQL 和 /data/docker/vanillapay/data。
 services:
-  postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17.6-alpine3.22@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94}
-    restart: unless-stopped
-    logging: *logging
-    environment:
-      POSTGRES_DB: vanillapay
-      POSTGRES_USER: vanillapay
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    healthcheck:
-      # Use TCP so the entrypoint's temporary initialization server doesn't count.
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
-      interval: 2s
-      timeout: 3s
-      retries: 30
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    networks:
-      - database
-
-  migrate:
-    image: vanillapay:${APP_IMAGE_TAG:-local}
-    pull_policy: never
-    restart: "no"
-    logging: *logging
-    command: ["migrate", "up"]
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - database
-    # The image declares a VOLUME, but migration has no file data to keep.
-    tmpfs:
-      - /var/lib/vanillapay
-
   app:
-    image: vanillapay:${APP_IMAGE_TAG:-local}
-    pull_policy: never
+    # 将 replace-me 换成 Docker Hub 命名空间。
+    image: docker.io/replace-me/vanillapay:latest
+    pull_policy: always
+    container_name: vanillapay
+    network_mode: host
     init: true
     restart: unless-stopped
-    logging: *logging
+    entrypoint: ["/bin/bash", "-ec", "server migrate up && exec server serve"]
     environment:
-      <<: *app-environment
-      DOWNLOADS_DIR: /var/lib/vanillapay-downloads
-      APK_DOWNLOADS_DIR: /var/lib/vanillapay-apks
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    ports:
-      - "127.0.0.1:${APP_PORT:-8080}:8080"
+      # 生产模式。
+      APP_ENV: production
+      # 只监听宿主机回环地址。
+      LISTEN_ADDR: 127.0.0.1:18080
+      # 容器内数据目录，与下方挂载目标一致。
+      DATA_DIR: /var/lib/vanillapay
+      # 仅信任从回环地址连接的宿主机反代。
+      TRUSTED_PROXY_CIDRS: 127.0.0.1/32
+      # 替换为站点的公开 HTTPS 地址。
+      PUBLIC_BASE_URL: https://pay.example.com
+      # 填写宿主机 PostgreSQL 连接串，凭据中的特殊字符需做 URL 编码。
+      DATABASE_URL: postgres://vanillapay@127.0.0.1:5432/vanillapay?sslmode=disable
+      # 填写 Base64 编码的 32 字节加密密钥，并与备份分开保管。
+      APP_ENCRYPTION_KEY: "<应用加密密钥>"
     volumes:
-      - app-data:/var/lib/vanillapay
-      - ./downloads:/var/lib/vanillapay-downloads:ro
-      - ${DEPLOY_APK_DIR:-./downloads}:/var/lib/vanillapay-apks:ro
-    networks:
-      - default
-      - database
-    stop_grace_period: 30s
-
-  proxy:
-    image: ${PROXY_IMAGE:-nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de}
-    restart: unless-stopped
-    logging: *logging
-    network_mode: service:app
-    depends_on:
-      app:
-        condition: service_started
-        restart: true
-    entrypoint: ["/bin/sh", "-ec"]
-    command: ["rm -f /run/vanillapay/app.sock; exec nginx -g 'daemon off;'"]
-    volumes:
-      - type: bind
-        source: ./deploy/proxy.conf
-        target: /etc/nginx/conf.d/default.conf
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${PROXY_SOCKET_DIR:-/var/lib/vanillapay-proxy}
-        target: /run/vanillapay
-        bind:
-          create_host_path: false
+      # 由宿主机预建并授权给 UID/GID 65532。
+      - /data/docker/vanillapay/data:/var/lib/vanillapay
     healthcheck:
-      test: ["CMD-SHELL", "test -S /run/vanillapay/app.sock && wget -q -O /dev/null http://127.0.0.1:8080/health/ready"]
-      interval: 2s
+      test:
+        - CMD
+        - /bin/bash
+        - -ec
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/18080
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3
+          read -r protocol status remainder <&3
+          [[ $$protocol == HTTP/1.* && $$status == 200 ]]
+      interval: 10s
       timeout: 3s
-      retries: 30
-
-networks:
-  database:
-    internal: true
-
-volumes:
-  db-data:
-  app-data:
+      retries: 5
+      start_period: 30s
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

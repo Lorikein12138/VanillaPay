@@ -185,12 +185,6 @@ func (a *App) DownloadsDir() string {
 	return a.config.DownloadsDir
 }
 
-func (a *App) APKDownloadsDir() string {
-	if a == nil {
-		return ""
-	}
-	return a.config.APKDownloadsDir
-}
 func (a *App) AppEnvironment() string {
 	if a == nil {
 		return ""

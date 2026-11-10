@@ -2,6 +2,7 @@
 .workflow/
 .local/
 .artifacts/
+android/
 coverage/
 docs/
 *.md

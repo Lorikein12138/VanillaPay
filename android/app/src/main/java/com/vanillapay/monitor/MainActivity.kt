@@ -36,8 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.vanillapay.monitor.parse.Channel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -50,10 +48,8 @@ class MainActivity : ComponentActivity() {
     private var refresh by mutableIntStateOf(0)
     private var reopen by mutableIntStateOf(0)
     private var scanResult by mutableStateOf<String?>(null)
-    private var cameraDenied by mutableStateOf(false)
-    private val scanner = registerForActivityResult(ScanContract()) { result -> scanResult = result.contents }
-    private val camera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) openScanner() else cameraDenied = true
+    private val scanner = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) scanResult = result.data?.getStringExtra(ScannerActivity.RESULT_QR)
     }
     private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
 
@@ -73,16 +69,7 @@ class MainActivity : ComponentActivity() {
         refresh++
     }
 
-    private fun openScanner() {
-        scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            .setPrompt("扫描商户后台的绑定二维码").setBeepEnabled(false).setOrientationLocked(false))
-    }
-
-    private fun scan() {
-        cameraDenied = false
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) openScanner()
-        else camera.launch(Manifest.permission.CAMERA)
-    }
+    private fun scan() = scanner.launch(Intent(this, ScannerActivity::class.java))
 
     private fun appDetails() = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
 
@@ -199,9 +186,6 @@ class MainActivity : ComponentActivity() {
                 code = pairing.code
                 error = null
             }
-        }
-        LaunchedEffect(cameraDenied) {
-            if (cameraDenied) error = "未授权相机，可手动输入绑定码。"
         }
         BackHandler(screen != "home") {
             screen = if (screen == "diagnostics") diagnosticBack else "home"
