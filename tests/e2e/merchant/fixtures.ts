@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import { createHmac } from 'node:crypto'
-import { expect, test as base, type Page } from '@playwright/test'
+import { expect, test as base, type Locator, type Page } from '@playwright/test'
 
 type Account = { username: string; password: string; pid: string; totpSeed: string; turnstileToken: string }
 export const test = base.extend<{ account: Account; twoFactor: boolean; banned: boolean }>({
@@ -81,35 +81,36 @@ export async function chooseMenu(page: Page, trigger: string, option: string) {
   await page.getByRole('menuitemradio', { name: option, exact: true }).click()
 }
 
-async function revealControl(page: Page, name: string) {
+/**
+ * Click a top bar control, opening the navigation drawer first when it holds it.
+ * A route update that lands right after login can close the drawer at any moment,
+ * so reopening, clicking and waiting for `until` retry together as one step.
+ */
+async function pressControl(page: Page, name: string, until?: Locator) {
   const control = page.getByRole('button', { name, exact: true })
   const menu = page.getByRole('button', { name: /打开菜单|Open menu/ })
   await expect(control.or(menu).filter({ visible: true }).first()).toBeVisible()
   const opened = !(await control.isVisible())
-  // A route update that lands right after login can close a drawer opened a moment
-  // earlier, hiding the control again; reopen until it stays reachable.
-  if (opened) {
-    await expect(async () => {
-      if (!(await control.isVisible()) && await menu.isVisible()) await menu.click({ timeout: 1000 })
-      await expect(control).toBeVisible({ timeout: 1000 })
-    }).toPass()
-  }
+  await expect(async () => {
+    if (until && await until.isVisible()) return
+    if (!(await control.isVisible()) && await menu.isVisible()) await menu.click({ timeout: 1000 })
+    await control.click({ timeout: 1000 })
+    if (until) await expect(until).toBeVisible({ timeout: 1000 })
+  }).toPass()
   return { control, opened }
 }
 
 export async function clickControl(page: Page, name: string) {
   const theme = Object.values(themeLabels).includes(name)
-  const { control } = await revealControl(page, theme ? '主题' : name)
-  await control.click()
-  if (theme) await page.getByRole('menuitemradio', { name, exact: true }).click()
+  const option = page.getByRole('menuitemradio', { name, exact: true })
+  await pressControl(page, theme ? '主题' : name, theme ? option : undefined)
+  if (theme) await option.click()
   await closeMenu(page)
 }
 
 export async function selectScreenshotTheme(page: Page, theme: keyof typeof themeLabels, role = 'merchant') {
-  const { control, opened } = await revealControl(page, '主题')
-  await control.click()
   const option = page.getByRole('menuitemradio', { name: themeLabels[theme], exact: true })
-  await expect(option).toBeVisible()
+  const { control, opened } = await pressControl(page, '主题', option)
   const alreadySelected = await option.getAttribute('aria-checked') === 'true'
   // Wait for optimistic changes to persist before taking a screenshot or reloading.
   const saved = alreadySelected ? null : page.waitForResponse((response) =>
