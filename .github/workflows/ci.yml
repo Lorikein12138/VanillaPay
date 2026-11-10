@@ -190,3 +190,124 @@ jobs:
       - run: ./gradlew testDebugUnitTest -PmonitorScreenshots --tests '*MonitorScreenshotTest'
       - name: Check screenshot outputs
         run: test "$(find ../.artifacts/android-screens -name '*.png' -size +0c | wc -l)" -eq 32
+
+  # Rehearses the release workflow without its secrets: a release APK signed with a
+  # throwaway key, the image built from it exactly as release.yml does (not pushed),
+  # then the image migrates a fresh database and serves the app and the download.
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17.6-alpine3.22
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: vanillapay_image
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vanillapay_image"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - name: Build release APK with a throwaway key
+        id: apk
+        working-directory: android
+        shell: bash
+        run: |
+          sdk=${ANDROID_HOME:-/usr/local/lib/android/sdk}
+          apksigner="$sdk/build-tools/36.0.0/apksigner"
+          test -f "$sdk/platforms/android-37.0/android.jar"
+          test -x "$apksigner"
+          export ANDROID_HOME="$sdk"
+
+          umask 077
+          signing_dir=$(mktemp -d "$RUNNER_TEMP/ci-signing.XXXXXXXX")
+          trap 'rm -rf -- "$signing_dir"' EXIT
+          export VANILLAPAY_KEYSTORE_PATH="$signing_dir/ci.keystore"
+          export VANILLAPAY_KEY_ALIAS=ci
+          VANILLAPAY_KEYSTORE_PASSWORD=$(openssl rand -hex 16)
+          echo "::add-mask::$VANILLAPAY_KEYSTORE_PASSWORD"
+          export VANILLAPAY_KEYSTORE_PASSWORD VANILLAPAY_KEY_PASSWORD=$VANILLAPAY_KEYSTORE_PASSWORD
+          keytool -genkeypair -keystore "$VANILLAPAY_KEYSTORE_PATH" -storetype PKCS12 \
+            -storepass:env VANILLAPAY_KEYSTORE_PASSWORD -keypass:env VANILLAPAY_KEY_PASSWORD \
+            -alias ci -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=VanillaPay CI'
+          expected=$(keytool -exportcert -keystore "$VANILLAPAY_KEYSTORE_PATH" -alias ci \
+            -storepass:env VANILLAPAY_KEYSTORE_PASSWORD | sha256sum | cut -d' ' -f1)
+          ./gradlew assembleRelease -PvanillapayBaseUrl=https://pay.lorikein.com
+
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/release/vanillapay-monitor-*.apk)
+          if (( ${#apks[@]} != 1 )); then
+            echo 'Expected one release APK' >&2
+            exit 1
+          fi
+          apk=${apks[0]}
+          actual=$("$apksigner" verify --print-certs "$apk" |
+            awk -F ': ' '/^Signer #[0-9]+ certificate SHA-256 digest:/ { print tolower($2) }')
+          if [[ $actual != "$expected" ]]; then
+            echo 'Release APK is not signed with the configured key' >&2
+            exit 1
+          fi
+          context="$RUNNER_TEMP/vanillapay-release"
+          version=$(bash ../scripts/release-context.sh "$apk" "$context")
+          {
+            echo "version=$version"
+            echo "context=$context"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Build release image
+        env:
+          APK_VERSION: ${{ steps.apk.outputs.version }}
+          DOWNLOAD_CONTEXT: ${{ steps.apk.outputs.context }}
+        run: |
+          docker buildx build --platform linux/amd64 \
+            --build-context "monitor-downloads=$DOWNLOAD_CONTEXT" \
+            --label "org.opencontainers.image.version=$APK_VERSION" \
+            --load --tag vanillapay:ci .
+      - name: Migrate and serve from the image
+        env:
+          DOWNLOAD_CONTEXT: ${{ steps.apk.outputs.context }}
+        shell: bash
+        run: |
+          encryption_key=$(openssl rand -base64 32)
+          echo "::add-mask::$encryption_key"
+          # Same entrypoint and network layout as compose.yaml.
+          docker run -d --name vanillapay-ci --network host \
+            -e APP_ENV=production \
+            -e PUBLIC_BASE_URL=https://pay.example.com \
+            -e LISTEN_ADDR=127.0.0.1:18080 \
+            -e TRUSTED_PROXY_CIDRS=127.0.0.1/32 \
+            -e DATABASE_URL='postgres://postgres@127.0.0.1:5432/vanillapay_image?sslmode=disable' \
+            -e APP_ENCRYPTION_KEY="$encryption_key" \
+            --entrypoint /bin/bash vanillapay:ci -ec 'server migrate up && exec server serve'
+          base=http://127.0.0.1:18080
+          for attempt in {1..60}; do
+            if curl --fail --silent "$base/health/ready" > /dev/null; then
+              break
+            fi
+            if [[ $(docker inspect -f '{{.State.Running}}' vanillapay-ci) != true || $attempt == 60 ]]; then
+              docker logs vanillapay-ci
+              echo 'Image did not become ready' >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent "$base/" | grep -q '<div id="root">'
+          curl --fail --silent --output /dev/null "$base/favicon.ico"
+          manifest=$(curl --fail --silent "$base/downloads/latest.json")
+          diff <(jq -S . <<< "$manifest") <(jq -S . "$DOWNLOAD_CONTEXT/downloads/latest.json")
+          file=$(jq -er .file <<< "$manifest")
+          sha=$(curl --fail --silent "$base/downloads/$file" | sha256sum | cut -d' ' -f1)
+          test "$sha" = "$(jq -er .sha256 <<< "$manifest")"
+          echo "Image serves the app and $file"
+      - name: Stop image
+        if: always()
+        run: docker rm -f -v vanillapay-ci > /dev/null 2>&1 || true
