@@ -38,6 +38,7 @@ export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
       await dialog.getByLabel('时长（天）').fill('30')
       await dialog.getByRole('checkbox', { name: '支付宝', exact: true }).check()
       await dialog.getByRole('checkbox', { name: '微信支付', exact: true }).check()
+      await dialog.getByRole('checkbox', { name: 'QQ 钱包', exact: true }).check()
     }
     await shots(page, 'create-plan-dialog', () => planForm())
     await planForm()
@@ -45,6 +46,8 @@ export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
     await page.getByRole('dialog').getByRole('button', { name: '新建套餐', exact: true }).click()
     const createdPlan = await creatingPlan
     expect(createdPlan.status()).toBe(201)
+    const { channels } = createdPlan.request().postDataJSON() as { channels: string[] }
+    expect(channels).toEqual(['alipay', 'wxpay', 'qqpay'])
     const { data: plan } = await createdPlan.json() as { data: { id: string; revision: number } }
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await shots(page, 'plans')

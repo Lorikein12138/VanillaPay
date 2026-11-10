@@ -5,9 +5,19 @@ import type { components } from '../../../web/src/api/schema'
 import { polishShot } from '../merchant/fixtures'
 
 type Checkout = components['schemas']['PaymentCheckoutDTO']
+const channelNames = { alipay: '支付宝', wxpay: '微信支付', qqpay: 'QQ 钱包' } as const
+
 async function prepare(request: APIRequestContext) {
-  const png = await QRCode.toBuffer('https://qr.alipay.com/checkout-example', { width: 300 })
-  const response = await request.post('/__e2e/checkout', { data: { png: png.toString('base64') } })
+  const qrURLs = {
+    alipay: 'https://qr.alipay.com/checkout-example',
+    wxpay: 'wxp://checkout-example',
+    qqpay: 'https://i.qianbao.qq.com/checkout-example',
+  } satisfies Record<keyof typeof channelNames, string>
+  const codes = Object.fromEntries(await Promise.all(Object.entries(qrURLs).map(async ([channel, url]) => {
+    const png = await QRCode.toBuffer(url, { width: 300 })
+    return [channel, { url, png: png.toString('base64') }] as const
+  })))
+  const response = await request.post('/__e2e/checkout', { data: { codes } })
   expect(response.status()).toBe(200)
   const fixture = await response.json() as { pid: string; v1_key: string; device_token: string; created_at: string }
   const form: Record<string, string> = { pid: fixture.pid, name: '月度会员', money: '30.00', out_trade_no: crypto.randomUUID(), clientip: '127.0.0.1', notify_url: 'https://merchant.example.test/notify' }
@@ -25,17 +35,6 @@ async function checkout(request: APIRequestContext, trade: string) {
   return (await response.json() as { data: Checkout }).data
 }
 async function screenshots(page: Page, name: string) {
-  // Presentation-only screenshot seeds: the immutable backend fixture has only
-  // Alipay. Restore the real GET before any payment actions or assertions.
-  const dualChannel = name === 'unselected' || name === 'offline'
-  const endpoint = `/api/v1/checkout/${page.url().split('/').at(-1)}`
-  if (dualChannel) {
-    const response = await page.request.get(endpoint)
-    const seed = await response.json() as { data: Checkout }
-    await page.route(`**${endpoint}`, (route) => route.fulfill({ json: { ...seed, data: { ...seed.data, available_channels: ['alipay', 'wxpay'] } } }))
-    await page.reload()
-    await expect(page.getByRole('button', { name: '微信支付', exact: true })).toBeVisible()
-  }
   for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
     await page.getByRole('button', { name: label, exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
@@ -47,25 +46,28 @@ async function screenshots(page: Page, name: string) {
     const shop = await page.locator('header').getByText('示例小店').boundingBox()
     const controls = await page.getByRole('button', { name: '浅色', exact: true }).boundingBox()
     expect(Math.abs((shop!.y + shop!.height / 2) - (controls!.y + controls!.height / 2))).toBeLessThan(2)
-    if (dualChannel) {
-      const alipay = await page.getByRole('button', { name: '支付宝', exact: true }).boundingBox()
-      const wxpay = await page.getByRole('button', { name: '微信支付', exact: true }).boundingBox()
-      expect(alipay!.y).toBe(wxpay!.y)
-      expect(alipay!.x).toBeLessThan(wxpay!.x)
-    }
   }
-  if (dualChannel) {
-    await page.unroute(`**${endpoint}`)
-    await page.reload()
-    await expect(page.getByRole('heading', { name: '月度会员' })).toBeVisible()
-  }
+}
+
+async function expectChannelLayout(page: Page) {
+  const buttons = Object.values(channelNames).map((name) => page.getByRole('button', { name, exact: true }))
+  for (const button of buttons) await expect(button).toBeVisible()
+  const [alipay, wxpay, qqpay] = await Promise.all(buttons.map((button) => button.boundingBox()))
+  expect(alipay!.y).toBe(wxpay!.y)
+  expect(alipay!.x).toBeLessThan(wxpay!.x)
+  expect(qqpay!.y).toBeGreaterThan(alipay!.y)
+  expect(qqpay!.x).toBe(alipay!.x)
+  expect(qqpay!.x + qqpay!.width).toBeCloseTo(wxpay!.x + wxpay!.width)
 }
 
 test('public v1 checkout locks a channel, serves its signed QR and receives a real device payment', async ({ page, request }) => {
   const { trade, deviceToken } = await prepare(request)
   await page.goto(`/pay/${trade}`)
   await expect(page.getByRole('heading', { name: '月度会员' })).toBeVisible()
-  expect((await checkout(request, trade)).channel).toBeNull()
+  const initial = await checkout(request, trade)
+  expect(initial.channel).toBeNull()
+  expect(initial.available_channels).toEqual(Object.keys(channelNames))
+  await expectChannelLayout(page)
   await screenshots(page, 'unselected')
   const post = page.waitForResponse((response) => response.url().endsWith(`/checkout/${trade}/channel`) && response.request().method() === 'POST')
   await page.getByRole('button', { name: '支付宝', exact: true }).click()
@@ -80,6 +82,7 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
   await expect.poll(() => qr.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBe(300)
   await expect(page.getByRole('note')).toContainText('请务必支付 ¥29.99')
   await expect(page.getByRole('button', { name: '微信支付', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'QQ 钱包', exact: true })).toHaveCount(0)
   await screenshots(page, 'locked')
   const receipt = await request.post('/api/v1/device/receipts', {
     headers: { Authorization: `Bearer ${deviceToken}` },
@@ -101,7 +104,10 @@ for (const state of ['expired', 'offline'] as const) {
     expect((await request.post('/__e2e/checkout', { data: { trade_no: trade, state } })).status()).toBe(204)
     await page.goto(`/pay/${trade}`)
     if (state === 'expired') await expect(page.getByRole('heading', { name: '订单已过期' })).toBeVisible()
-    else await expect(page.getByRole('note')).toContainText('收款设备离线')
+    else {
+      await expect(page.getByRole('note')).toContainText('收款设备离线')
+      await expectChannelLayout(page)
+    }
     await expect(page.getByRole('img', { name: '收款二维码' })).toHaveCount(0)
     await screenshots(page, state)
   })

@@ -17,15 +17,20 @@ import (
 	"vanillapay/internal/platform"
 )
 
+type checkoutCode struct {
+	URL string `json:"url"`
+	PNG []byte `json:"png"`
+}
+
 // Only main.go's development + loopback test executable registers this helper.
 // It prepares eligibility, not payment: orders use real signed v1 requests and
 // payments use real device receipts. No checkout/payment route is mocked.
 func registerCheckoutFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [32]byte, dataDir string) {
 	mux.HandleFunc("POST /__e2e/checkout", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
-			PNG     []byte `json:"png,omitempty"`
-			TradeNo string `json:"trade_no,omitempty"`
-			State   string `json:"state,omitempty"`
+			Codes   map[string]checkoutCode `json:"codes,omitempty"`
+			TradeNo string                  `json:"trade_no,omitempty"`
+			State   string                  `json:"state,omitempty"`
 		}
 		if platform.DecodeJSONBody(w, r, 131072, &input) != nil {
 			http.Error(w, "invalid checkout fixture", http.StatusBadRequest)
@@ -49,7 +54,7 @@ func registerCheckoutFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [32]by
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		fixture, err := seedCheckout(r.Context(), pool, key, dataDir, input.PNG)
+		fixture, err := seedCheckout(r.Context(), pool, key, dataDir, input.Codes)
 		if err != nil {
 			http.Error(w, "checkout fixture failed", http.StatusInternalServerError)
 			return
@@ -60,10 +65,7 @@ func registerCheckoutFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [32]by
 	})
 }
 
-func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir string, image []byte) (map[string]string, error) {
-	if config, err := png.DecodeConfig(bytes.NewReader(image)); err != nil || config.Width != 300 || config.Height != 300 {
-		return nil, errors.New("invalid fixture PNG")
-	}
+func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir string, codes map[string]checkoutCode) (map[string]string, error) {
 	merchant, err := seedMerchant(ctx, pool, key, false, false, "")
 	if err != nil {
 		return nil, err
@@ -85,15 +87,7 @@ func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir
 	if err != nil {
 		return nil, err
 	}
-	payload, err := platform.Encrypt(key[:], []byte("https://qr.alipay.com/checkout-example"), rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-	relative := "assets/" + id + ".png"
 	if err := os.MkdirAll(filepath.Join(dataDir, "assets"), 0700); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(filepath.Join(dataDir, filepath.FromSlash(relative)), image, 0600); err != nil {
 		return nil, err
 	}
 	tx, err := pool.Begin(ctx)
@@ -106,7 +100,7 @@ func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir
 	if _, err := tx.Exec(ctx, `UPDATE merchants SET username='示例小店' WHERE id=$1`, merchantID); err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO subscriptions(merchant_id,snapshot,expires_at,source) VALUES($1,'{"channels":["alipay","wxpay"]}',now()+interval '1 year','manual')`, merchantID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO subscriptions(merchant_id,snapshot,expires_at,source) VALUES($1,'{"channels":["alipay","wxpay","qqpay"]}',now()+interval '1 year','manual')`, merchantID); err != nil {
 		return nil, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO merchant_collection_settings(merchant_id,float_limit_cents,float_direction) VALUES($1,10,'down')`, merchantID); err != nil {
@@ -116,9 +110,27 @@ func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir
 	if _, err := tx.Exec(ctx, `INSERT INTO devices(public_id,merchant_id,token_hash,name,last_seen_at,ever_online) VALUES($1,$2,$3,'示例收款设备',now(),true)`, id, merchantID, hash[:]); err != nil {
 		return nil, err
 	}
-	checksum := sha256.Sum256(image)
-	if _, err := tx.Exec(ctx, `INSERT INTO media_assets(id,owner_merchant_id,kind,channel,file_path,sha256,mime,qr_payload_cipher,active) VALUES($1,$2,'qr','alipay',$3,$4,'image/png',$5,true)`, id, merchantID, relative, checksum[:], payload); err != nil {
-		return nil, err
+	for _, channel := range []string{"alipay", "wxpay", "qqpay"} {
+		code := codes[channel]
+		if config, err := png.DecodeConfig(bytes.NewReader(code.PNG)); err != nil || config.Width != 300 || config.Height != 300 || code.URL == "" {
+			return nil, errors.New("invalid checkout fixture code for " + channel)
+		}
+		payload, err := platform.Encrypt(key[:], []byte(code.URL), rand.Reader)
+		if err != nil {
+			return nil, err
+		}
+		assetID := id
+		if channel != "alipay" {
+			assetID += "-" + channel
+		}
+		relative := "assets/" + assetID + ".png"
+		if err := os.WriteFile(filepath.Join(dataDir, filepath.FromSlash(relative)), code.PNG, 0600); err != nil {
+			return nil, err
+		}
+		checksum := sha256.Sum256(code.PNG)
+		if _, err := tx.Exec(ctx, `INSERT INTO media_assets(id,owner_merchant_id,kind,channel,file_path,sha256,mime,qr_payload_cipher,active) VALUES($1,$2,'qr',$3,$4,$5,'image/png',$6,true)`, assetID, merchantID, channel, relative, checksum[:], payload); err != nil {
+			return nil, err
+		}
 	}
 	// Occupy the original amount so the real allocator must choose 29.99.
 	var occupied int64
