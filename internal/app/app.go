@@ -47,6 +47,7 @@ type Dependencies struct {
 	RandomSource       io.Reader
 	HTTPClient         platform.SafeHTTPClient
 	Mailer             platform.Mailer
+	Turnstile          auth.TurnstileVerifier
 	DatabaseFactory    DatabaseFactory
 	MigrationReadiness ReadinessCheck
 	WorkerReadiness    ReadinessCheck
@@ -72,6 +73,7 @@ type App struct {
 	mailer       platform.Mailer
 	readiness    []ReadinessCheck
 	Services     *Services
+	attemptPool  *pgxpool.Pool
 	closeOnce    sync.Once
 }
 
@@ -143,14 +145,25 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 		subs := subscription.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, billing)
 		billing.SetFulfillment(subs)
 		devices := device.NewService(pool, cfg.EncryptionKey, cfg.PublicBaseURL, deps.Clock, deps.RandomSource, billing)
-		identity := auth.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, mailer, auth.Siteverify{})
+		if deps.Turnstile == nil {
+			deps.Turnstile = auth.Siteverify{}
+		}
+		identity := auth.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, mailer, deps.Turnstile, cfg.PublicBaseURL)
+		attemptPool, err := newAttemptPool(ctx, pool)
+		if err != nil {
+			database.Close()
+			return nil, errors.New("database pool initialization failed")
+		}
+		a.attemptPool = attemptPool
+		identity.SetAttemptPool(attemptPool)
 		merchants := merchant.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, billing, identity)
 		merchants.SetPurchasePort(subs)
 		merchants.SetPlatformKeyPort(billing)
 		portalService := portal.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource)
-		settingsService := settings.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, cfg.PublicBaseURL, cfg.DataDir)
+		settingsService := settings.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, cfg.PublicBaseURL, cfg.DataDir, deps.Turnstile)
 		registry, err := jobs.NewRegistry(pool, cfg.EncryptionKey, queue, billing, subs, devices, deps.HTTPClient)
 		if err != nil {
+			attemptPool.Close()
 			database.Close()
 			return nil, errors.New("background worker initialization failed")
 		}
@@ -160,7 +173,7 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 				if err := pool.QueryRow(ctx, `SELECT COALESCE(max(version_id),0) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
 					return err
 				}
-				if version < 6 {
+				if version < 7 {
 					return errors.New("application migrations are incomplete")
 				}
 				return nil
@@ -208,6 +221,22 @@ func newPGXPool(ctx context.Context, cfg config.Config) (Database, error) {
 		return nil, errors.New("unable to create PostgreSQL pool")
 	}
 	return pool, nil
+}
+
+// newAttemptPool opens the small pool that counts verification-code attempts.
+// Callers count while their own transaction holds a main-pool connection and
+// row locks, so sharing the main pool deadlocks once concurrent requests for
+// the same account occupy every connection. lock_timeout bounds the rare wait
+// on a code row locked by a transaction that itself still has to count.
+func newAttemptPool(ctx context.Context, main *pgxpool.Pool) (*pgxpool.Pool, error) {
+	poolConfig := main.Config()
+	poolConfig.MaxConns = 4
+	poolConfig.MinConns = 0
+	if poolConfig.ConnConfig.RuntimeParams == nil {
+		poolConfig.ConnConfig.RuntimeParams = map[string]string{}
+	}
+	poolConfig.ConnConfig.RuntimeParams["lock_timeout"] = "5000"
+	return pgxpool.NewWithConfig(ctx, poolConfig)
 }
 
 // Ready checks the database and any configured migration and worker health
@@ -283,6 +312,9 @@ func (a *App) Close() error {
 		return nil
 	}
 	a.closeOnce.Do(func() {
+		if a.attemptPool != nil {
+			a.attemptPool.Close()
+		}
 		if a.database != nil {
 			a.database.Close()
 		}

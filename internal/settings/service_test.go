@@ -22,7 +22,7 @@ func TestUnit_SettingsSuccessEnvelopeIncludesNullError(t *testing.T) {
 }
 
 func TestUnit_SettingsGroupValidationAndSecretHandling(t *testing.T) {
-	value := json.RawMessage(`{"turnstile_site_key":"site-key","turnstile_secret":"secret","allowed_hostname":"pay.example.com","restrict_email_domains":false,"email_domains":[],"ban_contact":{"zh_CN":"联系支持","en":"Contact support"}}`)
+	value := json.RawMessage(`{"turnstile_site_key":"site-key","turnstile_secret":"secret","turnstile_enabled":false,"restrict_email_domains":false,"email_domains":[],"ban_contact":{"zh_CN":"联系支持","en":"Contact support"}}`)
 	clean, secrets, err := ValidateGroup("security", value)
 	if err != nil {
 		t.Fatal(err)

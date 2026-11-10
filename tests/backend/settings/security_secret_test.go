@@ -23,7 +23,7 @@ func TestHTTP_SecuritySecretOmissionAndEmptyValue(t *testing.T) {
 				t.Fatal("generate security fixture secret")
 			}
 			value := map[string]any{
-				"turnstile_site_key": "fixture-site", "turnstile_secret": secret, "allowed_hostname": "pay.example.test",
+				"turnstile_site_key": "fixture-site", "turnstile_secret": secret, "turnstile_enabled": false,
 				"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "", "en": ""},
 			}
 			assertRecoveryAPIError(t, updateSettingsGroupHTTP(t, fixture, admin, "security", value), http.StatusOK, "")
@@ -51,7 +51,7 @@ func TestHTTP_SecuritySecretOmissionAndEmptyValue(t *testing.T) {
 				assertRecoveryAPIError(t, recovered, http.StatusOK, "")
 				headers = recoveryHeaders(findRecoveryCookie(t, recovered.Header().Values("Set-Cookie")), responseCSRF(t, recovered.Body.Bytes()))
 				role = "guest"
-				value = map[string]any{"turnstile_site_key": "changed-site", "allowed_hostname": "pay.example.test", "turnstile_secret": ""}
+				value = map[string]any{"turnstile_site_key": "changed-site", "turnstile_enabled": false, "turnstile_secret": ""}
 			}
 			payload, err := json.Marshal(map[string]any{"expected_version": siteVersion, "value": value})
 			if err != nil {

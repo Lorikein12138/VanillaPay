@@ -20,6 +20,18 @@ export function SiteTitle() {
   return null
 }
 
+export function SiteIcons() {
+  const { data } = usePublicConfig()
+  const favicon = data?.favicon_url
+  useEffect(() => {
+    if (!favicon?.startsWith('/favicon.ico?')) return
+    const query = new URL(favicon, window.location.origin).search
+    document.getElementById('site-icon')?.setAttribute('href', favicon)
+    document.getElementById('apple-icon')?.setAttribute('href', '/apple-touch-icon.png' + query)
+  }, [favicon])
+  return null
+}
+
 function SiteLogo({ url, name, className }: { url: string; name: string; className: string }) {
   const [failed, setFailed] = useState(false)
   if (!url || failed) return <LogoMark className={className} />

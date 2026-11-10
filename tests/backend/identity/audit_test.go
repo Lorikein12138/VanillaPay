@@ -42,9 +42,9 @@ func TestDB_AuditSecurityCoverage(t *testing.T) {
 		t.Fatal("decode security settings fixture")
 	}
 	settingsValue, err := json.Marshal(map[string]any{
-		"turnstile_site_key":     "audit-local-site-key",
-		"turnstile_secret":       "audit-local-secret",
-		"allowed_hostname":       "pay.example.test",
+		"turnstile_site_key": "audit-local-site-key",
+		"turnstile_secret":   "audit-local-secret",
+		"turnstile_enabled":  true, "turnstile_token": "ok:settings_security",
 		"restrict_email_domains": false,
 		"email_domains":          []string{},
 		"ban_contact":            map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"},

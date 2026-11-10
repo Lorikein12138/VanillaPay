@@ -62,8 +62,8 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 	}
 	t.Run("V03.B.r01/v01", func(t *testing.T) {
 		var version int64
-		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 6 {
-			t.Fatalf("empty isolated schema goose version=%d err=%v, want 6", version, err)
+		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 7 {
+			t.Fatalf("empty isolated schema goose version=%d err=%v, want 7", version, err)
 		}
 	})
 
@@ -89,12 +89,49 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 		if remaining := applicationCatalog(ctx, t, admin, schema); len(remaining) != 0 {
 			t.Fatalf("down to 0 left application constraints/indexes: %s", strings.Join(remaining, "\n"))
 		}
-		if _, err := provider.UpTo(ctx, 6); err != nil {
+		if _, err := provider.UpTo(ctx, 7); err != nil {
 			t.Fatalf("reapply all application migrations: %v", err)
 		}
 		after := applicationCatalog(ctx, t, admin, schema)
 		if strings.Join(before, "\n") != strings.Join(after, "\n") {
 			t.Fatalf("down/up changed application constraints/indexes\nbefore:\n%s\nafter:\n%s", strings.Join(before, "\n"), strings.Join(after, "\n"))
+		}
+	})
+	t.Run("turnstile upgrade", func(t *testing.T) {
+		for _, configured := range []bool{true, false} {
+			if _, err := provider.DownTo(ctx, 6); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := migrationDB.ExecContext(ctx, `UPDATE site_settings SET security=security || '{"turnstile_site_key":"widget","allowed_hostname":"old.example.test"}'::jsonb`); err != nil {
+				t.Fatal(err)
+			}
+			if configured {
+				if _, err := migrationDB.ExecContext(ctx, `INSERT INTO secret_settings(name,encrypted_value) VALUES('turnstile_secret',$1)`, []byte{1}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := provider.UpTo(ctx, 7); err != nil {
+				t.Fatal(err)
+			}
+			var enabled bool
+			var legacyHost string
+			if err := migrationDB.QueryRowContext(ctx, `SELECT (security->>'turnstile_enabled')::boolean, COALESCE(security->>'allowed_hostname','') FROM site_settings`).Scan(&enabled, &legacyHost); err != nil || enabled != configured || legacyHost != "old.example.test" {
+				t.Fatalf("configured=%t enabled=%t legacy=%q err=%v", configured, enabled, legacyHost, err)
+			}
+			if _, err := migrationDB.ExecContext(ctx, `DELETE FROM secret_settings WHERE name='turnstile_secret'`); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := provider.DownTo(ctx, 6); err != nil {
+			t.Fatal(err)
+		}
+		var legacyHost string
+		var hasEnabled bool
+		if err := migrationDB.QueryRowContext(ctx, `SELECT security->>'allowed_hostname', security ? 'turnstile_enabled' FROM site_settings`).Scan(&legacyHost, &hasEnabled); err != nil || legacyHost != "old.example.test" || hasEnabled {
+			t.Fatalf("down to 6 lost the legacy hostname: %q enabled-key=%t err=%v", legacyHost, hasEnabled, err)
+		}
+		if _, err := provider.UpTo(ctx, 7); err != nil {
+			t.Fatal(err)
 		}
 	})
 	t.Run("V03.B.r05/v01", func(t *testing.T) {

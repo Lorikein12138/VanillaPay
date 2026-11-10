@@ -179,6 +179,7 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 	if err != nil {
 		return s.finishCallbackAttempt(ctx, work, 0, "", "INVALID_URL", err)
 	}
+	request.URL.RawQuery = stripReservedRawQuery(request.URL.RawQuery)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	work.startedWall = time.Now()
 	response, err := s.httpClient.DoPublic(ctx, request)

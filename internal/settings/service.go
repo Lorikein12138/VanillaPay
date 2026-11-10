@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"vanillapay/internal/auth"
 	sqlc "vanillapay/internal/db/sqlc"
 	"vanillapay/internal/platform"
 )
@@ -26,16 +27,18 @@ type Service struct {
 	random        io.Reader
 	publicBaseURL string
 	dataDir       string
+	turnstile     auth.TurnstileVerifier
+	icons         siteIcons
 }
 
-func NewService(pool *pgxpool.Pool, key [32]byte, clock platform.Clock, random io.Reader, publicBaseURL, dataDir string) *Service {
+func NewService(pool *pgxpool.Pool, key [32]byte, clock platform.Clock, random io.Reader, publicBaseURL, dataDir string, turnstile auth.TurnstileVerifier) *Service {
 	if clock == nil {
 		clock = platform.SystemClock{}
 	}
 	if random == nil {
 		random = rand.Reader
 	}
-	return &Service{pool: pool, key: key, clock: clock, random: random, publicBaseURL: publicBaseURL, dataDir: dataDir}
+	return &Service{pool: pool, key: key, clock: clock, random: random, publicBaseURL: publicBaseURL, dataDir: dataDir, turnstile: turnstile}
 }
 
 func (s *Service) GetGroup(ctx context.Context, actor platform.Actor) (SettingsRow, error) {
@@ -136,6 +139,7 @@ type preparedGroupUpdate struct {
 	secrets        map[string]json.RawMessage
 	recovery       *RecoverySecurityRequest
 	recoverySecret json.RawMessage
+	turnstileToken string
 }
 
 func prepareUpdateGroup(actor platform.Actor, group string, req UpdateGroup) (preparedGroupUpdate, error) {
@@ -159,7 +163,11 @@ func prepareUpdateGroup(actor platform.Actor, group string, req UpdateGroup) (pr
 		}
 		return preparedGroupUpdate{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
-	return preparedGroupUpdate{value: clean, secrets: secrets}, nil
+	var token string
+	if group == "security" {
+		_ = json.Unmarshal(groupField(req.Value, "turnstile_token"), &token) // Already validated by ValidateGroup.
+	}
+	return preparedGroupUpdate{value: clean, secrets: secrets, turnstileToken: token}, nil
 }
 
 func (s *Service) updatePreparedGroup(ctx context.Context, actor platform.Actor, group string, expectedVersion int64, prepared preparedGroupUpdate) (GroupResult, error) {
@@ -167,6 +175,11 @@ func (s *Service) updatePreparedGroup(ctx context.Context, actor platform.Actor,
 		return s.updateRecoverySecurity(ctx, actor, expectedVersion, *prepared.recovery, prepared.recoverySecret)
 	}
 	clean, secrets := prepared.value, prepared.secrets
+	if group == "security" {
+		if err := s.verifySecurityUpdate(ctx, expectedVersion, clean, secrets["turnstile_secret"], prepared.turnstileToken); err != nil {
+			return GroupResult{}, err
+		}
+	}
 	ids, err := s.merchantIDs(ctx)
 	if err != nil {
 		return GroupResult{}, err
@@ -182,6 +195,11 @@ func (s *Service) updatePreparedGroup(ctx context.Context, actor platform.Actor,
 		}
 		if current != expectedVersion {
 			return &platform.Error{Code: "VERSION_CONFLICT", HTTPStatus: 409}
+		}
+		if group == "site" {
+			if err := validateFaviconAsset(ctx, tx, clean); err != nil {
+				return err
+			}
 		}
 		if group == "billing" {
 			if err := validateBillingValueTx(ctx, tx, s.key, clean, secrets); err != nil {
@@ -255,7 +273,7 @@ func updateSettingsGroupTx(ctx context.Context, tx pgx.Tx, group string, clean j
 	case "mail":
 		query = `UPDATE site_settings SET mail=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	case "security":
-		query = `UPDATE site_settings SET security=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
+		query = `UPDATE site_settings SET security=$1::jsonb || jsonb_strip_nulls(jsonb_build_object('allowed_hostname',security->'allowed_hostname')),version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	case "payment":
 		query = `UPDATE site_settings SET payment=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	case "billing":
@@ -274,7 +292,7 @@ func prepareRecoveryUpdate(actor platform.Actor, req UpdateGroup) (preparedGroup
 	if err := decodeGroup(req.Value, &input); err != nil {
 		return preparedGroupUpdate{}, err
 	}
-	if strings.TrimSpace(input.SiteKey) == "" || strings.TrimSpace(input.Hostname) == "" {
+	if input.Enabled && strings.TrimSpace(input.SiteKey) == "" {
 		return preparedGroupUpdate{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
 	secret := groupField(req.Value, "turnstile_secret")
@@ -285,7 +303,6 @@ func prepareRecoveryUpdate(actor platform.Actor, req UpdateGroup) (preparedGroup
 }
 
 func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Actor, expectedVersion int64, input RecoverySecurityRequest, secret json.RawMessage) (GroupResult, error) {
-	siteKey, hostname := input.SiteKey, input.Hostname
 	replacesSecret := secret != nil
 	ids, err := s.merchantIDs(ctx)
 	if err != nil {
@@ -298,7 +315,7 @@ func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Act
 		}
 		var current int64
 		var currentSecurity json.RawMessage
-		if err := tx.QueryRow(ctx, `SELECT version,security FROM site_settings WHERE singleton=true FOR UPDATE`).Scan(&current, &currentSecurity); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT version,security - 'allowed_hostname' FROM site_settings WHERE singleton=true FOR UPDATE`).Scan(&current, &currentSecurity); err != nil {
 			return err
 		}
 		if current != expectedVersion {
@@ -308,8 +325,8 @@ func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Act
 		if err := json.Unmarshal(currentSecurity, &merged); err != nil || merged == nil {
 			return errors.New("stored security settings are invalid")
 		}
-		merged["turnstile_site_key"] = marshal(siteKey)
-		merged["allowed_hostname"] = marshal(hostname)
+		merged["turnstile_site_key"] = marshal(input.SiteKey)
+		merged["turnstile_enabled"] = marshal(input.Enabled)
 		if replacesSecret {
 			merged["turnstile_secret"] = append(json.RawMessage(nil), secret...)
 		}
@@ -321,17 +338,17 @@ func (s *Service) updateRecoverySecurity(ctx context.Context, actor platform.Act
 		if err != nil {
 			return &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 		}
-		if !replacesSecret {
+		if input.Enabled && !replacesSecret {
 			var configured bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND encrypted_value IS NOT NULL)`).Scan(&configured); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND octet_length(encrypted_value)>0)`).Scan(&configured); err != nil {
 				return err
 			}
 			if !configured {
-				return &platform.Error{Code: "SETUP_REQUIRED", HTTPStatus: 503}
+				return &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 			}
 		}
 		var nextVersion int64
-		if err := tx.QueryRow(ctx, `UPDATE site_settings SET security=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`, clean, s.clock.Now(), current).Scan(&nextVersion); err != nil {
+		if err := tx.QueryRow(ctx, `UPDATE site_settings SET security=$1::jsonb || jsonb_strip_nulls(jsonb_build_object('allowed_hostname',security->'allowed_hostname')),version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`, clean, s.clock.Now(), current).Scan(&nextVersion); err != nil {
 			return err
 		}
 		if raw, ok := secrets["turnstile_secret"]; ok {
@@ -637,20 +654,16 @@ func (s *Service) GetCollection(ctx context.Context, actor platform.Actor) (Coll
 }
 
 func (s *Service) GetPublic(ctx context.Context) (map[string]any, error) {
-	row, err := (Repository{DB: s.pool}).Get(ctx)
+	var site SiteGroupRequest
+	var home, footer, security map[string]any
+	var configured bool
+	err := s.pool.QueryRow(ctx, `SELECT site,home,footer_legal,security,
+		EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND octet_length(encrypted_value)>0)
+		FROM site_settings WHERE singleton`).Scan(&site, &home, &footer, &security, &configured)
 	if err != nil {
 		return nil, err
 	}
-	var site, home, footer, security map[string]any
-	for raw, target := range map[string]*map[string]any{"site": &site, "home": &home, "footer_legal": &footer, "security": &security} {
-		if err := json.Unmarshal(row.Groups[raw], target); err != nil {
-			return nil, err
-		}
-	}
-	var configured bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND encrypted_value IS NOT NULL)`).Scan(&configured); err != nil {
-		return nil, err
-	}
+	siteKey, _ := security["turnstile_site_key"].(string)
 	legal := map[string]int64{}
 	rows, err := s.pool.Query(ctx, `SELECT DISTINCT ON(kind) kind,revision FROM legal_versions ORDER BY kind,revision DESC`)
 	if err != nil {
@@ -670,8 +683,8 @@ func (s *Service) GetPublic(ctx context.Context) (map[string]any, error) {
 		return nil, err
 	}
 	logo := ""
-	if id, ok := site["logo_asset_id"].(string); ok && id != "" {
-		logo = "/media/" + url.PathEscape(id)
+	if site.LogoAssetID != nil && *site.LogoAssetID != "" {
+		logo = "/media/" + url.PathEscape(*site.LogoAssetID)
 	}
 	footerItems, _ := footer["items"].([]any)
 	visible := make([]any, 0, len(footerItems))
@@ -687,7 +700,7 @@ func (s *Service) GetPublic(ctx context.Context) (map[string]any, error) {
 		bi, _ := b["sort"].(float64)
 		return ai < bi
 	})
-	return map[string]any{"site_name": site["site_name"], "logo_url": logo, "turnstile": map[string]any{"site_key": security["turnstile_site_key"], "configured": configured, "login_action": "login", "register_action": "register"}, "registration_open": true, "email_domain_restriction": map[string]any{"enabled": security["restrict_email_domains"], "domains": security["email_domains"]}, "home": home, "footer": visible, "legal_revisions": map[string]any{"terms": legal["terms"], "privacy": legal["privacy"]}}, nil
+	return map[string]any{"site_name": site.SiteName, "logo_url": logo, "favicon_url": faviconURL(site), "turnstile": map[string]any{"site_key": siteKey, "enabled": security["turnstile_enabled"] == true && strings.TrimSpace(siteKey) != "" && configured, "login_action": "login", "register_action": "register"}, "registration_open": true, "email_domain_restriction": map[string]any{"enabled": security["restrict_email_domains"], "domains": security["email_domains"]}, "home": home, "footer": visible, "legal_revisions": map[string]any{"terms": legal["terms"], "privacy": legal["privacy"]}}, nil
 }
 
 func (s *Service) GetLegal(ctx context.Context, kind string) (map[string]any, error) {

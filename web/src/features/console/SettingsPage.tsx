@@ -138,7 +138,7 @@ export function ConsoleSettingsPage({
                 <Button
                   variant="primary"
                   loading={busy}
-                  disabled={busy || conflict || editor.refreshFailed || (group === 'site' && uploading)}
+                  disabled={busy || conflict || editor.refreshFailed || (group === 'site' && uploading) || (editor.canVerify && !editor.proofToken)}
                   onClick={() => void editor.save()}
                 >
                   {t(`consoleSettings.save.${label(group)}`)}

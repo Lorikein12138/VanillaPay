@@ -1,7 +1,7 @@
 import { createRootRoute, Link, Outlet, useMatch, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { ErrorState } from '@/components/ErrorState'
-import { SiteTitle } from '@/components/SiteBrand'
+import { SiteIcons, SiteTitle } from '@/components/SiteBrand'
 import { TopBar } from '@/components/TopBar'
 
 export const Route = createRootRoute({
@@ -12,7 +12,7 @@ export const Route = createRootRoute({
 
 function Root() {
   const checkout = useMatch({ from: '/pay/$tradeNo', shouldThrow: false })
-  return <>{!checkout && <SiteTitle />}<Outlet /></>
+  return <>{!checkout && <><SiteTitle /><SiteIcons /></>}<Outlet /></>
 }
 
 const actionClass =

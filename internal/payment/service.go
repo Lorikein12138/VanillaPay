@@ -61,7 +61,7 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 		return OrderDTO{}, apiErr("VALIDATION_ERROR", 400)
 	}
 	if err := validateExternalCommand(in); err != nil {
-		return OrderDTO{}, apiErr("VALIDATION_ERROR", 400)
+		return OrderDTO{}, err
 	}
 	tradeNo, err := randomTradeNo(s.random)
 	if err != nil {
@@ -1008,24 +1008,24 @@ func (s *Service) reserveAmountTx(ctx context.Context, tx pgx.Tx, merchantID int
 
 func validateExternalCommand(in CreateCommand) error {
 	if !validOutTradeNo(in.OutTradeNo) || len([]byte(strings.TrimSpace(in.Name))) == 0 || len([]byte(in.Name)) > 4096 || len([]byte(in.Param)) > 1024 || len([]byte(in.ProductID)) > 64 || in.OriginalCents < 1 || in.OriginalCents > MaxAmountCents {
-		return errors.New("invalid order fields")
+		return apiErr("VALIDATION_ERROR", 400)
 	}
 	if in.NotifyURL == "" || !validCallbackURL(in.NotifyURL) {
-		return errors.New("invalid callback URL")
+		return apiErr("INVALID_URL", 400)
 	}
 	if in.ReturnURL != "" && !validReturnURL(in.ReturnURL) {
-		return errors.New("invalid return URL")
+		return apiErr("INVALID_URL", 400)
 	}
 	if in.ClientIP != "" {
 		if _, err := netip.ParseAddr(in.ClientIP); err != nil {
-			return errors.New("invalid client IP")
+			return apiErr("VALIDATION_ERROR", 400)
 		}
 	}
 	if in.Channel != "" && !validChannel(in.Channel) {
-		return errors.New("invalid channel")
+		return apiErr("VALIDATION_ERROR", 400)
 	}
 	if len(in.Channels) > 0 {
-		return errors.New("channels cannot be client selected")
+		return apiErr("VALIDATION_ERROR", 400)
 	}
 	return nil
 }
@@ -1059,6 +1059,8 @@ func validCallbackURL(raw string) bool {
 	if ip, err := netip.ParseAddr(host); err == nil && (!ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()) {
 		return false
 	}
+	// The callback query is not signed and is forwarded verbatim apart from
+	// reserved fields, so repeated or non-standard segments are kept as-is.
 	return true
 }
 func validReturnURL(raw string) bool {
@@ -1066,16 +1068,58 @@ func validReturnURL(raw string) bool {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
 		return false
 	}
-	query, err := url.ParseQuery(u.RawQuery)
+	return signableMerchantQuery(u.RawQuery)
+}
+
+// reservedPaymentFields are the protocol fields the platform owns in signed
+// callback forms and return URLs. Merchant URLs may carry them (the epay
+// ecosystem commonly does); the platform drops them and its own values win.
+var reservedPaymentFields = map[string]struct{}{
+	"pid": {}, "trade_no": {}, "out_trade_no": {}, "type": {}, "name": {}, "money": {}, "trade_status": {}, "param": {},
+	"sign_type": {}, "sign": {}, "api_trade_no": {}, "buyer": {}, "clientip": {}, "addtime": {}, "endtime": {}, "timestamp": {}, "key_id": {},
+}
+
+// signableMerchantQuery reports whether the merchant query parses and, after
+// reserved fields are dropped, has no repeated key: repeated keys cannot be
+// represented in the single-valued signing canonical form.
+func signableMerchantQuery(raw string) bool {
+	query, err := url.ParseQuery(raw)
 	if err != nil {
 		return false
 	}
-	for _, field := range []string{"pid", "trade_no", "out_trade_no", "type", "name", "money", "trade_status", "param", "sign_type", "sign", "api_trade_no", "buyer", "addtime", "endtime", "timestamp", "key_id"} {
-		if _, exists := query[field]; exists {
+	stripPaymentFields(query)
+	for _, values := range query {
+		if len(values) > 1 {
 			return false
 		}
 	}
 	return true
+}
+
+func stripPaymentFields(query url.Values) {
+	for field := range reservedPaymentFields {
+		query.Del(field)
+	}
+}
+
+// stripReservedRawQuery removes reserved payment fields from a raw query while
+// keeping every other segment byte-for-byte and in order, so merchant routing
+// parameters reach the callback endpoint exactly as configured.
+func stripReservedRawQuery(raw string) string {
+	kept := make([]string, 0, strings.Count(raw, "&")+1)
+	for _, part := range strings.Split(raw, "&") {
+		if part == "" {
+			continue
+		}
+		key, _, _ := strings.Cut(part, "=")
+		if name, err := url.QueryUnescape(key); err == nil {
+			if _, reserved := reservedPaymentFields[name]; reserved {
+				continue
+			}
+		}
+		kept = append(kept, part)
+	}
+	return strings.Join(kept, "&")
 }
 func intersectChannels(subscription, requested []string, assets map[string]string) []string {
 	out := []string{}

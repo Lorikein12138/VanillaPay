@@ -93,7 +93,7 @@ func run(ctx context.Context) error {
 		if len(parts) == 3 {
 			response, action = parts[0], parts[1]
 			_, used := usedTokens.LoadOrStore(r.PostForm.Get("response"), true)
-			fresh = !used && parts[2] != "" && (action == "login" || action == "register" || action == "reset_password")
+			fresh = !used && parts[2] != "" && (action == "login" || action == "register" || action == "reset_password" || action == "settings_security")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"success": r.PostForm.Get("secret") == secret && response == token && fresh, "action": action, "hostname": publicURL.Hostname()})
@@ -103,15 +103,14 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	application, err := app.NewWithDependencies(ctx, cfg, app.Dependencies{DatabaseFactory: func(context.Context, config.Config) (app.Database, error) { return pool, nil }})
+	inbox := &browserInbox{codes: make(map[string]string)}
+	verifier := auth.Siteverify{Client: &http.Client{Transport: localSiteverify{target: target}, Timeout: 5 * time.Second}}
+	application, err := app.NewWithDependencies(ctx, cfg, app.Dependencies{Mailer: inbox, Turnstile: verifier, DatabaseFactory: func(context.Context, config.Config) (app.Database, error) { return pool, nil }})
 	if err != nil {
 		return err
 	}
 	defer func() { _ = application.Close() }() // Cleanup must not replace a startup or serve error.
-	// Capture runtime verification mail in memory; SMTP is tested separately.
-	inbox := &browserInbox{codes: make(map[string]string)}
-	application.Services.Auth = auth.NewService(pool, cfg.EncryptionKey, nil, nil, inbox, auth.Siteverify{Client: &http.Client{Transport: localSiteverify{target: target}, Timeout: 5 * time.Second}})
-	value, err := json.Marshal(map[string]any{"turnstile_site_key": token, "turnstile_secret": secret, "allowed_hostname": publicURL.Hostname(), "restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "请联系平台管理员", "en": "Contact the platform administrator"}})
+	value, err := json.Marshal(map[string]any{"turnstile_site_key": token, "turnstile_secret": secret, "turnstile_enabled": true, "turnstile_token": token + ":settings_security:seed", "restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "请联系平台管理员", "en": "Contact the platform administrator"}})
 	if err != nil {
 		return err
 	}

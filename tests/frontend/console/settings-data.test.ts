@@ -11,7 +11,7 @@ import { centsToYuan, yuanToCents } from '@/features/merchant/collection-data'
 
 const settings: Settings = {
   version: 9,
-  site: { site_name: 'VanillaPay', logo_asset_id: null },
+  site: { site_name: 'VanillaPay', logo_asset_id: null, favicon_asset_id: null },
   home: { mode: 'default', html: null, url: null },
   footer_legal: { items: [], terms: { zh_CN: '条款', en: '' }, privacy: { zh_CN: '隐私', en: '' } },
   mail: {
@@ -26,7 +26,7 @@ const settings: Settings = {
   },
   security: {
     turnstile_site_key: '',
-    allowed_hostname: '',
+    turnstile_enabled: false,
     restrict_email_domains: false,
     email_domains: [],
     ban_contact: { zh_CN: '', en: '' },

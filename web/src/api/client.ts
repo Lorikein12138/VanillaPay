@@ -183,11 +183,11 @@ export const consoleApi = {
       '/api/v1/console/settings/mail/test', { recipient }, true, undefined, 'POST', signal,
     ),
   mailTestStatus: (id: string, signal?: AbortSignal) => request<NonNullable<operations['get_api_v1_console_settings_mail_test_id']['responses'][200]['content']['application/json']['data']>>(`/api/v1/console/settings/mail/test/${encodeURIComponent(id)}`, undefined, true, undefined, 'GET', signal),
-  uploadLogo(file: File, signal?: AbortSignal) {
+  uploadSiteImage(kind: 'logo' | 'favicon', file: File, signal?: AbortSignal) {
     const body = new FormData()
     body.set('file', file)
     return request<NonNullable<operations['post_api_v1_console_assets_logo']['responses'][201]['content']['application/json']['data']>>(
-      '/api/v1/console/assets/logo', body, true, undefined, 'POST', signal,
+      `/api/v1/console/assets/${kind}`, body, true, undefined, 'POST', signal,
     )
   },
   orderPage: (filters: OrdersQuery) => request<Schema['OrdersPage']>(`/api/v1/console/orders?${queryString(filters)}`),

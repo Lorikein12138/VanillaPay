@@ -1,6 +1,8 @@
 package payment
 
 import (
+	"html"
+	"io"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -13,37 +15,44 @@ func (h *Handler) V1Submit(w http.ResponseWriter, r *http.Request) { h.v1Create(
 func (h *Handler) V1MAPI(w http.ResponseWriter, r *http.Request) { h.v1Create(w, r, true) }
 
 func (h *Handler) v1Create(w http.ResponseWriter, r *http.Request, api bool) {
+	fail := func(code string) {
+		if api {
+			v1Error(w, code)
+			return
+		}
+		writeSubmitError(w, code)
+	}
 	p, err := parseProtocolParams(r)
 	if err != nil {
-		v1Error(w, "INVALID_SIGNATURE")
+		fail("INVALID_SIGNATURE")
 		return
 	}
 	merchantID, _, err := h.authenticateV1PID(r.Context(), p.Get("pid"), 0)
 	if err != nil {
-		v1Error(w, errorCode(err))
+		fail(errorCode(err))
 		return
 	}
 	key, err := h.currentV1Key(r.Context(), merchantID)
 	if err != nil {
-		v1Error(w, "INVALID_SIGNATURE")
+		fail("INVALID_SIGNATURE")
 		return
 	}
 	if p.Get("sign_type") != "" && strings.ToUpper(p.Get("sign_type")) != "MD5" {
-		v1Error(w, "INVALID_SIGNATURE")
+		fail("INVALID_SIGNATURE")
 		return
 	}
 	if err := VerifyV1(p, string(key)); err != nil {
-		v1Error(w, "INVALID_SIGNATURE")
+		fail("INVALID_SIGNATURE")
 		return
 	}
 	in, err := h.externalCommand(r, p, merchantID, "v1", api)
 	if err != nil {
-		v1Error(w, errorCode(err))
+		fail(errorCode(err))
 		return
 	}
 	order, err := h.Service.Create(r.Context(), in)
 	if err != nil {
-		v1Error(w, errorCode(err))
+		fail(errorCode(err))
 		return
 	}
 	payURL := strings.TrimRight(h.PublicBaseURL, "/") + "/pay/" + url.PathEscape(order.TradeNo)
@@ -58,6 +67,21 @@ func (h *Handler) v1Create(w http.ResponseWriter, r *http.Request, api bool) {
 	http.Redirect(w, r, "/pay/"+url.PathEscape(order.TradeNo), status)
 }
 
+func writeSubmitError(w http.ResponseWriter, code string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, `<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>无法发起支付 · Payment unavailable</title>
+<style>body{margin:0;background:#faf7f0;color:#28231e;font:1rem/1.6 system-ui,sans-serif;padding:clamp(1rem,8vw,5rem)}
+main{max-width:34rem;margin:auto;background:#fffdf8;border:1px solid #e7ded0;border-radius:1rem;padding:clamp(1rem,5vw,2.5rem)}
+h1{font:2rem Georgia,serif;margin:0;color:#87452e}code{overflow-wrap:anywhere}</style>
+<main><h1>无法发起支付</h1><p>请返回商户网站重试，或联系商户并提供下方错误码。</p>
+<p lang="en">Payment could not start. Return to the merchant and try again, or share the error code with them.</p>
+<code>`+html.EscapeString(code)+`</code></main></html>`)
+}
+
 func (h *Handler) externalCommand(r *http.Request, p url.Values, merchantID int64, protocol string, api bool) (CreateCommand, error) {
 	name := p.Get("name")
 	if name == "" || len([]byte(name)) > 4096 {
@@ -68,7 +92,7 @@ func (h *Handler) externalCommand(r *http.Request, p url.Values, merchantID int6
 		return CreateCommand{}, apiErr("VALIDATION_ERROR", 400)
 	}
 	if len(p.Get("notify_url")) > 2048 || len(p.Get("return_url")) > 2048 {
-		return CreateCommand{}, apiErr("VALIDATION_ERROR", 400)
+		return CreateCommand{}, apiErr("INVALID_URL", 400)
 	}
 	channel := p.Get("type")
 	if channel != "" && !validChannel(channel) {

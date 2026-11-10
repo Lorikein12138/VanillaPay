@@ -14,7 +14,7 @@ func TestHTTP_TurnstileAndSMTPFailures(t *testing.T) {
 		fixture := testsupport.NewHTTPFixture(t, db)
 		admin := bootstrapRecoveryAdmin(t, fixture, "bootstrap-repair")
 		response := updateSettingsGroupHTTP(t, fixture, admin, "security", map[string]any{
-			"turnstile_site_key": "bootstrap-site-key", "turnstile_secret": "bootstrap-site-secret", "allowed_hostname": "pay.example.test",
+			"turnstile_site_key": "bootstrap-site-key", "turnstile_secret": "bootstrap-site-secret", "turnstile_enabled": true, "turnstile_token": "ok:settings_security",
 			"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
 		})
 		assertRecoveryAPIError(t, response, http.StatusOK, "")
@@ -34,10 +34,7 @@ func TestHTTP_TurnstileAndSMTPFailures(t *testing.T) {
 			"identifier": "nobody", "password": fixtureWrongPassword,
 			"turnstile_token": "ok:login",
 		}, "guest")
-		if response.Code != http.StatusServiceUnavailable {
-			t.Fatalf("public request fields bypassed unconfigured Turnstile: status=%d body=%s", response.Code, response.Body.String())
-		}
-		assertRecoveryAPIError(t, response, http.StatusServiceUnavailable, "SETUP_REQUIRED")
+		assertRecoveryAPIError(t, response, http.StatusUnauthorized, "INVALID_CREDENTIALS")
 	})
 
 	t.Run("V18.B.r05/v01", func(t *testing.T) {

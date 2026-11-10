@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"io"
+	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -383,7 +384,10 @@ func (h *Handler) checkoutData(ctx context.Context, trade string) (CheckoutDTO, 
 		dto.QRImageURL = stringPtr("/media/" + url.PathEscape(asset.String) + "?trade_no=" + url.QueryEscape(trade) + "&expires=" + expiresText + "&signature=" + url.QueryEscape(sig))
 	}
 	if dto.Status == "paid" && returnURL.Valid {
-		if signed, signErr := h.signedReturnURL(ctx, trade, returnURL.String); signErr == nil {
+		signed, signErr := h.signedReturnURL(ctx, trade, returnURL.String)
+		if signErr != nil {
+			slog.WarnContext(ctx, "checkout_return_url_unsigned", "trade_no", trade, "error", signErr)
+		} else {
 			dto.ReturnURLSigned = &signed
 		}
 	}
@@ -399,12 +403,7 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	if err != nil {
 		return "", err
 	}
-	reserved := []string{"pid", "trade_no", "out_trade_no", "type", "name", "money", "trade_status", "param", "sign_type", "sign", "api_trade_no", "buyer", "addtime", "endtime", "timestamp", "key_id"}
-	for _, key := range reserved {
-		if _, exists := query[key]; exists {
-			return "", errors.New("return URL contains a reserved payment parameter")
-		}
-	}
+	stripPaymentFields(query)
 	var pid, outTrade, channel, name, param, buyer, clientIP, protocol string
 	var amount int64
 	var created, paid time.Time
@@ -414,10 +413,7 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	if err != nil {
 		return "", err
 	}
-	params := url.Values{"pid": {pid}, "trade_no": {trade}, "out_trade_no": {outTrade}, "type": {channel}, "name": {truncateUTF8(name, 127)}, "money": {formatMoney(amount)}, "trade_status": {"TRADE_SUCCESS"}, "sign_type": {"MD5"}}
-	for key, values := range query {
-		params[key] = append([]string(nil), values...)
-	}
+	params := query
 	params.Set("pid", pid)
 	params.Set("trade_no", trade)
 	params.Set("out_trade_no", outTrade)
@@ -461,10 +457,7 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	default:
 		return "", errors.New("unsupported payment protocol")
 	}
-	for key, values := range params {
-		query[key] = values
-	}
-	u.RawQuery = query.Encode()
+	u.RawQuery = params.Encode()
 	return u.String(), nil
 }
 

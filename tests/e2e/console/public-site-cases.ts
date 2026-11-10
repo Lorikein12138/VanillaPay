@@ -106,7 +106,7 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
       expect(upload.status()).toBe(201)
       const { data: { asset_id } } = await upload.json() as { data: LogoUpload }
       const logo = `/media/${asset_id}`
-      await save('site', { site_name: name, logo_asset_id: asset_id })
+      await save('site', { site_name: name, logo_asset_id: asset_id, favicon_asset_id: original.site.favicon_asset_id })
       await save('footer_legal', {
         ...original.footer_legal,
         items: [

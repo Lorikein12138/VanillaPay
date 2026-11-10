@@ -18,7 +18,7 @@ vi.mock('@/features/auth/Turnstile', () => ({
 type Schema = components['schemas']
 const user: Schema['AuthUserDTO'] = { id: '1', role: 'merchant', username: 'test_shop', pid: '9000000000000001', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }
 const session: Schema['AuthSessionResult'] = { user, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 3600000).toISOString(), next_path: '/dashboard' }
-const config: Schema['PublicConfig'] = { site_name: 'Test Shop', logo_url: '', turnstile: { site_key: crypto.randomUUID(), configured: true, login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
+const config: Schema['PublicConfig'] = { site_name: 'Test Shop', logo_url: '', favicon_url: '/favicon.ico?v=default', turnstile: { site_key: crypto.randomUUID(), enabled: true, login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: Schema['ErrorCode'], fields = {}) => HttpResponse.json({ error: { code, fields, details: {}, message: code }, request_id: crypto.randomUUID() }, { status })
 const server = setupServer(emptyNotifications,
@@ -159,13 +159,23 @@ describe('merchant login', () => {
     expect(await screen.findByText('网络连接失败，请检查网络后重试。')).toBeVisible()
   })
 
-  it('shows setup guidance without loading a widget when not configured', async () => {
-    server.use(http.get('*/api/v1/public/config', () => success({ ...config, registration_open: false, turnstile: { ...config.turnstile, configured: false } })))
+  it('permits login without a token or widget when Turnstile is disabled', async () => {
+    server.use(http.get('*/api/v1/public/config', () => success({ ...config, registration_open: false, turnstile: { ...config.turnstile, enabled: false } })))
     renderApp()
-    expect(await screen.findByText('站点尚未完成配置，请联系平台管理员。')).toBeVisible()
+    expect(await screen.findByText('需要开通商户？请联系平台管理员')).toBeVisible()
     expect(screen.queryByRole('button', { name: '完成人机验证' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '登录' })).toBeDisabled()
-    expect(screen.getByText('需要开通商户？请联系平台管理员')).toBeVisible()
+    await waitFor(() => expect(screen.getByRole('button', { name: '登录' })).toBeEnabled())
+    const requests: unknown[] = []
+    server.use(http.post('*/api/v1/auth/login', async ({ request }) => {
+      requests.push(await request.json())
+      return failure(401, 'INVALID_CREDENTIALS')
+    }))
+    const actor = userEvent.setup()
+    await actor.type(screen.getByLabelText('用户名 / 邮箱'), 'merchant')
+    await actor.type(screen.getByLabelText('密码', { exact: true }), crypto.randomUUID())
+    await actor.click(screen.getByRole('button', { name: '登录' }))
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0]).not.toHaveProperty('turnstile_token')
     expect(screen.queryByRole('link', { name: '注册商户' })).not.toBeInTheDocument()
   })
 
