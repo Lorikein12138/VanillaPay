@@ -35,6 +35,9 @@ test('purchases a plan, keeps the cashier URL unchanged, cancels it and shows bo
   await signIn(page, account, '/subscription')
   const card = page.getByRole('region', { name: '基础套餐', exact: true })
   await expect(card.getByRole('button', { name: '购买套餐' })).toBeEnabled()
+  for (const name of ['支付宝', '微信支付', 'QQ 钱包']) {
+    await expect(card.getByText(name, { exact: true })).toBeVisible()
+  }
   await shot(page, 'subscription')
   await shot(page, 'purchase-dialog', () => card.getByRole('button', { name: '购买套餐' }).click())
   const creating = page.waitForResponse((response) => response.url().endsWith('/subscription/purchases') && response.request().method() === 'POST')
