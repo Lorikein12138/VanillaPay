@@ -1,3 +1,5 @@
+import { chooseSelect, chooseMenu } from '../portal-controls'
+import userEvent from '@testing-library/user-event'
 import { emptyNotifications } from '../merchant/notification-fixture'
 import { createMemoryHistory, RouterContextProvider, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -29,14 +31,14 @@ const server = setupServer(emptyNotifications, http.get('*/api/v1/public/config'
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())
-function wrapper(children: ReactNode) {
+function wrapper(children: ReactNode, client = createQueryClient()) {
   initTheme()
-  const client = createQueryClient()
   return { client, ...render(<AppProviders i18n={createI18n('zh-CN')} queryClient={client}>{children}</AppProviders>) }
 }
 function mount(path: string) {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
-  return { router, ...wrapper(<RouterProvider router={router} />) }
+  const client = createQueryClient()
+  return { router, ...wrapper(<RouterProvider router={router} context={{ queryClient: client }} />, client) }
 }
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } })
 
@@ -180,7 +182,7 @@ describe('identity and preferences', () => {
     server.use(http.patch('*/api/v1/merchant/preferences', async () => { await delay(100); return failure(500, 'INTERNAL_ERROR') }))
     mount('/account'); await screen.findByRole('heading', { name: '账户安全' })
     await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'light'))
-    fireEvent.click(screen.getByRole('button', { name: '深色' }))
+    await chooseMenu(userEvent.setup(), '主题', '深色')
     await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'dark'))
     expect(await screen.findByRole('alert')).toHaveTextContent('服务暂时不可用')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
@@ -190,11 +192,11 @@ describe('identity and preferences', () => {
     let saves = 0
     server.use(http.patch('*/api/v1/merchant/preferences', async ({ request }) => { saves++; if (saves === 1) return failure(500, 'INTERNAL_ERROR'); return success(await request.json()) }))
     mount('/account'); await screen.findByRole('heading', { name: '账户安全' })
-    fireEvent.click(screen.getByRole('button', { name: '切换语言为 English' }))
+    await chooseMenu(userEvent.setup(), '语言', 'English')
     expect(await screen.findByRole('alert')).toHaveTextContent('服务暂时不可用')
     expect(localStorage.getItem('vp-language')).toBe('zh-CN')
-    fireEvent.change(screen.getByLabelText('账户主题'), { target: { value: 'dark' } })
-    await waitFor(() => expect(screen.getByLabelText('账户主题')).toHaveValue('dark'))
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('账户主题'), 'dark')
+    await waitFor(() => expect(screen.getByLabelText('账户主题')).toHaveAttribute('data-value', 'dark'))
     expect(localStorage.getItem('vp-theme')).toBe('dark')
   })
   it('recognizes /account, guards anonymous entry and redirects banned users', async () => {

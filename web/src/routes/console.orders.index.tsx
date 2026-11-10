@@ -1,7 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { OrdersPage } from '@/features/merchant/OrdersPage'
-export const Route = createFileRoute('/console/orders/')({ component: Orders })
-function Orders() {
-  const { session } = Route.useRouteContext(), filters = Route.useSearch(), navigate = Route.useNavigate()
-  return <OrdersPage role="console" name={session.user.username} filters={filters} onFilters={(search) => { void navigate({ search }) }} />
-}
+import { ordersQuery } from '@/app/portal-queries'
+import { preparePortalRoute } from '@/app/portal-preload'
+import { orderSearch } from '@/features/merchant/orders-data'
+
+export const Route = createFileRoute('/console/orders/')({
+  loaderDeps: ({ search }) => orderSearch(search),
+  loader: ({ context: { queryClient, session, hasMountedPortal }, cause, deps }) => {
+    const name = session.user.username
+    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureInfiniteQueryData(ordersQuery('console', name, deps))])
+  },
+})

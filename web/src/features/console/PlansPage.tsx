@@ -1,5 +1,6 @@
+import { plansQuery } from '@/app/portal-queries'
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi } from '@/api/client'
 import { FormHint, FormStack } from '@/components/ui/auth-screen'
@@ -22,7 +23,7 @@ type Plan = Schema['SubscriptionPlanDTO']
 export function PlansPage() {
   const { t, i18n } = useTranslation(), [deleted, setDeleted] = useState(false), [notice, setNotice] = useState('')
   const [dialog, setDialog] = useState<{ mode: 'edit' | 'delete'; plan?: Plan } | null>(null)
-  const query = useQuery({ queryKey: ['console', 'plans', deleted], queryFn: ({ signal }) => consoleApi.plans(deleted, signal) })
+  const query = useQuery({ ...plansQuery(deleted), placeholderData: keepPreviousData })
   return <Page>
     <PageHeader title={t('manage.plans')} actions={<Button variant="primary" onClick={() => setDialog({ mode: 'edit' })}>{t('manage.createPlan')}</Button>} />
     <Checkbox checked={deleted} onChange={(event) => setDeleted(event.target.checked)}>{t('manage.showDeleted')}</Checkbox>

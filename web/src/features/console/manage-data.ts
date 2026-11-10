@@ -1,4 +1,5 @@
-import { useInfiniteQuery, type QueryClient } from '@tanstack/react-query'
+import { readRFC3339 } from '@/lib/date-time'
+import { type QueryClient } from '@tanstack/react-query'
 import type { components, operations } from '@/api/schema'
 import { yuanToCents } from '@/features/merchant/collection-data'
 
@@ -25,8 +26,8 @@ export function merchantSearch(search: Record<string, unknown>): MerchantFilters
 export function purchaseSearch(search: Record<string, unknown>): PurchaseFilters {
   const id = (value: unknown) => /^\d+$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : undefined
   return {
-    start: typeof search.start === 'string' ? search.start : undefined,
-    end: typeof search.end === 'string' ? search.end : undefined,
+    start: readRFC3339(search.start),
+    end: readRFC3339(search.end),
     state: purchaseStates.find((state) => state === search.state),
     merchant_id: id(search.merchant_id), plan_id: id(search.plan_id),
   }
@@ -45,11 +46,4 @@ export function planInput(zh: string, en: string, price: string, days: string, s
 }
 export async function invalidateConsole(client: QueryClient) {
   await client.invalidateQueries({ queryKey: ['console'] })
-}
-export function useCursorList<T>(key: readonly unknown[], load: (cursor: string | undefined, signal: AbortSignal) => Promise<{ items: T[] | null; total: number; next_cursor: string | null }>) {
-  return useInfiniteQuery({
-    queryKey: key, gcTime: 0, initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) => load(pageParam, signal),
-    getNextPageParam: (page) => page.next_cursor ?? undefined,
-  })
 }

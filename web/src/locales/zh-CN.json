@@ -28,6 +28,8 @@
     "dark": "深色"
   },
   "home": {
+    "register": "注册",
+    "dashboard": "进入后台",
     "redirecting": "正在跳转…",
     "continueToDestination": "如未自动跳转，请点击继续",
     "nav": {
@@ -372,6 +374,14 @@
     }
   },
   "ui": {
+    "collapseSidebar": "收起侧栏",
+    "expandSidebar": "展开侧栏",
+    "clearDateTime": "清空日期时间",
+    "openDateTime": "选择日期时间",
+    "previousMonth": "上个月",
+    "nextMonth": "下个月",
+    "time": "时间",
+    "applyDateTime": "应用日期时间",
     "close": "关闭",
     "dismiss": "关闭提示",
     "copy": "复制",

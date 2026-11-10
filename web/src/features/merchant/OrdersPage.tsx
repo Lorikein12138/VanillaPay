@@ -1,3 +1,8 @@
+import { ordersQuery } from '@/app/portal-queries'
+import { useResetPortalCursors } from '@/app/portal-cursors'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
+import { localDateInput, parseLocalDateTime } from '@/lib/date-time'
+import { Select, SelectOption } from '@/components/ui/select'
 import { hashKey, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Inbox } from 'lucide-react'
 import { useId, useRef, useState, type FormEvent } from 'react'
@@ -6,10 +11,10 @@ import { api, consoleApi } from '@/api/client'
 import { FormError } from '@/components/FormError'
 import { Button } from '@/components/ui/button'
 import { Field, FieldGrid, FormActions } from '@/components/ui/field'
-import { Input, Select } from '@/components/ui/input'
+import { Input } from '@/components/ui/input'
 import { Card, EmptyState, Page, PageHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
-import { localDateInput, orderChannels, orderErrorKey, orderStatuses, type OrderFilters } from './orders-data'
+import { orderChannels, orderErrorKey, orderStatuses, type OrderFilters } from './orders-data'
 import { OrderRows } from './OrderParts'
 
 export function OrdersPage({ name, filters, onFilters, role = 'merchant' }: { role?: 'merchant' | 'console'; name: string; filters: OrderFilters; onFilters: (value: OrderFilters) => void }) {
@@ -18,18 +23,15 @@ export function OrdersPage({ name, filters, onFilters, role = 'merchant' }: { ro
   const exportBusy = useRef(false)
   const [exportError, setExportError] = useState<unknown>()
   const client = useQueryClient()
-  const queryKey = [role, name, 'orders', 'list', filters]
-  const orders = useInfiniteQuery({
-    queryKey,
-    // A different filter or a return from detail always starts at the first cursor.
-    gcTime: 0,
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => (role === 'console' ? consoleApi : api).orderPage({ ...filters, limit: 20, cursor: pageParam }),
-    getNextPageParam: (page) => page.next_cursor ?? undefined,
-  })
+  const options = ordersQuery(role, name, filters)
+  const orders = useInfiniteQuery(options)
+  useResetPortalCursors(options.queryKey)
   const items = orders.data?.pages.flatMap((page) => page.items ?? []) ?? []
   function applyFilters(next: OrderFilters) {
-    if (hashKey([next]) === hashKey([filters])) void client.resetQueries({ queryKey, exact: true })
+    if (hashKey([next]) === hashKey([filters])) {
+      client.setQueryData(options.queryKey, (data) => data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) })
+      void client.invalidateQueries({ queryKey: options.queryKey, exact: true })
+    }
     onFilters(next)
   }
   async function exportCSV() {
@@ -68,7 +70,7 @@ export function OrdersPage({ name, filters, onFilters, role = 'merchant' }: { ro
       <OrderFilterForm key={JSON.stringify(filters)} filters={filters} onApply={applyFilters} />
       <section aria-label={t('merchant.orders.results')} aria-busy={orders.isPending} className="flex min-w-0 flex-col gap-4">
         {orders.isPending ? (
-          <div className="flex flex-col gap-3">
+          <div role="status" aria-label={t('polish.loading')} className="flex flex-col gap-3">
             <Skeleton className="h-4 w-28" />
             <Skeleton className="h-80 w-full" />
           </div>
@@ -94,7 +96,7 @@ export function OrdersPage({ name, filters, onFilters, role = 'merchant' }: { ro
             ) : (
               <EmptyState icon={<Inbox strokeWidth={1.5} />} title={t('merchant.orders.empty')} />
             ))}
-            {orders.hasNextPage && (
+            {orders.hasNextPage && !orders.isPlaceholderData && (
               <div className="flex justify-center pt-2">
                 <Button loading={orders.isFetchingNextPage} onClick={() => { void orders.fetchNextPage() }}>
                   {t(orders.isFetchingNextPage ? 'merchant.orders.loading' : 'merchant.orders.more')}
@@ -119,7 +121,7 @@ function OrderFilterForm({ filters, onApply }: { filters: OrderFilters; onApply:
   const [invalid, setInvalid] = useState(false)
   function submit(event: FormEvent) {
     event.preventDefault()
-    if ((start && Number.isNaN(Date.parse(start))) || (end && Number.isNaN(Date.parse(end))) || (start && end && Date.parse(end) <= Date.parse(start)) || new TextEncoder().encode(query.trim()).length > 100) { setInvalid(true); return }
+    if ((start && Number.isNaN(parseLocalDateTime(start))) || (end && Number.isNaN(parseLocalDateTime(end))) || (start && end && parseLocalDateTime(end) <= parseLocalDateTime(start)) || new TextEncoder().encode(query.trim()).length > 100) { setInvalid(true); return }
     setInvalid(false)
     onApply({ status: status || undefined, channel: channel || undefined, query: query.trim() || undefined, start: start ? new Date(start).toISOString() : undefined, end: end ? new Date(end).toISOString() : undefined })
   }
@@ -136,22 +138,22 @@ function OrderFilterForm({ filters, onApply }: { filters: OrderFilters; onApply:
             <Input id={`${id}-query`} type="search" value={query} maxLength={100} placeholder={t('merchant.orders.searchPlaceholder')} onChange={(event) => setQuery(event.target.value)} />
           </Field>
           <Field label={t('merchant.overview.status')} htmlFor={`${id}-status`}>
-            <Select id={`${id}-status`} value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="">{t('merchant.orders.allStatuses')}</option>
-              {orderStatuses.map((value) => <option key={value} value={value}>{t(`merchant.overview.statuses.${value}`)}</option>)}
+            <Select id={`${id}-status`} value={status} onValueChange={setStatus}>
+              <SelectOption value="">{t('merchant.orders.allStatuses')}</SelectOption>
+              {orderStatuses.map((value) => <SelectOption key={value} value={value}>{t(`merchant.overview.statuses.${value}`)}</SelectOption>)}
             </Select>
           </Field>
           <Field label={t('merchant.overview.channel')} htmlFor={`${id}-channel`}>
-            <Select id={`${id}-channel`} value={channel} onChange={(event) => setChannel(event.target.value)}>
-              <option value="">{t('merchant.orders.allChannels')}</option>
-              {orderChannels.map((value) => <option key={value} value={value}>{t(`merchant.overview.channels.${value}`)}</option>)}
+            <Select id={`${id}-channel`} value={channel} onValueChange={setChannel}>
+              <SelectOption value="">{t('merchant.orders.allChannels')}</SelectOption>
+              {orderChannels.map((value) => <SelectOption key={value} value={value}>{t(`merchant.overview.channels.${value}`)}</SelectOption>)}
             </Select>
           </Field>
           <Field label={t('merchant.orders.start')} htmlFor={`${id}-start`}>
-            <Input id={`${id}-start`} type="datetime-local" step="1" value={start} aria-invalid={invalid || undefined} onChange={(event) => setStart(event.target.value)} />
+            <DateTimePicker id={`${id}-start`} value={start} invalid={invalid} onValueChange={setStart} />
           </Field>
           <Field label={t('merchant.orders.end')} htmlFor={`${id}-end`}>
-            <Input id={`${id}-end`} type="datetime-local" step="1" value={end} aria-invalid={invalid || undefined} onChange={(event) => setEnd(event.target.value)} />
+            <DateTimePicker id={`${id}-end`} value={end} invalid={invalid} onValueChange={setEnd} />
           </Field>
         </FieldGrid>
         {invalid && <FormError>{t('merchant.orders.errors.filters')}</FormError>}

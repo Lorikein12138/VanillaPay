@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
-import { expect, login, merchantVisualShots, noOverflow, test, clickControl, polishShot } from './fixtures'
+import { chooseSelect, expect, login, merchantVisualShots, noOverflow, test, clickControl, polishShot } from './fixtures'
 
 async function shot(page: Page, name: string) {
   const width = page.viewportSize()?.width
@@ -61,7 +61,7 @@ test('uploads and replaces collection codes, toggles availability and saves boun
   await expect(slot.getByText('已启用', { exact: true })).toBeVisible()
   await page.getByLabel('订单有效期（秒）', { exact: true }).fill('120')
   await page.getByLabel('浮动上限（元）', { exact: true }).fill('0.29')
-  await page.getByLabel('浮动方向', { exact: true }).selectOption('down')
+  await chooseSelect(page, page.getByLabel('浮动方向', { exact: true }), 'down')
   await page.getByRole('button', { name: '保存收款设置' }).click()
   await polishShot(page, 'collection-settings-dialog', false)
   await page.getByRole('button', { name: '确认保存', exact: true }).click()

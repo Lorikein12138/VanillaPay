@@ -1,3 +1,4 @@
+import { usePreloadPortalCode } from '@/app/portal-preload'
 import { Outlet, useNavigate, useRouter } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { LogOut } from 'lucide-react'
@@ -14,6 +15,8 @@ import { AccountProvider, useMerchantAccount } from '@/features/merchant/Account
 import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { consoleNavigation } from './navigation'
 
+const idleRoutes = [...consoleNavigation, { path: '/console/account', enabled: true }]
+
 export function ConsoleLayout({ session }: { session: components['schemas']['SessionIdentity'] }) {
   return <AccountProvider role="console" session={session}><ConsoleContent /></AccountProvider>
 }
@@ -21,6 +24,7 @@ export function ConsoleLayout({ session }: { session: components['schemas']['Ses
 function ConsoleContent() {
   const { t } = useTranslation(), account = useMerchantAccount()!, navigate = useNavigate(), router = useRouter(), client = useQueryClient(), action = useLocalAction()
   const [open, setOpen] = useState(false), menu = useRef<HTMLButtonElement>(null)
+  usePreloadPortalCode(idleRoutes)
   useEffect(() => router.subscribe('onBeforeNavigate', () => setOpen(false)), [router])
   const close = () => setOpen(false)
   async function logout() {

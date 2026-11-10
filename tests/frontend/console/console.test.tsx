@@ -1,3 +1,4 @@
+import { chooseMenu } from '../portal-controls'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -41,7 +42,7 @@ afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())
 function mount(path = '/console/login') {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) }), client = createQueryClient()
-  const view = render(<AppProviders queryClient={client} i18n={createI18n()}><RouterProvider router={router} /></AppProviders>)
+  const view = render(<AppProviders queryClient={client} i18n={createI18n()}><RouterProvider router={router} context={{ queryClient: client }} /></AppProviders>)
   return { router, client, ...view }
 }
 function recovery(overrides: Partial<ConsoleRecovery> = {}): ConsoleRecovery {
@@ -188,7 +189,7 @@ describe('console guards and login', () => {
     signedIn = true
     server.use(http.patch('*/api/v1/console/preferences', () => { signedIn = false; return failure(401, 'UNAUTHENTICATED') }))
     const { router } = mount('/console/account'), actor = userEvent.setup()
-    await actor.click(await screen.findByRole('button', { name: '深色' }))
+    await chooseMenu(actor, '主题', '深色')
     await screen.findByRole('heading', { name: '管理员登录' })
     expect(router.state.location.pathname).toBe('/console/login')
     expect(router.state.location.search).toMatchObject({ redirect: '/console/account' })

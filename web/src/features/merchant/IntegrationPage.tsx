@@ -1,3 +1,4 @@
+import { integrationQuery } from '@/app/portal-queries'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -17,11 +18,7 @@ import { ModuleError, useLocalAction } from './CollectionParts'
 export function IntegrationPage({ user }: { user: Schema['AuthUserDTO'] }) {
   const { t } = useTranslation()
   const name = user.username, client = useQueryClient()
-  const integration = useQuery({ queryKey: ['merchant', name, 'integration'], queryFn: async () => {
-    const data = await api.integration()
-    // This endpoint returns a secret. Discard it before entering the query cache.
-    return { ...data, key: '' }
-  }, gcTime: 0 })
+  const integration = useQuery(integrationQuery(name))
   const [dialog, setDialog] = useState<'reset' | 'rsa' | null>(null)
   const [reveal, setReveal] = useState(false), [currentKey, setCurrentKey] = useState('')
   const secretAction = useLocalAction(), revealIntent = useRef(false)

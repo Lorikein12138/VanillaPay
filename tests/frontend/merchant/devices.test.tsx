@@ -1,3 +1,4 @@
+import { chooseSelect } from '../portal-controls'
 import { emptyNotifications } from './notification-fixture'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -33,14 +34,14 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())
-function wrapper(children: ReactNode) {
-  const client = createQueryClient()
+function wrapper(children: ReactNode, client = createQueryClient()) {
   const rendered = render(<AppProviders i18n={createI18n()} queryClient={client}>{children}</AppProviders>)
   return { client, ...rendered }
 }
 function mount(path: string) {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
-  return { router, ...wrapper(<RouterProvider router={router} />) }
+  const client = createQueryClient()
+  return { router, ...wrapper(<RouterProvider router={router} context={{ queryClient: client }} />, client) }
 }
 function binding(expires = 300): Schema['DeviceBindingDTO'] { return { binding_id: crypto.randomUUID(), code: crypto.randomUUID(), qr_content: 'vanillapay://bind?code=fixture', expires_at: new Date(Date.now() + expires * 1000).toISOString() } }
 
@@ -431,7 +432,7 @@ describe('receipt URL filters and pagination', () => {
     await userEvent.click(screen.getByRole('button', { name: '加载更多' }))
     await screen.findAllByRole('button', { name: 'receipt-2' })
     expect(urls.at(-1)!.searchParams.get('cursor')).toBe('next-fixture')
-    await userEvent.selectOptions(screen.getByLabelText('匹配状态'), 'unmatched')
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('匹配状态'), 'unmatched')
     await userEvent.click(screen.getByRole('button', { name: '应用筛选' }))
     await waitFor(() => expect(urls.at(-1)!.searchParams.get('match_state')).toBe('unmatched'))
     expect(urls.at(-1)!.searchParams.has('cursor')).toBe(false)
@@ -445,9 +446,9 @@ describe('receipt URL filters and pagination', () => {
     const requests: URL[] = []
     server.use(http.get('*/api/v1/merchant/receipts', ({ request }) => { requests.push(new URL(request.url)); return success({ items: [], total: 0, next_cursor: null }) }))
     const { router } = mount('/devices?channel=alipay&match_state=matched&start=2026-11-01T00%3A00%3A00Z')
-    expect(await screen.findByLabelText('匹配状态')).toHaveValue('matched')
-    expect(screen.getByLabelText('收款渠道')).toHaveValue('alipay')
-    await userEvent.selectOptions(screen.getByLabelText('匹配状态'), 'unmatched')
+    expect(await screen.findByLabelText('匹配状态')).toHaveAttribute('data-value', 'matched')
+    expect(screen.getByLabelText('收款渠道')).toHaveAttribute('data-value', 'alipay')
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('匹配状态'), 'unmatched')
     fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2026-11-04T10:30' } })
     await userEvent.click(screen.getByRole('button', { name: '应用筛选' }))
     await waitFor(() => expect(router.state.location.search.match_state).toBe('unmatched'))

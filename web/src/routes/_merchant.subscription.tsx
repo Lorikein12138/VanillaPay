@@ -1,4 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { SubscriptionPage } from '@/features/merchant/SubscriptionPage'
-export const Route = createFileRoute('/_merchant/subscription')({ component: Subscription })
-function Subscription() { return <SubscriptionPage name={Route.useRouteContext().session.user.username} /> }
+import { subscriptionQuery } from '@/app/portal-queries'
+import { preparePortalRoute } from '@/app/portal-preload'
+
+export const Route = createFileRoute('/_merchant/subscription')({
+  loader: ({ context: { queryClient, session, hasMountedPortal }, cause }) => {
+    const name = session.user.username
+    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureQueryData(subscriptionQuery(name))])
+  },
+})

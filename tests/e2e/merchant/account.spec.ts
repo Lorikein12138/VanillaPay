@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '@/api/schema'
-import { expect, login, noOverflow, test, totp, clickControl, openMenu, closeMenu, polishShot } from './fixtures'
+import { chooseSelect, chooseMenu, expect, login, noOverflow, test, totp, clickControl, openMenu, closeMenu, polishShot } from './fixtures'
 
 async function shot(page: Page, name: string) {
   const width = page.viewportSize()?.width
@@ -148,21 +148,21 @@ test('persists header and account preferences across sessions and overrides publ
   await signIn(page, account)
   const savedTheme = page.waitForResponse((response) => response.url().endsWith('/merchant/preferences'))
   await clickControl(page, '深色'); expect((await savedTheme).status()).toBe(200)
-  await expect(page.getByLabel(/账户主题|Account theme/)).toHaveValue('dark')
+  await expect(page.getByLabel(/账户主题|Account theme/)).toHaveAttribute('data-value', 'dark')
   const savedLanguage = page.waitForResponse((response) => response.url().endsWith('/merchant/preferences'))
-  await page.getByLabel(/账户语言|Account language/).selectOption('en'); expect((await savedLanguage).status()).toBe(200)
+  await chooseSelect(page, page.getByLabel(/账户语言|Account language/), 'en'); expect((await savedLanguage).status()).toBe(200)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await clickControl(page, 'Sign out')
   // Wait for the public page so this click cannot hit the departing account's
   // preference control while sign-out navigation is still in flight.
   await expect(page).toHaveURL(/\/login(?:\?|$)/)
-  await page.getByRole('button', { name: 'Switch language to 中文' }).click()
+  await chooseMenu(page, 'Language', '中文')
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
   await clickControl(page, '浅色')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await login(page, account); await expect(page).toHaveURL(/\/dashboard$/)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en'); await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await openMenu(page); await page.getByRole('link', { name: account.username, exact: true }).click()
-  await expect(page.getByLabel(/账户语言|Account language/)).toHaveValue('en'); await expect(page.getByLabel(/账户主题|Account theme/)).toHaveValue('dark')
+  await expect(page.getByLabel(/账户语言|Account language/)).toHaveAttribute('data-value', 'en'); await expect(page.getByLabel(/账户主题|Account theme/)).toHaveAttribute('data-value', 'dark')
   await noOverflow(page)
 })

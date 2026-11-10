@@ -1,3 +1,5 @@
+import { chooseMenu } from '../portal-controls'
+import userEvent from '@testing-library/user-event'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { delay, http, HttpResponse } from 'msw'
@@ -29,7 +31,7 @@ afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())
 function mount(route = false) {
   const client = createQueryClient()
-  return { client, ...render(<AppProviders queryClient={client} i18n={createI18n()}>{route ? <RouterProvider router={createAppRouter({ history: createMemoryHistory({ initialEntries: ['/pay/order-1'] }) })} /> : <CheckoutPage tradeNo="order-1" />}</AppProviders>) }
+  return { client, ...render(<AppProviders queryClient={client} i18n={createI18n()}>{route ? <RouterProvider router={createAppRouter({ queryClient: client, history: createMemoryHistory({ initialEntries: ['/pay/order-1'] }) })} /> : <CheckoutPage tradeNo="order-1" />}</AppProviders>) }
 }
 async function tick(ms: number) { await act(async () => { await vi.advanceTimersByTimeAsync(ms) }) }
 
@@ -268,7 +270,7 @@ describe('public checkout', () => {
   it('shows the paid amount and localized channel once, including English', async () => {
     value = { ...locked(), status: 'paid' }; mount()
     expect(await screen.findByText('已支付 ¥29.99 · 支付宝')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: '切换语言为 English' }))
+    await chooseMenu(userEvent.setup(), '语言', 'English')
     expect(await screen.findByText('Paid ¥29.99 · Alipay')).toBeVisible()
     expect(screen.getByText('You may close this page.')).toBeVisible()
   })

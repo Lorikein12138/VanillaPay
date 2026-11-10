@@ -1,8 +1,9 @@
+import { Select, SelectOption } from '@/components/ui/select'
 import { useState } from 'react'
 import { useBlocker } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Checkbox, Select } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/input'
 import { Dialog } from '@/components/ui/dialog'
 import { FormActions } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
@@ -92,13 +93,13 @@ export function ConsoleSettingsPage({
               aria-label={t('consoleSettings.groupsLabel')}
               value={group}
               disabled={busy}
-              onChange={(event) => selectGroup(event.target.value as SettingsGroup)}
+              onValueChange={(next) => selectGroup(next as SettingsGroup)}
             >
               {settingsGroups.map((key) => (
-                <option key={key} value={key}>
+                <SelectOption key={key} value={key}>
                   {groupLabel(key)}
                   {drafts[key] ? ` · ${t('consoleSettings.unsaved')}` : ''}
-                </option>
+                </SelectOption>
               ))}
             </Select>
           </div>

@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { PurchasesPage } from '@/features/console/PurchasesPage'
+import { plansQuery, purchasesQuery } from '@/app/portal-queries'
+import { preparePortalRoute } from '@/app/portal-preload'
 import { purchaseSearch } from '@/features/console/manage-data'
-export const Route = createFileRoute('/console/purchases')({ validateSearch: purchaseSearch, component: Purchases })
-function Purchases() {
-  const filters = Route.useSearch(), navigate = Route.useNavigate()
-  return <PurchasesPage filters={filters} onFilters={(search) => { void navigate({ search }) }} />
-}
+
+export const Route = createFileRoute('/console/purchases')({
+  validateSearch: purchaseSearch,
+  loaderDeps: ({ search }) => purchaseSearch(search),
+  loader: ({ context: { queryClient, hasMountedPortal }, cause, deps }) => preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureInfiniteQueryData(purchasesQuery(deps)), queryClient.ensureQueryData(plansQuery(true))]),
+})

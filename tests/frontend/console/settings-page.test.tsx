@@ -1,3 +1,4 @@
+import { chooseSelect } from '../portal-controls'
 import { focusManager } from '@tanstack/react-query'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -57,7 +58,7 @@ const settings: S['Settings'] = {
   },
   billing: { merchant_pid: '', key_configured: false, merchant_id: null, credential_valid: true },
 }
-const server = setupServer()
+const server = setupServer(http.get('*/api/v1/merchant/me', () => new HttpResponse(null, { status: 401 })), )
 let signedIn = false
 let current: S['Settings']
 const success = <T,>(data: T) => HttpResponse.json({ data })
@@ -159,7 +160,7 @@ function mount(path = '/console/settings') {
     client,
     ...render(
       <AppProviders queryClient={client} i18n={createI18n()}>
-        <RouterProvider router={router} />
+        <RouterProvider router={router} context={{ queryClient: client }} />
       </AppProviders>,
     ),
   }
@@ -674,11 +675,11 @@ describe('console settings page', () => {
     await screen.findByLabelText('首页展示方式')
     await actor.click(screen.getByRole('button', { name: '保存首页设置' }))
     await screen.findByText('首页设置已保存。')
-    await actor.selectOptions(screen.getByLabelText('首页展示方式'), 'html')
+    await chooseSelect(actor, screen.getByLabelText('首页展示方式'), 'html')
     await actor.type(screen.getByLabelText('HTML'), '<main>首页</main>')
     await actor.click(screen.getByRole('button', { name: '保存首页设置' }))
     await screen.findByText('首页设置已保存。')
-    await actor.selectOptions(screen.getByLabelText('首页展示方式'), 'url')
+    await chooseSelect(actor, screen.getByLabelText('首页展示方式'), 'url')
     await actor.type(screen.getByLabelText('首页地址'), 'https://home.example.test')
     await actor.click(screen.getByRole('button', { name: '保存首页设置' }))
     await waitFor(() => expect(values).toHaveLength(3))

@@ -35,7 +35,7 @@ afterAll(() => server.close())
 
 function renderApp(path = '/login', queryClient = createQueryClient()) {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
-  render(<AppProviders i18n={createI18n()} queryClient={queryClient}><RouterProvider router={router} /></AppProviders>)
+  render(<AppProviders i18n={createI18n()} queryClient={queryClient}><RouterProvider router={router} context={{ queryClient: queryClient }} /></AppProviders>)
   return router
 }
 async function fillLogin() {
@@ -190,7 +190,7 @@ describe('merchant login', () => {
     await actor.click(screen.getByRole('button', { name: '登录' }))
     await waitFor(() => expect(router.state.location.href).toBe('/orders?status=paid'))
     expect(await screen.findByRole('navigation', { name: '商户导航' })).toBeVisible()
-    expect(await screen.findByLabelText('状态', { exact: true })).toHaveValue('paid')
+    expect(await screen.findByLabelText('状态', { exact: true })).toHaveAttribute('data-value', 'paid')
   })
 
   it.each(['pending', 500, 403, 'network', 200, 401] as const)('logout %s preserves private state until success, except the global 401 redirect', async (outcome) => {

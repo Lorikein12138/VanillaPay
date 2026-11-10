@@ -1,10 +1,11 @@
+import { Select, SelectOption } from '@/components/ui/select'
 import { useCallback, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Turnstile } from '@/features/auth/Turnstile'
 import { FormError } from '@/components/FormError'
-import { Checkbox, Select, Textarea } from '@/components/ui/input'
+import { Checkbox, Textarea } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
 import { AccountField } from '@/features/auth/account-shared'
@@ -171,10 +172,10 @@ export function PaymentForm({
           <Select
             id="float-direction"
             value={value.float_direction}
-            onChange={(e) => onChange({ ...value, float_direction: e.target.value })}
+            onValueChange={(next) => onChange({ ...value, float_direction: next })}
           >
-            <option value="up">{t('consoleSettings.up')}</option>
-            <option value="down">{t('consoleSettings.down')}</option>
+            <SelectOption value="up">{t('consoleSettings.up')}</SelectOption>
+            <SelectOption value="down">{t('consoleSettings.down')}</SelectOption>
           </Select>
         </Field>
       </FieldGrid>

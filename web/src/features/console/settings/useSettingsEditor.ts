@@ -1,3 +1,4 @@
+import { settingsQuery } from '@/app/portal-queries'
 import { useCallback, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { APIError, consoleApi } from '@/api/client'
@@ -25,7 +26,7 @@ type Draft<K extends SettingsGroup> = {
 type Drafts = { [K in SettingsGroup]?: Draft<K> }
 
 const secretFields = { mail: 'password', security: 'turnstile_secret', billing: 'merchant_key' } as const
-const queryKey = ['console', 'settings'] as const
+const { queryKey } = settingsQuery()
 
 function hasConflict(entry: Draft<SettingsGroup>, value: SettingsDrafts[SettingsGroup], version: number) {
   return (
@@ -50,9 +51,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 export function useSettingsEditor(group: SettingsGroup) {
   const client = useQueryClient()
   const query = useQuery({
-    queryKey,
-    queryFn: ({ signal }) => consoleApi.settings(signal),
-    refetchOnWindowFocus: true,
+    ...settingsQuery(),
+    refetchOnWindowFocus: 'always',
   })
   const settings = query.data
   const [drafts, setDrafts] = useState<Drafts>({})

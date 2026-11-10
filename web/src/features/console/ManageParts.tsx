@@ -1,8 +1,9 @@
+import { Select } from '@/components/ui/select'
 import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatusDot } from '@/components/StatusDot'
 import { Field } from '@/components/ui/field'
-import { Checkbox, Select, Textarea } from '@/components/ui/input'
+import { Checkbox, Textarea } from '@/components/ui/input'
 import { ChannelList, sortChannels } from '@/components/ui/payment'
 import type { Schema } from './manage-data'
 
@@ -11,7 +12,7 @@ export function Choice({ label, value, onChange, children, disabled = false }: {
 }) {
   const id = useId()
   return <Field htmlFor={id} label={label}>
-    <Select id={id} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>{children}</Select>
+    <Select id={id} value={value} disabled={disabled} onValueChange={onChange}>{children}</Select>
   </Field>
 }
 export function Reason({ value, onChange, hint, disabled }: { value: string; onChange: (value: string) => void; hint: string; disabled: boolean }) {

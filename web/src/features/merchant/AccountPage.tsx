@@ -1,3 +1,4 @@
+import { Select, SelectOption } from '@/components/ui/select'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -11,7 +12,6 @@ import { formatCountdown } from '@/components/ui/countdown'
 import { DetailList } from '@/components/ui/detail-list'
 import { Dialog } from '@/components/ui/dialog'
 import { Field, FieldGrid } from '@/components/ui/field'
-import { Select } from '@/components/ui/input'
 import { Card, Page, PageHeader, SectionHeader } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
 import { AccountError, AccountField, EmailCodeButton, EmailCodeNotice, useEmailCode, useSecondsUntil, validPassword, validUsername, type AccountSchema } from '@/features/auth/account-shared'
@@ -136,5 +136,5 @@ function TOTPSecret({ setup }: { setup: AccountSchema['AuthTOTPSetup'] }) {
 export function PreferencesCard() {
   const { t } = useTranslation(), account = useMerchantAccount(), id = useId()
   if (!account) return null
-  return <Card><SectionHeader title={t('polish.preferences')} description={t('polish.yourSavedPreferencesApplyAfterSignIn')} /><FieldGrid><Field label={t('polish.language')} htmlFor={id+'-language'}><Select id={id+'-language'} aria-label={t('polish.accountLanguage')} disabled={account.busy} value={account.preferences.locale} onChange={(event) => { void account.save({ ...account.preferences, locale: event.target.value === 'en' ? 'en' : 'zh-CN' }) }}><option value="zh-CN">{t('polish.chinese')}</option><option value="en">English</option></Select></Field><Field label={t('polish.theme')} htmlFor={id+'-theme'}><Select id={id+'-theme'} aria-label={t('polish.accountTheme')} disabled={account.busy} value={account.preferences.theme} onChange={(event) => { const theme = event.target.value; if (theme === 'system' || theme === 'light' || theme === 'dark') void account.save({ ...account.preferences, theme }) }}><option value="system">{t('polish.system')}</option><option value="light">{t('polish.light')}</option><option value="dark">{t('polish.dark')}</option></Select></Field></FieldGrid></Card>
+  return <Card><SectionHeader title={t('polish.preferences')} description={t('polish.yourSavedPreferencesApplyAfterSignIn')} /><FieldGrid><Field label={t('polish.language')} htmlFor={id+'-language'}><Select id={id+'-language'} aria-label={t('polish.accountLanguage')} disabled={account.busy} value={account.preferences.locale} onValueChange={(next) => { void account.save({ ...account.preferences, locale: next === 'en' ? 'en' : 'zh-CN' }) }}><SelectOption value="zh-CN">{t('polish.chinese')}</SelectOption><SelectOption value="en">English</SelectOption></Select></Field><Field label={t('polish.theme')} htmlFor={id+'-theme'}><Select id={id+'-theme'} aria-label={t('polish.accountTheme')} disabled={account.busy} value={account.preferences.theme} onValueChange={(next) => { const theme = next; if (theme === 'system' || theme === 'light' || theme === 'dark') void account.save({ ...account.preferences, theme }) }}><SelectOption value="system">{t('polish.system')}</SelectOption><SelectOption value="light">{t('polish.light')}</SelectOption><SelectOption value="dark">{t('polish.dark')}</SelectOption></Select></Field></FieldGrid></Card>
 }

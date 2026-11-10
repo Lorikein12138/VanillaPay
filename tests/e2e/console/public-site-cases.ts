@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import type { components, operations } from '../../../web/src/api/schema'
-import { clickControl, login, polishShot } from '../merchant/fixtures'
+import { chooseMenu, clickControl, login, polishShot } from '../merchant/fixtures'
 
 type Account = Parameters<typeof login>[1]
 type Admin = Omit<Account, 'pid'>
@@ -140,7 +140,7 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
         await visitor.setViewportSize({ width, height: width === 360 ? 780 : 800 })
         for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
           await visitor.goto('/')
-          await visitor.getByRole('button', { name: label, exact: true }).click()
+          await chooseMenu(visitor, '主题', label)
           await expect(visitor.locator('html')).toHaveAttribute('data-theme', theme)
           await snapshot(visitor, 'home-default', true)
           await visitor.goto('/login')
@@ -172,7 +172,11 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
       await expect(frame.getByRole('heading', { name: '欢迎来到星河支付' })).toBeVisible()
       await expect(frame.locator('#parent-check')).toHaveText('SecurityError')
       await expect(frame.locator('#storage-check')).toHaveText('SecurityError')
-      await expect(visitor.getByRole('banner')).toHaveCount(0)
+      const homeBar = visitor.getByRole('banner')
+      await expect(homeBar.getByRole('link', { name: '进入后台' })).toHaveAttribute('href', '/dashboard')
+      const bar = (await homeBar.boundingBox())!
+      const iframe = (await visitor.locator('iframe').boundingBox())!
+      expect(iframe.y).toBeGreaterThanOrEqual(Math.floor(bar.y + bar.height))
       await expect(visitor.getByRole('contentinfo')).toHaveCount(0)
       for (const width of [360, 1280]) {
         await visitor.setViewportSize({ width, height: width === 360 ? 780 : 800 })
@@ -222,7 +226,7 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
           const themes = [['light', '浅色'], ['dark', '深色']] as const
           for (const [theme, label] of captures ? themes : themes.slice(0, 1)) {
             await keepDocument.goto('/console/login')
-            await keepDocument.getByRole('button', { name: label, exact: true }).click()
+            await chooseMenu(keepDocument, '主题', label)
             const cancelled = keepDocument.waitForEvent('requestfailed', (request) => request.url() === destination)
             await keepDocument.goto('/')
             await cancelled

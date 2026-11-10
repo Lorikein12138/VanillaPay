@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import QRCode from 'qrcode'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
-import { polishShot } from '../merchant/fixtures'
+import { chooseMenu, polishShot } from '../merchant/fixtures'
 
 type Checkout = components['schemas']['PaymentCheckoutDTO']
 const channelNames = { alipay: '支付宝', wxpay: '微信支付', qqpay: 'QQ 钱包' } as const
@@ -36,7 +36,7 @@ async function checkout(request: APIRequestContext, trade: string) {
 }
 async function screenshots(page: Page, name: string) {
   for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
-    await page.getByRole('button', { name: label, exact: true }).click()
+    await chooseMenu(page, '主题', label)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await page.locator('img').evaluateAll(async (images) => {
       await Promise.all(images.map((image) => (image as HTMLImageElement).decode()))
@@ -44,7 +44,7 @@ async function screenshots(page: Page, name: string) {
     })
     await polishShot(page, name, true, 'checkout-shots')
     const shop = await page.locator('header').getByText('示例小店').boundingBox()
-    const controls = await page.getByRole('button', { name: '浅色', exact: true }).boundingBox()
+    const controls = await page.getByRole('button', { name: '主题', exact: true }).boundingBox()
     expect(Math.abs((shop!.y + shop!.height / 2) - (controls!.y + controls!.height / 2))).toBeLessThan(2)
   }
 }

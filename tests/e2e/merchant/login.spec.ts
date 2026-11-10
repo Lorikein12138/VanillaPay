@@ -63,7 +63,7 @@ test('guards /orders before rendering and returns there after login', async ({ p
   await login(page, account)
   await expect(page).toHaveURL(/\/orders\?status=paid$/)
   await expect(page.getByRole('heading', { name: '订单', exact: true })).toBeVisible()
-  await expect(page.getByLabel('状态', { exact: true })).toHaveValue('paid')
+  await expect(page.getByLabel('状态', { exact: true })).toHaveAttribute('data-value', 'paid')
   await noOverflow(page)
 })
 

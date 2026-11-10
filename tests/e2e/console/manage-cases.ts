@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { login, noOverflow, polishShot, selectScreenshotTheme } from '../merchant/fixtures'
+import { chooseSelect, login, noOverflow, polishShot, selectScreenshotTheme } from '../merchant/fixtures'
 
 type Admin = { username: string; password: string; pid?: string; totpSeed: string; turnstileToken: string }
 type Helpers = {
@@ -90,7 +90,7 @@ export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
     const grant = async () => {
       await page.getByRole('button', { name: '调整订阅', exact: true }).click()
       const dialog = page.getByRole('dialog')
-      await dialog.getByLabel('套餐', { exact: true }).selectOption(plan.id)
+      await chooseSelect(page, dialog.getByLabel('套餐', { exact: true }), plan.id)
       await dialog.getByLabel('到期时间', { exact: true }).fill('2030-01-01T12:00')
       await dialog.getByLabel('原因', { exact: true }).fill('为商户开通标准收款服务')
     }
@@ -155,8 +155,8 @@ export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
     await page.goto('/console/merchants/' + merchant.id)
     await page.getByRole('link', { name: '查看该商户购买记录' }).click()
     await expect(page).toHaveURL(new RegExp('merchant_id=' + merchant.id))
-    await page.getByLabel('套餐', { exact: true }).selectOption(plan.id)
-    await page.getByLabel('状态', { exact: true }).selectOption('pending')
+    await chooseSelect(page, page.getByLabel('套餐', { exact: true }), plan.id)
+    await chooseSelect(page, page.getByLabel('状态', { exact: true }), 'pending')
     await page.getByRole('button', { name: '应用筛选' }).click()
     await expect(page.getByRole('link', { name: '#' + merchant.id, exact: true })).toBeVisible()
     await shots(page, 'purchases')

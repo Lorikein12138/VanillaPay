@@ -1,3 +1,4 @@
+import { subscriptionQuery } from '@/app/portal-queries'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +21,7 @@ import { invalidateSubscription, localized, purchaseKind, subscriptionError, typ
 
 export function SubscriptionPage({ name }: { name: string }) {
   const { t, i18n } = useTranslation(), client = useQueryClient()
-  const subscription = useQuery({ queryKey: ['merchant', name, 'subscription'], queryFn: api.subscription, refetchOnWindowFocus: 'always', refetchInterval: (query) => query.state.data?.pending_purchase ? 15000 : false })
+  const subscription = useQuery({ ...subscriptionQuery(name), refetchOnWindowFocus: 'always', refetchInterval: (query) => query.state.data?.pending_purchase ? 15000 : false })
   const [selected, setSelected] = useState<{ plan: Plan; current: Subscription } | null>(null)
   const data = subscription.data, language = i18n.resolvedLanguage ?? 'zh-CN'
   const refresh = () => invalidateSubscription(client, name)

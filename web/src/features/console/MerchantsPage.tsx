@@ -1,6 +1,9 @@
+import { merchantsQuery } from '@/app/portal-queries'
+import { useResetPortalCursors } from '@/app/portal-cursors'
+import { SelectOption } from '@/components/ui/select'
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { hashKey, useQueryClient } from '@tanstack/react-query'
+import { hashKey, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi } from '@/api/client'
 import { Button } from '@/components/ui/button'
@@ -13,16 +16,20 @@ import { AccountError, AccountField, validPassword, validUsername } from '@/feat
 import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { OrderTime } from '@/features/merchant/OrderParts'
 import { Choice, DeviceStatus, MerchantStatus } from './ManageParts'
-import { invalidateConsole, planName, useCursorList, type MerchantFilters } from './manage-data'
+import { invalidateConsole, planName, type MerchantFilters } from './manage-data'
 
 export function MerchantsPage({ filters, onFilters }: { filters: MerchantFilters; onFilters: (filters: MerchantFilters) => void }) {
   const { t, i18n } = useTranslation(), [create, setCreate] = useState(false)
   const client = useQueryClient()
-  const queryKey = ['console', 'merchants', filters]
-  const query = useCursorList(queryKey, (cursor, signal) => consoleApi.merchants({ ...filters, cursor, limit: 20 }, signal))
+  const options = merchantsQuery(filters)
+  const query = useInfiniteQuery(options)
+  useResetPortalCursors(options.queryKey)
   const items = query.data?.pages.flatMap((page) => page.items ?? []) ?? []
   function applyFilters(next: MerchantFilters) {
-    if (hashKey([next]) === hashKey([filters])) void client.resetQueries({ queryKey, exact: true })
+    if (hashKey([next]) === hashKey([filters])) {
+      client.setQueryData(options.queryKey, (data) => data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) })
+      void client.invalidateQueries({ queryKey: options.queryKey, exact: true })
+    }
     onFilters(next)
   }
   return <Page>
@@ -30,7 +37,7 @@ export function MerchantsPage({ filters, onFilters }: { filters: MerchantFilters
       actions={<Button variant="primary" onClick={() => setCreate(true)}>{t('manage.createMerchant')}</Button>} />
     <MerchantFiltersForm key={JSON.stringify(filters)} filters={filters} onFilters={applyFilters} />
     <RecordResults busy={query.isPending} error={query.error} retry={() => void query.refetch()}
-      more={query.hasNextPage} loadingMore={query.isFetchingNextPage} onMore={() => void query.fetchNextPage()} empty={!!query.data && !items.length}>
+      more={query.hasNextPage && !query.isPlaceholderData} loadingMore={query.isFetchingNextPage} onMore={() => void query.fetchNextPage()} empty={!!query.data && !items.length}>
       <Records items={items} id={(item) => item.id} label={t('manage.merchants')} columns={[
         { label: t('manage.merchant'), value: (item) => <><RecordText>{item.username}</RecordText><RecordText secondary>{item.email} · {item.pid}</RecordText></> },
         { label: t('manage.plan'), value: (item) => planName(item.subscription.plan, i18n.language) || t('manage.none') },
@@ -53,10 +60,10 @@ function MerchantFiltersForm({ filters, onFilters }: { filters: MerchantFilters;
   }}><FieldGrid>
     <AccountField label={t('manage.search')} value={query} onChange={(event) => setQuery(event.target.value)} />
     <Choice label={t('manage.status')} value={banned} onChange={setBanned}>
-      <option value="">{t('manage.all')}</option><option value="false">{t('manage.normal')}</option><option value="true">{t('manage.banned')}</option>
+      <SelectOption value="">{t('manage.all')}</SelectOption><SelectOption value="false">{t('manage.normal')}</SelectOption><SelectOption value="true">{t('manage.banned')}</SelectOption>
     </Choice>
     <Choice label={t('manage.subscription')} value={subscription} onChange={setSubscription}>
-      <option value="">{t('manage.all')}</option><option value="true">{t('manage.active')}</option><option value="false">{t('manage.inactive')}</option>
+      <SelectOption value="">{t('manage.all')}</SelectOption><SelectOption value="true">{t('manage.active')}</SelectOption><SelectOption value="false">{t('manage.inactive')}</SelectOption>
     </Choice>
   </FieldGrid><FormActions>
     <Button onClick={() => { setQuery(''); setBanned(''); setSubscription(''); onFilters({}) }}>{t('manage.resetFilters')}</Button>

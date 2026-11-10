@@ -4,7 +4,7 @@ import { registerPublicSiteTests } from './public-site-cases'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import QRCode from 'qrcode'
 import type { ConsoleRecovery } from '../../../web/src/api/client'
-import { login, noOverflow, polishShot, totp } from '../merchant/fixtures'
+import { chooseSelect, clickControl, selectScreenshotTheme, login, noOverflow, polishShot, totp } from '../merchant/fixtures'
 
 test.describe.configure({ mode: 'serial' })
 type Admin = { username: string; password: string; totpSeed: string; turnstileToken: string }
@@ -21,14 +21,7 @@ async function signIn(page: Page, admin: Admin, redirect = '/console') {
   await page.goto('/console/login?redirect=' + encodeURIComponent(redirect))
   await login(page, { ...admin, pid: '' })
 }
-async function control(page: Page, name: string) {
-  const target = page.getByRole('button', { name, exact: true })
-  await expect(target.or(page.getByRole('button', { name: '打开菜单', exact: true })).filter({ visible: true }).first()).toBeVisible()
-  if (!(await target.isVisible())) await page.getByRole('button', { name: '打开菜单', exact: true }).click()
-  await target.click()
-  const drawer = page.getByRole('dialog', { name: '管理控制台', exact: true })
-  if (await drawer.isVisible()) await page.keyboard.press('Escape')
-}
+const control = clickControl
 async function shots(
   page: Page,
   state: string,
@@ -40,16 +33,10 @@ async function shots(
   for (const width of drawer ? [360] : [360, 1280]) {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
     for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
-      const saved = authenticated ? page.waitForResponse((response) => response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH') : null
-      await control(page, label)
-      if (saved) expect((await saved).status()).toBe(200)
+      if (authenticated) await selectScreenshotTheme(page, theme, 'console')
+      else await control(page, label)
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       if (drawer) await page.getByRole('button', { name: '打开菜单', exact: true }).click()
-      if (authenticated && width === 360 && !drawer) {
-        await page.getByRole('button', { name: '打开菜单', exact: true }).click()
-        await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
-        await page.keyboard.press('Escape')
-      } else await expect(page.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
       await polishShot(page, state, !drawer, directory, passwords)
       if (state === 'settings-footer_legal' && process.env.WEB_VISUAL_POLISH === '1') {
         await polishShot(page, 'settings-subsection-titles', true, 'web-visual-polish-shots', passwords)
@@ -65,9 +52,7 @@ async function settingsStateShots(page: Page, name: string, fullPage = false, pa
       await polishShot(page, `settings-${name}`, false, 'console-settings-shots', 'assert-empty')
     }
     await page.keyboard.press('Escape')
-    const saved = page.waitForResponse((response) => response.url().endsWith('/console/preferences') && response.request().method() === 'PATCH')
-    await control(page, '深色')
-    expect((await saved).status()).toBe(200)
+    await selectScreenshotTheme(page, 'dark', 'console')
     await page.getByRole('button', { name: '清除人机验证密钥' }).click()
     await expect(page.getByRole('dialog', { name: '清除人机验证密钥' })).toBeVisible()
     for (const width of [360, 1280]) {
@@ -78,13 +63,47 @@ async function settingsStateShots(page: Page, name: string, fullPage = false, pa
   }
   for (const width of [360, 1280]) {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 800 })
-    for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
-      await control(page, label)
+    for (const theme of ['light', 'dark'] as const) {
+      await selectScreenshotTheme(page, theme, 'console')
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       await polishShot(page, `settings-${name}`, fullPage, 'console-settings-shots', passwords)
     }
   }
 }
+
+test('collapses the console sidebar and keeps its account in view on long settings pages', async ({ page, request }) => {
+  const admin = await seed(request)
+  await captcha(page, admin.turnstileToken)
+  await signIn(page, admin, '/console/settings?group=footer_legal')
+  await expect(page.getByRole('heading', { name: '系统设置', exact: true })).toBeVisible()
+  const collapse = page.getByRole('button', { name: '收起侧栏' })
+  const expand = page.getByRole('button', { name: '展开侧栏' })
+  const sidebar = page.locator('aside').filter({ has: collapse.or(expand) })
+  const user = sidebar.getByRole('link', { name: admin.username, exact: true })
+  for (const theme of ['light', 'dark'] as const) {
+    await selectScreenshotTheme(page, theme, 'console')
+    if (process.env.WEB_VISUAL_POLISH === '1') await polishShot(page, 'console-sidebar-expanded', false, 'portal-ux-shots')
+    await collapse.click()
+    await expect(sidebar).toHaveCSS('width', '64px')
+    if (process.env.WEB_VISUAL_POLISH === '1') await polishShot(page, 'console-sidebar-collapsed', false, 'portal-ux-shots')
+    const before = await user.boundingBox()
+    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight))
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+    expect((await user.boundingBox())!.y).toBeCloseTo(before!.y, 0)
+    if (process.env.WEB_VISUAL_POLISH === '1') await polishShot(page, 'console-sidebar-scrolled', false, 'portal-ux-shots')
+    await expand.click()
+    await page.evaluate(() => scrollTo(0, 0))
+  }
+  if (process.env.WEB_VISUAL_POLISH === '1') {
+    await page.setViewportSize({ width: 360, height: 780 })
+    for (const theme of ['light', 'dark'] as const) {
+      await selectScreenshotTheme(page, theme, 'console')
+      await page.getByRole('button', { name: '打开菜单', exact: true }).click()
+      await polishShot(page, 'console-drawer', false, 'portal-ux-shots')
+      await page.keyboard.press('Escape')
+    }
+  }
+})
 
 test('initializes once, enters the shared overview and captures the responsive shell', async ({ page, request }) => {
   const fixture = await seed(request, { reset: true })
@@ -411,11 +430,11 @@ test('changes password, revokes the session, persists preferences and enables/di
   await signIn(page, admin, '/console/account')
   await expect(page.getByRole('heading', { name: '管理员账户', exact: true })).toBeVisible()
   await shots(page, 'account', true)
-  await page.getByLabel('账户语言').selectOption('en')
+  await chooseSelect(page, page.getByLabel('账户语言'), 'en')
   await expect(page.getByRole('heading', { name: 'Administrator account', exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Administrator account', exact: true })).toBeVisible()
-  await page.getByLabel('Account language').selectOption('zh-CN')
+  await chooseSelect(page, page.getByLabel('Account language'), 'zh-CN')
   await page.getByRole('button', { name: '修改密码', exact: true }).click()
   const nextPassword = crypto.randomUUID()
   await page.getByLabel('当前密码', { exact: true }).fill(admin.password)
@@ -449,5 +468,5 @@ test('changes password, revokes the session, persists preferences and enables/di
 })
 
 registerManagementTests({ seed, captcha, signIn })
-registerAnnouncementAuditTests({ seed, captcha, signIn, control })
+registerAnnouncementAuditTests({ seed, captcha, signIn })
 registerPublicSiteTests({ seed, captcha, signIn })

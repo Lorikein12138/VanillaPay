@@ -114,6 +114,7 @@ export const api = {
   async secondFactor(value: Schema['AuthFactorRequest']) {
     return remember(await request<Schema['AuthSessionResult']>('/api/v1/auth/second-factor', value, false))
   },
+  peekSession: (signal: AbortSignal) => request<Schema['SessionIdentity']>('/api/v1/merchant/me', undefined, false, undefined, 'GET', signal),
   async me(protectedRequest = true) {
     return remember(await request<Schema['SessionIdentity']>('/api/v1/merchant/me', undefined, protectedRequest))
   },

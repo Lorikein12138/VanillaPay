@@ -1,12 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { AuditLogsPage } from '@/features/merchant/AuditLogsPage'
+import { auditQuery } from '@/app/portal-queries'
+import { preparePortalRoute } from '@/app/portal-preload'
 import { auditSearch } from '@/features/merchant/audit-data'
-export const Route = createFileRoute('/_merchant/account/logs')({ validateSearch: auditSearch, component: Logs })
-function Logs() {
-  const navigate = Route.useNavigate()
-  return <AuditLogsPage
-    name={Route.useRouteContext().session.user.username}
-    filters={Route.useSearch({ select: auditSearch })}
-    onFilters={(search) => void navigate({ search })}
-  />
-}
+
+export const Route = createFileRoute('/_merchant/account/logs')({
+  validateSearch: auditSearch,
+  loaderDeps: ({ search }) => auditSearch(search),
+  loader: ({ context: { queryClient, session, hasMountedPortal }, cause, deps }) => {
+    const name = session.user.username
+    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureInfiniteQueryData(auditQuery('merchant', name, deps))])
+  },
+})

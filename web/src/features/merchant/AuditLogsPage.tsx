@@ -1,14 +1,18 @@
+import { auditQuery } from '@/app/portal-queries'
+import { useResetPortalCursors } from '@/app/portal-cursors'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
+import { localDateInput, parseLocalDateTime } from '@/lib/date-time'
+import { Select, SelectOption } from '@/components/ui/select'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, consoleApi } from '@/api/client'
 import { StatusDot } from '@/components/StatusDot'
 import { Button } from '@/components/ui/button'
 import { CopyText } from '@/components/ui/copy-button'
 import { Dialog } from '@/components/ui/dialog'
 import { DetailList } from '@/components/ui/detail-list'
 import { Field, FieldGrid, FormActions } from '@/components/ui/field'
-import { Input, Select } from '@/components/ui/input'
+import { Input } from '@/components/ui/input'
 import { BackLink, Card, EmptyState, Mono, Page, PageHeader, Skeleton } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
 import { RecordLink } from '@/components/ui/records'
@@ -16,7 +20,6 @@ import { Table, Td, Th } from '@/components/ui/table'
 import { auditActions, auditMerchantId, auditRoles, type AuditFilters } from './audit-data'
 import { ModuleError } from './CollectionParts'
 import type { Schema } from './collection-data'
-import { localDateInput } from './orders-data'
 import { OrderTime } from './OrderParts'
 
 type FilterProps = { filters: AuditFilters; onFilters: (value: AuditFilters) => void; isConsole?: boolean }
@@ -44,16 +47,9 @@ export function AuditLogsPage({
     [selected, setSelected] = useState<Schema['PortalAuditDTO'] | null>(null)
   const isConsole = role === 'console'
   const title = t(isConsole ? 'audit.consoleTitle' : 'audit.title')
-  const query = useInfiniteQuery({
-    queryKey: [role, name, 'audit-logs', filters],
-    queryFn: (context) => {
-      const params = { ...filters, limit: 20, cursor: context.pageParam }
-      return isConsole ? consoleApi.auditLogs(params, context.signal) : api.auditLogs(params)
-    },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.next_cursor ?? undefined,
-    gcTime: 0,
-  })
+  const options = auditQuery(role, name, filters)
+  const query = useInfiniteQuery(options)
+  useResetPortalCursors(options.queryKey)
   const items = query.data?.pages.flatMap((page) => page.items ?? []) ?? []
   const actionName = (action: string) => t(`audit.actions.${action}`, { defaultValue: action })
   const result = (value: string) => (
@@ -158,7 +154,7 @@ export function AuditLogsPage({
         ) : (
           <EmptyState title={t('audit.empty')} />
         ))}
-      {query.hasNextPage && (
+      {query.hasNextPage && !query.isPlaceholderData && (
         <div className="flex justify-center">
           <Button
             loading={query.isFetchingNextPage}
@@ -256,9 +252,9 @@ function AuditFiltersForm({ filters, onFilters, isConsole }: FilterProps) {
         onSubmit={(event) => {
           event.preventDefault()
           if (
-            (start && Number.isNaN(Date.parse(start))) ||
-            (end && Number.isNaN(Date.parse(end))) ||
-            (start && end && Date.parse(start) >= Date.parse(end))
+            (start && Number.isNaN(parseLocalDateTime(start))) ||
+            (end && Number.isNaN(parseLocalDateTime(end))) ||
+            (start && end && parseLocalDateTime(start) >= parseLocalDateTime(end))
           ) {
             setInvalid(true)
             return
@@ -280,21 +276,21 @@ function AuditFiltersForm({ filters, onFilters, isConsole }: FilterProps) {
           }
         >
           <Field label={t('audit.action')} htmlFor={id + '-action'}>
-            <Select id={id + '-action'} value={action} onChange={(event) => setAction(event.target.value)}>
-              <option value="">{t('audit.allActions')}</option>
-              {action && !auditActions.some((value) => value === action) && <option value={action}>{action}</option>}
+            <Select id={id + '-action'} value={action} onValueChange={setAction}>
+              <SelectOption value="">{t('audit.allActions')}</SelectOption>
+              {action && !auditActions.some((value) => value === action) && <SelectOption value={action}>{action}</SelectOption>}
               {auditActions.map((value) => (
-                <option key={value} value={value}>
+                <SelectOption key={value} value={value}>
                   {t(`audit.actions.${value}`, { defaultValue: value })}
-                </option>
+                </SelectOption>
               ))}
             </Select>
           </Field>
           <Field label={t('audit.result')} htmlFor={id + '-result'}>
-            <Select id={id + '-result'} value={result} onChange={(event) => setResult(event.target.value)}>
-              <option value="">{t('audit.allResults')}</option>
-              <option value="success">{t('audit.results.success')}</option>
-              <option value="failure">{t('audit.results.failure')}</option>
+            <Select id={id + '-result'} value={result} onValueChange={setResult}>
+              <SelectOption value="">{t('audit.allResults')}</SelectOption>
+              <SelectOption value="success">{t('audit.results.success')}</SelectOption>
+              <SelectOption value="failure">{t('audit.results.failure')}</SelectOption>
             </Select>
           </Field>
           {isConsole && (
@@ -303,15 +299,15 @@ function AuditFiltersForm({ filters, onFilters, isConsole }: FilterProps) {
                 <Select
                   id={id + '-role'}
                   value={actorRole}
-                  onChange={(event) => {
-                    setActorRole(auditRoles.find((role) => role === event.target.value) ?? '')
+                  onValueChange={(next) => {
+                    setActorRole(auditRoles.find((role) => role === next) ?? '')
                   }}
                 >
-                  <option value="">{t('audit.allRoles')}</option>
+                  <SelectOption value="">{t('audit.allRoles')}</SelectOption>
                   {auditRoles.map((role) => (
-                    <option key={role} value={role}>
+                    <SelectOption key={role} value={role}>
                       {t(`audit.roles.${role}`)}
-                    </option>
+                    </SelectOption>
                   ))}
                 </Select>
               </Field>
@@ -332,21 +328,17 @@ function AuditFiltersForm({ filters, onFilters, isConsole }: FilterProps) {
             </>
           )}
           <Field label={t('polish.startTime')} htmlFor={id + '-start'}>
-            <Input
+            <DateTimePicker
               id={id + '-start'}
-              type="datetime-local"
-              step="1"
               value={start}
-              onChange={(event) => setStart(event.target.value)}
+              onValueChange={setStart}
             />
           </Field>
           <Field label={t('polish.endTime')} htmlFor={id + '-end'}>
-            <Input
+            <DateTimePicker
               id={id + '-end'}
-              type="datetime-local"
-              step="1"
               value={end}
-              onChange={(event) => setEnd(event.target.value)}
+              onValueChange={setEnd}
             />
           </Field>
         </FieldGrid>

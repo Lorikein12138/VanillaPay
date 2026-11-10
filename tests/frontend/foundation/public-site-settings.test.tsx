@@ -13,7 +13,7 @@ import { defaultPublicConfig, publicConfigHandler } from '../public-config-fixtu
 
 type Config = components['schemas']['PublicConfig']
 const endpoint = '*/api/v1/public/config'
-const server = setupServer(publicConfigHandler)
+const server = setupServer(http.get('*/api/v1/merchant/me', () => new HttpResponse(null, { status: 401 })), publicConfigHandler)
 const defaultTitle = '用自己的收款码，收得清清楚楚'
 const sandbox = 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation'
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
@@ -25,10 +25,11 @@ afterAll(() => server.close())
 
 function mount(path = '/', language: Language = 'zh-CN') {
   const router = createAppRouter({ history: createMemoryHistory({ initialEntries: [path] }) })
+  const client = createQueryClient()
   render(
     <StrictMode>
-      <AppProviders i18n={createI18n(language)} queryClient={createQueryClient()}>
-        <RouterProvider router={router} />
+      <AppProviders i18n={createI18n(language)} queryClient={client}>
+        <RouterProvider router={router} context={{ queryClient: client }} />
       </AppProviders>
     </StrictMode>,
   )
@@ -122,7 +123,7 @@ it('shows only a loading state until config resolves, then displays HTML in the 
   expect(frame).toHaveAttribute('srcdoc', html)
   expect(frame).toHaveAttribute('sandbox', sandbox)
   expect(document.querySelector('#custom-home')).not.toBeInTheDocument()
-  expect(screen.queryByRole('banner')).not.toBeInTheDocument()
+  expect(screen.getByRole('banner')).toBeVisible()
   expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
 })
 

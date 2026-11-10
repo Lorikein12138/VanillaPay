@@ -1,3 +1,4 @@
+import { Select, SelectOption } from '@/components/ui/select'
 import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
@@ -6,7 +7,7 @@ import { FormError } from '@/components/FormError'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Field } from '@/components/ui/field'
-import { Checkbox, Select, Textarea } from '@/components/ui/input'
+import { Checkbox, Textarea } from '@/components/ui/input'
 import { orderChannels, orderErrorKey, validReason, type OrderAction } from './orders-data'
 import { money } from './overview-data'
 
@@ -78,11 +79,11 @@ export function OrderActionDialog({ action, detail, idempotencyKey, onClose, onS
               id={`${formId}-channel`}
               value={channel}
               disabled={busy || attempted || !!order.channel}
-              onChange={(event) => setChannel(event.target.value)}
+              onValueChange={setChannel}
             >
-              <option value="">{t('merchant.orders.selectChannel')}</option>
+              <SelectOption value="">{t('merchant.orders.selectChannel')}</SelectOption>
               {orderChannels.map((value) => (
-                <option key={value} value={value} disabled={!allowedChannels.includes(value)}>{t(`merchant.overview.channels.${value}`)}</option>
+                <SelectOption key={value} value={value} disabled={!allowedChannels.includes(value)}>{t(`merchant.overview.channels.${value}`)}</SelectOption>
               ))}
             </Select>
           </Field>

@@ -1,5 +1,5 @@
 import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
-import { lazy } from 'react'
+import { MerchantLayout } from '@/features/merchant/MerchantLayout'
 import { api, APIError } from '@/api/client'
 import { isMerchantPath } from '@/features/merchant/navigation'
 
@@ -18,5 +18,4 @@ export const Route = createFileRoute('/_merchant')({
   },
   component: Merchant,
 })
-const Layout = lazy(() => import('@/features/merchant/MerchantLayout').then((module) => ({ default: module.MerchantLayout })))
-function Merchant() { return <Layout session={Route.useRouteContext().session} /> }
+function Merchant() { return <MerchantLayout session={Route.useRouteContext().session} /> }

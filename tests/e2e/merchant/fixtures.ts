@@ -61,42 +61,59 @@ export async function openMenu(page: Page) {
   const menu = page.getByRole('button', { name: /打开菜单|Open menu/ })
   if (page.viewportSize()!.width < 1024) {
     await expect(page).toHaveURL(/\/(dashboard|orders|codes|devices|integration|account|banned|subscription|notifications)([/?#]|$)/)
-    await expect(menu).toBeVisible()
-    if (!(await page.getByRole('dialog').isVisible())) await menu.click()
+    const drawer = page.getByRole('dialog', { name: /商户导航|Merchant navigation/ })
+    if (!(await drawer.isVisible())) await menu.click()
   }
 }
 export async function closeMenu(page: Page) {
-  const drawer = page.getByRole('dialog', { name: /商户导航|Merchant navigation/ })
+  const drawer = page.getByRole('dialog', { name: /商户导航|Merchant navigation|管理控制台|Admin console/ })
   if (await drawer.isVisible()) await page.keyboard.press('Escape')
 }
-export async function clickControl(page: Page, name: string) {
+const themeLabels = { light: '浅色', dark: '深色', system: '跟随系统' }
+
+export async function chooseSelect(page: Page, trigger: import('@playwright/test').Locator, value: string) {
+  await trigger.click()
+  await page.getByRole('listbox').locator('[role=option][data-value=' + JSON.stringify(value) + ']').click()
+}
+
+export async function chooseMenu(page: Page, trigger: string, option: string) {
+  await page.getByRole('button', { name: trigger, exact: true }).click()
+  await page.getByRole('menuitemradio', { name: option, exact: true }).click()
+}
+
+async function revealControl(page: Page, name: string) {
   const control = page.getByRole('button', { name, exact: true })
-  if (page.viewportSize()!.width < 1024) {
-    const menu = page.getByRole('button', { name: /打开菜单|Open menu/ })
-    await expect(control.or(menu).filter({ visible: true }).first()).toBeVisible()
-    if (!(await control.isVisible())) await openMenu(page)
-  }
+  const menu = page.getByRole('button', { name: /打开菜单|Open menu/ })
+  await expect(control.or(menu).filter({ visible: true }).first()).toBeVisible()
+  const opened = !(await control.isVisible())
+  if (opened) await menu.click()
+  return { control, opened }
+}
+
+export async function clickControl(page: Page, name: string) {
+  const theme = Object.values(themeLabels).includes(name)
+  const { control } = await revealControl(page, theme ? '主题' : name)
   await control.click()
+  if (theme) await page.getByRole('menuitemradio', { name, exact: true }).click()
   await closeMenu(page)
 }
 
-export async function selectScreenshotTheme(page: Page, theme: 'light' | 'dark' | 'system', role = 'merchant') {
-  const label = { light: '浅色', dark: '深色', system: '跟随系统' }[theme]
-  const control = page.getByRole('button', { name: label, exact: true })
-  const mobile = page.viewportSize()!.width < 1024
-  if (mobile) await page.getByRole('button', { name: /打开菜单|Open menu/ }).click()
-  await expect(control).toBeEnabled()
-  // The switch applies optimistically. A full navigation can abort the PATCH
-  // and load the old preference unless we wait for the server to persist it.
-  const saved = page.waitForResponse((response) =>
-    new URL(response.url()).pathname === `/api/v1/${role}/preferences` && response.request().method() === 'PATCH',
-  )
+export async function selectScreenshotTheme(page: Page, theme: keyof typeof themeLabels, role = 'merchant') {
+  const { control, opened } = await revealControl(page, '主题')
   await control.click()
-  expect((await saved).status()).toBe(200)
-  await expect(control).toHaveAttribute('aria-pressed', 'true')
+  const option = page.getByRole('menuitemradio', { name: themeLabels[theme], exact: true })
+  await expect(option).toBeVisible()
+  const alreadySelected = await option.getAttribute('aria-checked') === 'true'
+  // Wait for optimistic changes to persist before taking a screenshot or reloading.
+  const saved = alreadySelected ? null : page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/v1/' + role + '/preferences' && response.request().method() === 'PATCH',
+  )
+  await option.click()
+  if (saved) expect((await saved).status()).toBe(200)
+  await expect(control).toHaveAttribute('data-value', theme)
   if (theme === 'system') await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/)
   else await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-  if (mobile) await page.keyboard.press('Escape')
+  if (opened) await closeMenu(page)
 }
 
 export async function merchantVisualShots(page: Page, capture: () => Promise<void>) {

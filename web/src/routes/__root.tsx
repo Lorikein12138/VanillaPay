@@ -1,10 +1,11 @@
-import { createRootRoute, Link, Outlet, useMatch, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
+import type { QueryClient } from '@tanstack/react-query'
+import { createRootRouteWithContext, Link, Outlet, useMatch, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { ErrorState } from '@/components/ErrorState'
 import { SiteIcons, SiteTitle } from '@/components/SiteBrand'
 import { TopBar } from '@/components/TopBar'
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient; hasMountedPortal: () => boolean }>()({
   component: Root,
   notFoundComponent: NotFound,
   errorComponent: RouteError,
