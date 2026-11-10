@@ -156,6 +156,19 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("V1 signed return did not preserve original query and sign original cents: %s err=%v", *paidEnvelope.Data.ReturnURLSigned, err)
 	}
 	assertCompatibleQuery(t, v1Return.Query(), v1Return.Query(), "return-v1-amount")
+	// sub2api confirms a notification by querying act=order with every
+	// parameter in both the query and the form body; identical values are one
+	// parameter and must not be rejected as INVALID_SIGNATURE.
+	sub2apiQuery := url.Values{"act": {"order"}, "pid": {pid}, "key": {merchantKey}, "out_trade_no": {"return-v1-amount"}}
+	sub2apiResponse := fixture.RequestWithHeaders(t, http.MethodPost, "/api.php?"+sub2apiQuery.Encode(), strings.NewReader(sub2apiQuery.Encode()), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+	var sub2apiData map[string]json.RawMessage
+	if sub2apiResponse.Code != http.StatusOK || json.Unmarshal(sub2apiResponse.Body.Bytes(), &sub2apiData) != nil || string(sub2apiData["code"]) != "1" || string(sub2apiData["status"]) != "1" || string(sub2apiData["money"]) != `"1.00"` || string(sub2apiData["trade_no"]) != `"`+v1.TradeNo+`"` {
+		t.Fatalf("sub2api-style V1 query response=%d body=%s", sub2apiResponse.Code, sub2apiResponse.Body.String())
+	}
+	conflicting := fixture.RequestWithHeaders(t, http.MethodPost, "/api.php?"+sub2apiQuery.Encode(), strings.NewReader("act=order&pid="+pid+"&key="+url.QueryEscape(merchantKey)+"&out_trade_no=other"), "guest", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+	if conflicting.Code == http.StatusOK && strings.Contains(conflicting.Body.String(), `"code":1`) {
+		t.Fatalf("V1 query accepted differing query and form values: %s", conflicting.Body.String())
+	}
 	secondOrder := create("v1", "return-v1-snapshot", "https://merchant.example.test/return?campaign=snapshot")
 	keyCipher, err := platform.Encrypt(db.Key[:], []byte("rotated-v1-key-after-order"), rand.Reader)
 	if err != nil {

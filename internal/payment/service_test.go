@@ -57,7 +57,7 @@ func TestUnit_ProtocolFormRejectsDuplicatesMixedSourcesAndInvalidUTF8(t *testing
 	}{
 		{name: "duplicate-query", url: "/submit?pid=1&pid=2"},
 		{name: "duplicate-body", url: "/submit", body: "pid=1&pid=2"},
-		{name: "query-and-body", url: "/submit?pid=1", body: "pid=2"},
+		{name: "query-and-body-differ", url: "/submit?pid=1", body: "pid=2"},
 		{name: "invalid-utf8", url: "/submit", body: "name=%FF"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -67,6 +67,22 @@ func TestUnit_ProtocolFormRejectsDuplicatesMixedSourcesAndInvalidUTF8(t *testing
 				t.Errorf("parseProtocolParams() = %#v, want error", values)
 			}
 		})
+	}
+}
+
+// sub2api's act=order query sends every parameter in both the query and the
+// form; identical values must be accepted as one parameter.
+func TestUnit_ProtocolFormAcceptsIdenticalQueryAndBody(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api.php?act=order&pid=1001&key=k&out_trade_no=o1", strings.NewReader("act=order&pid=1001&key=k&out_trade_no=o1&extra=x"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	values, err := parseProtocolParams(req)
+	if err != nil {
+		t.Fatalf("parseProtocolParams() error = %v", err)
+	}
+	for k, want := range map[string]string{"act": "order", "pid": "1001", "key": "k", "out_trade_no": "o1", "extra": "x"} {
+		if got := values[k]; len(got) != 1 || got[0] != want {
+			t.Errorf("%s = %#v, want [%q]", k, got, want)
+		}
 	}
 }
 

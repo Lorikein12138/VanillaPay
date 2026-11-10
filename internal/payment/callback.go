@@ -124,20 +124,24 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 			work.params.Set("param", work.paramsExtra)
 		}
 		work.params.Set("sign_type", "MD5")
-		if work.paramsPaid.Valid {
-			work.params.Set("endtime", work.paramsPaid.Time.In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05"))
-		}
-		if !work.paramsCreated.IsZero() {
-			work.params.Set("addtime", work.paramsCreated.In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05"))
-		}
-		if work.paramsBuyer != "" {
-			work.params.Set("buyer", work.paramsBuyer)
-		}
-		if work.paramsIP != "" {
-			work.params.Set("clientip", work.paramsIP)
-		}
-		if work.paramsProvider != "" && work.protocol == "v2" {
-			work.params.Set("api_trade_no", work.paramsProvider)
+		// V1 notifications carry exactly the classic epay field set: strict
+		// merchants (sub2api) reject any other key. V2 adds its extended fields.
+		if work.protocol == "v2" {
+			if work.paramsPaid.Valid {
+				work.params.Set("endtime", work.paramsPaid.Time.In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05"))
+			}
+			if !work.paramsCreated.IsZero() {
+				work.params.Set("addtime", work.paramsCreated.In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05"))
+			}
+			if work.paramsBuyer != "" {
+				work.params.Set("buyer", work.paramsBuyer)
+			}
+			if work.paramsIP != "" {
+				work.params.Set("clientip", work.paramsIP)
+			}
+			if work.paramsProvider != "" {
+				work.params.Set("api_trade_no", work.paramsProvider)
+			}
 		}
 		_ = payload
 		return nil

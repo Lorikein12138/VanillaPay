@@ -123,8 +123,14 @@ func TestHTTP_MerchantQueryKeptRawAndReservedFieldsReplaced(t *testing.T) {
 			if got.rawQuery != rawMerchantRouting {
 				t.Fatalf("callback raw query = %q, want %q", got.rawQuery, rawMerchantRouting)
 			}
-			if got.form.Get("clientip") != "198.51.100.80" || len(got.form["clientip"]) != 1 || got.form.Get("out_trade_no") != "query-ip-"+protocol {
-				t.Fatalf("callback form clientip/out_trade_no = %q/%q", got.form["clientip"], got.form.Get("out_trade_no"))
+			if got.form.Get("out_trade_no") != "query-ip-"+protocol {
+				t.Fatalf("callback form out_trade_no = %q", got.form.Get("out_trade_no"))
+			}
+			if protocol == "v1" {
+				// Strict epay merchants (sub2api) reject any key outside the classic set.
+				assertV1Fields(t, got.form, "param")
+			} else if got.form.Get("clientip") != "198.51.100.80" || len(got.form["clientip"]) != 1 || !got.form.Has("addtime") || !got.form.Has("endtime") {
+				t.Fatalf("V2 callback form lacks extended fields: %v", got.form)
 			}
 			verifyCallbackForm(t, fixture, protocol, got.form, merchantKey)
 		})
@@ -149,6 +155,12 @@ func TestHTTP_MerchantQueryKeptRawAndReservedFieldsReplaced(t *testing.T) {
 			if values.Has("clientip") || values.Get("order_id") != "38" || values.Get("status") != "success" || len(values["out_trade_no"]) != 1 || values.Get("out_trade_no") != "query-return-"+protocol {
 				t.Fatalf("signed return values = %v", values)
 			}
+			if protocol == "v1" {
+				values := cloneValues(values)
+				values.Del("order_id")
+				values.Del("status")
+				assertV1Fields(t, values, "param")
+			}
 			verifyCallbackForm(t, fixture, protocol, values, merchantKey)
 		})
 		t.Run(protocol+"/unsignable repeated merchant key is rejected", func(t *testing.T) {
@@ -163,6 +175,36 @@ func TestHTTP_MerchantQueryKeptRawAndReservedFieldsReplaced(t *testing.T) {
 			}
 		})
 	}
+}
+
+// v1Fields is the classic epay notify field set; param is sent only when set.
+var v1Fields = []string{"pid", "trade_no", "out_trade_no", "type", "name", "money", "trade_status", "sign", "sign_type"}
+
+func assertV1Fields(t *testing.T, values url.Values, optional ...string) {
+	t.Helper()
+	allowed := map[string]bool{}
+	for _, key := range v1Fields {
+		allowed[key] = true
+		if !values.Has(key) {
+			t.Fatalf("V1 values lack %q: %v", key, values)
+		}
+	}
+	for _, key := range optional {
+		allowed[key] = true
+	}
+	for key := range values {
+		if !allowed[key] {
+			t.Fatalf("V1 values carry non-standard field %q: %v", key, values)
+		}
+	}
+}
+
+func cloneValues(values url.Values) url.Values {
+	out := url.Values{}
+	for key, entries := range values {
+		out[key] = append([]string(nil), entries...)
+	}
+	return out
 }
 
 func verifyCallbackForm(t *testing.T, fixture *testsupport.HTTPFixture, protocol string, values url.Values, merchantKey string) {
