@@ -86,7 +86,14 @@ async function revealControl(page: Page, name: string) {
   const menu = page.getByRole('button', { name: /打开菜单|Open menu/ })
   await expect(control.or(menu).filter({ visible: true }).first()).toBeVisible()
   const opened = !(await control.isVisible())
-  if (opened) await menu.click()
+  // A route update that lands right after login can close a drawer opened a moment
+  // earlier, hiding the control again; reopen until it stays reachable.
+  if (opened) {
+    await expect(async () => {
+      if (!(await control.isVisible()) && await menu.isVisible()) await menu.click({ timeout: 1000 })
+      await expect(control).toBeVisible({ timeout: 1000 })
+    }).toPass()
+  }
   return { control, opened }
 }
 
