@@ -25,14 +25,14 @@ export function PublicAccountShell({ title, children }: { title: string; childre
       <TopBar />
       <main id="main" className="mx-auto grid w-full max-w-[1160px] flex-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[1fr_440px] lg:gap-20">
         <section className="min-w-0">
-          <p className="mb-5 break-words font-mono text-caption uppercase tracking-widest text-accent-text">
+          <p className="mb-5 break-words text-label font-[500] text-accent-text">
             {t('polish.siteAccountServices', { name })}
           </p>
-          <h1 className="font-serif text-[clamp(2.5rem,5vw,3.5rem)] font-[330] leading-tight">{title}</h1>
+          <h1 className="font-serif text-[clamp(2.5rem,5vw,3.5rem)] font-normal leading-[1.08] tracking-[-0.02em] text-balance">{title}</h1>
           <p className="mt-6 max-w-md text-lg leading-relaxed text-text-2">{t('polish.manageEveryPaymentWithYourOwnQr')}</p>
-          <a className="mt-8 inline-flex min-h-11 items-center text-label text-accent-text" href="/login">{t('polish.backToSignIn')}</a>
+          <a className="mt-8 inline-flex min-h-11 items-center text-label text-accent-text underline decoration-accent-text/30 underline-offset-4 hover:decoration-accent-text" href="/login">{t('polish.backToSignIn')}</a>
         </section>
-        <section className="min-w-0 rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8">{children}</section>
+        <section className="min-w-0 rounded-[24px] border-[0.5px] border-border bg-surface p-6 shadow-[0_1px_2px_rgba(20,20,19,0.03)] sm:p-9">{children}</section>
       </main>
       <PublicFooter />
     </div>
@@ -88,7 +88,7 @@ function PublicAccountForm({ mode, config }: { mode: 'register' | 'reset_passwor
     })
   }
   return <form className="space-y-5" aria-label={register ? t('polish.registerAsAMerchant') : t('polish.resetPassword')} onSubmit={(event) => { event.preventDefault(); void submit() }}>
-    <h2 className="font-serif text-2xl">{register ? t('polish.registerAsAMerchant') : t('polish.setANewPassword')}</h2>
+    <h2 className="font-serif text-[1.75rem] leading-[1.2] font-normal tracking-[-0.01em]">{register ? t('polish.registerAsAMerchant') : t('polish.setANewPassword')}</h2>
     {register && <AccountField label={t('polish.username')} autoComplete="username" required disabled={busy} value={username} onChange={(event) => { setUsername(event.target.value); setCode('') }} pattern="[A-Za-z0-9_-]{3,32}" title={t('polish.332LettersNumbersUnderscoresOrHyphens')} />}
     <AccountField label={t('polish.email')} type="email" autoComplete="email" required disabled={busy} value={email} onChange={(event) => { setEmail(event.target.value); setCode('') }} />
     {register && config.email_domain_restriction.enabled && !!config.email_domain_restriction.domains?.length && <p className="text-caption text-text-2">{t('polish.emailDomainHint', { domains: config.email_domain_restriction.domains.join(i18n.resolvedLanguage === 'en' ? ', ' : '、') })}</p>}

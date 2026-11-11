@@ -12,7 +12,7 @@ export function Tooltip({ label, children, enabled = true }: { label: ReactNode;
       <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
       <RadixTooltip.Portal>
         <RadixTooltip.Content side="right" sideOffset={10} collisionPadding={8}
-          className="z-70 max-w-56 rounded-control border border-border-strong bg-surface px-3 py-2 text-caption break-words text-text shadow-lg">
+          className="vp-pop z-70 max-w-56 rounded-lg bg-primary px-2.5 py-1.5 text-caption break-words text-primary-fg shadow-pop">
           {label}
         </RadixTooltip.Content>
       </RadixTooltip.Portal>

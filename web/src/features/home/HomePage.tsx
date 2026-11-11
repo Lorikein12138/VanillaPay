@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { api, APIError } from '@/api/client'
 import { buttonVariants } from '@/components/ui/button'
 import { ArrowDown, ArrowRight, BellRing, ChartColumn, CodeXml, CreditCard, QrCode, ShieldCheck, ShoppingCart, Smartphone, Target, type LucideIcon } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PublicFooter } from '@/components/PublicFooter'
 import { useSiteBrand } from '@/components/SiteBrand'
@@ -138,13 +138,14 @@ function DefaultHome({ registrationOpen }: { registrationOpen?: boolean }) {
       </TopBar>
 
       <main id="main">
-        <section className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-12 px-4 pt-16 pb-20 sm:px-6 lg:gap-16 lg:pt-24 lg:pb-22">
+        <section className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-12 px-4 pt-16 pb-20 sm:px-6 lg:gap-20 lg:pt-28 lg:pb-28">
           <div className="flex min-w-0 flex-[1_1_460px] flex-col gap-7">
-            <span className="text-label font-medium text-accent-text">{t('home.eyebrow')}</span>
-            <h1 className="m-0 font-serif text-[clamp(2.25rem,5.4vw,4rem)] leading-[1.12] font-[330] text-balance">
-              {t('home.title')}
+            <span className="text-label font-[500] text-accent-text">{t('home.eyebrow')}</span>
+            <h1 className="m-0 font-serif text-[clamp(2.375rem,5.4vw,4rem)] leading-[1.1] font-normal tracking-[-0.02em] text-balance [word-break:keep-all] [overflow-wrap:anywhere]">
+              {/* keep-all + <wbr> breaks CJK titles at the comma, not mid-phrase, without changing the accessible name. */}
+              {(t('home.title').match(/[^，,]+[，,]?/g) ?? []).map((part, index) => <Fragment key={index}>{index > 0 && <wbr />}{part}</Fragment>)}
             </h1>
-            <p className="m-0 max-w-[520px] text-lg leading-[1.7] text-text-2">{t('home.subtitle')}</p>
+            <p className="m-0 max-w-[520px] text-lg leading-[1.65] text-text-2">{t('home.subtitle')}</p>
             <div>
               <a
                 href="#features"
@@ -157,8 +158,8 @@ function DefaultHome({ registrationOpen }: { registrationOpen?: boolean }) {
           </div>
 
           <div className="flex min-w-0 flex-[1_1_420px] justify-center">
-            <figure className="m-0 flex w-full max-w-[440px] flex-col gap-5 rounded-dialog border-[0.5px] border-border bg-surface p-6 shadow-[0_1px_2px_rgba(20,20,19,0.04),0_12px_32px_rgba(20,20,19,0.06)] sm:p-7">
-              <figcaption className="text-label text-text-2">{t('home.flowCard.title')}</figcaption>
+            <figure className="m-0 flex w-full max-w-[440px] flex-col gap-6 rounded-dialog border-[0.5px] border-border bg-surface p-6 shadow-[0_1px_2px_rgba(20,20,19,0.03),0_20px_48px_-24px_rgba(20,20,19,0.12)] sm:p-8">
+              <figcaption className="font-serif text-heading text-text">{t('home.flowCard.title')}</figcaption>
               <ol className="m-0 flex list-none flex-col p-0">
                 {(Object.keys(flowIcons) as (keyof typeof flowIcons)[]).map((key, index, all) => {
                   const Icon = flowIcons[key]
@@ -166,10 +167,10 @@ function DefaultHome({ registrationOpen }: { registrationOpen?: boolean }) {
                   return (
                     <li key={key} className="flex gap-4">
                       <div className="flex flex-col items-center">
-                        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted text-accent-text">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-text">
                           <Icon className="size-[18px]" strokeWidth={1.7} aria-hidden="true" />
                         </span>
-                        {last ? null : <span className="my-1 w-px flex-1 bg-border-strong" aria-hidden="true" />}
+                        {last ? null : <span className="my-1.5 w-px flex-1 bg-border-strong" aria-hidden="true" />}
                       </div>
                       <p className={last ? 'm-0 pt-2' : 'm-0 pt-2 pb-6'}>{t(`home.flowCard.steps.${key}`)}</p>
                     </li>
@@ -180,23 +181,23 @@ function DefaultHome({ registrationOpen }: { registrationOpen?: boolean }) {
           </div>
         </section>
 
-        <section id="features" className="scroll-mt-4 border-y-[0.5px] border-border bg-surface">
+        <section id="features" className="scroll-mt-4">
           <div className="mx-auto flex max-w-[1200px] flex-col gap-12 px-4 py-20 sm:px-6 lg:py-24">
             <div className="flex max-w-[640px] flex-col gap-3">
-              <h2 className="m-0 font-serif text-[clamp(1.875rem,3.5vw,2.5rem)] leading-[1.2] font-normal">
+              <h2 className="m-0 font-serif text-[clamp(1.875rem,3.6vw,2.75rem)] leading-[1.15] font-normal tracking-[-0.015em]">
                 {t('home.features.title')}
               </h2>
               <p className="m-0 text-[17px] leading-[1.7] text-text-2">{t('home.features.subtitle')}</p>
             </div>
-            <ul className="m-0 grid list-none grid-cols-1 gap-px overflow-hidden rounded-card border-[0.5px] border-border bg-border p-0 md:grid-cols-2 lg:grid-cols-3">
+            <ul className="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 lg:grid-cols-3">
               {(Object.keys(featureIcons) as (keyof typeof featureIcons)[]).map((key) => {
                 const Icon = featureIcons[key]
                 return (
-                  <li key={key} className="flex min-w-0 flex-col gap-3 bg-surface p-6 sm:p-8">
-                    <span className="grid size-10 place-items-center rounded-[10px] bg-muted text-accent-text">
-                      <Icon className="size-5" strokeWidth={1.7} aria-hidden="true" />
+                  <li key={key} className="flex min-w-0 flex-col gap-3 rounded-card bg-muted p-6 sm:p-8">
+                    <span className="mb-3 text-accent-text">
+                      <Icon className="size-6" strokeWidth={1.5} aria-hidden="true" />
                     </span>
-                    <h3 className="m-0 font-serif text-heading font-medium">{t(`home.features.items.${key}.title`)}</h3>
+                    <h3 className="m-0 font-serif text-heading font-normal">{t(`home.features.items.${key}.title`)}</h3>
                     <p className="m-0 text-[15px] leading-[1.7] text-text-2">{t(`home.features.items.${key}.body`)}</p>
                   </li>
                 )
@@ -205,15 +206,15 @@ function DefaultHome({ registrationOpen }: { registrationOpen?: boolean }) {
           </div>
         </section>
 
-        <section id="steps" className="mx-auto flex max-w-[1200px] scroll-mt-4 flex-col gap-12 px-4 py-20 sm:px-6 lg:py-24">
-          <h2 className="m-0 font-serif text-[clamp(1.875rem,3.5vw,2.5rem)] leading-[1.2] font-normal">
+        <section id="steps" className="mx-auto flex max-w-[1200px] scroll-mt-4 flex-col gap-12 px-4 pt-8 pb-24 sm:px-6 lg:pb-32">
+          <h2 className="m-0 font-serif text-[clamp(1.875rem,3.6vw,2.75rem)] leading-[1.15] font-normal tracking-[-0.015em]">
             {t('home.steps.title')}
           </h2>
-          <ol className="m-0 grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-3">
+          <ol className="m-0 grid list-none grid-cols-1 gap-8 p-0 md:grid-cols-3">
             {stepKeys.map((key, index) => (
-              <li key={key} className="flex min-w-0 flex-col gap-3.5 border-t-[0.5px] border-border-strong pt-5">
-                <span className="font-serif text-lg text-accent-text tabular-nums">{String(index + 1).padStart(2, '0')}</span>
-                <h3 className="m-0 text-[19px] font-medium">{t(`home.steps.items.${key}.title`)}</h3>
+              <li key={key} className="flex min-w-0 flex-col gap-3 border-t-[0.5px] border-border-strong pt-6">
+                <span className="font-serif text-xl text-accent-text tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                <h3 className="m-0 font-serif text-[1.375rem] leading-[1.3] font-normal">{t(`home.steps.items.${key}.title`)}</h3>
                 <p className="m-0 text-[15px] leading-[1.7] text-text-2">{t(`home.steps.items.${key}.body`)}</p>
               </li>
             ))}

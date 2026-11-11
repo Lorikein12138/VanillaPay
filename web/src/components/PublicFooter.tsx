@@ -8,7 +8,7 @@ import { parsePublicURL, usePublicConfig } from '@/lib/public-config'
 export const footerLinkClass =
   'inline-flex min-h-11 items-center text-text-2 underline-offset-4 transition-colors hover:text-text hover:underline'
 
-const itemLinkClass = 'font-medium text-text underline-offset-4 transition-colors hover:text-accent-text hover:underline'
+const itemLinkClass = 'font-[500] text-text underline-offset-4 transition-colors hover:text-accent-text hover:underline'
 
 function footerURL(value: string | null) {
   const url = parsePublicURL(value)
@@ -21,7 +21,7 @@ export function PublicFooter({ children }: { children?: ReactNode }) {
 
   return (
     <footer className="border-t-[0.5px] border-border">
-      <div className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 pt-10 pb-4 text-label text-text-2 sm:px-6">
+      <div className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 pt-12 pb-4 text-label text-text-2 sm:px-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
           <div className="flex min-w-0 shrink-0 items-center gap-2.5 text-text"><SiteBrand compact /></div>
           {!!data?.footer?.length && (
@@ -41,7 +41,7 @@ export function PublicFooter({ children }: { children?: ReactNode }) {
                       >
                         {label}
                       </a>
-                    ) : <span className="font-medium text-text">{label}</span>}
+                    ) : <span className="font-[500] text-text">{label}</span>}
                     {item.text.trim() && <p className="m-0 whitespace-pre-wrap text-caption leading-relaxed text-text-3">{item.text}</p>}
                   </li>
                 )

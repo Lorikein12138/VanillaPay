@@ -15,6 +15,7 @@ const Collapsed = createContext(false)
 const sidebarKey = 'vp-sidebar-collapsed'
 const textTransition = 'min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 motion-reduce:transition-none'
 const sidebarRow = 'flex min-h-11 items-center overflow-hidden rounded-control px-3 text-label transition-colors hover:bg-hover hover:text-text'
+const sidebarActive = 'bg-selected font-[500] text-text'
 
 function sidebarCollapsed() {
   try { return localStorage.getItem(sidebarKey) === 'true' }
@@ -56,7 +57,7 @@ export function PortalShell({ logo, navigation, userBlock, controls, problem, ch
   return (
     <TooltipProvider delayDuration={200}>
       <div className="min-h-dvh min-w-0 lg:flex">
-        <aside className={cn('hidden shrink-0 flex-col gap-7 bg-sidebar px-3 py-6 transition-[width] duration-200 motion-reduce:transition-none lg:sticky lg:top-0 lg:flex lg:h-dvh lg:overflow-x-hidden lg:overflow-y-auto', collapsed ? 'w-16' : 'w-56')}>
+        <aside className={cn('hidden shrink-0 flex-col gap-7 border-r-[0.5px] border-border bg-sidebar px-3 py-6 transition-[width] duration-200 motion-reduce:transition-none lg:sticky lg:top-0 lg:flex lg:h-dvh lg:overflow-x-hidden lg:overflow-y-auto', collapsed ? 'w-16' : 'w-56')}>
           <Collapsed.Provider value={collapsed}>
             <div className="shrink-0">{logo}</div>
             {navigation && <div className="min-h-0 overflow-y-auto">{navigation}</div>}
@@ -102,10 +103,13 @@ export function PortalBrand({ to, tag, onClose }: { to: string; tag?: string; on
   const { name } = useSiteBrand()
   const collapsed = useContext(Collapsed)
   return (
+    // The tag sits under the name so a 20px serif name keeps the full sidebar width;
+    // pl-1.5 centres the 28px logo on the 16px nav icons, expanded and collapsed.
     <Link to={to} aria-label={tag ? `${name} · ${tag}` : name} onClick={onClose}
-      className={cn('flex min-h-11 min-w-0 items-center overflow-hidden rounded-control pl-3', collapsed ? '[&>span]:max-w-0 [&>span]:opacity-0' : 'gap-2.5 pr-1 [&>span]:max-w-40')}>
-      <SiteBrand labelClassName={textTransition} />
-      {tag && <span className={cn(textTransition, 'ml-auto shrink-0 text-caption text-text-3')}>{tag}</span>}
+      className={cn('grid min-h-11 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center overflow-hidden rounded-control pl-1.5',
+        tag && '[&>:first-child]:row-span-2', collapsed ? '[&>span]:max-w-0 [&>span]:opacity-0' : 'gap-x-2.5 [&>span]:max-w-40')}>
+      <SiteBrand labelClassName={cn(textTransition, tag && 'leading-tight')} />
+      {tag && <span className={cn(textTransition, 'text-caption leading-tight text-text-3')}>{tag}</span>}
     </Link>
   )
 }
@@ -113,12 +117,12 @@ export function PortalBrand({ to, tag, onClose }: { to: string; tag?: string; on
 export function PortalNavigation({ title, items, onClose }: { title: string; items: { path: string; label: string; icon: LucideIcon; exact?: boolean; badge?: ReactNode }[]; onClose: () => void }) {
   const collapsed = useContext(Collapsed)
   return (
-    <nav aria-label={title} className="flex shrink-0 flex-col gap-1">
+    <nav aria-label={title} className="flex shrink-0 flex-col gap-0.5">
       {items.map((item) => {
         const link = (
           <Link key={item.path} to={item.path} aria-label={collapsed ? item.label : undefined} onClick={onClose}
             activeOptions={{ exact: item.exact ?? true, includeSearch: false }}
-            activeProps={{ 'aria-current': 'page', className: 'bg-hover text-text' }} inactiveProps={{ className: 'text-text-2' }}
+            activeProps={{ 'aria-current': 'page', className: sidebarActive }} inactiveProps={{ className: 'text-text-2' }}
             className={sidebarRow}>
             <item.icon className="size-4 shrink-0" strokeWidth={1.6} aria-hidden="true" />
             <span className={cn(textTransition, collapsed ? 'max-w-0 opacity-0' : 'ml-3 max-w-40')}>{item.label}</span>
@@ -136,7 +140,7 @@ export function PortalUser({ name, role, to, onClose, mono = false }: { name: st
   const roleClassName = mono ? 'block font-mono tabular-nums text-text-3' : 'block text-text-3'
   const content = (
     <>
-      <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-oat text-label">{name.slice(0, 1)}</span>
+      <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-oat font-serif text-label text-text">{name.slice(0, 1)}</span>
       <span className={cn(textTransition, collapsed ? 'max-w-0 opacity-0' : 'ml-2.5 max-w-full')}>
         <span className="block truncate text-label" title={name}>{name}</span>
         <span className={`text-caption ${roleClassName}`}>{role}</span>

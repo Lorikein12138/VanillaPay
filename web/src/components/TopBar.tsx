@@ -22,7 +22,7 @@ export function TopBar({ children, actions, compact = false }: { children?: Reac
           <LanguageSwitch />
           <ThemeSwitch />
           {actions && (
-            <div className="flex items-center gap-1 empty:hidden before:mx-1 before:h-5 before:w-px before:bg-border before:content-['']">
+            <div className="flex items-center gap-1 empty:hidden before:mx-1.5 before:h-5 before:w-px before:bg-border-strong before:content-['']">
               {actions}
             </div>
           )}
