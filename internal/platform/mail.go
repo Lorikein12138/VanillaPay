@@ -3,15 +3,16 @@ package platform
 import (
 	"context"
 	"errors"
+
+	"vanillapay/internal/mailtmpl"
 )
 
 var ErrMailerUnavailable = errors.New("mailer is unavailable")
 
 type MailMessage struct {
-	To      string
-	Subject string
-	Text    string
-	HTML    string
+	To       string
+	Template string
+	Payload  mailtmpl.Payload
 }
 
 // Mailer is the outbound email port.

@@ -27,7 +27,7 @@ func TestDB_EmailCodeAttemptLimitSurvivesRollback(t *testing.T) {
 			service := fixture.App.Services.Auth
 			const email = "attempt-limit@example.test"
 			const username = "attempt_limit"
-			if _, err := service.SendEmailCode(ctx, platform.Actor{}, auth.EmailCodeRequest{Purpose: "register", Email: email, TargetUsername: username, TurnstileToken: "ok:register"}); err != nil {
+			if _, err := service.SendEmailCode(ctx, platform.Actor{}, auth.EmailCodeRequest{Purpose: "register", Email: email, TargetUsername: username, TurnstileToken: "ok:register"}, "zh-CN"); err != nil {
 				t.Fatal(err)
 			}
 			correct := fixture.Mailer.LastCode()

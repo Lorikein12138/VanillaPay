@@ -37,7 +37,7 @@ func TestHTTP_PasswordResetMailDoesNotRevealAccount(t *testing.T) {
 			}
 			fixture.Siteverify.SetMode("accept")
 			var email string
-			if err := db.Pool.QueryRow(t.Context(), `SELECT email_normalized FROM merchants WHERE id=$1`, merchantID).Scan(&email); err != nil {
+			if err := db.Pool.QueryRow(t.Context(), `UPDATE merchants SET preferences=preferences||'{"locale":"en"}' WHERE id=$1 RETURNING email_normalized`, merchantID).Scan(&email); err != nil {
 				t.Fatal(err)
 			}
 			var sink *localSMTPSink
@@ -55,7 +55,7 @@ func TestHTTP_PasswordResetMailDoesNotRevealAccount(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					response := fixture.RequestWithHeaders(t, http.MethodPost, "/api/v1/auth/email-codes", bytes.NewReader(body), "guest", http.Header{"Content-Type": {"application/json"}, "X-Request-Id": {"reset-mail-parity"}})
+					response := fixture.RequestWithHeaders(t, http.MethodPost, "/api/v1/auth/email-codes", bytes.NewReader(body), "guest", http.Header{"Content-Type": {"application/json"}, "X-Request-Id": {"reset-mail-parity"}, "Accept-Language": {"zh-CN"}})
 					if response.Code != http.StatusOK {
 						t.Fatalf("reset email status=%d, want 200", response.Code)
 					}
@@ -108,12 +108,11 @@ func TestHTTP_PasswordResetMailDoesNotRevealAccount(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				body, err := readMIMEBody(message)
-				if err != nil {
-					t.Fatal(err)
-				}
-				codes := regexp.MustCompile(`verification code is ([0-9]{6})\.`).FindStringSubmatch(body)
-				if len(codes) != 2 || !strings.Contains(message.Header.Get("To"), email) {
+				parts := readMIMEAlternatives(t, message)
+				codes := regexp.MustCompile(`\b([0-9]{6})\b`).FindStringSubmatch(parts["text/plain"])
+				if len(codes) != 2 || !strings.Contains(message.Header.Get("To"), email) ||
+					!strings.Contains(parts["text/plain"], "Password reset verification code") ||
+					!strings.Contains(parts["text/html"], "<html lang=\"en\">") {
 					t.Fatal("registered mailbox did not receive its reset verification code")
 				}
 				code = codes[1]

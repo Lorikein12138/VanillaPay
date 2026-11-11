@@ -12,9 +12,16 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	sqlc "vanillapay/internal/db/sqlc"
+	"vanillapay/internal/mailtmpl"
 	"vanillapay/internal/platform"
+)
+
+const (
+	offlineThreshold = 90 * time.Second
+	onlineRearmDelay = 5 * time.Minute
 )
 
 type PaymentPort interface {
@@ -63,19 +70,22 @@ func (s *Service) Heartbeat(ctx context.Context, device DeviceIdentity, req Hear
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{device.MerchantID}, false); err != nil {
 			return err
 		}
-		var last *time.Time
-		var ever bool
-		var appVersion string
-		if err := tx.QueryRow(ctx, `SELECT last_seen_at,ever_online,app_version FROM devices WHERE id=$1 AND merchant_id=$2 AND revoked_at IS NULL FOR UPDATE`, device.DeviceID, device.MerchantID).Scan(&last, &ever, &appVersion); err != nil {
+		var last, onlineSince *time.Time
+		var armed bool
+		if err := tx.QueryRow(ctx, `SELECT last_seen_at,online_since,offline_alert_armed FROM devices WHERE id=$1 AND merchant_id=$2 AND revoked_at IS NULL FOR UPDATE`, device.DeviceID, device.MerchantID).Scan(&last, &onlineSince, &armed); err != nil {
 			return deviceErr("DEVICE_UNAUTHORIZED", 401)
 		}
 		now := s.clock.Now()
-		if ever && last != nil && !last.After(now.Add(-90*time.Second)) {
-			if _, err := tx.Exec(ctx, `UPDATE devices SET offline_episode=offline_episode+1 WHERE id=$1`, device.DeviceID); err != nil {
-				return err
-			}
+		if onlineSince == nil || last == nil {
+			onlineSince = &now
+		} else if !last.After(now.Add(-offlineThreshold)) {
+			// A run can qualify while its last heartbeat is still fresh, even
+			// when no heartbeat arrived exactly at the five-minute mark.
+			armed = armed || last.Add(offlineThreshold).After(onlineSince.Add(onlineRearmDelay))
+			onlineSince = &now
 		}
-		if _, err := tx.Exec(ctx, `UPDATE devices SET last_seen_at=$1,ever_online=true,app_version=$2,updated_at=$1 WHERE id=$3`, now, strings.TrimSpace(req.AppVersion), device.DeviceID); err != nil {
+		armed = armed || now.Sub(*onlineSince) >= onlineRearmDelay
+		if _, err := tx.Exec(ctx, `UPDATE devices SET last_seen_at=$1,ever_online=true,app_version=$2,updated_at=$1,online_since=$3,offline_alert_armed=$4 WHERE id=$5`, now, strings.TrimSpace(req.AppVersion), onlineSince, armed, device.DeviceID); err != nil {
 			return err
 		}
 		var banned bool
@@ -107,9 +117,9 @@ func (s *Service) Device(ctx context.Context, actor platform.Actor) (DeviceDTO, 
 	dto.AppVersion = &version
 	dto.Bound = true
 	dto.LastSeenAt = last
-	dto.Online = last != nil && last.After(s.clock.Now().Add(-90*time.Second))
+	dto.Online = last != nil && last.After(s.clock.Now().Add(-offlineThreshold))
 	if last != nil {
-		off := last.Add(90 * time.Second)
+		off := last.Add(offlineThreshold)
 		dto.OfflineAt = &off
 	}
 	return dto, nil
@@ -169,75 +179,72 @@ func (s *Service) DetectOffline(ctx context.Context, limit int) (int, error) {
 	if limit < 1 || limit > 1000 {
 		limit = 100
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id,merchant_id,offline_episode FROM devices WHERE revoked_at IS NULL AND ever_online=true AND last_seen_at<=$1::timestamptz-interval '90 seconds' AND offline_notified_episode<offline_episode+1 ORDER BY last_seen_at,id LIMIT $2`, s.clock.Now(), limit)
+	list, err := sqlc.New(s.pool).ListOfflineDevices(ctx, sqlc.ListOfflineDevicesParams{
+		Cutoff:    pgtype.Timestamptz{Time: s.clock.Now().Add(-offlineThreshold), Valid: true},
+		BatchSize: int32(limit),
+	})
 	if err != nil {
 		return 0, err
 	}
-	type candidate struct{ id, merchant, episode int64 }
-	var list []candidate
-	for rows.Next() {
-		var c candidate
-		if err := rows.Scan(&c.id, &c.merchant, &c.episode); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		list = append(list, c)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return 0, err
-	}
-	rows.Close()
 	count := 0
 	for _, c := range list {
+		queued := false
 		err := sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			if err := sqlc.LockBusinessRows(ctx, tx, []int64{c.merchant}, false); err != nil {
+			queued = false
+			if err := sqlc.LockBusinessRows(ctx, tx, []int64{c.MerchantID}, false); err != nil {
 				return err
 			}
-			var email string
-			var episode, notified int64
-			if err := tx.QueryRow(ctx, `SELECT d.offline_episode,d.offline_notified_episode,m.email_normalized FROM devices d JOIN merchants m ON m.id=d.merchant_id WHERE d.id=$1 AND d.revoked_at IS NULL AND d.last_seen_at<=$2::timestamptz-interval '90 seconds' FOR UPDATE OF d`, c.id, s.clock.Now()).Scan(&episode, &notified, &email); err != nil {
-				return err
-			}
-			if !needsOfflineNotification(episode, notified) {
+			var name, email, locale string
+			var last time.Time
+			var next int64
+			err := tx.QueryRow(ctx, `
+				UPDATE devices d SET offline_alert_armed=false,online_since=NULL,
+					offline_notified_episode=d.offline_notified_episode+1
+				FROM merchants m WHERE d.id=$1 AND d.merchant_id=m.id AND d.revoked_at IS NULL
+					AND d.ever_online AND d.last_seen_at<=$2
+					AND (d.offline_alert_armed OR d.last_seen_at > d.online_since + interval '210 seconds')
+				RETURNING d.offline_notified_episode,d.name,d.last_seen_at,m.email_normalized,COALESCE(m.preferences->>'locale','')
+			`, c.ID, s.clock.Now().Add(-offlineThreshold)).Scan(&next, &name, &last, &email, &locale)
+			if errors.Is(err, pgx.ErrNoRows) {
 				return nil
 			}
-			next := episode + 1
-			if _, err := tx.Exec(ctx, `UPDATE devices SET offline_notified_episode=$1 WHERE id=$2`, next, c.id); err != nil {
+			if err != nil {
 				return err
 			}
-			dedupe := fmt.Sprintf("device_offline:%d:%d", c.id, next)
+			dedupe := fmt.Sprintf("device_offline:%d:%d", c.ID, next)
 			id, err := platform.RandomToken(s.random, 18)
 			if err != nil {
 				return err
 			}
-			payload, _ := json.Marshal(map[string]any{"title": map[string]string{"zh_CN": "设备离线", "en": "Device offline"}, "summary": map[string]string{"zh_CN": "设备已超过 90 秒未心跳", "en": "The device missed heartbeats for over 90 seconds"}, "action": map[string]string{"page": "/dashboard/collection", "entity_id": "device"}})
-			if _, err := tx.Exec(ctx, `INSERT INTO notifications(public_id,merchant_id,kind,source_id,dedupe_key,safe_payload) VALUES($1,$2,'device_offline',$3,$4,$5) ON CONFLICT(dedupe_key) DO NOTHING`, id, c.merchant, fmt.Sprint(c.id), dedupe, payload); err != nil {
+			payload, _ := json.Marshal(map[string]any{"title": map[string]string{"zh_CN": "设备离线", "en": "Device offline"}, "summary": map[string]string{"zh_CN": "设备「" + name + "」已超过 90 秒未心跳", "en": "Device “" + name + "” has missed heartbeats for over 90 seconds"}, "action": map[string]string{"page": "/dashboard/collection", "entity_id": "device"}})
+			if _, err := tx.Exec(ctx, `INSERT INTO notifications(public_id,merchant_id,kind,source_id,dedupe_key,safe_payload) VALUES($1,$2,'device_offline',$3,$4,$5) ON CONFLICT(dedupe_key) DO NOTHING`, id, c.MerchantID, fmt.Sprint(c.ID), dedupe, payload); err != nil {
 				return err
 			}
-			if err := s.queueMailTx(ctx, tx, email, "device_offline", dedupe, map[string]any{"device_id": c.id, "episode": next}); err != nil {
+			if err := s.queueMailTx(ctx, tx, email, mailtmpl.DeviceOffline, dedupe, mailtmpl.Payload{Locale: locale, DeviceName: name, LastHeartbeat: &last}); err != nil {
 				return err
 			}
-			count++
+			queued = true
 			return nil
 		})
 		if err != nil {
 			return count, err
 		}
+		if queued {
+			count++
+		}
 	}
 	return count, nil
 }
 
-func needsOfflineNotification(episode, notified int64) bool {
-	return notified < episode+1
-}
-
-func (s *Service) queueMailTx(ctx context.Context, tx pgx.Tx, recipient, template, dedupe string, payload any) error {
+func (s *Service) queueMailTx(ctx context.Context, tx pgx.Tx, recipient, template, dedupe string, payload mailtmpl.Payload) error {
 	recipientCipher, err := platform.Encrypt(s.key[:], []byte(recipient), s.random)
 	if err != nil {
 		return err
 	}
-	data, _ := json.Marshal(payload)
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
 	payloadCipher, err := platform.Encrypt(s.key[:], data, s.random)
 	if err != nil {
 		return err

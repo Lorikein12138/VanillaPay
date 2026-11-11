@@ -130,6 +130,8 @@ type Device struct {
 	RevokedAt              pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	OnlineSince            pgtype.Timestamptz `json:"online_since"`
+	OfflineAlertArmed      bool               `json:"offline_alert_armed"`
 }
 
 type DeviceBinding struct {
@@ -201,6 +203,9 @@ type MailDelivery struct {
 	SentAt          pgtype.Timestamptz `json:"sent_at"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	LeaseToken      pgtype.UUID        `json:"lease_token"`
+	LeaseExpiresAt  pgtype.Timestamptz `json:"lease_expires_at"`
+	NextAttemptAt   pgtype.Timestamptz `json:"next_attempt_at"`
 }
 
 type MediaAsset struct {

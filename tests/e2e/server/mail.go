@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"regexp"
 	"sync"
 
 	"vanillapay/internal/platform"
@@ -17,10 +16,9 @@ type browserInbox struct {
 }
 
 func (m *browserInbox) Send(_ context.Context, message platform.MailMessage) error {
-	code := regexp.MustCompile(`\b[0-9]{6}\b`).FindString(message.Text)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.codes[message.To] = code
+	m.codes[message.To] = message.Payload.Code
 	return nil
 }
 

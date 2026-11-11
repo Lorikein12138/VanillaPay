@@ -48,7 +48,7 @@ type Querier interface {
 	ListCallbackAttempts(ctx context.Context, orderID int64) ([]ListCallbackAttemptsRow, error)
 	ListMerchantNotifications(ctx context.Context, arg ListMerchantNotificationsParams) ([]ListMerchantNotificationsRow, error)
 	ListMerchantOrders(ctx context.Context, arg ListMerchantOrdersParams) ([]ListMerchantOrdersRow, error)
-	ListOfflineDevices(ctx context.Context, limit int32) ([]ListOfflineDevicesRow, error)
+	ListOfflineDevices(ctx context.Context, arg ListOfflineDevicesParams) ([]ListOfflineDevicesRow, error)
 	ListPurchaseGrants(ctx context.Context, merchantID int64) ([]ListPurchaseGrantsRow, error)
 	ListVisiblePlans(ctx context.Context) ([]Plan, error)
 	LockMerchantOrder(ctx context.Context, arg LockMerchantOrderParams) (LockMerchantOrderRow, error)

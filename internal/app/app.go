@@ -161,7 +161,7 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 		merchants.SetPlatformKeyPort(billing)
 		portalService := portal.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource)
 		settingsService := settings.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, cfg.PublicBaseURL, cfg.DataDir, deps.Turnstile)
-		registry, err := jobs.NewRegistry(pool, cfg.EncryptionKey, queue, billing, subs, devices, deps.HTTPClient)
+		registry, err := jobs.NewRegistry(pool, cfg.EncryptionKey, queue, billing, subs, devices, cfg.PublicBaseURL)
 		if err != nil {
 			attemptPool.Close()
 			database.Close()

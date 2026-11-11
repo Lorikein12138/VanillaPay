@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"vanillapay/internal/auth"
 	sqlc "vanillapay/internal/db/sqlc"
+	"vanillapay/internal/mailtmpl"
 	"vanillapay/internal/platform"
 )
 
@@ -870,7 +871,13 @@ func (s *Service) QueueMailTest(ctx context.Context, actor platform.Actor, recip
 	if err != nil {
 		return nil, err
 	}
-	payload, err := json.Marshal(map[string]any{"title": map[string]string{"zh_cn": "VanillaPay SMTP test", "en": "VanillaPay SMTP test"}, "summary": map[string]string{"zh_cn": "SMTP 配置测试邮件。", "en": "This is an SMTP configuration test."}, "locale": "zh_cn"})
+	var locale string
+	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(
+		(SELECT preferences->>'locale' FROM merchants WHERE email_normalized=$1),
+		(SELECT preferences->>'locale' FROM admins WHERE id=$2), 'zh-CN')`, recipient, actor.SubjectID).Scan(&locale); err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(mailtmpl.Payload{Locale: locale})
 	if err != nil {
 		return nil, err
 	}
@@ -882,7 +889,7 @@ func (s *Service) QueueMailTest(ctx context.Context, actor platform.Actor, recip
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO mail_deliveries(public_id,dedupe_key,template,recipient_cipher,payload_cipher,state) VALUES($1,$2,'mail_test',$3,$4,'queued')`, id, dedupe, toCipher, payloadCipher)
+	_, err = s.pool.Exec(ctx, `INSERT INTO mail_deliveries(public_id,dedupe_key,template,recipient_cipher,payload_cipher,state) VALUES($1,$2,$3,$4,$5,'queued')`, id, dedupe, mailtmpl.MailTest, toCipher, payloadCipher)
 	if err != nil {
 		return nil, err
 	}

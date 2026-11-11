@@ -14,4 +14,8 @@ UPDATE device_bindings SET consumed_at=now() WHERE code_hash=$1 AND expires_at>n
 INSERT INTO receipts(public_id,merchant_id,device_id,event_id,channel,amount_cents,occurred_at,provider_trade_no,payer_hint,raw_text_cipher,raw_text_hash,match_state,unmatched_reason,order_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id,public_id,received_at,match_state,unmatched_reason,order_id;
 
 -- name: ListOfflineDevices :many
-SELECT id,merchant_id,last_seen_at,offline_episode,offline_notified_episode FROM devices WHERE revoked_at IS NULL AND ever_online=true AND last_seen_at < now()-interval '90 seconds' AND offline_notified_episode<offline_episode ORDER BY last_seen_at LIMIT $1 FOR UPDATE SKIP LOCKED;
+SELECT id,merchant_id FROM devices
+WHERE revoked_at IS NULL AND ever_online
+    AND (offline_alert_armed OR last_seen_at > online_since + interval '210 seconds')
+    AND last_seen_at <= sqlc.arg(cutoff)::timestamptz
+ORDER BY last_seen_at,id LIMIT sqlc.arg(batch_size);

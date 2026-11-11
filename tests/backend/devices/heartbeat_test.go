@@ -62,10 +62,31 @@ func TestDB_HeartbeatRestoresOnlineStateAndOfflineScanStartsANewEpisode(t *testi
 			t.Fatalf("repeated offline scan count=%d err=%v, want no duplicate episode", count, err)
 		}
 	})
-	status, err = application.Services.Device.Heartbeat(context.Background(), identity, device.HeartbeatRequest{AppVersion: "1.1"})
-	if err != nil || !status.Online {
-		t.Fatalf("recovery heartbeat = %#v, %v", status, err)
+	heartbeat := func() {
+		t.Helper()
+		status, err := application.Services.Device.Heartbeat(t.Context(), identity, device.HeartbeatRequest{AppVersion: "1.1"})
+		if err != nil || !status.Online {
+			t.Fatalf("recovery heartbeat = %#v, %v", status, err)
+		}
 	}
+	for range 2 {
+		heartbeat()
+		for range 3 {
+			db.Clock.Set(db.Clock.Now().Add(time.Minute))
+			heartbeat()
+		}
+		db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
+		if count, err := application.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 0 {
+			t.Fatalf("short recovery started another alert = %d, %v", count, err)
+		}
+	}
+	heartbeat()
+	for range 4 {
+		db.Clock.Set(db.Clock.Now().Add(time.Minute))
+		heartbeat()
+	}
+	// At five minutes the fourth heartbeat is still fresh. The alert can
+	// rearm even without another heartbeat at exactly five minutes.
 	db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
 	if count, err := application.Services.Device.DetectOffline(context.Background(), 10); err != nil || count != 1 {
 		t.Fatalf("second offline episode = %d, %v", count, err)
@@ -79,19 +100,26 @@ func TestDB_HeartbeatRestoresOnlineStateAndOfflineScanStartsANewEpisode(t *testi
 			t.Fatalf("restored second offline episode=%d mail jobs=%d err=%v, want 2/2", episodes, jobs, err)
 		}
 	})
-	db.Clock.Set(db.Clock.Now().Add(10 * time.Minute))
+	db.Clock.Set(db.Clock.Now().Add(6 * time.Hour))
 	if count, err := application.Services.Device.DetectOffline(context.Background(), 10); err != nil || count != 0 {
 		t.Fatalf("long offline repeated notification = %d, %v", count, err)
 	}
-	var episodes, notifications int
+	var episodes, notifications, matchingDeliveries int
 	if err := db.Pool.QueryRow(context.Background(), `SELECT offline_notified_episode FROM devices WHERE id=$1`, identity.DeviceID).Scan(&episodes); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Pool.QueryRow(context.Background(), `SELECT count(*) FROM notifications WHERE merchant_id=$1 AND kind='device_offline'`, merchantID).Scan(&notifications); err != nil {
 		t.Fatal(err)
 	}
-	if episodes != 2 || notifications != 2 {
-		t.Fatalf("offline episodes=%d notifications=%d", episodes, notifications)
+	if err := db.Pool.QueryRow(t.Context(), `SELECT count(*) FROM notifications n JOIN mail_deliveries m USING (dedupe_key)
+		WHERE n.merchant_id=$1 AND n.kind='device_offline' AND m.template='device_offline'
+		AND n.safe_payload->'summary'->>'zh_CN' LIKE '%heartbeat device%'
+		AND n.safe_payload->'summary'->>'en' LIKE '%heartbeat device%'
+		AND n.safe_payload->'action' = '{"page":"/dashboard/collection","entity_id":"device"}'::jsonb`, merchantID).Scan(&matchingDeliveries); err != nil {
+		t.Fatal(err)
+	}
+	if episodes != 2 || notifications != 2 || matchingDeliveries != 2 {
+		t.Fatalf("offline episodes=%d notifications=%d matching deliveries=%d", episodes, notifications, matchingDeliveries)
 	}
 }
 

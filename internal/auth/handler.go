@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"vanillapay/internal/mailtmpl"
 	"vanillapay/internal/platform"
 )
 
@@ -98,7 +99,7 @@ func (h *Handler) sendEmailCode(w http.ResponseWriter, r *http.Request) {
 	if req.Purpose != "register" && req.Purpose != "reset_password" {
 		actor = h.actorForEmailCode(r)
 	}
-	result, err := h.Service.SendEmailCode(r.Context(), actor, req)
+	result, err := h.Service.SendEmailCode(r.Context(), actor, req, mailtmpl.RequestLocale(r.Header.Get("Accept-Language")))
 	details := map[string]any{}
 	var rateLimitError *emailCodeRateLimitError
 	if errors.As(err, &rateLimitError) {
