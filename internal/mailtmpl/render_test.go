@@ -3,6 +3,7 @@ package mailtmpl
 import (
 	"encoding/json"
 	"html"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -124,7 +125,7 @@ func TestUnit_VerificationPurposesAndRequestLocale(t *testing.T) {
 		"reset_key":        {"重置密钥验证码", "Key reset verification code"},
 	} {
 		for i, locale := range []string{"zh-CN", "en"} {
-			v := newView(Verification, Payload{Purpose: purpose, Locale: locale}, previewBaseURL)
+			v := newView(Verification, Payload{Purpose: purpose, Locale: locale}, url.URL{})
 			if v.Title != expected[i] || !strings.Contains(v.Note, "10") {
 				t.Errorf("purpose=%s locale=%s: title=%q note=%q", purpose, locale, v.Title, v.Note)
 			}

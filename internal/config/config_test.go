@@ -1,9 +1,14 @@
 package config
 
 import (
+	"html"
+	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
+
+	"vanillapay/internal/mailtmpl"
 )
 
 func TestUnit_LoadRequiresConfigurationWithoutEchoingValues(t *testing.T) {
@@ -87,6 +92,51 @@ func TestUnit_LoadProductionRequiresHTTPSAndValidKey(t *testing.T) {
 	}
 	if strings.Contains(message, "DO_NOT_PRINT_THIS_SECRET") {
 		t.Fatalf("configuration error leaked a secret value: %q", message)
+	}
+}
+
+func TestUnit_LoadMailLinksWithEmptyBaseQuery(t *testing.T) {
+	setValidEnvironment(t)
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("PUBLIC_BASE_URL", "https://pay.example.test:8443?")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const trade = "VP12/34?tag=#"
+	for _, tc := range []struct {
+		template, path, escapedPath string
+		payload                     mailtmpl.Payload
+	}{
+		{mailtmpl.DeviceOffline, "/devices", "/devices", mailtmpl.Payload{}},
+		{mailtmpl.RefundRequest, "/orders/" + trade, "/orders/" + url.PathEscape(trade), mailtmpl.Payload{TradeNo: trade}},
+	} {
+		t.Run(tc.template, func(t *testing.T) {
+			message, err := mailtmpl.Render(tc.template, tc.payload, "Example", cfg.PublicBaseURL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			href := regexp.MustCompile(`href="([^"]+)"`).FindStringSubmatch(message.HTML)
+			if len(href) != 2 {
+				t.Fatal("HTML has no action link")
+			}
+			var textLink string
+			for line := range strings.SplitSeq(message.Text, "\n") {
+				if strings.HasPrefix(line, "https://") {
+					textLink = line
+					break
+				}
+			}
+			for format, link := range map[string]string{"text": textLink, "html": html.UnescapeString(href[1])} {
+				parsed, err := url.Parse(link)
+				if err != nil || parsed.Scheme != "https" || parsed.Host != "pay.example.test:8443" ||
+					parsed.Path != tc.path || parsed.EscapedPath() != tc.escapedPath ||
+					parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" {
+					t.Errorf("%s action link = %q, want HTTPS with escaped path %q and no query: %v", format, link, tc.escapedPath, err)
+				}
+			}
+		})
 	}
 }
 

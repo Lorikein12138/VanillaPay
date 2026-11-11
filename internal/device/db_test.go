@@ -121,64 +121,90 @@ func TestDB_OfflineEpisodeQueuesOneNotificationAndMail(t *testing.T) {
 }
 
 func TestDB_OfflineAlertMigrationPreservesArmingState(t *testing.T) {
-	db := testsupport.NewDatabase(t)
-	ctx := t.Context()
-	application := db.NewApplication(t)
-	legacyDB, err := sql.Open("pgx", db.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = legacyDB.Close() }()
-	provider, err := goose.NewProvider(database.DialectPostgres, legacyDB, migrations.FS())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := provider.Down(ctx); err != nil {
-		t.Fatal(err)
-	}
 	fixtures := []struct {
 		name             string
 		elapsed          time.Duration
 		episode, alerted int
 		revoked          bool
+		wantOnlineSince  bool
+		wantAlerts       int
 	}{
-		{"already-alerted", time.Hour, 3, 1, false},
-		{"online", 10 * time.Second, 0, 1, false},
-		{"not-yet-alerted", time.Hour, 0, 0, false},
-		{"revoked", time.Hour, 0, 0, true},
+		{"briefly-recovered-and-online", 10 * time.Second, 1, 1, false, true, 0},
+		{"stable-recovery-then-offline-before-scan", 100 * time.Second, 1, 1, false, false, 0},
+		{"still-in-alerted-outage", time.Hour, 0, 1, false, false, 0},
+		{"not-yet-alerted", time.Hour, 0, 0, false, false, 1},
+		{"revoked", time.Hour, 0, 0, true, false, 0},
 	}
 	for _, fixture := range fixtures {
-		merchantID, _ := db.SeedMerchant(t)
-		var revokedAt *time.Time
-		if fixture.revoked {
-			now := db.Clock.Now()
-			revokedAt = &now
-		}
-		if _, err := db.Pool.Exec(ctx, `INSERT INTO devices
-			(public_id,merchant_id,token_hash,name,last_seen_at,ever_online,offline_episode,offline_notified_episode,revoked_at)
-			VALUES ($1,$2,$3,$1,$4,true,$5,$6,$7)`,
-			fixture.name, merchantID, []byte(fixture.name), db.Clock.Now().Add(-fixture.elapsed),
-			fixture.episode, fixture.alerted, revokedAt); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := migrate.Up(ctx, db.URL); err != nil {
-		t.Fatal(err)
-	}
-	if count, err := application.Services.Device.DetectOffline(ctx, 50); err != nil || count != 1 {
-		t.Fatalf("after upgrade, want only the unalerted offline device: %d, %v", count, err)
-	}
-	db.Clock.Set(db.Clock.Now().Add(90 * time.Second))
-	if count, err := application.Services.Device.DetectOffline(ctx, 50); err != nil || count != 1 {
-		t.Fatalf("after the initially online device goes offline: %d, %v", count, err)
-	}
-	var names []string
-	if err := db.Pool.QueryRow(ctx, `SELECT array_agg(d.name ORDER BY d.name)
-		FROM notifications n JOIN devices d ON d.id::text=n.source_id
-		JOIN mail_deliveries m USING (dedupe_key) WHERE n.kind='device_offline' AND m.template='device_offline'`).Scan(&names); err != nil {
-		t.Fatal(err)
-	}
-	if len(names) != 2 || names[0] != "not-yet-alerted" || names[1] != "online" {
-		t.Fatalf("upgrade alerts went to the wrong devices: %v", names)
+		t.Run(fixture.name, func(t *testing.T) {
+			db := testsupport.NewDatabase(t)
+			ctx := t.Context()
+			application := db.NewApplication(t)
+			legacyDB, err := sql.Open("pgx", db.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = legacyDB.Close() }()
+			provider, err := goose.NewProvider(database.DialectPostgres, legacyDB, migrations.FS())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := provider.Down(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			merchantID, _ := db.SeedMerchant(t)
+			var before, after time.Time
+			if err := db.Pool.QueryRow(ctx, `SELECT now()`).Scan(&before); err != nil {
+				t.Fatal(err)
+			}
+			var revokedAt *time.Time
+			if fixture.revoked {
+				revokedAt = &before
+			}
+			if _, err := db.Pool.Exec(ctx, `INSERT INTO devices
+				(public_id,merchant_id,token_hash,name,last_seen_at,ever_online,offline_episode,offline_notified_episode,revoked_at)
+				VALUES ($1,$2,$3,$1,$4,true,$5,$6,$7)`,
+				fixture.name, merchantID, []byte(fixture.name), before.Add(-fixture.elapsed),
+				fixture.episode, fixture.alerted, revokedAt); err != nil {
+				t.Fatal(err)
+			}
+			if err := migrate.Up(ctx, db.URL); err != nil {
+				t.Fatal(err)
+			}
+			var armed bool
+			var onlineSince *time.Time
+			if err := db.Pool.QueryRow(ctx, `SELECT offline_alert_armed,online_since,now() FROM devices WHERE merchant_id=$1`, merchantID).
+				Scan(&armed, &onlineSince, &after); err != nil {
+				t.Fatal(err)
+			}
+			if want := fixture.alerted == 0; armed != want {
+				t.Errorf("armed after upgrade = %t, want %t", armed, want)
+			}
+			if fixture.wantOnlineSince {
+				if onlineSince == nil || onlineSince.Before(before) || onlineSince.After(after) {
+					t.Errorf("online_since = %v, want the migration timestamp between %v and %v", onlineSince, before, after)
+				}
+			} else if onlineSince != nil {
+				t.Errorf("online_since = %v, want NULL", onlineSince)
+			}
+
+			db.Clock.Set(after.Add(91 * time.Second))
+			if count, err := application.Services.Device.DetectOffline(ctx, 50); err != nil || count != fixture.wantAlerts {
+				t.Errorf("first offline scan = %d, %v, want %d", count, err, fixture.wantAlerts)
+			}
+			if count, err := application.Services.Device.DetectOffline(ctx, 50); err != nil || count != 0 {
+				t.Errorf("repeated offline scan = %d, %v, want 0", count, err)
+			}
+			var notices, mails int
+			if err := db.Pool.QueryRow(ctx, `SELECT
+				(SELECT count(*) FROM notifications WHERE merchant_id=$1 AND kind='device_offline'),
+				(SELECT count(*) FROM mail_deliveries WHERE template='device_offline')`, merchantID).Scan(&notices, &mails); err != nil {
+				t.Fatal(err)
+			}
+			if notices != fixture.wantAlerts || mails != fixture.wantAlerts {
+				t.Errorf("notification rows=%d mail rows=%d, want %d of each", notices, mails, fixture.wantAlerts)
+			}
+		})
 	}
 }

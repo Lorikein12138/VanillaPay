@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"vanillapay/internal/app"
+	"vanillapay/internal/device"
 	"vanillapay/internal/payment"
 	"vanillapay/internal/platform"
 	"vanillapay/internal/portal"
@@ -181,6 +182,190 @@ func TestDB_MailWorkerDoesNotRetryAcceptedDataAfterSMTPError(t *testing.T) {
 	}
 }
 
+func TestDB_OfflineMailDataAcceptanceSurvivesOverlappingScans(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	application := db.NewApplication(t)
+	merchantID, _ := db.SeedMerchant(t)
+	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
+	binding, err := application.Services.Device.NewBinding(t.Context(), actor, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := application.Services.Device.Redeem(t.Context(), device.RedeemRequest{Code: binding.Code, DeviceName: "test device"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := application.Services.Device.Authenticate(t.Context(), credential.DeviceToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := application.Services.Device.Heartbeat(t.Context(), identity, device.HeartbeatRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
+	if count, err := application.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 1 {
+		t.Fatalf("queue one offline mail: count=%d err=%v", count, err)
+	}
+	var id string
+	if err := db.Pool.QueryRow(t.Context(), `SELECT public_id FROM mail_deliveries WHERE template='device_offline'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+
+	cleanupStarted := make(chan struct{})
+	release := make(chan struct{})
+	releaseCleanup := sync.OnceFunc(func() { close(release) })
+	defer releaseCleanup()
+	port, data := newScriptedSMTPSink(t, smtpBehavior{beforeCleanup: func() {
+		close(cleanupStarted)
+		select {
+		case <-release:
+		case <-t.Context().Done():
+		}
+	}})
+	configureMailWorker(t, db, application, "127.0.0.1", port, "contract-smtp-user", fixturePassword)
+	startMailWorkers(t, application)
+	waitSMTPData(t, data)
+	select {
+	case <-cleanupStarted:
+	case <-time.After(10 * time.Second):
+		t.Fatal("first SMTP session did not reach RSET or QUIT after DATA 250")
+	}
+
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET updated_at=now()-interval '61 seconds' WHERE public_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	runIndependentMailScan(t, db)
+	assertNoAdditionalSMTPData(t, data)
+	// The first SMTP session is still blocked on cleanup here.
+	assertDeliveryResult(t, db, id, "sent", 1)
+	releaseCleanup()
+}
+
+func TestDB_MailWorkerRetriesData451OnIndependentSchedule(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	application := db.NewApplication(t)
+	port, data := newScriptedSMTPSink(t, smtpBehavior{dataReply: "451 temporarily unable to queue"})
+	configureMailWorker(t, db, application, "127.0.0.1", port, "contract-smtp-user", fixturePassword)
+	admin := platform.Actor{Role: "admin", SubjectID: 1}
+	delivery, err := application.Services.Settings.QueueMailTest(t.Context(), admin, "operator@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := delivery["delivery_id"].(string)
+	startMailWorkers(t, application)
+	waitSMTPData(t, data)
+	waitCompletedMailScan(t, db, 0, 10*time.Second)
+	assertDeliveryResult(t, db, id, "failed", 1)
+
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET updated_at=now()-interval '61 seconds' WHERE public_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	runIndependentMailScan(t, db)
+	assertNoAdditionalSMTPData(t, data)
+	assertDeliveryResult(t, db, id, "failed", 1)
+
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET next_attempt_at=now()-interval '1 second' WHERE public_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	runIndependentMailScan(t, db)
+	waitSMTPData(t, data)
+	assertDeliveryResult(t, db, id, "sent", 2)
+}
+
+func TestDB_MailWorkerWaitsForLeaseExpiryAndBackoff(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	application := db.NewApplication(t)
+	port, data := newScriptedSMTPSink(t, smtpBehavior{})
+	configureMailWorker(t, db, application, "127.0.0.1", port, "contract-smtp-user", fixturePassword)
+	admin := platform.Actor{Role: "admin", SubjectID: 1}
+	delivery, err := application.Services.Settings.QueueMailTest(t.Context(), admin, "operator@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := delivery["delivery_id"].(string)
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET attempts=1,updated_at=now()-interval '61 seconds',
+		lease_token=gen_random_uuid(),lease_expires_at=now()+interval '1 minute' WHERE public_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	startMailWorkers(t, application)
+	waitCompletedMailScan(t, db, 0, 10*time.Second)
+	assertNoAdditionalSMTPData(t, data)
+	assertDeliveryResult(t, db, id, "queued", 1)
+
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET lease_expires_at=now()-interval '30 seconds' WHERE public_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	runIndependentMailScan(t, db)
+	assertNoAdditionalSMTPData(t, data)
+	assertDeliveryResult(t, db, id, "failed", 1)
+
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET next_attempt_at=now()-interval '1 second' WHERE public_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	runIndependentMailScan(t, db)
+	waitSMTPData(t, data)
+	assertDeliveryResult(t, db, id, "sent", 2)
+}
+
+func assertDeliveryResult(t *testing.T, db *testsupport.Database, id, wantState string, wantAttempts int) {
+	t.Helper()
+	var state string
+	var attempts int
+	var sentAt *time.Time
+	if err := db.Pool.QueryRow(t.Context(), `SELECT state,attempts,sent_at FROM mail_deliveries WHERE public_id=$1`, id).
+		Scan(&state, &attempts, &sentAt); err != nil {
+		t.Fatal(err)
+	}
+	if state != wantState || attempts != wantAttempts || (sentAt != nil) != (wantState == "sent") {
+		t.Fatalf("mail state=%s attempts=%d sent_at=%v, want state=%s attempts=%d", state, attempts, sentAt, wantState, wantAttempts)
+	}
+}
+
+func runIndependentMailScan(t *testing.T, db *testsupport.Database) {
+	t.Helper()
+	var id int64
+	if err := db.Pool.QueryRow(t.Context(), `INSERT INTO river_job(kind,args,max_attempts) VALUES ('vanillapay_mail_scan','{}',1) RETURNING id`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var state string
+		if err := db.Pool.QueryRow(t.Context(), `SELECT state FROM river_job WHERE id=$1`, id).Scan(&state); err != nil {
+			t.Fatal(err)
+		}
+		switch state {
+		case "completed":
+			return
+		case "discarded", "cancelled":
+			t.Fatalf("second mail scan ended in %s", state)
+		}
+		select {
+		case <-t.Context().Done():
+			t.Fatal("context canceled while waiting for independent mail scan")
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+	t.Fatal("independent mail scan did not finish")
+}
+
+func waitSMTPData(t *testing.T, data <-chan string) {
+	t.Helper()
+	select {
+	case <-data:
+	case <-time.After(10 * time.Second):
+		t.Fatal("SMTP fixture did not receive DATA")
+	}
+}
+
+func assertNoAdditionalSMTPData(t *testing.T, data <-chan string) {
+	t.Helper()
+	select {
+	case <-data:
+		t.Fatal("SMTP fixture received an unexpected second DATA transaction")
+	default:
+	}
+}
+
 func TestDB_MailWorkerRetriesFailuresWithoutRollingBackFacts(t *testing.T) {
 	db := testsupport.NewDatabase(t)
 	app := db.NewApplication(t)
@@ -220,8 +405,11 @@ func TestDB_MailWorkerRetriesFailuresWithoutRollingBackFacts(t *testing.T) {
 	t.Run("V39.B.r02/v02", func(t *testing.T) {
 		currentAttempt := 1
 		for _, delay := range []time.Duration{time.Minute, 5 * time.Minute, 30 * time.Minute} {
-			notDue := fmt.Sprintf("%d seconds", int(delay/time.Second)-10)
-			if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET updated_at=now()-$1::interval WHERE public_id=$2`, notDue, delivery["delivery_id"].(string)); err != nil {
+			var seconds int
+			if err := db.Pool.QueryRow(t.Context(), `SELECT extract(epoch FROM next_attempt_at-updated_at)::int FROM mail_deliveries WHERE public_id=$1`, delivery["delivery_id"]).Scan(&seconds); err != nil || time.Duration(seconds)*time.Second != delay {
+				t.Fatalf("mail retry delay=%ds err=%v, want %s", seconds, err, delay)
+			}
+			if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET next_attempt_at=now()+interval '10 seconds' WHERE public_id=$1`, delivery["delivery_id"].(string)); err != nil {
 				t.Fatalf("set mail retry timestamp just before %s: %v", delay, err)
 			}
 			before := completedMailScanCount(t, db)
@@ -229,8 +417,7 @@ func TestDB_MailWorkerRetriesFailuresWithoutRollingBackFacts(t *testing.T) {
 			waitCompletedMailScan(t, db, before, 10*time.Second)
 			assertMailAttempts(t, db, delivery["delivery_id"].(string), currentAttempt)
 
-			due := fmt.Sprintf("%d seconds", int(delay/time.Second)+1)
-			if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET updated_at=now()-$1::interval WHERE public_id=$2`, due, delivery["delivery_id"].(string)); err != nil {
+			if _, err := db.Pool.Exec(t.Context(), `UPDATE mail_deliveries SET next_attempt_at=now()-interval '1 second' WHERE public_id=$1`, delivery["delivery_id"].(string)); err != nil {
 				t.Fatalf("set mail retry timestamp after %s: %v", delay, err)
 			}
 			before = completedMailScanCount(t, db)
@@ -362,10 +549,11 @@ func waitMailAttempts(t *testing.T, db *testsupport.Database, id string, want in
 	for time.Now().Before(deadline) {
 		var attempts int
 		var state string
-		if err := db.Pool.QueryRow(t.Context(), `SELECT attempts,state FROM mail_deliveries WHERE public_id=$1`, id).Scan(&attempts, &state); err != nil {
+		var leased bool
+		if err := db.Pool.QueryRow(t.Context(), `SELECT attempts,state,lease_token IS NOT NULL FROM mail_deliveries WHERE public_id=$1`, id).Scan(&attempts, &state, &leased); err != nil {
 			t.Fatalf("read mail attempts: %v", err)
 		}
-		if attempts >= want && state == "failed" {
+		if attempts >= want && state == "failed" && !leased {
 			return
 		}
 		select {
@@ -488,6 +676,43 @@ func newTrustedLocalSMTPSink(t *testing.T) *localSMTPSink {
 
 func newLocalSMTPSink(t *testing.T, failCommand string) *localSMTPSink {
 	t.Helper()
+	listener := localSMTPListener(t)
+	sink := &localSMTPSink{port: listener.Addr().(*net.TCPAddr).Port, message: make(chan string, 1)}
+	go func() {
+		if connection, err := listener.Accept(); err == nil {
+			sink.serve(connection, smtpBehavior{failCommand: failCommand})
+		}
+	}()
+	return sink
+}
+
+type smtpBehavior struct {
+	failCommand   string
+	dataReply     string
+	beforeCleanup func()
+}
+
+func newScriptedSMTPSink(t *testing.T, first smtpBehavior) (int, <-chan string) {
+	t.Helper()
+	listener := localSMTPListener(t)
+	data := make(chan string, 4)
+	go func() {
+		behavior := first
+		for {
+			connection, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			sink := &localSMTPSink{message: data}
+			go sink.serve(connection, behavior)
+			behavior = smtpBehavior{}
+		}
+	}()
+	return listener.Addr().(*net.TCPAddr).Port, data
+}
+
+func localSMTPListener(t *testing.T) net.Listener {
+	t.Helper()
 	certificates, err := localSMTPCertificate()
 	if err != nil {
 		t.Fatalf("create local SMTP certificates: %v", err)
@@ -497,17 +722,11 @@ func newLocalSMTPSink(t *testing.T, failCommand string) *localSMTPSink {
 		t.Fatalf("listen for local SMTP TLS: %v", err)
 	}
 	tlsListener := tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{certificates.server}, MinVersion: tls.VersionTLS12})
-	sink := &localSMTPSink{port: listener.Addr().(*net.TCPAddr).Port, message: make(chan string, 1)}
 	t.Cleanup(func() { _ = tlsListener.Close() })
-	go sink.serve(tlsListener, failCommand)
-	return sink
+	return tlsListener
 }
 
-func (sink *localSMTPSink) serve(listener net.Listener, failCommand string) {
-	connection, err := listener.Accept()
-	if err != nil {
-		return
-	}
+func (sink *localSMTPSink) serve(connection net.Conn, behavior smtpBehavior) {
 	defer func() { _ = connection.Close() }() // Cleanup must not replace the operation result.
 	reader := bufio.NewReader(connection)
 	writer := bufio.NewWriter(connection)
@@ -527,8 +746,12 @@ func (sink *localSMTPSink) serve(listener net.Listener, failCommand string) {
 		}
 		command := strings.TrimSpace(line)
 		upper := strings.ToUpper(command)
+		if behavior.beforeCleanup != nil && (upper == "RSET" || upper == "QUIT") {
+			behavior.beforeCleanup()
+			behavior.beforeCleanup = nil
+		}
 		switch {
-		case upper == failCommand:
+		case upper == behavior.failCommand:
 			if !write("451 simulated SMTP error after DATA acceptance") {
 				return
 			}
@@ -576,7 +799,11 @@ func (sink *localSMTPSink) serve(listener net.Listener, failCommand string) {
 				body.WriteString(dataLine)
 				body.WriteString("\r\n")
 			}
-			if !write("250 queued") {
+			reply := behavior.dataReply
+			if reply == "" {
+				reply = "250 queued"
+			}
+			if !write(reply) {
 				return
 			}
 			sink.message <- body.String()

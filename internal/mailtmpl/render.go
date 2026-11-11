@@ -82,10 +82,14 @@ func RequestLocale(acceptLanguage string) string {
 }
 
 func Render(name string, payload Payload, siteName, publicBaseURL string) (Message, error) {
+	baseURL, err := url.Parse(publicBaseURL)
+	if err != nil {
+		return Message{}, err
+	}
 	if siteName == "" {
 		siteName = "VanillaPay"
 	}
-	v := newView(name, payload, strings.TrimRight(publicBaseURL, "/"))
+	v := newView(name, payload, *baseURL)
 	v.SiteName = siteName
 
 	var html bytes.Buffer
@@ -99,7 +103,7 @@ func Render(name string, payload Payload, siteName, publicBaseURL string) (Messa
 	}, nil
 }
 
-func newView(name string, payload Payload, baseURL string) view {
+func newView(name string, payload Payload, baseURL url.URL) view {
 	english := strings.EqualFold(payload.Locale, "en")
 	localize := func(zh, en string) string {
 		if english {
@@ -144,7 +148,7 @@ func newView(name string, payload Payload, baseURL string) view {
 		}
 		v.Note = localize("设备恢复在线并连续在线满 5 分钟后，如再次离线，我们会再次通知你。", "If the device goes offline again after staying online for at least 5 consecutive minutes, we’ll send another alert.")
 		v.Action = localize("查看设备", "View device")
-		v.URL = baseURL + "/devices"
+		v.URL = actionURL(baseURL, "/devices", "")
 	case RefundRequest:
 		v.Category = localize("订单通知", "Order notification")
 		v.Title = localize("退款申请", "Refund request")
@@ -152,7 +156,7 @@ func newView(name string, payload Payload, baseURL string) view {
 		if payload.TradeNo != "" {
 			v.Details = []detail{{localize("订单号", "Order number"), payload.TradeNo}}
 			v.Action = localize("查看订单", "View order")
-			v.URL = baseURL + "/orders/" + url.PathEscape(payload.TradeNo)
+			v.URL = actionURL(baseURL, "/orders/", payload.TradeNo)
 		}
 	case MailTest:
 		v.Category = localize("站点设置", "Site settings")
@@ -163,6 +167,14 @@ func newView(name string, payload Payload, baseURL string) view {
 		v.Code = payload.Code
 	}
 	return v
+}
+
+func actionURL(base url.URL, path, segment string) string {
+	base.Path = path + segment
+	base.RawPath = path + url.PathEscape(segment)
+	base.RawQuery = ""
+	base.ForceQuery = false
+	return base.String()
 }
 
 func verificationTitle(purpose string, localize func(zh, en string) string) string {
