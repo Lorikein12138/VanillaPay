@@ -665,7 +665,7 @@
     "receiptTotal": "{{count}} receipts · Dates filter the time received",
     "bindingRemaining": "Waiting for binding · Remaining {{time}}",
     "setupRemaining": "Setup time remaining {{time}}",
-    "emailDomainHint": "Allowed email domains: {{domains}} (subdomains excluded)",
+    "emailDomainHint": "Allowed email domains: {{domains}}",
     "legalRevision": "Revision {{revision}}"
   },
   "subscription": {
@@ -1129,6 +1129,8 @@
     "turnstileSecret": "Human verification secret",
     "restrictDomains": "Restrict signup email domains",
     "emailDomains": "Allowed email domains (one per line)",
+    "emailDomainFormat": "Enter one rule per line, such as qq.com. Use * as a wildcard. For example, *.edu.cn matches all subdomains of edu.cn.",
+    "emailDomainLineError": "The email domain rule on line {{line}} is invalid.",
     "banContactZh": "Suspension contact (Chinese)",
     "banContactEn": "Suspension contact (English)",
     "min": "Minimum amount (CNY)",

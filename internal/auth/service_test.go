@@ -64,13 +64,34 @@ func TestUnit_GeneratedMerchantIdentifiers(t *testing.T) {
 	}
 }
 
-func TestUnit_EmailDomainAndCodeValidation(t *testing.T) {
-	if !ValidateEmailDomain("merchant@example.com", []string{"example.com"}) {
-		t.Fatal("exact domain was rejected")
+func TestUnit_EmailDomainRules(t *testing.T) {
+	for _, tc := range []struct {
+		name, email, rule string
+		want              bool
+	}{
+		{"exact", "merchant@example.com", "example.com", true},
+		{"case insensitive", "merchant@EXAMPLE.COM", "Example.Com", true},
+		{"exact excludes subdomain", "merchant@sub.example.com", "example.com", false},
+		{"wildcard single level", "merchant@pku.edu.cn", "*.edu.cn", true},
+		{"wildcard multiple levels", "merchant@mail.pku.edu.cn", "*.EDU.CN", true},
+		{"wildcard excludes bare", "merchant@edu.cn", "*.edu.cn", false},
+		{"wildcard excludes lookalike suffix", "merchant@notedu.cn", "*.edu.cn", false},
+		{"wildcard excludes trailing domain", "merchant@pku.edu.cn.example", "*.edu.cn", false},
+		{"middle wildcard", "merchant@mail.a.b.com", "mail.*.com", true},
+		{"middle wildcard anchored", "merchant@extra.mail.a.com", "mail.*.com", false},
+		{"multiple wildcards", "merchant@one.mail.two.example.com", "*.mail.*.example.com", true},
+		{"literal metacharacter", "merchant@mail.example.com", "mail+*.example.com", false},
+		{"all wildcards", "merchant@example.com", "**", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ValidateEmailDomain(tc.email, []string{tc.rule}); got != tc.want {
+				t.Fatalf("ValidateEmailDomain(%q, [%q]) = %t, want %t", tc.email, tc.rule, got, tc.want)
+			}
+		})
 	}
-	if ValidateEmailDomain("merchant@sub.example.com", []string{"example.com"}) {
-		t.Fatal("subdomain was accepted by exact domain policy")
-	}
+}
+
+func TestUnit_EmailCodeValidation(t *testing.T) {
 	if !ValidSixDigitCode("012345") || ValidSixDigitCode("12345") || ValidSixDigitCode("12a456") {
 		t.Fatal("six digit code validation is incorrect")
 	}

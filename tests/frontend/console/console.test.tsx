@@ -120,8 +120,8 @@ describe('console guards and login', () => {
     const router = createAppRouter({ history: createMemoryHistory() })
     const beforeLoad = ConsoleRoute.options.beforeLoad!
     const location = router.buildLocation({ to: '/console' })
-    await expect(beforeLoad({ location } as Parameters<typeof beforeLoad>[0])).rejects.toBe(banned)
-    expect(load).toHaveBeenCalledExactlyOnceWith(false)
+    await expect(beforeLoad({ location, context: router.options.context } as Parameters<typeof beforeLoad>[0])).rejects.toBe(banned)
+    expect(load).toHaveBeenCalledExactlyOnceWith(false, expect.any(AbortSignal))
   })
 
   it.each([401, 403])('redirects console %i to console login with a safe redirect', async (status) => {

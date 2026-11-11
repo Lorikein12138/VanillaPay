@@ -1,3 +1,4 @@
+import { clearPortalSession } from '@/app/portal-session'
 import { usePreloadPortalCode } from '@/app/portal-preload'
 import { Outlet, useRouter, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -38,7 +39,7 @@ function MerchantContent() {
     if (busy) return
     setBusy(true)
     setProblem(undefined)
-    try { await api.logout(); queryClient.clear(); await navigate({ to: '/login', search: {}, replace: true }) }
+    try { await api.logout(); clearPortalSession(queryClient, 'merchant'); await navigate({ to: '/login', search: {}, replace: true }) }
     catch (error) { setProblem(error) }
     finally { setBusy(false) }
   }

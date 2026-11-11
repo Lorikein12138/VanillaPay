@@ -7,7 +7,7 @@ import { previousRange, statsRange, type StatsRange } from '@/features/merchant/
 import type { MerchantFilters, PurchaseFilters } from '@/features/console/manage-data'
 
 type PortalRole = 'merchant' | 'console'
-const freshness = { staleTime: 15_000 }
+const freshness = { staleTime: 45_000, gcTime: 10 * 60_000 }
 
 function cursorQuery<T extends { next_cursor: string | null }>(
   queryKey: readonly unknown[],
@@ -15,7 +15,6 @@ function cursorQuery<T extends { next_cursor: string | null }>(
 ) {
   return infiniteQueryOptions({
     ...freshness,
-    gcTime: 30_000,
     queryKey,
     queryFn: ({ pageParam, signal }) => load(pageParam, signal),
     initialPageParam: undefined as string | undefined,
@@ -26,6 +25,14 @@ function cursorQuery<T extends { next_cursor: string | null }>(
 
 export const ordersQuery = (role: PortalRole, name: string, filters: OrderFilters) =>
   cursorQuery([role, name, 'orders', 'list', filters], (cursor) => (role === 'console' ? consoleApi : api).orderPage({ ...filters, limit: 20, cursor }))
+
+export const orderDetailQuery = (role: PortalRole, name: string, tradeNo: string) => queryOptions({
+  ...freshness, queryKey: [role, name, 'order', tradeNo], queryFn: () => (role === 'console' ? consoleApi : api).order(tradeNo),
+})
+
+export const merchantDetailQuery = (id: string) => queryOptions({
+  ...freshness, queryKey: ['console', 'merchant', id], queryFn: ({ signal }) => consoleApi.merchant(id, signal),
+})
 
 export const receiptsQuery = (name: string, filters: ReceiptFilters) =>
   cursorQuery(['merchant', name, 'receipts', 'list', filters], (cursor) => api.receipts({ ...filters, limit: 20, cursor }))
@@ -69,7 +76,7 @@ export const deviceQuery = (name: string) => queryOptions({
 })
 
 export const integrationQuery = (name: string) => queryOptions({
-  ...freshness, queryKey: ['merchant', name, 'integration'], gcTime: 30_000,
+  ...freshness, queryKey: ['merchant', name, 'integration'],
   queryFn: async () => {
     const data = await api.integration()
     // Discard the secret before entering the cache.
@@ -82,7 +89,7 @@ export const subscriptionQuery = (name: string) => queryOptions({
 })
 
 export const statsQuery = (role: PortalRole, name: string, range: StatsRange) => queryOptions({
-  staleTime: 60_000, queryKey: [role, name, 'stats', range], queryFn: () => (role === 'console' ? consoleApi : api).stats(range),
+  ...freshness, staleTime: 60_000, queryKey: [role, name, 'stats', range], queryFn: () => (role === 'console' ? consoleApi : api).stats(range),
 })
 
 export const recentOrdersQuery = (name: string) => queryOptions({

@@ -1,3 +1,4 @@
+import { clearPortalSession } from '@/app/portal-session'
 import { usePreloadPortalCode } from '@/app/portal-preload'
 import { Outlet, useNavigate, useRouter } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -28,7 +29,12 @@ function ConsoleContent() {
   useEffect(() => router.subscribe('onBeforeNavigate', () => setOpen(false)), [router])
   const close = () => setOpen(false)
   async function logout() {
-    await action.run(async () => { await consoleApi.logout(); client.clear(); if (action.active.current) await navigate({ to: '/console/login', search: {}, replace: true }) })
+    await action.run(async () => {
+      await consoleApi.logout()
+      clearPortalSession(client, 'console')
+      // Clearing the cookie can hide the portal before the logout response is processed.
+      await navigate({ to: '/console/login', search: {}, replace: true })
+    })
   }
   return <PortalShell title={t('console.navigation')} open={open} onOpenChange={setOpen} menu={menu}
     logo={<PortalBrand to="/console" tag={t('console.manage')} onClose={close} />}

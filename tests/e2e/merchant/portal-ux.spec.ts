@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import type { components } from '@/api/schema'
-import { chooseMenu, expect, login, noOverflow, openMenu, polishShot, selectScreenshotTheme, test } from './fixtures'
+import { chooseMenu, clickControl, expect, login, noOverflow, openMenu, polishShot, selectScreenshotTheme, test, watchPortalFirstFrame } from './fixtures'
 
 const screenshots = process.env.WEB_VISUAL_POLISH === '1'
 
@@ -89,12 +89,16 @@ test('keeps the desktop sidebar reachable and fixed through scrolling and reload
   }
 })
 
-test('preloads from keyboard intent and shows a content skeleton during a cold navigation', async ({ page, account }) => {
+test('retains the old portal page while a cold navigation loads, then reuses cached data without merchant me', async ({ page, account }) => {
   let release!: () => void
   let started!: () => void
   const gate = new Promise<void>((resolve) => { release = resolve })
   const requestStarted = new Promise<void>((resolve) => { started = resolve })
   let requests = 0
+  let sessionRequests = 0
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/v1/merchant/me') sessionRequests++
+  })
   await page.route('**/api/v1/merchant/orders?*', async (route) => {
     if (new URL(route.request().url()).searchParams.get('limit') !== '20') return route.continue()
     requests++
@@ -111,6 +115,8 @@ test('preloads from keyboard intent and shows a content skeleton during a cold n
   expect(requests).toBe(0)
   const header = page.getByRole('banner')
   await header.evaluate((element) => element.setAttribute('data-retained', 'true'))
+  const oldHeading = page.getByRole('main').getByRole('heading', { level: 1 })
+  const oldTitle = await oldHeading.innerText()
   await openMenu(page)
   const orders = page.getByRole('link', { name: '订单', exact: true })
   await orders.focus()
@@ -118,15 +124,86 @@ test('preloads from keyboard intent and shows a content skeleton during a cold n
     await requestStarted
     await expect(page).toHaveURL(/\/dashboard$/)
     await page.keyboard.press('Enter')
-    await expect(page.getByRole('main').getByRole('status', { name: '正在加载…' })).toBeVisible()
+    await expect(page.getByRole('progressbar', { name: '正在加载…' })).toBeVisible()
+    await expect(oldHeading).toHaveText(oldTitle)
+    await expect(page.getByRole('main').getByRole('status', { name: '正在加载…' })).toHaveCount(0)
     await expect(header).toHaveAttribute('data-retained', 'true')
     if (page.viewportSize()!.width >= 1024) await expect(page.getByRole('navigation', { name: '商户导航' })).toBeVisible()
+    if (screenshots && [360, 1280].includes(page.viewportSize()!.width)) {
+      await page.emulateMedia({ reducedMotion: 'reduce' })
+      for (const theme of ['light', 'dark'] as const) {
+        await selectScreenshotTheme(page, theme)
+        await polishShot(page, 'route-progress', false, 'portal-loading-shots', 'mask', false)
+      }
+    }
   } finally {
     release()
   }
   await expect(page.getByRole('heading', { name: '订单', exact: true })).toBeVisible()
   await expect(page.getByText('没有符合筛选条件的订单')).toBeVisible()
+  await expect(page.getByRole('progressbar')).toHaveCount(0)
   expect(requests).toBe(1)
+  await openMenu(page)
+  await page.getByRole('link', { name: '概览', exact: true }).click()
+  await expect(oldHeading).toHaveText(oldTitle)
+  await watchPortalFirstFrame(page, '订单', '没有符合筛选条件的订单')
+  await openMenu(page)
+  await page.getByRole('link', { name: '订单', exact: true }).click()
+  await expect(page.getByRole('main')).toHaveAttribute('data-first-frame', 'data')
+  expect(requests).toBe(1)
+  expect(sessionRequests).toBe(0)
+})
+
+test('does not open stale tooltips when collapsing the expanded sidebar', async ({ page, account }) => {
+  await page.goto('/login?redirect=%2Forders')
+  await login(page, account)
+  await expect(page.getByRole('heading', { name: '订单', exact: true })).toBeVisible()
+  if (page.viewportSize()!.width < 1024) {
+    await expect(page.getByRole('button', { name: '收起侧栏' })).toHaveCount(0)
+    return
+  }
+  const nav = page.getByRole('navigation', { name: '商户导航' })
+  for (const name of ['概览', '订单', '收款码']) {
+    const link = nav.getByRole('link', { name, exact: true })
+    await link.hover()
+    await link.focus()
+    await expect(page.getByRole('tooltip')).toHaveCount(0)
+  }
+  await page.getByRole('button', { name: '收起侧栏' }).click()
+  await page.mouse.move(0, 0)
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  for (const theme of ['light', 'dark'] as const) {
+    if (screenshots) await selectScreenshotTheme(page, theme)
+    await nav.getByRole('link', { name: '订单', exact: true }).hover()
+    await expect(page.getByRole('tooltip')).toHaveCount(1)
+    await expect(page.getByRole('tooltip')).toHaveText('订单')
+    if (screenshots) await polishShot(page, 'collapsed-sidebar-tooltip', false, 'portal-loading-shots')
+    await page.keyboard.press('Escape')
+    await page.mouse.move(0, 0)
+    await expect(page.getByRole('tooltip')).toHaveCount(0)
+  }
+})
+
+test('isolates cached orders after logout and login as another merchant', async ({ page, account, request }) => {
+  const next = await request.post('/__e2e/merchant', { data: {} })
+  expect(next.ok()).toBe(true)
+  const another = await next.json() as typeof account
+  const trade = {
+    trade_no: crypto.randomUUID(), out_trade_no: crypto.randomUUID(), name: '仅第一个账号可见的订单',
+    channel: 'alipay', status: 'paid', original_cents: 2000, actual_cents: 2000, created_at: new Date().toISOString(), paid_at: new Date().toISOString(),
+  }
+  expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [trade] } })).status()).toBe(204)
+  await page.goto('/login?redirect=%2Forders')
+  await login(page, account)
+  await expect(page.getByText(trade.name, { exact: true }).filter({ visible: true })).toBeVisible()
+  await clickControl(page, '退出登录')
+  await expect(page).toHaveURL(/\/login$/)
+  await login(page, another)
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await openMenu(page)
+  await page.getByRole('link', { name: '订单', exact: true }).click()
+  await expect(page.getByText('没有符合筛选条件的订单')).toBeVisible()
+  await expect(page.getByText(trade.name, { exact: true })).toHaveCount(0)
 })
 
 test('operates order controls with the keyboard and round-trips and clears URL filters', async ({ page, account }) => {

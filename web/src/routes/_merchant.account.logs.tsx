@@ -8,6 +8,6 @@ export const Route = createFileRoute('/_merchant/account/logs')({
   loaderDeps: ({ search }) => auditSearch(search),
   loader: ({ context: { queryClient, session, hasMountedPortal }, cause, deps }) => {
     const name = session.user.username
-    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureInfiniteQueryData(auditQuery('merchant', name, deps))])
+    return preparePortalRoute(queryClient, hasMountedPortal, cause, ({ infinite }) => [infinite(auditQuery('merchant', name, deps))])
   },
 })

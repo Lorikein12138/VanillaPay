@@ -5,6 +5,6 @@ import { preparePortalRoute } from '@/app/portal-preload'
 export const Route = createFileRoute('/_merchant/integration')({
   loader: ({ context: { queryClient, session, hasMountedPortal }, cause }) => {
     const name = session.user.username
-    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureQueryData(integrationQuery(name))])
+    return preparePortalRoute(queryClient, hasMountedPortal, cause, ({ query }) => [query(integrationQuery(name))])
   },
 })

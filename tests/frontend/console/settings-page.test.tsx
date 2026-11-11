@@ -628,6 +628,28 @@ describe('console settings page', () => {
     expect(bodies[1]?.value).toMatchObject({ restrict_email_domains: true, email_domains: domains })
   })
 
+  it('rejects a line mixing an ACE prefix with a Unicode wildcard and saves supported rules', async () => {
+    const bodies = recordSaves()
+    const actor = userEvent.setup()
+    mount('/console/settings?group=security')
+    await actor.click(await screen.findByRole('checkbox', { name: '限制注册邮箱域名' }))
+    const domains = screen.getByLabelText('允许的邮箱域名（每行一个）')
+    const save = screen.getByRole('button', { name: '保存安全设置' })
+    const supported = ['xn--*.bücher.de', '*.büch*.de', '*.bücher.de']
+    fireEvent.change(domains, { target: { value: [...supported, 'xn--*.büch*.de'].join('\n') } })
+    expect(domains).toHaveAttribute('aria-invalid', 'true')
+    expect(domains).toHaveAccessibleDescription(/第 4 行的邮箱域名规则无效/)
+    await actor.click(save)
+    expect(bodies).toHaveLength(0)
+
+    fireEvent.change(domains, { target: { value: supported.join('\n') } })
+    expect(domains).toHaveAttribute('aria-invalid', 'false')
+    await actor.click(save)
+    await screen.findByText('安全与注册设置已保存。')
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0]?.value).toMatchObject({ email_domains: ['xn--*.xn--bcher-kva.de', '*.büch*.de', '*.xn--bcher-kva.de'] })
+  })
+
   it('shows the empty footer state until a link is added', async () => {
     const actor = userEvent.setup()
     mount('/console/settings?group=footer_legal')

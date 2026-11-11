@@ -1,5 +1,6 @@
 import type { components } from '@/api/schema'
 import { replaceEqualDeep } from '@tanstack/react-query'
+import { normalizeEmailDomainRule } from '@/lib/email-domain'
 
 export type Schema = components['schemas']
 export type Settings = Schema['Settings']
@@ -212,16 +213,22 @@ function validEmail(value: string) {
 }
 
 function validDomain(value: string) {
-  return (
-    !!value && !/[ /:@*]/.test(value) && !value.startsWith('.') && !value.endsWith('.') && !value.includes('..')
-  )
+  return normalizeEmailDomainRule(value) !== null
+}
+
+export function invalidDomainLine(text: string) {
+  return text.split(/\r?\n/).findIndex((line) => {
+    const rule = line.trim()
+    return rule !== '' && !validDomain(rule)
+  }) + 1
 }
 
 export function normalizeDomains(text: string) {
   return text
     .split(/\r?\n/)
-    .map((domain) => domain.trim().toLowerCase())
+    .map((domain) => domain.trim())
     .filter(Boolean)
+    .map((domain) => normalizeEmailDomainRule(domain) ?? domain)
 }
 
 export function newFooterItem(): Schema['SettingsFooterItem'] {

@@ -1,16 +1,17 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { lazy } from 'react'
-import { APIError, consoleApi } from '@/api/client'
+import { consoleApi } from '@/api/client'
+import { ensurePortalSession, isSessionRejected } from '@/app/portal-session'
 import { consoleDestination, consoleSafePath } from '@/lib/redirect'
 
 export const Route = createFileRoute('/console_/login')({
   validateSearch: (search: Record<string, unknown>): { redirect?: string; notice?: 'initialized' | 'repaired' | 'password_changed' } => ({ redirect: consoleSafePath(search.redirect), notice: search.notice === 'initialized' || search.notice === 'repaired' || search.notice === 'password_changed' ? search.notice : undefined }),
-  beforeLoad: async ({ search }) => {
+  beforeLoad: async ({ context: { queryClient }, search }) => {
     const status = await consoleApi.bootstrapStatus()
     if (!status.initialized) redirect({ to: '/console/setup', replace: true, throw: true })
-    try { await consoleApi.me(false) }
+    try { await ensurePortalSession(queryClient, 'console') }
     catch (error) {
-      if (error instanceof APIError && (error.status === 401 || (error.status === 403 && error.problem?.code === 'FORBIDDEN'))) return
+      if (isSessionRejected(error)) return
       throw error
     }
     redirect({ to: consoleDestination(search.redirect, undefined), replace: true, throw: true })

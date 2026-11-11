@@ -105,10 +105,14 @@ describe('order filters and cursor pagination', () => {
     await actor.click(screen.getByRole('button', { name: '应用筛选' }))
     await waitFor(() => expect(urls.at(-1)!.searchParams.get('status')).toBe('paid'))
     expect(urls.at(-1)!.searchParams.has('cursor')).toBe(false)
+    const requestCount = urls.length
     await actor.click(screen.getByRole('button', { name: '重置' }))
-    await waitFor(() => expect(urls.at(-1)!.searchParams.has('status')).toBe(false))
-    expect(urls.at(-1)!.searchParams.has('cursor')).toBe(false)
-    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2)
+    await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2))
+    expect(urls).toHaveLength(requestCount)
+    await actor.click(screen.getByRole('button', { name: '加载更多' }))
+    await screen.findAllByRole('link', { name: second.trade_no })
+    expect(urls.at(-1)!.searchParams.has('status')).toBe(false)
+    expect(urls.at(-1)!.searchParams.get('cursor')).toBe('cursor-fixture')
   })
 
   it('keeps the previous rows visible while the next filter is loading', async () => {

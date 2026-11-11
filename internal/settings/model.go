@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"vanillapay/internal/auth"
 	"vanillapay/internal/platform"
 )
 
@@ -200,12 +201,20 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		if (v.TurnstileEnabled && strings.TrimSpace(v.TurnstileSiteKey) == "") || (v.RestrictEmailDomains && len(domains) == 0) {
 			return nil, nil, errors.New("VALIDATION_ERROR")
 		}
-		for i, domain := range domains {
-			domain = strings.TrimSpace(strings.ToLower(domain))
-			if domain == "" || strings.ContainsAny(domain, " /:@*") || strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") || strings.Contains(domain, "..") {
-				return nil, nil, errors.New("VALIDATION_ERROR")
+		unique := make(map[string]struct{}, len(domains))
+		normalized := domains[:0]
+		for _, domain := range domains {
+			domain, err := auth.NormalizeEmailDomainRule(domain)
+			if err != nil {
+				return nil, nil, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400, Fields: map[string]string{"email_domains": "invalid_domain_rule"}}
 			}
-			domains[i] = domain
+			if _, exists := unique[domain]; !exists {
+				unique[domain] = struct{}{}
+				normalized = append(normalized, domain)
+			}
+		}
+		if v.EmailDomains != nil {
+			v.EmailDomains = &normalized
 		}
 		if v.TurnstileSecret != nil && strings.TrimSpace(*v.TurnstileSecret) == "" {
 			return nil, nil, errors.New("VALIDATION_ERROR")

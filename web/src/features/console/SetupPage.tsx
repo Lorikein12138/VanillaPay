@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi } from '@/api/client'
+import { setPortalSession } from '@/app/portal-session'
 import { AuthScreen, FormHint, FormStack } from '@/components/ui/auth-screen'
 import { Button } from '@/components/ui/button'
 import { Notice } from '@/components/ui/notice'
@@ -10,6 +12,7 @@ import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { consoleDestination } from '@/lib/redirect'
 
 export function SetupPage() {
+  const client = useQueryClient()
   const { t } = useTranslation(), navigate = useNavigate(), action = useLocalAction()
   const [code, setCode] = useState(''), [username, setUsername] = useState(''), [password, setPassword] = useState(''), [confirmation, setConfirmation] = useState('')
   const valid = !!code.trim() && validUsername(username) && validPassword(password, confirmation)
@@ -18,6 +21,7 @@ export function SetupPage() {
     await action.run(async () => {
       try {
         const result = await consoleApi.bootstrap({ initialization_code: code.trim(), username: username.trim(), password, password_confirmation: confirmation })
+        setPortalSession(client, 'console', result)
         if (action.active.current) { setCode(''); setPassword(''); setConfirmation(''); await navigate({ to: consoleDestination(undefined, result.next_path), replace: true }) }
       } catch (error) {
         if (action.active.current && error instanceof APIError && error.problem?.code === 'ALREADY_INITIALIZED') await navigate({ to: '/console/login', search: { notice: 'initialized' }, replace: true })

@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, APIError, consoleApi } from '@/api/client'
+import { APIError } from '@/api/client'
 import type { components } from '@/api/schema'
+import { orderDetailQuery } from '@/app/portal-queries'
 import { Button } from '@/components/ui/button'
 import { CopyIdentifier } from '@/components/ui/copy-button'
 import { DetailList } from '@/components/ui/detail-list'
@@ -21,7 +22,7 @@ type Detail = components['schemas']['OrderDetail']
 export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { role?: 'merchant' | 'console'; name: string; tradeNo: string; filters: OrderFilters }) {
   const { t } = useTranslation()
   const client = useQueryClient()
-  const query = useQuery({ queryKey: [role, name, 'order', tradeNo], queryFn: () => (role === 'console' ? consoleApi : api).order(tradeNo) })
+  const query = useQuery(orderDetailQuery(role, name, tradeNo))
   const [confirmation, setConfirmation] = useState<{ action: OrderAction; key: string; detail: Detail }>()
   const [notice, setNotice] = useState<OrderAction>()
   const replayLimitHintId = useId()

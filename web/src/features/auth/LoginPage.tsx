@@ -1,3 +1,4 @@
+import { setPortalSession } from '@/app/portal-session'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useRef, useState, type FormEvent } from 'react'
@@ -65,7 +66,7 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
       } else {
         setPassword('')
         setCode('')
-        queryClient.removeQueries({ queryKey: [admin ? 'console' : 'merchant'] })
+        setPortalSession(queryClient, role, result)
         await navigate({ to: (admin ? consoleDestination : loginDestination)(redirect, result.next_path), replace: true })
       }
     } catch (error) {

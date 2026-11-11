@@ -8,10 +8,12 @@ import { setupServer } from 'msw/node'
 import QRCode from 'qrcode'
 import { useState, type ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { APIError, api, onUnauthorized } from '@/api/client'
+import { APIError, api, consoleApi, onUnauthorized } from '@/api/client'
 import { AppProviders, createQueryClient } from '@/app/providers'
 import { createAppRouter } from '@/app/router'
-import { allowedEmail, type AccountSchema } from '@/features/auth/account-shared'
+import { setPortalSession, sessionQuery } from '@/app/portal-session'
+import type { AccountSchema } from '@/features/auth/account-shared'
+import { allowedEmail, normalizeEmailDomainRule } from '@/lib/email-domain'
 import { FactorDialog } from '@/features/merchant/AccountPage'
 import { AccountProvider, useMerchantAccount } from '@/features/merchant/AccountProvider'
 import { isMerchantPath } from '@/features/merchant/navigation'
@@ -29,7 +31,7 @@ const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_
 const failure = (status: number, code: AccountSchema['ErrorCode'], details = {}) => HttpResponse.json({ error: { code, message: code, fields: {}, details }, request_id: crypto.randomUUID() }, { status })
 const server = setupServer(emptyNotifications, http.get('*/api/v1/public/config', () => success(config)), http.get('*/api/v1/merchant/me', () => success(identity())))
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
-afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
+afterEach(() => { server.resetHandlers(); vi.useRealTimers(); document.cookie = 'vp_csrf_merchant=; Max-Age=0; Path=/' })
 afterAll(() => server.close())
 function wrapper(children: ReactNode, client = createQueryClient()) {
   initTheme()
@@ -41,6 +43,74 @@ function mount(path: string) {
   return { router, ...wrapper(<RouterProvider router={router} context={{ queryClient: client }} />, client) }
 }
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } })
+
+it('canonicalizes literal IDNA labels without removing wildcard boundaries', () => {
+  expect(normalizeEmailDomainRule('*.例子.test')).toBe('*.xn--fsqu00a.test')
+  for (const rule of ['*.例子.test', '*.xn--fsqu00a.test']) {
+    const restriction = { enabled: true, domains: [rule] }
+    for (const email of ['shop@a.b.例子.test', 'shop@a.b.xn--fsqu00a.test']) expect(allowedEmail(email, restriction)).toBe(true)
+    for (const email of ['shop@例子.test', 'shop@xn--fsqu00a.test', 'shop@a例子.test', 'shop@a.例孑.test', 'shop@a.例子.test.example']) expect(allowedEmail(email, restriction)).toBe(false)
+  }
+  for (const rule of ['*', '**', '*.xn--a.test']) {
+    expect(normalizeEmailDomainRule(rule)).toBeNull()
+    expect(allowedEmail('shop@a.例子.test', { enabled: true, domains: [rule] })).toBe(false)
+  }
+  expect(allowedEmail('shop@a.xn--fsqu00a.test', { enabled: true, domains: ['a.例*.test'] })).toBe(true)
+})
+
+it.each([
+  ['xn--*.bücher.de', '例子.sub.bücher.de', 'xn--fsqu00a.sub.xn--bcher-kva.de'],
+  ['*.büch*.de', '例子.bücher.sub.de', 'xn--fsqu00a.xn--bcher-kva.sub.de'],
+  ['*.bücher.de', '例子.sub.bücher.de', 'xn--fsqu00a.sub.xn--bcher-kva.de'],
+])('matches both IDNA representations for %s across dots', (rule, unicode, ascii) => {
+  const restriction = { enabled: true, domains: [rule] }
+  expect(allowedEmail('shop@' + unicode, restriction)).toBe(true)
+  expect(allowedEmail('shop@' + ascii, restriction)).toBe(true)
+})
+
+it.each(['same account', 'different account'])('ignores a late protected 401 after me verifies the %s with a new token', async (mode) => {
+  let session = identity()
+  const next = identity(mode === 'same account' ? baseUser : { ...baseUser, id: '2', username: 'new_shop' })
+  const admin = identity({ ...baseUser, role: 'admin' })
+  let release!: () => void, started!: () => void, settled!: (error: unknown) => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  const requested = new Promise<void>((resolve) => { started = resolve })
+  const response = new Promise<unknown>((resolve) => { settled = resolve })
+  const preferences = { locale: 'zh-CN', theme: 'light' } as const
+  let merchantCSRF: string | null = null, consoleCSRF: string | null = null
+  server.use(
+    http.get('*/api/v1/merchant/me', () => success(session)),
+    http.get('*/api/v1/console/me', () => success(admin)),
+    http.get('*/api/v1/merchant/orders/previous', async () => { started(); await gate; return failure(401, 'UNAUTHENTICATED') }),
+    http.patch('*/api/v1/merchant/preferences', ({ request }) => { merchantCSRF = request.headers.get('X-CSRF-Token'); return success(preferences) }),
+    http.patch('*/api/v1/console/preferences', ({ request }) => { consoleCSRF = request.headers.get('X-CSRF-Token'); return success(preferences) }),
+  )
+  const { client, router } = mount('/account')
+  await waitFor(() => expect(client.getQueryData(sessionQuery('merchant').queryKey)).toMatchObject(session))
+  await client.fetchQuery(sessionQuery('console'))
+  const oldKey = ['merchant', 'orders', 'previous']
+  const result = client.fetchQuery({ queryKey: oldKey, queryFn: () => api.order('previous').catch((error: unknown) => { settled(error); throw error }) }).catch(() => {})
+  try {
+    await requested
+    session = next
+    await act(() => client.fetchQuery({ ...sessionQuery('merchant'), staleTime: 0 }))
+    await waitFor(() => expect(router.state.matches.some(({ context }) => 'session' in context && context.session.csrf_token === next.csrf_token)).toBe(true))
+  } finally {
+    release()
+  }
+  await act(async () => {
+    expect(await response).toMatchObject({ status: 401 })
+    await result
+  })
+  expect(router.state.location.pathname).toBe('/account')
+  expect(client.getQueryData(sessionQuery('merchant').queryKey)).toMatchObject(next)
+  expect(client.getQueryState(oldKey)).toBeUndefined()
+  expect(client.getQueryData(sessionQuery('console').queryKey)).toMatchObject(admin)
+  await api.preferences(preferences)
+  await consoleApi.preferences(preferences)
+  expect(merchantCSRF).toBe(next.csrf_token)
+  expect(consoleCSRF).toBe(admin.csrf_token)
+})
 
 describe('public account flows', () => {
   it('does not render a registration form when closed', async () => {
@@ -142,8 +212,11 @@ describe('identity and preferences', () => {
         void account.save({ locale: 'en', theme: 'light' })
       }}>保存偏好</button>
     }
-    const router = createAppRouter({ history: createMemoryHistory() })
-    wrapper(<RouterContextProvider router={router}><AccountProvider session={identity()}><Controls /></AccountProvider></RouterContextProvider>)
+    const client = createQueryClient(), session = identity()
+    const router = createAppRouter({ history: createMemoryHistory(), queryClient: client })
+    document.cookie = `vp_csrf_merchant=${session.csrf_token}; Path=/`
+    setPortalSession(client, 'merchant', session)
+    wrapper(<RouterContextProvider router={router}><AccountProvider session={session}><Controls /></AccountProvider></RouterContextProvider>, client)
     fireEvent.click(screen.getByRole('button', { name: '保存偏好' }))
     await waitFor(() => expect(save).toHaveBeenCalledExactlyOnceWith(next))
     expect(screen.getByRole('button', { name: '保存偏好' })).toBeDisabled()
@@ -206,6 +279,32 @@ describe('identity and preferences', () => {
     server.use(http.get('*/api/v1/merchant/me', () => success(identity({ ...baseUser, banned: true }))), http.get('*/api/v1/merchant/banned', () => success({ banned: true, reason: 'restricted', banned_at: new Date().toISOString(), contact: { zh_CN: '联系管理员', en: '' } })))
     const second = mount('/account'); await waitFor(() => expect(second.router.state.location.pathname).toBe('/banned'))
     expect(screen.queryByRole('heading', { name: '账户安全' })).not.toBeInTheDocument()
+  })
+  it('redirects a mounted merchant when a background session refresh discovers a ban', async () => {
+    const { client, router } = mount('/account')
+    await screen.findByRole('heading', { name: '账户安全' })
+    server.use(
+      http.get('*/api/v1/merchant/me', () => success(identity({ ...baseUser, banned: true }))),
+      http.get('*/api/v1/merchant/banned', () => success({ banned: true, reason: 'restricted', banned_at: new Date().toISOString(), contact: { zh_CN: '', en: '' } })),
+    )
+    await act(() => client.refetchQueries({ queryKey: sessionQuery('merchant').queryKey }))
+    await screen.findByText('restricted')
+    expect(router.state.location.pathname).toBe('/banned')
+    expect(screen.queryByRole('heading', { name: '账户安全' })).not.toBeInTheDocument()
+  })
+  it.each([401, 403])('evicts a mounted session on background identity response %i', async (status) => {
+    const { client, router } = mount('/account')
+    await screen.findByRole('heading', { name: '账户安全' })
+    const roleData = ['merchant', baseUser.username, 'orders'], otherData = ['console', 'orders']
+    client.setQueryData(roleData, 'private')
+    client.setQueryData(otherData, 'console')
+    server.use(http.get('*/api/v1/merchant/me', () => failure(status, status === 401 ? 'UNAUTHENTICATED' : 'FORBIDDEN')))
+    await act(() => client.refetchQueries({ queryKey: sessionQuery('merchant').queryKey }))
+    await screen.findByLabelText('用户名 / 邮箱')
+    expect(router.state.location.pathname).toBe('/login')
+    expect(client.getQueryData(roleData)).toBeUndefined()
+    expect(client.getQueryData(sessionQuery('merchant').queryKey)).toBeUndefined()
+    expect(client.getQueryData(otherData)).toBe('console')
   })
   it.each(['INVALID_CREDENTIALS', 'CHALLENGE_EXPIRED'] as const)('keeps valid sessions on proof error %s', async (code) => {
     const unauthorized = vi.fn(); onUnauthorized(unauthorized)

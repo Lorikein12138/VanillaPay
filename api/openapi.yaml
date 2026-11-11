@@ -7279,6 +7279,7 @@ components:
         restrict_email_domains:
           type: boolean
         email_domains:
+          description: Case-insensitive email domain rules normalized with IDNA. Unicode and Punycode email domains are equivalent. An asterisk matches any sequence of characters, including dots. Rules without an asterisk match the exact domain. A rule cannot mix an explicit xn-- prefix with Unicode characters in a wildcard label. Complete Unicode labels are normalized to ASCII before this check.
           type: array
           items:
             type: string
@@ -7388,6 +7389,7 @@ components:
         ban_contact:
           $ref: '#/components/schemas/SettingsLanguageText'
         email_domains:
+          description: Case-insensitive email domain rules normalized with IDNA. Unicode and Punycode email domains are equivalent. An asterisk matches any sequence of characters, including dots. Rules without an asterisk match the exact domain. A rule cannot mix an explicit xn-- prefix with Unicode characters in a wildcard label. Complete Unicode labels are normalized to ASCII before this check. Rules that fail normalization, mix these representations, or consist only of asterisks are rejected with an email_domains field error.
           items:
             type: string
           nullable: true

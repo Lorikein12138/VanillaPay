@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi, type ConsoleRecovery } from '@/api/client'
+import { clearPortalSession } from '@/app/portal-session'
 import { AuthScreen, FormHint, FormStack } from '@/components/ui/auth-screen'
 import { Button } from '@/components/ui/button'
 import { formatCountdown, useCountdown } from '@/components/ui/countdown'
@@ -45,6 +46,9 @@ export function RecoveryPage() {
         } else {
           if (!csrf.current) return
           await consoleApi.repair(csrf.current, { expected_version: session.settings_version, value: { turnstile_site_key: siteKey.trim(), turnstile_enabled: enabled, ...(secret.trim() ? { turnstile_secret: secret.trim() } : {}) } }, active.signal)
+          // Recovery uses a separate cookie with permission only to repair settings.
+          consoleApi.forgetSession()
+          clearPortalSession(queryClient, 'console')
           csrf.current = null
           if (!action.active.current || active.signal.aborted) return
           setSession(null)
