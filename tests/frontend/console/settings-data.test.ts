@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  byteLength,
   newFooterItem,
   normalizeDomains,
+  settingsRequestFits,
   settingsSearch,
   validateSettingsGroup,
   writableGroup,
@@ -46,6 +48,19 @@ const settings: Settings = {
 }
 
 describe('console settings form data', () => {
+  it('accepts a 301 KiB settings request and rejects one more byte', () => {
+    const value = structuredClone(settings.footer_legal)
+    value.terms = { zh_CN: '条'.repeat(40000), en: '款'.repeat(40000) }
+    const request = { expected_version: settings.version, value }
+    const limit = 301 * 1024
+    value.privacy.en = 'a'.repeat(limit - byteLength(JSON.stringify(request)))
+    expect(byteLength(JSON.stringify(request))).toBe(limit)
+    expect(settingsRequestFits(request)).toBe(true)
+    value.privacy.en += 'a'
+    expect(byteLength(JSON.stringify(request))).toBe(limit + 1)
+    expect(settingsRequestFits(request)).toBe(false)
+  })
+
   it('falls back to site for an invalid group and excludes read-only values', () => {
     expect(settingsSearch({ group: 'root' })).toEqual({ group: 'site' })
     expect(writableGroup(settings, 'mail')).not.toHaveProperty('password_configured')

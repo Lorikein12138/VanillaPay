@@ -85,7 +85,7 @@ it('renders translated footer labels, descriptions and safe links in backend ord
   mount('/', 'en')
   const footer = within(await screen.findByRole('contentinfo'))
   expect(footer.getAllByRole('listitem').map((entry) => entry.textContent)).toEqual([
-    '帮助中心<b>Service hours</b>', 'Service status', 'Email support', 'Maintenance周日上午', 'Invalid link',
+    '帮助中心 <b>Service hours</b> ', 'Service status', 'Email support', 'Maintenance周日上午', 'Invalid link',
   ])
   for (const [label, href] of [['帮助中心', 'https://example.test/help'], ['Service status', 'http://example.test/status']] as const) {
     const link = footer.getByRole('link', { name: label })
@@ -99,6 +99,17 @@ it('renders translated footer labels, descriptions and safe links in backend ord
   expect(mail).not.toHaveAttribute('rel')
   expect(footer.queryByRole('link', { name: /Maintenance|Invalid link/ })).not.toBeInTheDocument()
   expect(footer.getByText('<b>Service hours</b>')).toBeVisible()
+})
+
+it('preserves the original English footer description', async () => {
+  const en = '\n  First line\nSecond line\n  '
+  mockConfig({ footer: [{
+    id: 'support', label: { zh_CN: '客服', en: 'Support' }, url: null, enabled: true, sort: 0,
+    text: { zh_CN: '中文说明', en },
+  }] })
+  mount('/', 'en')
+  const footer = within(await screen.findByRole('contentinfo'))
+  expect(footer.getByText('First line Second line', { selector: 'p' }).textContent).toBe(en)
 })
 
 it.each(['', ' \n\t '])('falls back to Chinese when the English footer description is blank (%j)', async (en) => {

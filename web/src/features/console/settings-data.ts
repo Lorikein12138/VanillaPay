@@ -64,7 +64,7 @@ export function byteLength(value: string) {
 }
 
 export function settingsRequestFits(input: Schema['SettingsUpdateGroup']) {
-  return byteLength(JSON.stringify(input)) <= 300 * 1024
+  return byteLength(JSON.stringify(input)) <= 301 * 1024
 }
 
 function publicURL(value: string, protocols: string[]) {
