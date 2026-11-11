@@ -123,7 +123,8 @@ export function validateSettingsGroup(
         !item.label.zh_CN.trim() ||
         Array.from(item.label.zh_CN).length > 80 ||
         Array.from(item.label.en).length > 80 ||
-        Array.from(item.text).length > 1000
+        Array.from(item.text.zh_CN).length > 1000 ||
+        Array.from(item.text.en).length > 1000
       )
         errors[`item_${index}`] = 'footer_item'
       if (item.url !== null && !validFooterURL(item.url)) errors[`item_url_${index}`] = 'footer_url'
@@ -232,5 +233,12 @@ export function normalizeDomains(text: string) {
 }
 
 export function newFooterItem(): Schema['SettingsFooterItem'] {
-  return { id: crypto.randomUUID(), label: { zh_CN: '', en: '' }, text: '', url: null, enabled: true, sort: 0 }
+  return {
+    id: crypto.randomUUID(),
+    label: { zh_CN: '', en: '' },
+    text: { zh_CN: '', en: '' },
+    url: null,
+    enabled: true,
+    sort: 0,
+  }
 }

@@ -139,12 +139,27 @@ export function FooterForm({
                 error={errorText(`item_${index}`)}
                 onChange={(e) => replaceItem(index, { label: { ...item.label, en: e.target.value } })}
               />
-              <AccountField
-                label={t('consoleSettings.footerText')}
-                value={item.text}
-                error={errorText(`item_${index}`)}
-                onChange={(e) => replaceItem(index, { text: e.target.value })}
-              />
+              {(['zh_CN', 'en'] as const).map((language) => {
+                const id = `footer-text-${index}-${language}`
+                const error = errorText(`item_${index}`)
+                return (
+                  <Field
+                    key={language}
+                    label={t(language === 'zh_CN' ? 'consoleSettings.footerTextZh' : 'consoleSettings.footerTextEn')}
+                    htmlFor={id}
+                    error={error}
+                  >
+                    <Textarea
+                      id={id}
+                      rows={3}
+                      value={item.text[language]}
+                      aria-invalid={!!error}
+                      aria-describedby={error ? `${id}-hint` : undefined}
+                      onChange={(e) => replaceItem(index, { text: { ...item.text, [language]: e.target.value } })}
+                    />
+                  </Field>
+                )
+              })}
               <AccountField
                 label={t('consoleSettings.footerUrl')}
                 value={item.url ?? ''}

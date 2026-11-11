@@ -62,8 +62,8 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 	}
 	t.Run("V03.B.r01/v01", func(t *testing.T) {
 		var version int64
-		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 8 {
-			t.Fatalf("empty isolated schema goose version=%d err=%v, want 8", version, err)
+		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 9 {
+			t.Fatalf("empty isolated schema goose version=%d err=%v, want 9", version, err)
 		}
 	})
 
@@ -161,7 +161,64 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 			}
 		}
 	})
+	t.Run("footer description upgrade and rollback", func(t *testing.T) {
+		testFooterDescriptionMigration(t, ctx, migrationDB, provider)
+	})
 
+}
+
+func testFooterDescriptionMigration(t *testing.T, ctx context.Context, db *sql.DB, provider *goose.Provider) {
+	t.Helper()
+	source, err := fs.ReadFile(migrations.FS(), "00009_footer_text_i18n.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	up, _, found := strings.Cut(string(source), "-- +goose Down")
+	if !found {
+		t.Fatal("footer migration has no down section")
+	}
+	const version = 42
+	const legacy = `{"items":[{"id":"first","text":"原说明\n第二行","sort":2},{"id":"second","text":{"zh_CN":"已转换","en":"Already migrated"},"sort":1},{"id":"third","text":""}],"terms":{"zh_CN":"条款","en":"Terms"}}`
+	const bilingual = `{"items":[{"id":"first","text":{"zh_CN":"原说明\n第二行","en":""},"sort":2},{"id":"second","text":{"zh_CN":"已转换","en":"Already migrated"},"sort":1},{"id":"third","text":{"zh_CN":"","en":""}}],"terms":{"zh_CN":"条款","en":"Terms"}}`
+	const rolledBack = `{"items":[{"id":"first","text":"原说明\n第二行","sort":2},{"id":"second","text":"已转换","sort":1},{"id":"third","text":""}],"terms":{"zh_CN":"条款","en":"Terms"}}`
+	for _, tc := range []struct{ name, before, afterUp, afterDown string }{
+		{"mixed formats", legacy, bilingual, rolledBack},
+		{"null items", `{"items":null}`, `{"items":null}`, `{"items":null}`},
+		{"missing items", `{}`, `{}`, `{}`},
+		{"empty items", `{"items":[]}`, `{"items":[]}`, `{"items":[]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := provider.DownTo(ctx, 8); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.ExecContext(ctx, `UPDATE site_settings SET footer_legal=$1::jsonb, version=$2`, tc.before, version); err != nil {
+				t.Fatal(err)
+			}
+			assertFooter := func(want string) {
+				t.Helper()
+				var footer string
+				var matches bool
+				var gotVersion int
+				err := db.QueryRowContext(ctx, `SELECT footer_legal, footer_legal=$1::jsonb, version FROM site_settings`, want).Scan(&footer, &matches, &gotVersion)
+				if err != nil || !matches || gotVersion != version {
+					t.Fatalf("footer=%s, want %s; version=%d, want %d; err=%v", footer, want, gotVersion, version, err)
+				}
+			}
+			if _, err := provider.UpTo(ctx, 9); err != nil {
+				t.Fatal(err)
+			}
+			assertFooter(tc.afterUp)
+			// Execute Up SQL directly so Goose's version tracking cannot mask a non-idempotent statement.
+			if _, err := db.ExecContext(ctx, up); err != nil {
+				t.Fatal(err)
+			}
+			assertFooter(tc.afterUp)
+			if _, err := provider.DownTo(ctx, 8); err != nil {
+				t.Fatal(err)
+			}
+			assertFooter(tc.afterDown)
+		})
+	}
 }
 
 // applicationCatalog lists every constraint and index definition on the

@@ -72,20 +72,20 @@ it('falls back to the default name and mark when settings are empty', async () =
 })
 
 it('renders translated footer labels, descriptions and safe links in backend order', async () => {
-  const item = (id: string, zh_CN: string, en: string, url: string | null, text = '') => ({
+  const item = (id: string, zh_CN: string, en: string, url: string | null, text = { zh_CN: '', en: '' }) => ({
     id, label: { zh_CN, en }, url, text, sort: 0, enabled: true,
   })
   mockConfig({ footer: [
-    item('help', '帮助中心', '', 'https://example.test/help', '<b>Service hours</b>'),
+    item('help', '帮助中心', '', 'https://example.test/help', { zh_CN: '服务时间', en: ' <b>Service hours</b> ' }),
     item('status', '平台状态', 'Service status', 'http://example.test/status'),
     item('mail', '联系我们', 'Email support', 'mailto:help@example.test'),
-    item('notice', '维护安排', 'Maintenance', null, 'Sunday mornings'),
+    item('notice', '维护安排', 'Maintenance', null, { zh_CN: '周日上午', en: '' }),
     item('unsafe', '无效链接', 'Invalid link', 'javascript:alert(1)'),
   ] })
   mount('/', 'en')
   const footer = within(await screen.findByRole('contentinfo'))
   expect(footer.getAllByRole('listitem').map((entry) => entry.textContent)).toEqual([
-    '帮助中心<b>Service hours</b>', 'Service status', 'Email support', 'MaintenanceSunday mornings', 'Invalid link',
+    '帮助中心<b>Service hours</b>', 'Service status', 'Email support', 'Maintenance周日上午', 'Invalid link',
   ])
   for (const [label, href] of [['帮助中心', 'https://example.test/help'], ['Service status', 'http://example.test/status']] as const) {
     const link = footer.getByRole('link', { name: label })
@@ -99,6 +99,18 @@ it('renders translated footer labels, descriptions and safe links in backend ord
   expect(mail).not.toHaveAttribute('rel')
   expect(footer.queryByRole('link', { name: /Maintenance|Invalid link/ })).not.toBeInTheDocument()
   expect(footer.getByText('<b>Service hours</b>')).toBeVisible()
+})
+
+it.each(['', ' \n\t '])('falls back to Chinese when the English footer description is blank (%j)', async (en) => {
+  mockConfig({ footer: [{
+    id: 'support', label: { zh_CN: '客服', en: 'Support' }, url: null, enabled: true, sort: 0,
+    text: { zh_CN: '第一行\n第二行', en },
+  }] })
+  mount('/', 'en')
+  const footer = within(await screen.findByRole('contentinfo'))
+  const description = footer.getByText('第一行 第二行')
+  expect(description).toHaveTextContent('第一行\n第二行', { normalizeWhitespace: false })
+  expect(description).toHaveClass('whitespace-pre-wrap')
 })
 
 it('shows only a loading state until config resolves, then displays HTML in the exact sandbox', async () => {

@@ -59,7 +59,7 @@ func TestDB_LegalRevisionsOnlyChangeForEditedLanguageText(t *testing.T) {
 		}
 	}
 
-	const footer = `[{"id":"help","label":{"zh_CN":"帮助","en":"Help"},"text":"","url":"https://example.test","enabled":true,"sort":0}]`
+	const footer = `[{"id":"help","label":{"zh_CN":"帮助","en":"Help"},"text":{"zh_CN":"查看帮助","en":"Read the guide"},"url":"https://example.test","enabled":true,"sort":0}]`
 	save(1, "[]", "Terms")
 	assertCounts(1, 1)
 	save(2, footer, "Terms")

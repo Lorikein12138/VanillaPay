@@ -78,7 +78,7 @@ type LanguageText struct {
 type FooterItem struct {
 	ID      string       `json:"id"`
 	Label   LanguageText `json:"label"`
-	Text    string       `json:"text"`
+	Text    LanguageText `json:"text"`
 	URL     *string      `json:"url"`
 	Enabled bool         `json:"enabled"`
 	Sort    int          `json:"sort"`
@@ -264,7 +264,9 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		}
 		seen := map[string]struct{}{}
 		for _, item := range items {
-			if item.ID == "" || len(item.ID) > 64 || item.Sort < 0 || textLength(item.Label.ZhCN) == 0 || textLength(item.Label.ZhCN) > 80 || textLength(item.Label.En) > 80 || textLength(item.Text) > 1000 {
+			if item.ID == "" || len(item.ID) > 64 || item.Sort < 0 ||
+				textLength(item.Label.ZhCN) == 0 || textLength(item.Label.ZhCN) > 80 || textLength(item.Label.En) > 80 ||
+				textLength(item.Text.ZhCN) > 1000 || textLength(item.Text.En) > 1000 {
 				return nil, nil, errors.New("VALIDATION_ERROR")
 			}
 			if _, ok := seen[item.ID]; ok {
