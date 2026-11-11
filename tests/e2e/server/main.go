@@ -129,9 +129,12 @@ func run(ctx context.Context) error {
 		ON CONFLICT (kind,revision) DO NOTHING`); err != nil {
 		return err
 	}
-	// A whole-group footer PUT needs both Chinese legal texts. Mirror the seeded
-	// revisions in an uninitialized fixture so the browser test can restore it via PUT.
+	// Seed the bilingual footer and mirror the legal revisions so the browser
+	// test can restore the whole group via PUT.
 	if _, err := pool.Exec(ctx, `UPDATE site_settings SET footer_legal = footer_legal || jsonb_build_object(
+		'items', '[{"id":"browser-help","label":{"zh_CN":"帮助中心","en":"Help center"},
+			"text":{"zh_CN":"查看收款与接入指南。\n工作日提供支持。","en":"Read the payment and integration guides.\nSupport is available on weekdays."},
+			"url":null,"enabled":true,"sort":0}]'::jsonb,
 		'terms', (SELECT content FROM legal_versions WHERE kind='terms' AND revision=1),
 		'privacy', (SELECT content FROM legal_versions WHERE kind='privacy' AND revision=1))
 		WHERE singleton AND footer_legal #>> '{terms,zh_CN}' = '' AND footer_legal #>> '{privacy,zh_CN}' = ''`); err != nil {

@@ -749,12 +749,15 @@ describe('console settings page', () => {
     const labels = await screen.findAllByLabelText<HTMLInputElement>('中文名称')
     expect(labels.map((input) => input.value)).toEqual(['First', 'Second', 'Later'])
     fireEvent.change(labels[0]!, { target: { value: 'Renamed' } })
+    const text = { zh_CN: '第一行\n第二行', en: 'First line\nSecond line' }
+    fireEvent.change(screen.getAllByLabelText('中文说明')[0]!, { target: { value: text.zh_CN } })
+    fireEvent.change(screen.getAllByLabelText('英文说明')[0]!, { target: { value: text.en } })
     const save = screen.getByRole('button', { name: '保存页脚与协议' })
     await actor.click(save)
     await screen.findByText('页脚与协议已保存。')
     expect(bodies[0]?.value).toMatchObject({
       items: [
-        { id: 'first', label: { zh_CN: 'Renamed' }, sort: 0 },
+        { id: 'first', label: { zh_CN: 'Renamed' }, text, sort: 0 },
         { id: 'second', sort: 1 },
         { id: 'later', sort: 2 },
       ],
@@ -765,7 +768,7 @@ describe('console settings page', () => {
     expect(bodies[1]?.value).toMatchObject({
       items: [
         { id: 'second', sort: 0 },
-        { id: 'first', sort: 1 },
+        { id: 'first', text, sort: 1 },
         { id: 'later', sort: 2 },
       ],
     })
@@ -777,7 +780,8 @@ describe('console settings page', () => {
     value.terms.en = '款'.repeat(40000)
     value.privacy.en = ''
     const expected_version = current.version
-    const bytesLeft = 300 * 1024 - byteLength(JSON.stringify({ expected_version, value }))
+    const limit = 301 * 1024
+    const bytesLeft = limit - byteLength(JSON.stringify({ expected_version, value }))
     const bodies: string[] = []
     server.use(
       http.put('*/api/v1/console/settings/footer_legal', async ({ request }) => {
@@ -793,12 +797,12 @@ describe('console settings page', () => {
     })
     await actor.click(screen.getByRole('button', { name: '保存页脚与协议' }))
     if (extra) {
-      expect(await screen.findByText(/设置总量超过 300 KB/)).toBeVisible()
+      expect(await screen.findByText(/设置总量超过 301 KiB/)).toBeVisible()
       expect(bodies).toHaveLength(0)
     } else {
       await screen.findByText('页脚与协议已保存。')
       expect(bodies).toHaveLength(1)
-      expect(byteLength(bodies[0]!)).toBe(300 * 1024)
+      expect(byteLength(bodies[0]!)).toBe(limit)
     }
   })
 

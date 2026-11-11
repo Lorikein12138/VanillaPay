@@ -2261,7 +2261,7 @@ export interface components {
             label: components["schemas"]["SettingsLanguageText"];
             /** Format: int64 */
             sort: number;
-            text: string;
+            text: components["schemas"]["SettingsLanguageText"];
             url: string | null;
         };
         SettingsFooterLegal: {

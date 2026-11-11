@@ -110,11 +110,14 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
       await save('footer_legal', {
         ...original.footer_legal,
         items: [
-          { id: 'help', label: { zh_CN: '帮助中心', en: 'Help center' }, text: '查看收款与接入指南。',
+          { id: 'help', label: { zh_CN: '帮助中心', en: 'Help center' },
+            text: { zh_CN: '查看收款与接入指南。', en: 'Read the payment and integration guides.' },
             url: 'https://help.example.test/', enabled: true, sort: 0 },
-          { id: 'support', label: { zh_CN: '服务时间', en: 'Support hours' }, text: '工作日 09:00–18:00',
+          { id: 'support', label: { zh_CN: '服务时间', en: 'Support hours' },
+            text: { zh_CN: '工作日 09:00–18:00', en: 'Weekdays, 09:00–18:00' },
             url: null, enabled: true, sort: 1 },
-          { id: 'hidden', label: { zh_CN: '隐藏项目', en: 'Hidden item' }, text: '', url: null, enabled: false, sort: 2 },
+          { id: 'hidden', label: { zh_CN: '隐藏项目', en: 'Hidden item' }, text: { zh_CN: '', en: '' },
+            url: null, enabled: false, sort: 2 },
         ],
       })
       await save('home', { mode: 'default', html: null, url: null })
@@ -124,6 +127,7 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
         await expect(footer.getByRole('img', { name })).toHaveAttribute('src', logo)
         await expect(footer.getByRole('link', { name: '帮助中心' })).toHaveAttribute('href', 'https://help.example.test/')
         await expect(footer.getByText('服务时间')).toBeVisible()
+        await expect(footer.getByText('查看收款与接入指南。', { exact: true })).toBeVisible()
         await expect(footer.getByText('隐藏项目')).toHaveCount(0)
         await expect(footer.getByRole('link', { name: '服务条款' })).toHaveAttribute('href', '/legal/terms')
         await expect(footer.getByRole('link', { name: '隐私政策' })).toHaveAttribute('href', '/legal/privacy')
@@ -143,6 +147,14 @@ export function registerPublicSiteTests({ seed, captcha, signIn }: Helpers) {
           await chooseMenu(visitor, '主题', label)
           await expect(visitor.locator('html')).toHaveAttribute('data-theme', theme)
           await snapshot(visitor, 'home-default', true)
+          await chooseMenu(visitor, '语言', 'English')
+          await expect(visitor.locator('html')).toHaveAttribute('lang', 'en')
+          const footer = visitor.getByRole('contentinfo')
+          await expect(footer.getByRole('link', { name: 'Help center' })).toBeVisible()
+          await expect(footer.getByText('Read the payment and integration guides.', { exact: true })).toBeVisible()
+          await expect(footer.getByText('查看收款与接入指南。', { exact: true })).toHaveCount(0)
+          await snapshot(visitor, 'home-default-en', true)
+          await chooseMenu(visitor, 'Language', '中文')
           await visitor.goto('/login')
           await checkPublicFooter()
           await snapshot(visitor, 'login', true)

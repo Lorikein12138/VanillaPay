@@ -6448,7 +6448,7 @@ components:
           format: int64
           type: integer
         text:
-          type: string
+          $ref: '#/components/schemas/SettingsLanguageText'
         url:
           nullable: true
           type: string

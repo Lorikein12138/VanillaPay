@@ -1077,7 +1077,8 @@
     "footerItemNumber": "第 {{number}} 项",
     "footerZh": "中文名称",
     "footerEn": "英文名称",
-    "footerText": "说明文字",
+    "footerTextZh": "中文说明",
+    "footerTextEn": "英文说明",
     "footerUrl": "链接地址",
     "enabled": "启用",
     "moveUp": "上移",
@@ -1185,7 +1186,7 @@
     },
     "refreshFailed": "未能加载最新设置。请重试，草稿会保留。",
     "retryRefresh": "重新加载设置",
-    "requestTooLarge": "设置总量超过 300 KB，请缩减内容后再保存。"
+    "requestTooLarge": "设置总量超过 301 KiB，请缩减内容后再保存。"
   },
   "manage": {
     "merchant": "商户",

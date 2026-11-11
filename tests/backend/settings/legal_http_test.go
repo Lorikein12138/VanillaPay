@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"strings"
 	"testing"
@@ -61,9 +62,9 @@ func TestHTTP_LegalRevisionAndFooterConfiguration(t *testing.T) {
 		fixture := testsupport.NewHTTPFixture(t, db)
 		admin := bootstrapRecoveryAdmin(t, fixture, "footer-visibility")
 		items := []map[string]any{
-			{"id": "support", "label": map[string]string{"zh_CN": "支持", "en": "Support"}, "text": "support@example.test", "url": "https://support.example.test", "enabled": true, "sort": 20},
-			{"id": "hidden", "label": map[string]string{"zh_CN": "隐藏", "en": "Hidden"}, "text": "hidden", "url": nil, "enabled": false, "sort": 1},
-			{"id": "terms", "label": map[string]string{"zh_CN": "条款", "en": "Terms"}, "text": "legal page", "url": "https://pay.example.test/terms", "enabled": true, "sort": 10},
+			{"id": "support", "label": map[string]string{"zh_CN": "支持", "en": "Support"}, "text": map[string]string{"zh_CN": "", "en": ""}, "url": "https://support.example.test", "enabled": true, "sort": 20},
+			{"id": "hidden", "label": map[string]string{"zh_CN": "隐藏", "en": "Hidden"}, "text": map[string]string{"zh_CN": "隐藏", "en": "Hidden"}, "url": nil, "enabled": false, "sort": 1},
+			{"id": "terms", "label": map[string]string{"zh_CN": "条款", "en": "Terms"}, "text": map[string]string{"zh_CN": "条款页面", "en": "legal page"}, "url": "https://pay.example.test/terms", "enabled": true, "sort": 10},
 		}
 		response := updateSettingsGroupHTTP(t, fixture, admin, "footer_legal", map[string]any{
 			"items": items, "terms": map[string]string{"zh_CN": "条款", "en": "Terms"}, "privacy": map[string]string{"zh_CN": "隐私", "en": "Privacy"},
@@ -72,13 +73,20 @@ func TestHTTP_LegalRevisionAndFooterConfiguration(t *testing.T) {
 		public := fixture.Request(t, http.MethodGet, "/api/v1/public/config", nil, "guest")
 		var envelope struct {
 			Data struct {
-				Footer []map[string]any `json:"footer"`
+				Footer []struct {
+					ID   string            `json:"id"`
+					Text map[string]string `json:"text"`
+					URL  string            `json:"url"`
+				} `json:"footer"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(public.Body.Bytes(), &envelope); err != nil || public.Code != http.StatusOK || len(envelope.Data.Footer) != 2 {
 			t.Fatalf("public footer status=%d footer=%#v err=%v body=%s", public.Code, envelope.Data.Footer, err, public.Body.String())
 		}
-		if envelope.Data.Footer[0]["id"] != "terms" || envelope.Data.Footer[1]["id"] != "support" || envelope.Data.Footer[0]["text"] != "legal page" || envelope.Data.Footer[1]["url"] != "https://support.example.test" {
+		terms, support := envelope.Data.Footer[0], envelope.Data.Footer[1]
+		if terms.ID != "terms" || support.ID != "support" || support.URL != "https://support.example.test" ||
+			!maps.Equal(terms.Text, map[string]string{"zh_CN": "条款页面", "en": "legal page"}) ||
+			!maps.Equal(support.Text, map[string]string{"zh_CN": "", "en": ""}) {
 			t.Fatalf("public footer did not preserve enabled/sort/text/link fields: %#v", envelope.Data.Footer)
 		}
 	})
@@ -91,7 +99,7 @@ func TestHTTP_LegalRevisionAndFooterConfiguration(t *testing.T) {
 		version := recoverySettingsVersion(t, fixture)
 		response := fixture.Request(t, http.MethodPut, "/api/v1/console/settings/footer_legal", map[string]any{
 			"expected_version": version, "value": map[string]any{
-				"items": []map[string]any{{"id": "danger", "label": map[string]string{"zh_CN": "危险", "en": "Danger"}, "text": "x", "url": "javascript:alert(1)", "enabled": true, "sort": 1}},
+				"items": []map[string]any{{"id": "danger", "label": map[string]string{"zh_CN": "危险", "en": "Danger"}, "text": map[string]string{"zh_CN": "x", "en": ""}, "url": "javascript:alert(1)", "enabled": true, "sort": 1}},
 				"terms": map[string]string{"zh_CN": "条款", "en": "Terms"}, "privacy": map[string]string{"zh_CN": "隐私", "en": "Privacy"},
 			},
 		}, admin)
@@ -107,7 +115,7 @@ func TestHTTP_LegalRevisionAndFooterConfiguration(t *testing.T) {
 		fixture := testsupport.NewHTTPFixture(t, db)
 		admin := bootstrapRecoveryAdmin(t, fixture, "footer-dom-data")
 		response := updateSettingsGroupHTTP(t, fixture, admin, "footer_legal", map[string]any{
-			"items": []map[string]any{{"id": "dom-data", "label": map[string]string{"zh_CN": "页脚", "en": "Footer"}, "text": "rendered by frontend", "url": "https://pay.example.test/footer", "enabled": true, "sort": 1}},
+			"items": []map[string]any{{"id": "dom-data", "label": map[string]string{"zh_CN": "页脚", "en": "Footer"}, "text": map[string]string{"zh_CN": "由前端渲染", "en": "rendered by frontend"}, "url": "https://pay.example.test/footer", "enabled": true, "sort": 1}},
 			"terms": map[string]string{"zh_CN": "条款正文", "en": "Terms body"}, "privacy": map[string]string{"zh_CN": "隐私正文", "en": "Privacy body"},
 		})
 		assertRecoveryAPIError(t, response, http.StatusOK, "")
@@ -120,4 +128,38 @@ func TestHTTP_LegalRevisionAndFooterConfiguration(t *testing.T) {
 			t.Fatalf("public legal endpoint did not return the saved terms body: %d %s", legal.Code, legal.Body.String())
 		}
 	})
+}
+
+func TestHTTP_FooterDescriptionValidation(t *testing.T) {
+	fixture := testsupport.NewHTTPFixture(t, testsupport.NewDatabase(t))
+	admin := bootstrapRecoveryAdmin(t, fixture, "footer-text")
+	zh := strings.Repeat("收", 1000)
+	en := strings.Repeat("a", 1000)
+	for _, tc := range []struct {
+		name   string
+		text   any
+		status int
+	}{
+		{"both at limit", map[string]string{"zh_CN": zh, "en": en}, http.StatusOK},
+		{"Chinese over limit", map[string]string{"zh_CN": zh + "收", "en": en}, http.StatusBadRequest},
+		{"English over limit", map[string]string{"zh_CN": zh, "en": en + "a"}, http.StatusBadRequest},
+		{"missing English", map[string]string{"zh_CN": zh}, http.StatusBadRequest},
+		{"old string", zh, http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			item := map[string]any{
+				"id": "help", "label": map[string]string{"zh_CN": "帮助", "en": "Help"},
+				"text": tc.text, "url": nil, "enabled": true, "sort": 0,
+			}
+			legal := map[string]string{"zh_CN": "协议", "en": "Legal"}
+			response := updateSettingsGroupHTTP(t, fixture, admin, "footer_legal", map[string]any{
+				"items": []any{item}, "terms": legal, "privacy": legal,
+			})
+			code := ""
+			if tc.status == http.StatusBadRequest {
+				code = "VALIDATION_ERROR"
+			}
+			assertRecoveryAPIError(t, response, tc.status, code)
+		})
+	}
 }

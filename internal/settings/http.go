@@ -59,7 +59,7 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	var req UpdateGroup
-	if !settingsDecode(w, r, &req, 300<<10) {
+	if !settingsDecode(w, r, &req, 301<<10) {
 		return
 	}
 	actor, _ := platform.ActorFromContext(r.Context())

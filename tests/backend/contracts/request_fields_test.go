@@ -246,10 +246,19 @@ func TestHTTP_StrictJSONInEmailRoutingAndSettingsGroups(t *testing.T) {
 		map[string]any{"expected_version": version, "value": map[string]any{"site_name": "Fixture", "LOGO_ASSET_ID": nil}},
 		"admin:matrix-admin"), "value.LOGO_ASSET_ID")
 	localized := map[string]string{"zh_CN": "条款", "en": "Terms"}
-	item := map[string]any{"id": "first", "label": map[string]string{"zh_CN": "链接"}, "text": "", "url": nil, "enabled": true, "sort": 0}
-	assertRequestFieldError(t, fixture.Request(t, http.MethodPut, "/api/v1/console/settings/footer_legal", map[string]any{
+	item := map[string]any{"id": "first", "label": map[string]string{"zh_CN": "链接"}, "text": map[string]string{"zh_CN": "", "en": ""}, "url": nil, "enabled": true, "sort": 0}
+	body := map[string]any{
 		"expected_version": version, "value": map[string]any{"items": []any{item}, "terms": localized, "privacy": localized},
-	}, "admin:matrix-admin"), "value.items[0].label.en")
+	}
+	const path = "/api/v1/console/settings/footer_legal"
+	assertRequestFieldError(t, fixture.Request(t, http.MethodPut, path, body, "admin:matrix-admin"), "value.items[0].label.en")
+	item["label"] = localized
+	item["text"] = map[string]string{"zh_CN": ""}
+	assertRequestFieldError(t, fixture.Request(t, http.MethodPut, path, body, "admin:matrix-admin"), "value.items[0].text.en")
+	item["text"] = map[string]string{"en": ""}
+	assertRequestFieldError(t, fixture.Request(t, http.MethodPut, path, body, "admin:matrix-admin"), "value.items[0].text.zh_CN")
+	item["text"] = "old format"
+	assertRequestFieldError(t, fixture.Request(t, http.MethodPut, path, body, "admin:matrix-admin"), "value.items.0.text")
 	var after int64
 	if err := fixture.DB.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings`).Scan(&after); err != nil || after != version {
 		t.Fatalf("invalid settings group changed version: got %d want %d, error=%v", after, version, err)

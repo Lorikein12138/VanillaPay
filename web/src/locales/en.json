@@ -1077,7 +1077,8 @@
     "footerItemNumber": "Item {{number}}",
     "footerZh": "Chinese label",
     "footerEn": "English label",
-    "footerText": "Description",
+    "footerTextZh": "Chinese description",
+    "footerTextEn": "English description",
     "footerUrl": "Link URL",
     "enabled": "Enabled",
     "moveUp": "Move up",
@@ -1185,7 +1186,7 @@
     },
     "refreshFailed": "Could not load the latest settings. Retry to continue editing your draft.",
     "retryRefresh": "Reload settings",
-    "requestTooLarge": "The settings exceed 300 KB in total. Shorten the content before saving."
+    "requestTooLarge": "The settings exceed 301 KiB in total. Shorten the content before saving."
   },
   "manage": {
     "merchant": "Merchant",

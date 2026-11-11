@@ -35,19 +35,23 @@ export function LatestSettings({ group, settings }: { group: SettingsGroup; sett
     }
     case 'footer_legal': {
       const value = writableGroup(settings, group)
-      const links = (value.items ?? []).map((item) =>
-        [item.label.zh_CN, item.label.en, item.text, item.url, enabled(item.enabled)]
-          .filter(Boolean)
-          .join(' · '),
-      )
+      const items = (value.items ?? []).flatMap((item, index) => [
+        {
+          label: t('consoleSettings.footerItemNumber', { number: index + 1 }),
+          value: [item.label.zh_CN, item.label.en, item.url, enabled(item.enabled)].filter(Boolean).join(' · '),
+          wide: true,
+        },
+        row('footerTextZh', item.text.zh_CN),
+        row('footerTextEn', item.text.en),
+      ])
       return (
         <DetailList
           columns={2}
           items={[
-            row('footer', links.join('\n')),
+            ...items,
             row('terms', [value.terms.zh_CN, value.terms.en].filter(Boolean).join('\n')),
             row('privacy', [value.privacy.zh_CN, value.privacy.en].filter(Boolean).join('\n')),
-          ].map((item, index) => (index === 0 ? { ...item, label: t('consoleSettings.groups.footer') } : item))}
+          ]}
         />
       )
     }

@@ -28,6 +28,7 @@ export function PublicFooter({ children }: { children?: ReactNode }) {
             <ul className="m-0 grid min-w-0 list-none grid-cols-1 gap-x-10 gap-y-5 p-0 sm:grid-cols-2 lg:max-w-[760px] lg:flex-1 lg:grid-cols-3">
               {data.footer.map((item) => {
                 const label = i18n.resolvedLanguage === 'en' ? item.label.en.trim() || item.label.zh_CN : item.label.zh_CN
+                const text = i18n.resolvedLanguage === 'en' && item.text.en.trim() ? item.text.en : item.text.zh_CN
                 const url = footerURL(item.url)
                 const external = url && url.protocol !== 'mailto:'
                 return (
@@ -42,7 +43,7 @@ export function PublicFooter({ children }: { children?: ReactNode }) {
                         {label}
                       </a>
                     ) : <span className="font-[500] text-text">{label}</span>}
-                    {item.text.trim() && <p className="m-0 whitespace-pre-wrap text-caption leading-relaxed text-text-3">{item.text}</p>}
+                    {text.trim() && <p className="m-0 whitespace-pre-wrap text-caption leading-relaxed text-text-3">{text}</p>}
                   </li>
                 )
               })}

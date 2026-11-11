@@ -149,7 +149,7 @@ func TestDB_OfflineAlertMigrationPreservesArmingState(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := provider.Down(ctx); err != nil {
+			if _, err := provider.DownTo(ctx, 7); err != nil {
 				t.Fatal(err)
 			}
 

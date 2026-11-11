@@ -101,7 +101,7 @@ func TestOpenAPI_JSONRequestTypes(t *testing.T) {
 						variants = map[string]any{
 							"SiteGroup":             settings.SiteGroupRequest{},
 							"Home":                  settings.HomeGroupRequest{},
-							"SettingsFooterLegal":   settings.FooterLegal{},
+							"SettingsFooterLegal":   settings.FooterLegal{}, // Recurses into FooterItem.Label and FooterItem.Text.
 							"MailSettingsInput":     settings.MailGroupRequest{},
 							"SecuritySettingsInput": settings.SecurityGroupRequest{},    // Includes the optional proof for enabling or changing Turnstile.
 							"RecoverySecurityInput": settings.RecoverySecurityRequest{}, // The one-time recovery session provides its own proof.
@@ -122,6 +122,15 @@ func TestOpenAPI_JSONRequestTypes(t *testing.T) {
 			t.Errorf("%s: Go type mapped to absent JSON request", key)
 		}
 	}
+}
+
+func TestOpenAPI_PublicFooterItemType(t *testing.T) {
+	public := testsupport.OpenAPI(t).Components.Schemas["PublicConfig"].Value
+	item := public.Properties["footer"].Value.Items
+	if item == nil || item.Ref != "#/components/schemas/SettingsFooterItem" {
+		t.Fatal("public footer must share the settings footer item schema")
+	}
+	checkRequestSchema(t, "public.footer[]", item, reflect.TypeFor[settings.FooterItem](), nil)
 }
 
 func checkRequestSchema(t *testing.T, path string, ref *openapi3.SchemaRef, typ reflect.Type, variants map[string]any) {
