@@ -66,7 +66,7 @@ export function ConsoleSettingsPage({
         </Notice>
       )}
       <div className="grid min-w-0 gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <nav aria-label={t('consoleSettings.groupsLabel')} className="hidden min-w-0 flex-col gap-1 lg:flex">
+        <nav aria-label={t('consoleSettings.groupsLabel')} className="hidden min-w-0 flex-col gap-0.5 lg:flex">
           {settingsGroups.map((key) => (
             <button
               key={key}
@@ -74,7 +74,7 @@ export function ConsoleSettingsPage({
               disabled={busy}
               onClick={() => selectGroup(key)}
               className={`flex min-h-11 items-center justify-between rounded-control px-3 text-left text-label disabled:opacity-50 ${
-                group === key ? 'bg-hover font-medium text-text' : 'text-text-2 hover:bg-hover'
+                group === key ? 'bg-selected font-[500] text-text' : 'text-text-2 hover:bg-hover hover:text-text'
               }`}
             >
               <span>{groupLabel(key)}</span>

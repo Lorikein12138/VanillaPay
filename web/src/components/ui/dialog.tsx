@@ -35,20 +35,25 @@ export function Dialog({
   return (
     <Primitive.Root open={open} onOpenChange={(next) => { if (!next && !busy) onClose() }}>
       <Primitive.Portal>
-        <Primitive.Overlay className="vp-overlay fixed inset-0 z-40 bg-overlay backdrop-blur-[2px]" />
+        <Primitive.Overlay className="vp-overlay fixed inset-0 z-40 bg-overlay" />
         <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
           <Primitive.Content
+            // Land on the dialog itself rather than ringing the close button; Tab still reaches every control.
+            onOpenAutoFocus={(event) => {
+              event.preventDefault()
+              ;(event.target as HTMLElement).focus({ preventScroll: true })
+            }}
             onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }}
             onPointerDownOutside={(event) => { if (busy) event.preventDefault() }}
             onInteractOutside={(event) => { if (busy) event.preventDefault() }}
             className={cn(
-              'vp-dialog pointer-events-auto flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden rounded-t-dialog border-[0.5px] border-border-strong bg-surface text-text shadow-dialog focus:outline-none sm:max-h-[calc(100dvh-48px)] sm:rounded-dialog',
+              'vp-dialog pointer-events-auto flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden rounded-t-dialog bg-surface text-text shadow-dialog focus:outline-none sm:max-h-[calc(100dvh-48px)] sm:rounded-dialog',
               widths[size],
             )}
           >
-            <div className="flex items-start gap-4 px-5 pb-1 pt-5 sm:px-7 sm:pt-6">
+            <div className="flex items-start gap-4 px-5 pb-1 pt-5 sm:px-8 sm:pt-7">
               <div className="min-w-0 flex-1 pt-1.5">
-                <Primitive.Title className="m-0 font-serif text-heading">{title}</Primitive.Title>
+                <Primitive.Title className="m-0 font-serif text-[1.375rem] leading-[1.3] tracking-[-0.005em]">{title}</Primitive.Title>
                 {description ? (
                   <Primitive.Description className="m-0 mt-2 text-label leading-relaxed text-text-2">{description}</Primitive.Description>
                 ) : (
@@ -63,9 +68,9 @@ export function Dialog({
                 <X className="size-[18px]" strokeWidth={1.8} aria-hidden="true" />
               </Primitive.Close>
             </div>
-            {children != null && <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-7">{children}</div>}
+            {children != null && <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-8">{children}</div>}
             {footer && (
-              <div className="flex flex-col-reverse gap-2 border-t-[0.5px] border-border px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:justify-end sm:px-7 sm:pb-5 [&>*]:w-full sm:[&>*]:w-auto">
+              <div className="flex flex-col-reverse gap-2 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 sm:flex-row sm:justify-end sm:px-8 sm:pb-7 [&>*]:w-full sm:[&>*]:w-auto">
                 {footer}
               </div>
             )}

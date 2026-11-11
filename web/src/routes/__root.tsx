@@ -17,7 +17,7 @@ function Root() {
 }
 
 const actionClass =
-  'inline-flex h-10 items-center rounded-control bg-primary px-4 text-label font-medium text-primary-fg transition-opacity hover:opacity-90'
+  'inline-flex h-11 items-center rounded-control bg-primary px-5 text-label font-[460] text-primary-fg transition-colors hover:bg-primary-hover'
 
 function NotFound() {
   const { t } = useTranslation()

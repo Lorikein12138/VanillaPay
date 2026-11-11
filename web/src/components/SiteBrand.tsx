@@ -43,7 +43,7 @@ export function SiteBrand({ compact = false, labelClassName }: { compact?: boole
   return (
     <>
       <SiteLogo key={logoUrl} url={logoUrl} name={name} className={compact ? 'size-5' : 'size-7'} />
-      <span className={cn(compact ? 'min-w-0 break-words' : 'min-w-0 truncate font-serif text-xl font-medium', labelClassName)}>{name}</span>
+      <span className={cn(compact ? 'min-w-0 break-words' : 'min-w-0 truncate font-serif text-xl font-[500] tracking-[-0.01em]', labelClassName)}>{name}</span>
     </>
   )
 }

@@ -40,9 +40,11 @@ export function Notice({
       role={role}
       aria-live="polite"
       className={cn(
-        'flex items-start gap-3 rounded-control border-[0.5px] border-border bg-surface py-3 pl-4 pr-2 text-label',
-        tone === 'error' && 'border-danger/40',
-        tone === 'warning' && 'border-dot-wait/50 bg-dot-wait/5',
+        'flex items-start gap-3 rounded-xl py-3 pl-4 pr-2 text-label',
+        tone === 'success' && 'bg-dot-ok/10',
+        tone === 'info' && 'bg-dot-info/10',
+        tone === 'error' && 'bg-danger/8',
+        tone === 'warning' && 'bg-dot-wait/12',
         className,
       )}
     >

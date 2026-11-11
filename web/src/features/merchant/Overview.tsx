@@ -40,11 +40,11 @@ export function Overview({ name, role = 'merchant' }: { name: string; role?: 'me
     <Page className="gap-12">
       <div className="flex flex-wrap items-end justify-between gap-5">
         <div className="min-w-0 space-y-1.5">
-          <h1 className="m-0 break-words font-serif text-4xl font-[330] leading-tight">{t(`merchant.overview.greeting.${greeting}`, { name })}</h1>
-          <p className="m-0 text-label text-text-2">{new Intl.DateTimeFormat(language, { dateStyle: 'full' }).format(now)}</p>
+          <h1 className="m-0 break-words font-serif text-[2rem] font-normal leading-[1.15] tracking-[-0.01em] sm:text-[2.5rem]">{t(`merchant.overview.greeting.${greeting}`, { name })}</h1>
+          <p className="m-0 text-[15px] text-text-2">{new Intl.DateTimeFormat(language, { dateStyle: 'full' }).format(now)}</p>
         </div>
-        <div role="group" aria-label={t('merchant.overview.timeRange')} className="inline-flex rounded-[10px] border-[0.5px] border-border p-[3px]">
-          {([1, 7, 30] as const).map((value) => <Button variant="ghost" key={value} aria-pressed={days === value} onClick={() => setDays(value)} className={`min-h-11 rounded-[7px] px-3.5 text-label transition-colors hover:bg-hover ${days === value ? 'bg-hover font-medium text-text' : 'text-text-2'}`}>{t(`merchant.overview.range.${value}`)}</Button>)}
+        <div role="group" aria-label={t('merchant.overview.timeRange')} className="inline-flex gap-0.5 rounded-xl bg-muted p-1">
+          {([1, 7, 30] as const).map((value) => <Button variant="ghost" key={value} aria-pressed={days === value} onClick={() => setDays(value)} className={`min-h-11 rounded-[8px] px-4 text-label transition-[background-color,color,box-shadow] ${days === value ? 'bg-surface text-text shadow-[0_0_0_0.5px_var(--color-border),0_1px_2px_rgba(20,20,19,0.06)] hover:bg-surface dark:bg-oat dark:hover:bg-oat' : 'text-text-2 hover:bg-transparent hover:text-text'}`}>{t(`merchant.overview.range.${value}`)}</Button>)}
         </div>
       </div>
 
@@ -60,18 +60,18 @@ export function Overview({ name, role = 'merchant' }: { name: string; role?: 'me
       </section>
 
       <div className="flex flex-wrap gap-6">
-        <section aria-labelledby="overview-trend" aria-busy={chart.isPending} className="min-h-[340px] min-w-0 flex-[2_1_440px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7">
-          <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2"><h2 id="overview-trend" className="font-serif text-heading">{t('merchant.overview.trend')}</h2><span className="text-caption text-text-3">{t('merchant.overview.thousands')}</span></div>
+        <section aria-labelledby="overview-trend" aria-busy={chart.isPending} className="min-h-[340px] min-w-0 flex-[2_1_440px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8">
+          <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2"><h2 id="overview-trend" className="font-serif text-heading tracking-[-0.005em]">{t('merchant.overview.trend')}</h2><span className="text-caption text-text-3">{t('merchant.overview.thousands')}</span></div>
           {chart.isError ? <QueryProblem retry={() => { void chart.refetch() }} /> : chart.isPending ? <Skeleton className="h-[218px] w-full" /> : <TrendChart points={chart.data.trend ?? []} format={(cents) => decimal.format(cents / 100000)} />}
         </section>
-        {role === 'merchant' && <section aria-labelledby="overview-device" aria-busy={device.isPending} className="min-h-48 min-w-0 flex-[1_1_280px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7">
-          <h2 id="overview-device" className="mb-4 font-serif text-heading">{t('merchant.overview.device')}</h2>
+        {role === 'merchant' && <section aria-labelledby="overview-device" aria-busy={device.isPending} className="min-h-48 min-w-0 flex-[1_1_280px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8">
+          <h2 id="overview-device" className="mb-4 font-serif text-heading tracking-[-0.005em]">{t('merchant.overview.device')}</h2>
           {device.isError ? <QueryProblem retry={() => { void device.refetch() }} /> : device.isPending ? <Skeleton className="h-20 w-full" /> : <DeviceCard device={device.data} now={now} />}
         </section>}
       </div>
 
       {role === 'merchant' && <section aria-labelledby="overview-orders" aria-busy={orders.isPending} className="min-w-0">
-        <h2 id="overview-orders" className="mb-4 font-serif text-heading">{t('merchant.overview.recentOrders')}</h2>
+        <h2 id="overview-orders" className="mb-4 font-serif text-heading tracking-[-0.005em]">{t('merchant.overview.recentOrders')}</h2>
         {orders.isError ? <div className="min-h-80"><QueryProblem retry={() => { void orders.refetch() }} /></div> : orders.isPending ? <Skeleton className="h-80 w-full" /> : <RecentOrders orders={orders.data.items ?? []} />}
       </section>}
     </Page>
@@ -79,5 +79,5 @@ export function Overview({ name, role = 'merchant' }: { name: string; role?: 'me
 }
 
 function Metric({ label, value, children, accent = false }: { label: string; value?: string; children: ReactNode; accent?: boolean }) {
-  return <section aria-label={label} className="min-w-0 border-t-[0.5px] border-border-strong pt-4"><h2 className="text-label text-text-2">{label}</h2>{value === undefined ? <Skeleton className="my-1.5 h-[46px] w-3/4" /> : <p className={`my-1.5 break-words font-serif text-figure tabular-nums ${accent ? 'text-accent-text' : ''}`}>{value}</p>}<div className="text-[13px] text-text-3">{value === undefined ? <Skeleton className="h-4 w-32" /> : children}</div></section>
+  return <section aria-label={label} className="min-w-0 border-t-[0.5px] border-border-strong pt-5"><h2 className="text-label text-text-2">{label}</h2>{value === undefined ? <Skeleton className="my-1.5 h-[46px] w-3/4" /> : <p className={`my-2 break-words font-serif text-figure tracking-[-0.015em] tabular-nums ${accent ? 'text-accent-text' : ''}`}>{value}</p>}<div className="text-[13px] text-text-3">{value === undefined ? <Skeleton className="h-4 w-32" /> : children}</div></section>
 }

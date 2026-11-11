@@ -27,7 +27,7 @@ export function FileInput({ className, onChange, disabled, ...props }: Omit<Inpu
         aria-hidden="true"
         disabled={disabled}
         onClick={() => input.current?.click()}
-        className={cn(buttonVariants({ variant: 'secondary' }), 'peer-focus-visible:border-accent peer-focus-visible:shadow-[0_0_0_3px_var(--color-focus-ring)]')}
+        className={cn(buttonVariants({ variant: 'secondary' }), 'peer-focus-visible:shadow-[0_0_0_1px_var(--color-accent),0_0_0_4px_var(--color-focus-ring)]')}
       >
         <Upload aria-hidden="true" strokeWidth={1.8} />
         {t('ui.chooseFile')}

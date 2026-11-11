@@ -53,7 +53,7 @@ export function DateTimePicker({ id, value, onValueChange, disabled, invalid, de
       </div>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={4} collisionPadding={12} aria-label={t('ui.openDateTime')}
-          className="z-70 max-h-(--radix-popover-content-available-height) w-[calc(100dvw-24px)] max-w-[22rem] overflow-y-auto rounded-dialog border border-border-strong bg-surface p-3 text-text shadow-lg">
+          className="z-70 max-h-(--radix-popover-content-available-height) w-[calc(100dvw-24px)] max-w-[22rem] vp-pop overflow-y-auto rounded-2xl bg-surface p-3 text-text shadow-pop">
           <Calendar value={value} onApply={onValueChange} />
         </Popover.Content>
       </Popover.Portal>
@@ -128,7 +128,7 @@ function Calendar({ value, onApply }: { value: string; onApply: (value: string) 
           const focused = active.getDate() === date.getDate()
           return <Button key={index} variant="ghost" size="icon" ref={focused ? activeDay : undefined}
             tabIndex={focused ? 0 : -1} onKeyDown={moveDay} aria-label={dateFormat.format(date)}
-            aria-pressed={focused} className={cn('h-8 w-full', focused && 'bg-muted text-text')}
+            aria-pressed={focused} className={cn('h-9 w-full rounded-lg font-normal tabular-nums', focused && 'bg-primary text-primary-fg hover:bg-primary-hover hover:text-primary-fg')}
             onClick={() => setActive(date)}>{index + 1}</Button>
         })}
       </div>

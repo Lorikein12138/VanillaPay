@@ -32,8 +32,8 @@ export function PageHeader({
       {back}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 flex-col gap-2">
-          <h1 className="m-0 font-serif text-[2rem] font-[330] leading-[1.2] sm:text-[2.25rem]">{title}</h1>
-          {description && <p className="m-0 max-w-[62ch] text-label leading-relaxed text-text-2">{description}</p>}
+          <h1 className="m-0 font-serif text-[2rem] font-normal leading-[1.15] tracking-[-0.01em] sm:text-[2.5rem]">{title}</h1>
+          {description && <p className="m-0 max-w-[62ch] text-[15px] leading-relaxed text-text-2">{description}</p>}
           {meta}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -61,7 +61,7 @@ export const BackLink = createLink(BackAnchor)
 /** White panel with the template's hairline border and 16px radius. */
 export function Card({ className, children, ...props }: HTMLAttributes<HTMLElement> & { children: ReactNode }) {
   return (
-    <section className={cn('min-w-0 rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-7', className)} {...props}>
+    <section className={cn('min-w-0 rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8', className)} {...props}>
       {children}
     </section>
   )
@@ -82,9 +82,9 @@ export function SectionHeader({
   className?: string
 }) {
   return (
-    <div className={cn('mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3', className)}>
+    <div className={cn('mb-6 flex flex-wrap items-start justify-between gap-x-4 gap-y-3', className)}>
       <div className="flex min-w-0 flex-col gap-1.5">
-        <Heading className="m-0 font-serif text-heading">{title}</Heading>
+        <Heading className="m-0 font-serif text-heading tracking-[-0.005em]">{title}</Heading>
         {description && <p className="m-0 max-w-[62ch] text-label leading-relaxed text-text-2">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -94,14 +94,14 @@ export function SectionHeader({
 
 /** A smaller, sans-serif heading within a card. */
 export function SubsectionTitle({ className, children }: { className?: string; children: ReactNode }) {
-  return <h3 className={cn('m-0 font-sans text-body font-medium text-text', className)}>{children}</h3>
+  return <h3 className={cn('m-0 font-sans text-body font-[550] text-text', className)}>{children}</h3>
 }
 
 /** Muted centered message for empty lists. */
 export function EmptyState({ icon, title, children }: { icon?: ReactNode; title: ReactNode; children?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2 border-t-[0.5px] border-border px-4 py-14 text-center">
-      {icon && <span className="mb-1 text-text-3 [&_svg]:size-6">{icon}</span>}
+    <div className="flex flex-col items-center gap-2 px-4 py-14 text-center">
+      {icon && <span className="mb-2 grid size-11 place-items-center rounded-full bg-muted text-text-3 [&_svg]:size-5">{icon}</span>}
       <p className="m-0 text-label text-text-2">{title}</p>
       {children && <div className="text-caption text-text-3">{children}</div>}
     </div>

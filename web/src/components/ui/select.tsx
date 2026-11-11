@@ -21,7 +21,7 @@ export function Select({ value, onValueChange, children, disabled, ...trigger }:
       </RadixSelect.Trigger>
       <RadixSelect.Portal>
         <RadixSelect.Content position="popper" align="start" sideOffset={4} collisionPadding={12}
-          className="z-70 max-h-(--radix-select-content-available-height) min-w-(--radix-select-trigger-width) max-w-[calc(100dvw-24px)] overflow-hidden rounded-control border border-border-strong bg-surface text-text shadow-lg">
+          className="z-70 max-h-(--radix-select-content-available-height) min-w-(--radix-select-trigger-width) max-w-[calc(100dvw-24px)] vp-pop overflow-hidden rounded-xl bg-surface text-text shadow-pop">
           <RadixSelect.ScrollUpButton className={scrollClass}><ChevronUp aria-hidden="true" className="size-4" /></RadixSelect.ScrollUpButton>
           <RadixSelect.Viewport className="p-1">{children}</RadixSelect.Viewport>
           <RadixSelect.ScrollDownButton className={scrollClass}><ChevronDown aria-hidden="true" className="size-4" /></RadixSelect.ScrollDownButton>
@@ -34,7 +34,7 @@ export function Select({ value, onValueChange, children, disabled, ...trigger }:
 export function SelectOption({ value, disabled, children }: { value: string; disabled?: boolean; children: ReactNode }) {
   return (
     <RadixSelect.Item value={':' + value} disabled={disabled} data-value={value}
-      className="relative flex min-h-10 cursor-default items-center rounded-control py-2 pr-3 pl-9 text-label outline-none data-disabled:opacity-45 data-highlighted:bg-hover">
+      className="relative flex min-h-10 cursor-default items-center rounded-lg py-2 pr-3 pl-9 text-label outline-none data-disabled:opacity-45 data-highlighted:bg-hover">
       <RadixSelect.ItemIndicator className="absolute left-3 text-accent-text"><Check aria-hidden="true" className="size-4" /></RadixSelect.ItemIndicator>
       <RadixSelect.ItemText>{children}</RadixSelect.ItemText>
     </RadixSelect.Item>

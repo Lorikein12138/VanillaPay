@@ -86,14 +86,14 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
       <TopBar />
       <main id="main" className="mx-auto grid w-full max-w-[1160px] flex-1 items-center gap-12 px-4 pt-12 pb-16 sm:px-8 lg:grid-cols-[1fr_400px] lg:gap-20 lg:pt-16 lg:pb-24">
         <section className="min-w-0">
-          <h1 aria-label={hero.replaceAll('\n', '')} className="m-0 max-w-[520px] font-serif text-[clamp(2.5rem,5vw,3.5rem)] leading-[1.1] font-[330] tracking-normal text-balance">{hero.split('\n').map((line) => <span key={line} className={hero.includes('\n') ? 'block whitespace-nowrap' : undefined}>{line}</span>)}</h1>
+          <h1 aria-label={hero.replaceAll('\n', '')} className="m-0 max-w-[520px] font-serif text-[clamp(2.5rem,5vw,3.5rem)] leading-[1.08] font-normal tracking-[-0.02em] text-balance">{hero.split('\n').map((line) => <span key={line} className={hero.includes('\n') ? 'block whitespace-nowrap' : undefined}>{line}</span>)}</h1>
           <p className="mt-7 max-w-[440px] text-lg leading-relaxed text-text-2">{t(admin ? 'console.description' : 'auth.description')}</p>
-          <ol className="mt-10 list-none border-t-[0.5px] border-border-strong p-0">
-            {(['codes', 'devices', 'callbacks'] as const).map((key, index) => <li key={key} className="flex items-baseline gap-5 border-b-[0.5px] border-border py-4"><span className="font-mono text-caption text-text-3">0{index + 1}</span><span className="text-label">{t(`${admin ? 'console' : 'auth'}.features.${key}`)}</span></li>)}
+          <ol className="mt-10 list-none p-0">
+            {(['codes', 'devices', 'callbacks'] as const).map((key, index) => <li key={key} className="flex items-baseline gap-5 border-t-[0.5px] border-border py-4"><span className="font-serif text-label text-accent-text tabular-nums">0{index + 1}</span><span className="text-label text-text-2">{t(`${admin ? 'console' : 'auth'}.features.${key}`)}</span></li>)}
           </ol>
         </section>
-        <form onSubmit={(event) => { void submit(event) }} noValidate aria-busy={busy} aria-labelledby="login-title" className="flex w-full min-w-0 flex-col gap-5 rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-10">
-          <div><h2 id="login-title" className="m-0 font-serif text-title font-normal">{t(challenge ? 'auth.factorTitle' : admin ? 'console.login' : 'auth.welcome')}</h2><p className="mt-1 mb-0 text-label text-text-2">{t(challenge ? 'auth.factorDescription' : admin ? 'console.loginDescription' : 'auth.subtitle')}</p></div>
+        <form onSubmit={(event) => { void submit(event) }} noValidate aria-busy={busy} aria-labelledby="login-title" className="flex w-full min-w-0 flex-col gap-5 rounded-[24px] border-[0.5px] border-border bg-surface p-6 shadow-[0_1px_2px_rgba(20,20,19,0.03)] sm:p-9">
+          <div><h2 id="login-title" className="m-0 font-serif text-[1.75rem] leading-[1.2] font-normal tracking-[-0.01em]">{t(challenge ? 'auth.factorTitle' : admin ? 'console.login' : 'auth.welcome')}</h2><p className="mt-2 mb-0 text-label text-text-2">{t(challenge ? 'auth.factorDescription' : admin ? 'console.loginDescription' : 'auth.subtitle')}</p></div>
           {notice && <Notice>{t(notices[notice])}</Notice>}
           {!challenge ? <>
             <Field label={t('auth.identifier')} htmlFor="identifier"><Input id="identifier" name="username" autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder={t('auth.identifierPlaceholder')} disabled={busy} aria-invalid={!!fields.identifier} aria-describedby={fields.identifier ? 'identifier-error' : undefined} /></Field>
@@ -107,7 +107,7 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
 
             {enabled && captchaError && <><Button variant="ghost" onClick={() => { setCaptchaError(false); setAttempt((value) => value + 1) }}>{t('error.retry')}</Button></>}
           </> : <>
-            <div role="group" aria-label={t('auth.factorMethod')} className="flex rounded-control border-[0.5px] border-border p-1">{(['totp', 'recovery'] as const).map((method) => <Button key={method} variant="ghost" aria-pressed={mode === method} disabled={busy} className={`min-h-11 flex-1 rounded-control px-2 text-label ${mode === method ? 'bg-hover text-text' : 'text-text-2'}`} onClick={() => { setMode(method); setCode(''); setFields({}); setProblem(undefined) }}>{t(`auth.${method}`)}</Button>)}</div>
+            <div role="group" aria-label={t('auth.factorMethod')} className="flex rounded-xl bg-muted p-1">{(['totp', 'recovery'] as const).map((method) => <Button key={method} variant="ghost" aria-pressed={mode === method} disabled={busy} className={`min-h-11 flex-1 rounded-[8px] px-2 text-label ${mode === method ? 'bg-surface text-text shadow-[0_0_0_0.5px_var(--color-border),0_1px_2px_rgba(20,20,19,0.06)] hover:bg-surface dark:bg-oat dark:hover:bg-oat' : 'text-text-2'}`} onClick={() => { setMode(method); setCode(''); setFields({}); setProblem(undefined) }}>{t(`auth.${method}`)}</Button>)}</div>
             <Field label={t(mode === 'totp' ? 'auth.totpCode' : 'auth.recoveryCode')} htmlFor="factor-code"><Input id="factor-code" autoComplete="one-time-code" inputMode={mode === 'totp' ? 'numeric' : 'text'} value={code} onChange={(event) => setCode(event.target.value)} disabled={busy} aria-invalid={!!fields.code} aria-describedby={fields.code ? 'code-error' : undefined} /></Field>
 
           </>}
