@@ -10,19 +10,19 @@ import { Table, Td, Th } from './table'
 import { cn } from '@/lib/utils'
 
 export function RecordLink({ to, children }: { to: string; children: ReactNode }) {
-  return <Link to={to} className="text-accent-text underline decoration-border-strong underline-offset-4 [overflow-wrap:anywhere] hover:decoration-current">{children}</Link>
+  return <Link to={to} className="text-accent-text underline decoration-accent-text/30 underline-offset-4 [overflow-wrap:anywhere] hover:decoration-current">{children}</Link>
 }
 export function RecordText({ children, secondary = false }: { children: ReactNode; secondary?: boolean }) {
   return <span className={secondary ? 'block break-words text-caption text-text-3 [overflow-wrap:anywhere]' : 'block min-w-0 break-words text-label [overflow-wrap:anywhere]'}>{children}</span>
 }
 export function RecordBadge({ children }: { children: ReactNode }) {
-  return <span className="inline-flex rounded-full border-[0.5px] border-border bg-muted px-2.5 py-1 text-caption text-text-2">{children}</span>
+  return <span className="inline-flex rounded-full bg-muted px-2.5 py-0.5 text-caption text-text-2">{children}</span>
 }
 export function InlineActions({ children }: { children: ReactNode }) {
   return <div className="flex flex-wrap items-center gap-2">{children}</div>
 }
 export function FilterChip({ children, label, onClear }: { children: ReactNode; label: string; onClear: () => void }) {
-  return <InlineActions><Button size="sm" variant="ghost" className="rounded-full border-[0.5px] border-border bg-muted"
+  return <InlineActions><Button size="sm" variant="ghost" className="rounded-full bg-muted text-text hover:bg-secondary-hover"
     aria-label={label} onClick={onClear}>{children}<X aria-hidden="true" className="size-3.5" /></Button></InlineActions>
 }
 function filled(value: ReactNode) {

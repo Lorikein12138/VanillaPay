@@ -6,7 +6,7 @@ export function RouteProgress({ active }: { active: boolean }) {
   return (
     <div className="sticky top-0 z-20 h-0">
       <div role="progressbar" aria-label={t('polish.loading')} className="h-0.5 w-full overflow-hidden bg-border">
-        <div className="h-full w-1/3 bg-accent-text motion-safe:animate-route-progress" />
+        <div className="h-full w-1/3 bg-accent motion-safe:animate-route-progress" />
       </div>
     </div>
   )

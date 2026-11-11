@@ -2,9 +2,9 @@ import { Check } from 'lucide-react'
 import type { ComponentPropsWithRef, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
-/** Base look for every text-like control: 44px, 1px strong border, accent focus ring. */
+/** Base look for every text-like control: 44px, 1px hairline border, accent focus ring. */
 export const controlClass =
-  'w-full min-w-0 rounded-control border border-border-strong bg-surface px-3 text-[15px] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--color-focus-ring)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-text-2 aria-invalid:border-danger'
+  'w-full min-w-0 rounded-control border border-border-strong bg-field px-3.5 text-[15px] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-3 hover:border-text-3/45 focus:border-accent focus:shadow-[0_0_0_3px_var(--color-focus-ring)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-text-2 aria-invalid:border-danger'
 
 export function Input({ className, ...props }: ComponentPropsWithRef<'input'>) {
   return <input className={cn(controlClass, 'h-11 read-only:bg-muted/60', className)} {...props} />
@@ -44,7 +44,7 @@ export function Checkbox({
       <span className="relative mt-px grid size-[18px] shrink-0 place-items-center">
         <input
           type="checkbox"
-          className="peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-[5px] border border-border-strong bg-surface transition-colors checked:border-primary checked:bg-primary focus-visible:shadow-[0_0_0_3px_var(--color-focus-ring)] focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-not-allowed"
+          className="peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-[5px] border border-border-strong bg-field transition-colors hover:border-text-3/60 checked:border-primary checked:bg-primary focus-visible:shadow-[0_0_0_3px_var(--color-focus-ring)] focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-not-allowed"
           {...props}
         />
         <Check

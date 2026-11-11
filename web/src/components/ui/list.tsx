@@ -14,7 +14,7 @@ export function ListRow({ title, label, description, meta, actions, unread = fal
   actions?: ReactNode
   unread?: boolean
 }) {
-  return <li aria-label={label} className="min-w-0 py-5 first:pt-0 last:pb-0">
+  return <li aria-label={label} className="min-w-0 py-6 first:pt-0 last:pb-0">
     <div className="flex items-center gap-2">
       {unread && <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent" />}
       <h3 className={cn('m-0 min-w-0 break-words font-sans text-label', unread ? 'font-semibold text-text' : 'font-medium text-text-2')}>{title}</h3>

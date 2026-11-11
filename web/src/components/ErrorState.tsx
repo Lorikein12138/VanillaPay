@@ -15,7 +15,7 @@ export function ErrorState({
   return (
     <section className="mx-auto flex max-w-[560px] flex-col items-start gap-4 px-4 py-24 sm:px-6">
       {code ? <span className="font-serif text-figure text-accent-text tabular-nums">{code}</span> : null}
-      <h1 className="m-0 font-serif text-title font-medium">{title}</h1>
+      <h1 className="m-0 font-serif text-title font-normal">{title}</h1>
       <p className="m-0 text-text-2">{body}</p>
       {action}
     </section>
