@@ -7,6 +7,6 @@ export const Route = createFileRoute('/_merchant/orders/')({
   loaderDeps: ({ search }) => orderSearch(search),
   loader: ({ context: { queryClient, session, hasMountedPortal }, cause, deps }) => {
     const name = session.user.username
-    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureInfiniteQueryData(ordersQuery('merchant', name, deps))])
+    return preparePortalRoute(queryClient, hasMountedPortal, cause, ({ infinite }) => [infinite(ordersQuery('merchant', name, deps))])
   },
 })

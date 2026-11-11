@@ -230,6 +230,8 @@ export function useSettingsEditor(group: SettingsGroup) {
     } catch (cause) {
       if (cause instanceof APIError && cause.status === 409 && cause.problem?.code === 'VERSION_CONFLICT') {
         await refresh()
+      } else if (group === 'security' && cause instanceof APIError && cause.problem?.fields?.email_domains) {
+        setFieldErrors({ email_domains: 'security_domains' })
       } else if (
         cause instanceof APIError &&
         cause.status === 409 &&

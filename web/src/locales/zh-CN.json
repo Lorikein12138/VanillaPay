@@ -665,7 +665,7 @@
     "receiptTotal": "共 {{count}} 条收款记录 · 时间筛选依据为接收时间",
     "bindingRemaining": "等待绑定 · 剩余 {{time}}",
     "setupRemaining": "设置剩余 {{time}}",
-    "emailDomainHint": "允许的邮箱域名：{{domains}}（不包含子域名）",
+    "emailDomainHint": "允许的邮箱域名：{{domains}}",
     "legalRevision": "版本 {{revision}}"
   },
   "subscription": {
@@ -1129,6 +1129,8 @@
     "turnstileSecret": "人机验证密钥",
     "restrictDomains": "限制注册邮箱域名",
     "emailDomains": "允许的邮箱域名（每行一个）",
+    "emailDomainFormat": "每行一个，例如 qq.com。* 为通配符，*.edu.cn 匹配 edu.cn 下的所有子域名。",
+    "emailDomainLineError": "第 {{line}} 行的邮箱域名规则无效。",
     "banContactZh": "封禁联系信息（中文）",
     "banContactEn": "封禁联系信息（英文）",
     "min": "最低金额（元）",

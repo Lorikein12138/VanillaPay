@@ -5,6 +5,6 @@ import { preparePortalRoute } from '@/app/portal-preload'
 export const Route = createFileRoute('/_merchant/codes')({
   loader: ({ context: { queryClient, session, hasMountedPortal }, cause }) => {
     const name = session.user.username
-    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureQueryData(codesQuery(name)), queryClient.ensureQueryData(collectionQuery(name))])
+    return preparePortalRoute(queryClient, hasMountedPortal, cause, ({ query }) => [query(codesQuery(name)), query(collectionQuery(name))])
   },
 })

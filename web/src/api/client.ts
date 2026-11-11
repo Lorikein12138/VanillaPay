@@ -1,4 +1,5 @@
 import type { components, operations } from '@/api/schema'
+import { notifySessionCookieChange, sessionCookie } from './session-cookie'
 
 type Schema = components['schemas']
 export class APIError extends Error {
@@ -7,29 +8,47 @@ export class APIError extends Error {
   }
 }
 
-type Role = 'merchant' | 'console'
+export type Role = 'merchant' | 'console'
 const csrfTokens: Record<Role, string> = { merchant: '', console: '' }
-let unauthorized: (() => void) | undefined
+const sessionVersions: Record<Role, number> = { merchant: 0, console: 0 }
+const verifiedCookies: Partial<Record<Role, string>> = {}
+let unauthorized: ((role: Role) => void) | undefined
 
-export function onUnauthorized(handler: () => void) {
+export function onUnauthorized(handler: (role: Role) => void) {
   unauthorized = handler
 }
 
 function remember<T extends { csrf_token: string }>(session: T, role: Role = 'merchant'): T {
+  verifiedCookies[role] = sessionCookie(role)
   csrfTokens[role] = session.csrf_token
   return session
 }
 
-function rejectResponse(response: Response, problem?: Schema['ErrorEnvelope']['error'], protectedRequest = true, role: Role = 'merchant'): never {
+function forgetSession(role: Role) {
+  sessionVersions[role]++
+  csrfTokens[role] = ''
+  delete verifiedCookies[role]
+}
+
+function startSession<T extends { csrf_token: string }>(session: T, role: Role = 'merchant'): T {
+  sessionVersions[role]++
+  notifySessionCookieChange()
+  return remember(session, role)
+}
+
+function rejectResponse(response: Response, problem: Schema['ErrorEnvelope']['error'] | undefined, protectedRequest: boolean, role: Role, version: number): never {
   if (response.status === 401 && protectedRequest && problem?.code !== 'INVALID_2FA' && problem?.code !== 'INVALID_CREDENTIALS' && problem?.code !== 'CHALLENGE_EXPIRED') {
-    csrfTokens[role] = ''
-    unauthorized?.()
+    if (sessionVersions[role] === version && (verifiedCookies[role] === undefined || verifiedCookies[role] === sessionCookie(role))) {
+      forgetSession(role)
+      unauthorized?.(role)
+    }
   }
   throw new APIError(response.status, problem)
 }
 
 async function request<T>(path: string, body?: unknown, protectedRequest = true, idempotencyKey?: string, method?: string, signal?: AbortSignal, csrfOverride?: string): Promise<T> {
   const role = path.startsWith('/api/v1/console/') ? 'console' : 'merchant'
+  const version = sessionVersions[role]
   const csrf = csrfOverride ?? (protectedRequest ? csrfTokens[role] : '')
   let response: Response
   try {
@@ -50,10 +69,20 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true,
   }
   const envelope = await response.json().catch(() => null) as Schema['ErrorEnvelope'] | (Schema['SuccessEnvelope'] & { data: T }) | null
   if (!response.ok) {
-    rejectResponse(response, envelope && 'error' in envelope && envelope.error ? envelope.error : undefined, protectedRequest, role)
+    rejectResponse(response, envelope && 'error' in envelope && envelope.error ? envelope.error : undefined, protectedRequest && !signal?.aborted, role, version)
   }
   if (!envelope || !('data' in envelope)) throw new APIError(502)
   return envelope.data
+}
+
+async function readSession(role: Role, protectedRequest: boolean, signal?: AbortSignal) {
+  const version = sessionVersions[role]
+  const cookie = sessionCookie(role)
+  const session = await request<Schema['SessionIdentity']>(`/api/v1/${role}/me`, undefined, protectedRequest, undefined, 'GET', signal)
+  if (signal?.aborted || sessionVersions[role] !== version || sessionCookie(role) !== cookie ||
+    (cookie && session.csrf_token !== cookie)) throw new APIError(0)
+  if (csrfTokens[role] !== session.csrf_token || verifiedCookies[role] !== cookie) sessionVersions[role]++
+  return remember(session, role)
 }
 
 type OrdersQuery = NonNullable<operations['get_api_v1_merchant_orders']['parameters']['query']>
@@ -65,12 +94,13 @@ function queryString(value: Record<string, string | number | boolean | undefined
 }
 
 async function exportOrders(filters: OrdersQuery, role: Role = 'merchant') {
+  const version = sessionVersions[role]
   let response: Response
   try { response = await fetch(`/api/v1/${role}/orders/export.csv?${queryString(filters)}`, { credentials: 'include', headers: { Accept: 'text/csv' } }) }
   catch { throw new APIError(0) }
   if (!response.ok) {
     const envelope = await response.json().catch(() => null) as Schema['ErrorEnvelope'] | null
-    rejectResponse(response, envelope?.error, true, role)
+    rejectResponse(response, envelope?.error, true, role, version)
   }
   let filename = `orders-${new Date().toISOString().slice(0, 10)}.csv`
   const supplied = /filename\*?=(?:UTF-8''|"?)([^";]+)/i.exec(response.headers.get('Content-Disposition') ?? '')?.[1]
@@ -99,7 +129,7 @@ export const api = {
   legal: (kind: Schema['LegalVersion']['kind']) => request<Schema['LegalVersion']>(`/api/v1/public/legal/${kind}`, undefined, false),
   register: (value: Schema['AuthRegisterRequest']) => request<Schema['RegisteredUser']>('/api/v1/auth/register', value, false),
   resetPassword: (value: Schema['AuthResetPasswordRequest']) => request<null>('/api/v1/auth/reset-password', value, false),
-  forgetSession: () => { csrfTokens.merchant = '' },
+  forgetSession: () => { forgetSession('merchant'); notifySessionCookieChange() },
   changeUsername: (value: operations['patch_api_v1_merchant_profile_username']['requestBody']['content']['application/json']) => request<Schema['AuthUserDTO']>('/api/v1/merchant/profile/username', value, true, undefined, 'PATCH'),
   changeEmail: (value: operations['patch_api_v1_merchant_profile_email']['requestBody']['content']['application/json']) => request<Schema['AuthUserDTO']>('/api/v1/merchant/profile/email', value, true, undefined, 'PATCH'),
   changePassword: (value: operations['patch_api_v1_merchant_profile_password']['requestBody']['content']['application/json']) => request<null>('/api/v1/merchant/profile/password', value, true, undefined, 'PATCH'),
@@ -109,15 +139,13 @@ export const api = {
   preferences: (value: Schema['Preferences']) => request<Schema['Preferences']>('/api/v1/merchant/preferences', value, true, undefined, 'PATCH'),
   async login(value: Schema['AuthLoginRequest']) {
     const result = await request<Schema['AuthSessionResult'] | Schema['AuthLoginResult']>('/api/v1/auth/login', value, false)
-    return 'requires_2fa' in result ? result : remember(result)
+    return 'requires_2fa' in result ? result : startSession(result)
   },
   async secondFactor(value: Schema['AuthFactorRequest']) {
-    return remember(await request<Schema['AuthSessionResult']>('/api/v1/auth/second-factor', value, false))
+    return startSession(await request<Schema['AuthSessionResult']>('/api/v1/auth/second-factor', value, false))
   },
   peekSession: (signal: AbortSignal) => request<Schema['SessionIdentity']>('/api/v1/merchant/me', undefined, false, undefined, 'GET', signal),
-  async me(protectedRequest = true) {
-    return remember(await request<Schema['SessionIdentity']>('/api/v1/merchant/me', undefined, protectedRequest))
-  },
+  me: (protectedRequest = true, signal?: AbortSignal) => readSession('merchant', protectedRequest, signal),
   banned: () => request<Schema['BannedInfo']>('/api/v1/merchant/banned'),
   stats: (range: { start: string; end: string; timezone: string }) => request<Schema['PortalStatsDTO']>(`/api/v1/merchant/stats?${new URLSearchParams(range)}`),
   device: () => request<Schema['DeviceDeviceDTO']>('/api/v1/merchant/device'),
@@ -149,8 +177,9 @@ export const api = {
   exportOrders,
   async logout() {
     if (!csrfTokens.merchant) await api.me()
-    await request<null>('/api/v1/auth/logout', {})
-    csrfTokens.merchant = ''
+    try { await request<null>('/api/v1/auth/logout', {}) }
+    finally { notifySessionCookieChange() }
+    forgetSession('merchant')
   },
 }
 
@@ -195,19 +224,20 @@ export const consoleApi = {
   order: (tradeNo: string) => request<Schema['OrderDetail']>(`/api/v1/console/orders/${encodeURIComponent(tradeNo)}`),
   exportOrders: (filters: OrdersQuery) => exportOrders(filters, 'console'),
   bootstrapStatus: () => request<NonNullable<operations['get_api_v1_console_bootstrap_status']['responses'][200]['content']['application/json']['data']>>('/api/v1/console/bootstrap-status', undefined, false),
-  bootstrap: async (value: Schema['AuthBootstrapRequest']) => remember(await request<Schema['AuthSessionResult']>('/api/v1/console/bootstrap', value, false), 'console'),
+  bootstrap: async (value: Schema['AuthBootstrapRequest']) => startSession(await request<Schema['AuthSessionResult']>('/api/v1/console/bootstrap', value, false), 'console'),
   async login(value: Schema['AuthLoginRequest']) {
     const result = await request<Schema['AuthSessionResult'] | Schema['AuthLoginResult']>('/api/v1/console/login', value, false)
-    return 'requires_2fa' in result ? result : remember(result, 'console')
+    return 'requires_2fa' in result ? result : startSession(result, 'console')
   },
-  secondFactor: async (value: Schema['AuthFactorRequest']) => remember(await request<Schema['AuthSessionResult']>('/api/v1/console/second-factor', value, false), 'console'),
-  me: async (protectedRequest = true) => remember(await request<Schema['SessionIdentity']>('/api/v1/console/me', undefined, protectedRequest), 'console'),
+  secondFactor: async (value: Schema['AuthFactorRequest']) => startSession(await request<Schema['AuthSessionResult']>('/api/v1/console/second-factor', value, false), 'console'),
+  me: (protectedRequest = true, signal?: AbortSignal) => readSession('console', protectedRequest, signal),
   async logout() {
     if (!csrfTokens.console) await consoleApi.me()
-    await request<null>('/api/v1/console/logout', {})
-    csrfTokens.console = ''
+    try { await request<null>('/api/v1/console/logout', {}) }
+    finally { notifySessionCookieChange() }
+    forgetSession('console')
   },
-  forgetSession: () => { csrfTokens.console = '' },
+  forgetSession: () => { forgetSession('console'); notifySessionCookieChange() },
   preferences: (value: Schema['Preferences']) => request<Schema['Preferences']>('/api/v1/console/preferences', value, true, undefined, 'PATCH'),
   setupTOTP: (value: operations['post_api_v1_console_2fa_setup']['requestBody']['content']['application/json']) => request<Schema['AuthTOTPSetup']>('/api/v1/console/2fa/setup', value),
   confirmTOTP: (value: Schema['AuthTOTPConfirm']) => request<Schema['TOTPConfirmed']>('/api/v1/console/2fa/confirm', value),

@@ -193,7 +193,7 @@ describe('merchant login', () => {
     expect(await screen.findByLabelText('状态', { exact: true })).toHaveAttribute('data-value', 'paid')
   })
 
-  it.each(['pending', 500, 403, 'network', 200, 401] as const)('logout %s preserves private state until success, except the global 401 redirect', async (outcome) => {
+  it.each(['pending', 500, 403, 'network', 200, 401] as const)('logout %s clears private state only on success or session expiry', async (outcome) => {
     const restored = crypto.randomUUID()
     server.use(http.get('*/api/v1/merchant/me', () => success({ ...session, csrf_token: restored })))
     let csrf: string | null = null
@@ -208,7 +208,7 @@ describe('merchant login', () => {
       return success(null)
     }))
     const queryClient = createQueryClient()
-    const privateKey = ['merchant-private', user.id]
+    const privateKey = ['merchant', user.username, 'orders']
     queryClient.setQueryData(privateKey, { merchantId: user.id })
     const router = renderApp('/dashboard', queryClient)
     const actor = userEvent.setup()
@@ -233,8 +233,6 @@ describe('merchant login', () => {
     if (outcome === 401) {
       // A protected-request 401 intentionally uses the global session-expiry redirect.
       expect(router.state.location.search).toEqual({ redirect: '/dashboard' })
-      expect(queryClient.getQueryData(privateKey)).toEqual({ merchantId: user.id })
-      return
     }
     expect(queryClient.getQueryData(privateKey)).toBeUndefined()
   })

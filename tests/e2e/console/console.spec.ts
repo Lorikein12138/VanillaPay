@@ -4,7 +4,7 @@ import { registerPublicSiteTests } from './public-site-cases'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import QRCode from 'qrcode'
 import type { ConsoleRecovery } from '../../../web/src/api/client'
-import { chooseSelect, clickControl, selectScreenshotTheme, login, noOverflow, polishShot, totp } from '../merchant/fixtures'
+import { chooseSelect, clickControl, selectScreenshotTheme, login, noOverflow, openMenu, polishShot, totp, watchPortalFirstFrame } from '../merchant/fixtures'
 
 test.describe.configure({ mode: 'serial' })
 type Admin = { username: string; password: string; totpSeed: string; turnstileToken: string }
@@ -469,6 +469,185 @@ test('changes password, revokes the session, persists preferences and enables/di
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '开启两步验证', exact: true })).toBeVisible()
   await page.setViewportSize({ width: 360, height: 780 }); await noOverflow(page)
+})
+
+test('reuses cached console pages without requesting console me on navigation', async ({ page, request }) => {
+  const admin = await seed(request)
+  await captcha(page, admin.turnstileToken)
+  await signIn(page, admin)
+  await expect(page).toHaveURL(/\/console$/)
+  let sessionRequests = 0, settingsRequests = 0
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v1/console/me') sessionRequests++
+    if (path === '/api/v1/console/settings') settingsRequests++
+  })
+  const nav = page.getByRole('navigation', { name: '管理控制台' })
+  const settings = nav.getByRole('link', { name: '系统设置', exact: true })
+  const overview = nav.getByRole('link', { name: '概览', exact: true })
+  await settings.hover()
+  await settings.click()
+  await expect(page.getByLabel('站点名称')).toBeVisible()
+  await overview.click()
+  await expect(page).toHaveURL(/\/console$/)
+  await watchPortalFirstFrame(page, '系统设置', '站点名称')
+  await settings.hover()
+  await settings.click()
+  await expect(page.getByRole('main')).toHaveAttribute('data-first-frame', 'data')
+  expect(settingsRequests).toBe(1)
+  expect(sessionRequests).toBe(0)
+})
+
+for (const transition of ['logout', 'account switch'] as const) {
+  test(`discards private cached lists and details after ${transition} in another tab`, async ({ context, page, request }) => {
+    const admin = await seed(request)
+    await captcha(page, admin.turnstileToken)
+    await signIn(page, admin)
+    await expect(page).toHaveURL(/\/console$/)
+    const first = await request.post('/__e2e/merchant', { data: {} })
+    const second = await request.post('/__e2e/merchant', { data: {} })
+    expect(first.ok() && second.ok()).toBe(true)
+    const merchant = await first.json() as Parameters<typeof login>[1]
+    const nextMerchant = await second.json() as typeof merchant
+    const trade = {
+      trade_no: crypto.randomUUID(), out_trade_no: crypto.randomUUID(), name: '第一位商户的私有订单',
+      channel: 'alipay', status: 'paid', original_cents: 2000, actual_cents: 2000, created_at: new Date().toISOString(), paid_at: new Date().toISOString(),
+    }
+    expect((await request.post('/__e2e/orders', { data: { pid: merchant.pid, orders: [trade] } })).status()).toBe(204)
+    const original = await context.newPage()
+    const other = await context.newPage()
+    await captcha(original, admin.turnstileToken)
+    await captcha(other, admin.turnstileToken)
+    await original.goto('/login?redirect=%2Forders')
+    await login(original, merchant)
+    const privateOrder = original.getByText(trade.name, { exact: true }).filter({ visible: true })
+    await expect(privateOrder).toBeVisible()
+    await original.getByRole('link', { name: trade.trade_no }).filter({ visible: true }).click()
+    await expect(original).toHaveURL(new RegExp(`/orders/${trade.trade_no}$`))
+    await expect(privateOrder).toBeVisible()
+    await other.goto('/dashboard')
+    await expect(other).toHaveURL(/\/dashboard$/)
+    await expect(other.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
+
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    await original.route('**/api/v1/merchant/me', async (route) => { await gate; await route.continue() })
+    try {
+      await control(other, '退出登录')
+      await expect(other).toHaveURL(/\/login$/)
+      await expect(privateOrder).toHaveCount(0)
+      await original.evaluate((marker) => {
+        const root = document.documentElement
+        const observer = new MutationObserver(() => {
+          if (document.body.textContent?.includes(marker)) root.dataset.previousMerchantRendered = 'true'
+        })
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+      }, trade.name)
+      if (transition === 'account switch') {
+        await login(other, nextMerchant)
+        await expect(other).toHaveURL(/\/dashboard$/)
+      }
+    } finally {
+      release()
+    }
+    if (transition === 'logout') {
+      await expect(original).toHaveURL(/\/login\?/)
+    } else {
+      await expect(original.getByRole('main')).toBeVisible()
+      await openMenu(original)
+      await original.getByRole('link', { name: '订单', exact: true }).click()
+      await expect(original.getByText('没有符合筛选条件的订单')).toBeVisible()
+      await original.goBack()
+      await expect(original).toHaveURL(new RegExp(`/orders/${trade.trade_no}$`))
+      await expect(original.getByRole('main')).toBeVisible()
+    }
+    await expect(privateOrder).toHaveCount(0)
+    await expect(original.locator('html')).not.toHaveAttribute('data-previous-merchant-rendered', 'true')
+    await openMenu(page)
+    await page.getByRole('link', { name: '系统设置', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '系统设置', exact: true })).toBeVisible()
+  })
+}
+
+test('saves wildcard domains and applies them on the public registration form', async ({ page, request }) => {
+  const admin = await seed(request)
+  await captcha(page, admin.turnstileToken)
+  const settingsPath = '/console/settings?group=security'
+  await signIn(page, admin, settingsPath)
+  const restrict = page.getByRole('checkbox', { name: '限制注册邮箱域名' })
+  const domains = page.getByLabel('允许的邮箱域名（每行一个）')
+  const save = page.getByRole('button', { name: '保存安全设置' })
+  const savedNotice = page.getByText('安全与注册设置已保存。', { exact: true })
+  await expect(restrict).toBeVisible()
+  const previouslyRestricted = await restrict.isChecked()
+  await restrict.check()
+  const previousDomains = await domains.inputValue()
+  await domains.fill('qq.com\n\ninvalid/domain\n*.edu.cn')
+  const lineError = page.getByText('第 3 行的邮箱域名规则无效。')
+  await expect(lineError).toBeVisible()
+  await expect(domains).toHaveAccessibleDescription(/\*\.edu\.cn.*第 3 行/)
+  if (process.env.WEB_VISUAL_POLISH === '1') {
+    for (const width of [360, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      for (const theme of ['light', 'dark'] as const) {
+        await selectScreenshotTheme(page, theme, 'console')
+        await polishShot(page, 'security-domain-error', true, 'portal-loading-shots')
+      }
+    }
+  }
+  const rules = 'qq.com\ngmail.com\n*.edu.cn'
+  await domains.fill(rules)
+  await expect(lineError).toHaveCount(0)
+  const saved = page.waitForResponse((response) => response.url().endsWith('/console/settings/security') && response.request().method() === 'PUT')
+  await save.click()
+  expect((await saved).status()).toBe(200)
+  await expect(savedNotice).toBeVisible()
+  try {
+    await page.goto('/register')
+    await expect(page.getByText('允许的邮箱域名：qq.com、gmail.com、*.edu.cn', { exact: true })).toBeVisible()
+    if (process.env.WEB_VISUAL_POLISH === '1') {
+      for (const width of [360, 1280]) {
+        await page.setViewportSize({ width, height: 800 })
+        for (const theme of ['light', 'dark'] as const) {
+          await selectScreenshotTheme(page, theme, 'public')
+          await polishShot(page, 'register-domain-rules', true, 'portal-loading-shots')
+        }
+      }
+    }
+    const username = `reg_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+    const email = `${username}@mail.pku.edu.cn`, password = crypto.randomUUID()
+    const emailInput = page.getByLabel('邮箱', { exact: true })
+    const code = page.getByRole('button', { name: '获取邮箱验证码' })
+    await page.getByLabel('用户名', { exact: true }).fill(username)
+    await page.getByRole('button', { name: '完成验证' }).click()
+    for (const denied of [`${username}@edu.cn`, `${username}@mail.pku.edu.cn.example`]) {
+      await emailInput.fill(denied)
+      await expect(code).toBeDisabled()
+    }
+    await emailInput.fill(email)
+    const sent = page.waitForResponse((response) => response.url().endsWith('/auth/email-codes'))
+    await code.click()
+    expect((await sent).status()).toBe(200)
+    const mail = await request.post('/__e2e/mail', { data: { email } })
+    expect(mail.ok()).toBe(true)
+    await page.getByLabel('邮箱验证码', { exact: true }).fill((await mail.json() as { code: string }).code)
+    await page.getByLabel('新密码', { exact: true }).fill(password)
+    await page.getByLabel('确认新密码', { exact: true }).fill(password)
+    await page.getByRole('checkbox', { name: '我同意服务条款' }).check()
+    await page.getByRole('checkbox', { name: '我同意隐私政策' }).check()
+    await page.getByRole('button', { name: '完成验证' }).click()
+    const registered = page.waitForResponse((response) => response.url().endsWith('/auth/register'))
+    await page.getByRole('button', { name: '创建账户' }).click()
+    expect((await registered).status()).toBe(201)
+  } finally {
+    await page.goto(settingsPath)
+    await domains.fill(previousDomains)
+    await restrict.setChecked(previouslyRestricted)
+    const restored = page.waitForResponse((response) => response.url().endsWith('/console/settings/security') && response.request().method() === 'PUT')
+    await save.click()
+    expect((await restored).status()).toBe(200)
+    await expect(savedNotice).toBeVisible()
+  }
 })
 
 registerManagementTests({ seed, captcha, signIn })

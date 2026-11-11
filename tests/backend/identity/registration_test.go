@@ -269,6 +269,26 @@ func TestHTTP_RegistrationLoginAndEmailFlows(t *testing.T) {
 			assertIdentityError(t, rejected, "EMAIL_DOMAIN_DENIED", "non-exact registration email domain "+rejectedEmail)
 		}
 	})
+	t.Run("wildcard registration domain", func(t *testing.T) {
+		rejectedEmail := "bare-domain@edu.cn"
+		if _, err := db.Pool.Exec(ctx, `UPDATE site_settings SET security=security || '{"restrict_email_domains":false}'::jsonb WHERE singleton=true`); err != nil {
+			t.Fatal(err)
+		}
+		rejectedCode := sendRegistrationCode(t, fixture, rejectedEmail, "domain_rejected")
+		if _, err := db.Pool.Exec(ctx, `UPDATE site_settings SET security=security || '{"restrict_email_domains":true,"email_domains":["qq.com","*.edu.cn"]}'::jsonb WHERE singleton=true`); err != nil {
+			t.Fatal(err)
+		}
+		const acceptedEmail = "multilevel@mail.pku.edu.cn"
+		allowedCode := sendRegistrationCode(t, fixture, acceptedEmail, "wildcard_domain")
+		assertIdentityResponse(t, fixture.Request(t, http.MethodPost, "/api/v1/auth/register", registrationBody("wildcard_domain", acceptedEmail, allowedCode), "guest"), http.StatusCreated, "registration under wildcard domain")
+		for _, email := range []string{rejectedEmail, "other@pku.edu.cn.example"} {
+			rejected := fixture.Request(t, http.MethodPost, "/api/v1/auth/email-codes", map[string]any{
+				"purpose": "register", "email": email, "target_username": "domain_rejected", "turnstile_token": "ok:register",
+			}, "guest")
+			assertIdentityError(t, rejected, "EMAIL_DOMAIN_DENIED", "wildcard does not match "+email)
+		}
+		assertIdentityError(t, fixture.Request(t, http.MethodPost, "/api/v1/auth/register", registrationBody("domain_rejected", rejectedEmail, rejectedCode), "guest"), "EMAIL_DOMAIN_DENIED", "registration rechecks the current rules")
+	})
 }
 
 func registrationBody(username, email, code string) map[string]any {
@@ -276,6 +296,91 @@ func registrationBody(username, email, code string) map[string]any {
 		"username": username, "email": email, "email_code": code,
 		"password": fixtureChangedPassword, "password_confirmation": fixtureChangedPassword,
 		"accept_terms": true, "accept_privacy": true, "terms_revision": 1, "privacy_revision": 1, "turnstile_token": "ok:register",
+	}
+}
+
+func TestHTTP_RegistrationIDNAEmailDomainRules(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	fixture := testsupport.NewHTTPFixture(t, db)
+	if _, err := db.Pool.Exec(t.Context(), `INSERT INTO legal_versions(kind,revision,content) VALUES('terms',1,'{"zh_CN":"terms","en":"terms"}'),('privacy',1,'{"zh_CN":"privacy","en":"privacy"}')`); err != nil {
+		t.Fatal(err)
+	}
+	bootstrap, err := fixture.App.Services.Auth.RotateBootstrapCode(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin := "admin:idna"
+	assertIdentityResponse(t, fixture.Request(t, http.MethodPost, "/api/v1/console/bootstrap", map[string]any{
+		"initialization_code": bootstrap, "username": "idna_admin", "password": fixturePassword, "password_confirmation": fixturePassword,
+	}, admin), http.StatusCreated, "bootstrap IDNA fixture admin")
+
+	save := func(t *testing.T, domains ...string) *httptest.ResponseRecorder {
+		t.Helper()
+		var version int64
+		if err := db.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings WHERE singleton=true`).Scan(&version); err != nil {
+			t.Fatal(err)
+		}
+		return fixture.Request(t, http.MethodPut, "/api/v1/console/settings/security", map[string]any{
+			"expected_version": version, "value": map[string]any{
+				"turnstile_enabled": false, "turnstile_site_key": "",
+				"restrict_email_domains": true, "email_domains": domains, "ban_contact": map[string]string{"zh_CN": "", "en": ""},
+			},
+		}, admin)
+	}
+	t.Run("deduplicate equivalent rules and enforce boundaries", func(t *testing.T) {
+		assertIdentityResponse(t, save(t, "*.例子.test", "*.xn--fsqu00a.test"), http.StatusOK, "save equivalent Unicode and punycode rules")
+		var saved []string
+		if err := db.Pool.QueryRow(t.Context(), `SELECT ARRAY(SELECT jsonb_array_elements_text(security->'email_domains')) FROM site_settings WHERE singleton=true`).Scan(&saved); err != nil || len(saved) != 1 || saved[0] != "*.xn--fsqu00a.test" {
+			t.Fatalf("stored domain rules = %v, err = %v", saved, err)
+		}
+		for _, tc := range []struct{ user, issued, submitted string }{
+			{"unicode_rule_user", "unicode@a.b.例子.test", "unicode@a.b.xn--fsqu00a.test"},
+			{"punycode_rule_user", "punycode@a.b.xn--fsqu00a.test", "punycode@a.b.例子.test"},
+		} {
+			code := sendRegistrationCode(t, fixture, tc.issued, tc.user)
+			assertIdentityResponse(t, fixture.Request(t, http.MethodPost, "/api/v1/auth/register", registrationBody(tc.user, tc.submitted, code), "guest"), http.StatusCreated, "register with the equivalent domain "+tc.submitted)
+		}
+		for _, email := range []string{"bare@例子.test", "bare@xn--fsqu00a.test", "suffix@a.例子.test.example", "suffix@a.例孑.test", "boundary@a例子.test"} {
+			assertIdentityError(t, fixture.Request(t, http.MethodPost, "/api/v1/auth/email-codes", map[string]any{
+				"purpose": "register", "email": email, "target_username": "idna_rejected", "turnstile_token": "ok:register",
+			}, "guest"), "EMAIL_DOMAIN_DENIED", "IDNA wildcard issuance rejects "+email)
+			assertIdentityError(t, fixture.Request(t, http.MethodPost, "/api/v1/auth/register", registrationBody("idna_rejected", email, "123456"), "guest"), "EMAIL_DOMAIN_DENIED", "IDNA wildcard registration rejects "+email)
+		}
+	})
+
+	t.Run("reject invalid rules", func(t *testing.T) {
+		for _, rule := range []string{"*", "**", "*.xn--a.test", "xn--*.büch*.de", "XN--*。büch*.de", "xn--fsqu00a.büch*.de"} {
+			t.Run(rule, func(t *testing.T) {
+				response := save(t, rule)
+				if response.Code != http.StatusBadRequest {
+					t.Fatalf("save %q: status = %d, want 400", rule, response.Code)
+				}
+				assertIdentityError(t, response, "VALIDATION_ERROR", "reject invalid rule "+rule)
+				var envelope struct {
+					Error struct {
+						Fields map[string]string `json:"fields"`
+					} `json:"error"`
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil || envelope.Error.Fields["email_domains"] != "invalid_domain_rule" {
+					t.Fatalf("missing email_domains field error for %q: %s", rule, response.Body.String())
+				}
+			})
+		}
+	})
+	for i, tc := range []struct{ name, rule, unicode, ascii string }{
+		{"ACE wildcard with a complete Unicode label", "xn--*.bücher.de", "例子.sub.bücher.de", "xn--fsqu00a.sub.xn--bcher-kva.de"},
+		{"Unicode wildcard", "*.büch*.de", "例子.bücher.sub.de", "xn--fsqu00a.xn--bcher-kva.sub.de"},
+		{"wildcard with a complete Unicode label", "*.bücher.de", "例子.sub.bücher.de", "xn--fsqu00a.sub.xn--bcher-kva.de"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assertIdentityResponse(t, save(t, tc.rule), http.StatusOK, "save supported rule "+tc.rule)
+			for j, domains := range [][2]string{{tc.unicode, tc.ascii}, {tc.ascii, tc.unicode}} {
+				user := fmt.Sprintf("idna_form_%d_%d", i, j)
+				code := sendRegistrationCode(t, fixture, user+"@"+domains[0], user)
+				submitted := user + "@" + domains[1]
+				assertIdentityResponse(t, fixture.Request(t, http.MethodPost, "/api/v1/auth/register", registrationBody(user, submitted, code), "guest"), http.StatusCreated, "register with the equivalent domain "+submitted)
+			}
+		})
 	}
 }
 

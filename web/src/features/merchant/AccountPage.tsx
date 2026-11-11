@@ -1,3 +1,4 @@
+import { clearPortalSession } from '@/app/portal-session'
 import { Select, SelectOption } from '@/components/ui/select'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
@@ -53,8 +54,9 @@ export function IdentityDialog({ mode, user, onClose, onChanged }: { mode: 'user
       const proof: AccountSchema['AuthSecurityProof'] = { email_code: code.trim(), ...(user.totp_enabled ? { totp_code: totp } : {}) }
       if (mode === 'password') {
         await api.changePassword({ password: value, password_confirmation: confirmation, security_proof: proof })
-        api.forgetSession(); client.clear()
-        if (action.active.current) { setValue(''); setConfirmation(''); setCode(''); setTOTP(''); await navigate({ to: '/login', search: { notice: 'password_changed' }, replace: true }) }
+        api.forgetSession(); clearPortalSession(client, 'merchant')
+        if (action.active.current) { setValue(''); setConfirmation(''); setCode(''); setTOTP('') }
+        await navigate({ to: '/login', search: { notice: 'password_changed' }, replace: true })
       } else {
         if (mode === 'username') await api.changeUsername({ username: value.trim(), security_proof: proof })
         else await api.changeEmail({ email: value.trim(), old_email_code: code.trim(), new_email_code: newCode.trim(), ...(user.totp_enabled ? { totp_code: totp } : {}) })

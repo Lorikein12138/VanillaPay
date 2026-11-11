@@ -91,6 +91,12 @@
 }
 
 @theme inline {
+  --animate-route-progress: vp-route-progress 1.2s ease-in-out infinite;
+  @keyframes vp-route-progress {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(300%); }
+  }
+
   --color-bg: var(--vp-bg);
   --color-surface: var(--vp-surface);
   --color-muted: var(--vp-muted);

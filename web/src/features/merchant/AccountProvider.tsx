@@ -1,11 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from '@tanstack/react-router'
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRouter, useRouterState } from '@tanstack/react-router'
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, consoleApi } from '@/api/client'
+import { sessionCookie, subscribeToSessionCookies } from '@/api/session-cookie'
 import type { components } from '@/api/schema'
+import { clearPortalSession, isSessionRejected, sessionQuery } from '@/app/portal-session'
 import { AccountError } from '@/features/auth/account-shared'
 import { changeLanguage } from '@/lib/i18n'
+import { consoleSafePath, safePath } from '@/lib/redirect'
 import { setTheme } from '@/lib/theme'
 import { useLocalAction } from './CollectionParts'
 
@@ -18,33 +21,64 @@ export function accountPreferences(user: Schema['AuthUserDTO']): Schema['Prefere
 export function AccountProvider({ session, children, role = 'merchant' }: { role?: 'merchant' | 'console'; session: Schema['SessionIdentity']; children: ReactNode }) {
   const client = useQueryClient(), router = useRouter(), { i18n } = useTranslation(), action = useLocalAction()
   const accountApi = role === 'console' ? consoleApi : api
-  const key = [role, 'identity', session.user.id] as const
-  const identity = useQuery({ queryKey: key, queryFn: () => accountApi.me(), initialData: session, staleTime: 30000, gcTime: 0 })
-  const user = identity.data.user, preferences = accountPreferences(user)
+  const options = sessionQuery(role)
+  const key = options.queryKey
+  const identity = useQuery(options)
+  const cookie = useSyncExternalStore(subscribeToSessionCookies, () => sessionCookie(role))
+  const hasIdentity = !!identity.data
+  const user = identity.data?.user ?? session.user
+  const preferences = accountPreferences(user)
+  const location = useRouterState({ select: (state) => state.resolvedLocation ?? state.location })
+  const bannedPath = role === 'merchant' && (location.pathname === '/banned') !== user.banned
+  const changedAccount = user.id !== session.user.id
+  const changedName = user.username !== session.user.username
+  const changedCookie = hasIdentity && identity.data.cookie !== cookie
+  const rejected = !changedCookie && isSessionRejected(identity.error)
+  const changedSession = hasIdentity && identity.data.csrf_token !== session.csrf_token
   const saving = useRef(false), [busy, setBusy] = useState(false)
-  useEffect(() => { setTheme(preferences.theme); void changeLanguage(i18n, preferences.locale) }, [i18n, preferences.locale, preferences.theme])
+  useEffect(() => {
+    if (rejected) {
+      accountApi.forgetSession()
+      clearPortalSession(client, role)
+      if (role === 'console') {
+        void router.navigate({ to: '/console/login', search: { redirect: consoleSafePath(location.href) }, replace: true })
+      } else {
+        void router.navigate({ to: '/login', search: { redirect: safePath(location.href) }, replace: true })
+      }
+    } else if (bannedPath || changedAccount || changedName || changedCookie || changedSession) {
+      void router.invalidate()
+    }
+  }, [accountApi, bannedPath, changedAccount, changedName, changedCookie, changedSession, client, location.href, rejected, role, router])
+  useEffect(() => {
+    if (hasIdentity && !rejected && !changedCookie) {
+      setTheme(preferences.theme)
+      void changeLanguage(i18n, preferences.locale)
+    }
+  }, [changedCookie, hasIdentity, i18n, preferences.locale, preferences.theme, rejected])
   async function apply(value: Schema['Preferences']) { setTheme(value.theme); await changeLanguage(i18n, value.locale) }
   async function refresh() {
-    await client.cancelQueries({ queryKey: key })
-    const result = await accountApi.me()
-    if (action.active.current) { client.setQueryData(key, result); await router.invalidate() }
+    await client.cancelQueries({ queryKey: key, exact: true })
+    await client.fetchQuery({ ...options, staleTime: 0 })
+    if (action.active.current) await router.invalidate()
   }
   async function save(value: Schema['Preferences']) {
     if (saving.current) return
     saving.current = true; setBusy(true)
     await action.run(async () => {
-      await client.cancelQueries({ queryKey: key })
+      await client.cancelQueries({ queryKey: key, exact: true })
       await apply(value)
       try {
         const result = await accountApi.preferences(value)
         if (action.active.current) {
-          client.setQueryData<Schema['SessionIdentity']>(key, (old) => old && ({ ...old, user: { ...old.user, ...result } }))
-          await apply(result)
+          await client.cancelQueries({ queryKey: key, exact: true })
+          const updated = client.setQueryData(key, (old) => old?.user.id === user.id ? { ...old, user: { ...old.user, ...result } } : old)
+          if (updated?.user.id === user.id) await apply(result)
         }
       } catch (error) { if (action.active.current) await apply(preferences); throw error }
     })
     saving.current = false
     if (action.active.current) setBusy(false)
   }
-  return <AccountContext.Provider value={{ user, preferences, busy, save, refresh }}>{action.error != null && <div className="px-4 pt-4 sm:px-8"><AccountError error={action.error} /></div>}{action.error == null && identity.error && <div className="px-4 pt-4 sm:px-8"><AccountError error={identity.error} /></div>}{children}</AccountContext.Provider>
+  if (!identity.data || rejected || bannedPath || changedAccount || changedCookie || changedSession) return null
+  return <AccountContext.Provider value={{ user, preferences, busy, save, refresh }}>{action.error != null && <div className="px-4 pt-4 sm:px-8"><AccountError error={action.error} /></div>}{children}</AccountContext.Provider>
 }

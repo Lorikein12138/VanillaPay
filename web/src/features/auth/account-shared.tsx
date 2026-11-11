@@ -22,12 +22,6 @@ export function AccountField({ label, action, hint, error, ...props }: InputHTML
 }
 export function validPassword(password: string, confirmation: string) { return Array.from(password).length >= 12 && Array.from(password).length <= 128 && password === confirmation }
 export function validUsername(value: string) { return /^[A-Za-z0-9_-]{3,32}$/.test(value.trim()) }
-export function allowedEmail(email: string, restriction: AccountSchema['PublicConfig']['email_domain_restriction']) {
-  const domains = restriction.domains ?? []
-  let domain = email.trim().toLowerCase().split('@')[1]
-  try { domain = new URL(`http://${domain ?? ''}`).hostname.replace(/\.$/, '') } catch { return false }
-  return !restriction.enabled || !domains.length || domains.some((item) => item.trim().toLowerCase().replace(/^@/, '') === domain)
-}
 export function useSecondsUntil(expiresAt: number) { return useCountdown(expiresAt || null) }
 // Proofs and passwords stay in callers' component state, never in mutation caches.
 export function useEmailCode() {

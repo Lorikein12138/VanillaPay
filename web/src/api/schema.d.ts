@@ -2540,6 +2540,7 @@ export interface components {
             turnstile_site_key: string;
             turnstile_enabled: boolean;
             restrict_email_domains: boolean;
+            /** @description Case-insensitive email domain rules normalized with IDNA. Unicode and Punycode email domains are equivalent. An asterisk matches any sequence of characters, including dots. Rules without an asterisk match the exact domain. A rule cannot mix an explicit xn-- prefix with Unicode characters in a wildcard label. Complete Unicode labels are normalized to ASCII before this check. */
             email_domains: string[] | null;
             ban_contact: components["schemas"]["SettingsLanguageText"];
             secret_configured?: boolean;
@@ -2579,6 +2580,7 @@ export interface components {
         SecuritySettingsInput: {
             turnstile_enabled: boolean;
             ban_contact: components["schemas"]["SettingsLanguageText"];
+            /** @description Case-insensitive email domain rules normalized with IDNA. Unicode and Punycode email domains are equivalent. An asterisk matches any sequence of characters, including dots. Rules without an asterisk match the exact domain. A rule cannot mix an explicit xn-- prefix with Unicode characters in a wildcard label. Complete Unicode labels are normalized to ASCII before this check. Rules that fail normalization, mix these representations, or consist only of asterisks are rejected with an email_domains field error. */
             email_domains: string[] | null;
             restrict_email_domains: boolean;
             turnstile_secret?: string | null;

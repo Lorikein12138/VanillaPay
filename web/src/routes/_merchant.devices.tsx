@@ -8,6 +8,6 @@ export const Route = createFileRoute('/_merchant/devices')({
   loaderDeps: ({ search }) => receiptSearch(search),
   loader: ({ context: { queryClient, session, hasMountedPortal }, cause, deps }) => {
     const name = session.user.username
-    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureQueryData(deviceQuery(name)), queryClient.ensureInfiniteQueryData(receiptsQuery(name, deps))])
+    return preparePortalRoute(queryClient, hasMountedPortal, cause, ({ query, infinite }) => [query(deviceQuery(name)), infinite(receiptsQuery(name, deps))])
   },
 })

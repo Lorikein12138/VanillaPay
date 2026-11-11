@@ -8,6 +8,6 @@ export const Route = createFileRoute('/console/audit-logs')({
   loaderDeps: ({ search }) => consoleAuditSearch(search),
   loader: ({ context: { queryClient, session, hasMountedPortal }, cause, deps }) => {
     const name = session.user.username
-    return preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureInfiniteQueryData(auditQuery('console', name, deps))])
+    return preparePortalRoute(queryClient, hasMountedPortal, cause, ({ infinite }) => [infinite(auditQuery('console', name, deps))])
   },
 })

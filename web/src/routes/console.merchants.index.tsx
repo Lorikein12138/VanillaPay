@@ -6,5 +6,5 @@ import { merchantSearch } from '@/features/console/manage-data'
 export const Route = createFileRoute('/console/merchants/')({
   validateSearch: merchantSearch,
   loaderDeps: ({ search }) => merchantSearch(search),
-  loader: ({ context: { queryClient, hasMountedPortal }, cause, deps }) => preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureInfiniteQueryData(merchantsQuery(deps))]),
+  loader: ({ context: { queryClient, hasMountedPortal }, cause, deps }) => preparePortalRoute(queryClient, hasMountedPortal, cause, ({ infinite }) => [infinite(merchantsQuery(deps))]),
 })

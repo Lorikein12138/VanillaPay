@@ -5,5 +5,5 @@ import { settingsSearch } from '@/features/console/settings-data'
 
 export const Route = createFileRoute('/console/settings')({
   validateSearch: settingsSearch,
-  loader: ({ context: { queryClient, hasMountedPortal }, cause }) => preparePortalRoute(hasMountedPortal, cause, () => [queryClient.ensureQueryData(settingsQuery())]),
+  loader: ({ context: { queryClient, hasMountedPortal }, cause }) => preparePortalRoute(queryClient, hasMountedPortal, cause, ({ query }) => [query(settingsQuery())]),
 })

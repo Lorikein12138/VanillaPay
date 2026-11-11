@@ -10,7 +10,7 @@ import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
 import { AccountField } from '@/features/auth/account-shared'
 import { centsToYuan, yuanToCents } from '@/features/merchant/collection-data'
-import { normalizeDomains, settingsEqual, type SettingsDrafts, type Schema as S } from '../settings-data'
+import { invalidDomainLine, normalizeDomains, settingsEqual, type SettingsDrafts, type Schema as S } from '../settings-data'
 import { SecretField, type SecretProps } from './SecretField'
 
 export function SecurityForm({
@@ -30,7 +30,11 @@ export function SecurityForm({
 }) {
   const { t } = useTranslation(),
     [domains, setDomains] = useState((value.email_domains ?? []).join('\n'))
-  const domainError = errorText('email_domains')
+  const domainText = settingsEqual(normalizeDomains(domains), value.email_domains)
+    ? domains
+    : (value.email_domains ?? []).join('\n')
+  const invalidLine = invalidDomainLine(domainText)
+  const domainError = invalidLine ? t('consoleSettings.emailDomainLineError', { line: invalidLine }) : errorText('email_domains')
   return (
     <div className="space-y-5">
       <Checkbox checked={value.turnstile_enabled} onChange={(e) => onChange({ ...value, turnstile_enabled: e.target.checked })}>
@@ -62,17 +66,17 @@ export function SecurityForm({
           <Field label={t('consoleSettings.emailDomains')} htmlFor="domains" error={domainError}>
             <Textarea
               id="domains"
-              aria-describedby={domainError ? 'domains-hint' : undefined}
-              value={
-                settingsEqual(normalizeDomains(domains), value.email_domains)
-                  ? domains
-                  : (value.email_domains ?? []).join('\n')
-              }
+              aria-invalid={!!domainError}
+              aria-describedby={domainError ? 'domains-format domains-hint' : 'domains-format'}
+              value={domainText}
               onChange={(e) => {
                 setDomains(e.target.value)
                 onChange({ ...value, email_domains: normalizeDomains(e.target.value) })
               }}
             />
+            <p id="domains-format" className="m-0 text-caption leading-relaxed text-text-3">
+              {t('consoleSettings.emailDomainFormat')}
+            </p>
           </Field>
         ) : domainError && <FormError>{domainError}</FormError>}
       </div>

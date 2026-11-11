@@ -1,3 +1,4 @@
+import { clearPortalSession } from '@/app/portal-session'
 import { useId, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -32,8 +33,9 @@ function PasswordDialog({ enabled, onClose }: { enabled: boolean; onClose: () =>
     if (!valid) return
     await action.run(async () => {
       await consoleApi.changePassword({ current_password: current, password, password_confirmation: confirmation, ...(enabled ? { totp_code: code } : {}) })
-      consoleApi.forgetSession(); client.clear()
-      if (action.active.current) { setCurrent(''); setPassword(''); setConfirmation(''); setCode(''); await navigate({ to: '/console/login', search: { notice: 'password_changed' }, replace: true }) }
+      consoleApi.forgetSession(); clearPortalSession(client, 'console')
+      if (action.active.current) { setCurrent(''); setPassword(''); setConfirmation(''); setCode('') }
+      await navigate({ to: '/console/login', search: { notice: 'password_changed' }, replace: true })
     })
   }
   return <Dialog title={t('polish.changePassword')} description={t('polish.savingImmediatelyRevokesAllSessionsYouWill')} busy={action.busy} onClose={onClose} footer={<Button type="submit" form={formId} variant="primary" loading={action.busy} disabled={!valid}>{t('polish.confirmSave')}</Button>}><FormStack id={formId} onSubmit={(event) => { event.preventDefault(); void submit() }}>

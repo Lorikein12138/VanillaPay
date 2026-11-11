@@ -2,12 +2,13 @@ import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { SiteBrand, useSiteBrand } from '@/components/SiteBrand'
-import { createContext, Suspense, useContext, useEffect, useState, type ReactNode, type RefObject } from 'react'
+import { createContext, Suspense, useContext, useState, type ReactNode, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
 import { Drawer } from './drawer'
 import { Skeleton } from './layout'
+import { RouteProgress } from './route-progress'
 import { Tooltip, TooltipProvider } from './tooltip'
 
 const Collapsed = createContext(false)
@@ -42,16 +43,6 @@ export function PortalShell({ logo, navigation, userBlock, controls, problem, ch
   const [collapsed, setCollapsed] = useState(sidebarCollapsed)
   const pending = useRouterState({ select: (state) => state.status === 'pending' &&
     state.location.pathname !== state.resolvedLocation?.pathname })
-  const [showSkeleton, setShowSkeleton] = useState(false)
-  useEffect(() => {
-    if (!pending) return
-    const id = window.setTimeout(() => setShowSkeleton(true), 120)
-    return () => {
-      window.clearTimeout(id)
-      setShowSkeleton(false)
-    }
-  }, [pending])
-  const showPending = pending && showSkeleton
   const CollapseIcon = collapsed ? PanelLeftOpen : PanelLeftClose
   const collapseLabel = t(collapsed ? 'ui.expandSidebar' : 'ui.collapseSidebar')
 
@@ -92,12 +83,10 @@ export function PortalShell({ logo, navigation, userBlock, controls, problem, ch
             </Button>
             <div className="hidden items-center gap-2 lg:flex">{controls}</div>
           </header>
+          <RouteProgress active={pending} />
           {problem && <div className="px-4 pt-4 sm:px-8">{problem}</div>}
           <main id="main" className="min-w-0 px-4 py-8 sm:px-8 lg:px-12 lg:py-10">
-            {showPending && <PortalSkeleton />}
-            <div hidden={showPending}>
-              <Suspense fallback={<PortalSkeleton />}>{children}</Suspense>
-            </div>
+            <Suspense fallback={<PortalSkeleton />}>{children}</Suspense>
           </main>
         </div>
         <Drawer returnFocus={menu} open={open} onClose={() => onOpenChange(false)} title={title}>

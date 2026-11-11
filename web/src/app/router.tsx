@@ -3,6 +3,7 @@ import { createQueryClient } from './providers'
 import { createRouter, defaultParseSearch, type RouterHistory } from '@tanstack/react-router'
 import { routeTree } from '@/routeTree.gen'
 import { onUnauthorized } from '@/api/client'
+import { clearPortalSession } from './portal-session'
 import { consoleSafePath, safePath } from '@/lib/redirect'
 
 function searchText(value: string) {
@@ -36,24 +37,26 @@ function parseSearch(search: string) {
 }
 
 export function createAppRouter(options: { history?: RouterHistory; queryClient?: QueryClient } = {}) {
+  const queryClient = options.queryClient ?? createQueryClient()
   let hasMountedPortal = () => false
   const router = createRouter({
     routeTree,
     history: options.history,
     parseSearch,
-    context: { queryClient: options.queryClient ?? createQueryClient(), hasMountedPortal: () => hasMountedPortal() },
+    context: { queryClient, hasMountedPortal: () => hasMountedPortal() },
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
     scrollRestoration: true,
   })
   hasMountedPortal = () => router.state.matches.some(({ routeId }) => routeId === '/_merchant' || routeId === '/console')
-  onUnauthorized(() => {
+  onUnauthorized((role) => {
+    clearPortalSession(router.options.context.queryClient, role)
     const path = router.state.location.pathname
-    if (path === '/console' || path.startsWith('/console/')) {
-      if (!['/console/login', '/console/setup', '/console/recovery'].includes(path)) void router.navigate({ to: '/console/login', search: { redirect: consoleSafePath(router.state.location.href) }, replace: true })
-      return
+    const inConsole = path === '/console' || path.startsWith('/console/')
+    if (role === 'console' && inConsole && !['/console/login', '/console/setup', '/console/recovery'].includes(path)) {
+      void router.navigate({ to: '/console/login', search: { redirect: consoleSafePath(router.state.location.href) }, replace: true })
     }
-    if (router.state.location.pathname !== '/login') {
+    if (role === 'merchant' && !inConsole && path !== '/login') {
       void router.navigate({ to: '/login', search: { redirect: safePath(router.state.location.href) }, replace: true })
     }
   })

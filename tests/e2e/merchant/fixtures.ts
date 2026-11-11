@@ -108,12 +108,12 @@ export async function clickControl(page: Page, name: string) {
   await closeMenu(page)
 }
 
-export async function selectScreenshotTheme(page: Page, theme: keyof typeof themeLabels, role = 'merchant') {
+export async function selectScreenshotTheme(page: Page, theme: keyof typeof themeLabels, role: 'merchant' | 'console' | 'public' = 'merchant') {
   const option = page.getByRole('menuitemradio', { name: themeLabels[theme], exact: true })
   const { control, opened } = await pressControl(page, '主题', option)
   const alreadySelected = await option.getAttribute('aria-checked') === 'true'
   // Wait for optimistic changes to persist before taking a screenshot or reloading.
-  const saved = alreadySelected ? null : page.waitForResponse((response) =>
+  const saved = alreadySelected || role === 'public' ? null : page.waitForResponse((response) =>
     new URL(response.url()).pathname === '/api/v1/' + role + '/preferences' && response.request().method() === 'PATCH',
   )
   await option.click()
@@ -139,11 +139,12 @@ export async function polishShot(
   fullPage = !name.includes('dialog') && name !== 'drawer',
   directory = 'web-ui-polish-shots',
   passwords: 'mask' | 'assert-empty' = 'mask',
+  waitForNetworkIdle = true,
 ) {
   const width = page.viewportSize()?.width
   if (width !== 360 && width !== 1280) return
   await page.evaluate(() => document.fonts.ready)
-  await page.waitForLoadState('networkidle')
+  if (waitForNetworkIdle) await page.waitForLoadState('networkidle')
   await noOverflow(page)
   expect(await page.getByRole('status').count()).toBeLessThanOrEqual(1)
   expect(await page.getByRole('alert').count()).toBeLessThanOrEqual(1)
@@ -168,4 +169,19 @@ export async function polishShot(
     ],
     maskColor: '#73726c',
   })
+}
+
+export async function watchPortalFirstFrame(page: Page, heading: string, content: string) {
+  await page.getByRole('main').evaluate((main, expected) => {
+    delete main.dataset.firstFrame
+    let sawSkeleton = false
+    const observer = new MutationObserver(() => {
+      sawSkeleton ||= !!main.querySelector('[aria-busy="true"], [role="status"][aria-label="正在加载…"]')
+      if (main.querySelector('h1')?.textContent === expected.heading) {
+        main.dataset.firstFrame = !sawSkeleton && main.textContent?.includes(expected.content) ? 'data' : 'loading'
+        observer.disconnect()
+      }
+    })
+    observer.observe(main, { childList: true, subtree: true, characterData: true })
+  }, { heading, content })
 }

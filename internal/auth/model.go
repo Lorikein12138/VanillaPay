@@ -17,7 +17,6 @@ import (
 
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/argon2"
-	"golang.org/x/net/idna"
 )
 
 var (
@@ -179,8 +178,8 @@ func NormalizeEmail(value string) (string, error) {
 	if parts[0] == "" || len(parts[0]) > 64 || strings.ContainsAny(parts[0], " \t\r\n") {
 		return "", ErrInvalidEmail
 	}
-	domain, err := idna.Lookup.ToASCII(strings.TrimSuffix(parts[1], "."))
-	if err != nil || domain == "" || strings.Contains(domain, "..") {
+	domain, err := normalizeEmailDomain(parts[1])
+	if err != nil {
 		return "", ErrInvalidEmail
 	}
 	return strings.ToLower(parts[0] + "@" + domain), nil
@@ -257,22 +256,6 @@ func GenerateMerchantKey(random io.Reader) (string, error) {
 func HashOpaque(value string) []byte {
 	sum := sha256.Sum256([]byte(value))
 	return sum[:]
-}
-
-func ValidateEmailDomain(email string, allowed []string) bool {
-	if len(allowed) == 0 {
-		return true
-	}
-	parts := strings.SplitN(strings.ToLower(email), "@", 2)
-	if len(parts) != 2 {
-		return false
-	}
-	for _, domain := range allowed {
-		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(domain), "@"), parts[1]) {
-			return true
-		}
-	}
-	return false
 }
 
 func ValidSixDigitCode(value string) bool {

@@ -1,3 +1,4 @@
+import { clearPortalSession } from '@/app/portal-session'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -12,7 +13,8 @@ import { TopBar } from '@/components/TopBar'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { publicConfigQuery, usePublicConfig } from '@/lib/public-config'
 import { safePath } from '@/lib/redirect'
-import { AccountError, AccountField, allowedEmail, EmailCodeButton, EmailCodeNotice, useEmailCode, validPassword, validUsername } from './account-shared'
+import { allowedEmail } from '@/lib/email-domain'
+import { AccountError, AccountField, EmailCodeButton, EmailCodeNotice, useEmailCode, validPassword, validUsername } from './account-shared'
 import { Turnstile } from './Turnstile'
 
 export function PublicAccountShell({ title, children }: { title: string; children: ReactNode }) {
@@ -74,7 +76,7 @@ function PublicAccountForm({ mode, config }: { mode: 'register' | 'reset_passwor
           if (action.active.current) { setPassword(''); setConfirmation(''); setCode(''); await navigate({ to: safePath(result.next_path) ?? '/login', search: { notice: 'registered' }, replace: true }) }
         } else {
           await api.resetPassword({ email: email.trim(), email_code: code.trim(), password, password_confirmation: confirmation, ...verification })
-          api.forgetSession(); client.clear()
+          api.forgetSession(); clearPortalSession(client, 'merchant')
           if (action.active.current) { setPassword(''); setConfirmation(''); setCode(''); await navigate({ to: '/login', search: { notice: 'password_reset' }, replace: true }) }
         }
       } catch (error) {

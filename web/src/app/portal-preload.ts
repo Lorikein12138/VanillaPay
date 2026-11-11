@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 
 export function usePreloadPortalCode(items: readonly { path: string; enabled: boolean }[], enabled = true) {
@@ -22,12 +23,24 @@ export function usePreloadPortalCode(items: readonly { path: string; enabled: bo
   }, [enabled, items, router])
 }
 
-export function preparePortalRoute(hasMountedPortal: () => boolean, cause: 'enter' | 'stay' | 'preload', fetchQueries: () => Promise<unknown>[]) {
+type PortalQueries = {
+  query: QueryClient['ensureQueryData']
+  infinite: QueryClient['ensureInfiniteQueryData']
+}
+
+export function preparePortalRoute(
+  client: QueryClient,
+  hasMountedPortal: () => boolean,
+  cause: 'enter' | 'stay' | 'preload',
+  fetchQueries: (queries: PortalQueries) => Promise<unknown>[],
+) {
   // The mounted query observer handles search changes and retains the previous rows.
   if (cause === 'stay') return
-  const prefetch = Promise.allSettled(fetchQueries())
-  // On the first visit, let the portal mount and show its page-level loading state.
-  // Inside a mounted portal, the shell shows a skeleton while the loader waits.
+  const prefetch = Promise.allSettled(fetchQueries({
+    query: (options) => client.ensureQueryData({ ...options, revalidateIfStale: true }),
+    infinite: (options) => client.ensureInfiniteQueryData({ ...options, revalidateIfStale: true }),
+  }))
+  // Cached queries resolve immediately. On initial entry the page can show its own loading state.
   if (cause === 'preload' || hasMountedPortal()) {
     return prefetch.then(() => {})
   }

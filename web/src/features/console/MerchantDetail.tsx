@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { APIError, consoleApi } from '@/api/client'
+import { APIError } from '@/api/client'
+import { merchantDetailQuery } from '@/app/portal-queries'
 import { StatusDot } from '@/components/StatusDot'
 import { Button } from '@/components/ui/button'
 import { DetailList } from '@/components/ui/detail-list'
@@ -16,7 +17,7 @@ import { planName } from './manage-data'
 
 export function MerchantDetail({ id }: { id: string }) {
   const { t, i18n } = useTranslation(), [mode, setMode] = useState<MerchantAction | null>(null), [notice, setNotice] = useState('')
-  const query = useQuery({ queryKey: ['console', 'merchant', id], queryFn: ({ signal }) => consoleApi.merchant(id, signal) })
+  const query = useQuery(merchantDetailQuery(id))
   const detail = query.data
   if (query.error instanceof APIError && query.error.status === 404) return <EmptyState title={t('manage.notFound')} />
   return <Page>
