@@ -1,9 +1,13 @@
 package com.vanillapay.monitor
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.os.Looper
 import android.provider.Settings
+import androidx.core.app.NotificationCompat
 import com.vanillapay.monitor.parse.Channel
 import com.vanillapay.monitor.parse.PaymentNotice
 import kotlinx.coroutines.cancel
@@ -115,13 +119,64 @@ class MonitorReviveTest {
         }
     }
 
-    @Test fun foregroundNotificationShowsImmediatelyWithLowImportance() {
+    @Test fun foregroundNotificationUsesSilentDefaultImportanceChannel() {
+        val manager = app.getSystemService(NotificationManager::class.java)
+        val notice = MonitorNotifications.build(app, MonitorNotifications.offline(0))
+        val channel = manager.getNotificationChannel(notice.channelId)
+        assertEquals("monitor-status", channel.id)
+        assertEquals("收款监听", channel.name.toString())
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, channel.importance)
+        assertNull(channel.sound)
+        assertFalse(channel.shouldVibrate())
+        assertFalse(channel.canShowBadge())
+        assertFalse(channel.shouldShowLights())
+        assertEquals(Notification.VISIBILITY_PRIVATE, channel.lockscreenVisibility)
+    }
+
+    @Test fun foregroundNotificationRemovesOnlyTheLegacyChannel() {
+        val manager = app.getSystemService(NotificationManager::class.java)
+        val legacy = NotificationChannel("payment-monitor", "收款监听", NotificationManager.IMPORTANCE_LOW)
+        val other = NotificationChannel("other", "其他", NotificationManager.IMPORTANCE_LOW)
+        manager.createNotificationChannels(listOf(legacy, other))
+        assertNotNull(manager.getNotificationChannel("payment-monitor"))
+
+        MonitorNotifications.build(app, MonitorNotifications.offline(0))
+
+        assertNull(manager.getNotificationChannel("payment-monitor"))
+        assertNotNull(manager.getNotificationChannel("other"))
+    }
+
+    @Test fun foregroundNotificationShowsImmediatelyAndSilentlyWithServiceRanking() {
         val notice = MonitorNotifications.build(app, MonitorNotifications.offline(0))
         // Read the platform's display policy from the built notification (hidden from the SDK stubs).
         assertTrue(ReflectionHelpers.callInstanceMethod<Boolean>(notice, "shouldShowForegroundImmediately"))
-        val channel = app.getSystemService(NotificationManager::class.java).getNotificationChannel(notice.channelId)
-        assertEquals("payment-monitor", channel.id)
-        assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
+        assertTrue(notice.extras.getBoolean(Notification.EXTRA_COLORIZED))
+        assertTrue(notice.flags and Notification.FLAG_ONGOING_EVENT != 0)
+        assertEquals(NotificationCompat.CATEGORY_SERVICE, notice.category)
+        @Suppress("DEPRECATION")
+        assertEquals(NotificationCompat.PRIORITY_MAX, notice.priority)
+        assertEquals(Notification.VISIBILITY_PRIVATE, notice.visibility)
+        // This is a child notification, so it stays silent when only the summary may alert.
+        assertEquals(Notification.GROUP_ALERT_SUMMARY, notice.groupAlertBehavior)
+    }
+
+    @Test fun foregroundNotificationStateUpdateReusesIdAndKeepsOnlyAlertOnce() {
+        shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val manager = app.getSystemService(NotificationManager::class.java)
+        val offline = MonitorNotifications.offline(0)
+        MonitorNotifications.post(app, offline)
+        val first = manager.activeNotifications.single()
+        assertEquals(100, first.id)
+        assertEquals(offline.status, first.notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT))
+
+        MonitorNotifications.post(app, MonitorNotifications.paused)
+        val active = manager.activeNotifications
+        assertEquals(1, active.size)
+        val second = active.single()
+        assertEquals(first.id, second.id)
+        assertEquals(MonitorNotifications.paused.status, second.notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT))
+        assertEquals(Notification.GROUP_ALERT_SUMMARY, second.notification.groupAlertBehavior)
+        assertTrue(second.notification.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
     }
 
     @Test fun successfulUploadWhileOfflineWakesHeartbeatBeforeItsNormalInterval() {

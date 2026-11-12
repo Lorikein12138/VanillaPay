@@ -168,7 +168,7 @@ data class NoticeCopy(val status: String, val title: String, val body: String)
 
 object MonitorNotifications {
     const val ID = 100
-    private const val CHANNEL = "payment-monitor"
+    private const val CHANNEL = "monitor-status"
     val paused = NoticeCopy("已暂停", "读不到收款通知了", "通知读取权限被关闭，轻点重新开启")
     private val stopped = NoticeCopy("已停止", "这台手机已解绑", "不再上报到账，轻点重新绑定")
 
@@ -188,19 +188,35 @@ object MonitorNotifications {
     }
 
     fun build(context: Context, copy: NoticeCopy): Notification {
-        val channel = NotificationChannel(CHANNEL, "收款监听", NotificationManager.IMPORTANCE_LOW).apply {
+        val channel = NotificationChannel(CHANNEL, "收款监听", NotificationManager.IMPORTANCE_DEFAULT).apply {
             setSound(null, null)
             enableVibration(false)
             setShowBadge(false)
+            enableLights(false)
+            lockscreenVisibility = Notification.VISIBILITY_PRIVATE
         }
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
+        manager.deleteNotificationChannel("payment-monitor")
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val open = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        return NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_notification).setColor(ContextCompat.getColor(context, R.color.notification_accent))
-            .setContentTitle(copy.title).setContentText(copy.body).setSubText(copy.status)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(copy.body)).setContentIntent(open)
+        return NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
+            .setColorized(true)
+            .setContentTitle(copy.title)
+            .setContentText(copy.body)
+            .setSubText(copy.status)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(copy.body))
+            .setContentIntent(open)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .setOngoing(true).setSilent(true).setOnlyAlertOnce(true).setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
+            .setOngoing(true)
+            .setSilent(true)
+            .setOnlyAlertOnce(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .build()
     }
 }
