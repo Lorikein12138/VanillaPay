@@ -2809,7 +2809,7 @@ export interface components {
             key_version: string | null;
             clientip: string | null;
             receipt_id: string | null;
-            /** @description 异步通知以 GET 发送签名查询参数。2xx 响应体去除首尾空白后须忽略大小写地等于 success。每代最多 10 次，失败间隔依次为 1m、2m、5m、15m、30m、1h、2h、6h、14h。 */
+            /** @description 异步通知以 GET 发送合并后的签名查询参数。商户查询参数参与签名，保留字段由平台覆盖，空值按协议略过。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。历史订单含此类查询串时只发送签名后的协议字段。2xx 响应体去除首尾空白后须忽略大小写地等于 success。每代最多 10 次，失败间隔依次为 1m、2m、5m、15m、30m、1h、2h、6h、14h。 */
             callback_attempts: components["schemas"]["PaymentRefundAttempt"][] | null;
             refund: components["schemas"]["PortalRefundDTO"] | null;
         };
@@ -2947,6 +2947,7 @@ export interface components {
             /** @enum {string} */
             type?: "" | "alipay" | "wxpay";
             out_trade_no: string;
+            /** @description 异步通知地址。商户查询参数参与签名，保留字段由平台覆盖。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。 */
             notify_url: string;
             return_url?: string;
             name: string;
@@ -2965,6 +2966,7 @@ export interface components {
             /** @enum {string} */
             type?: "" | "alipay" | "wxpay";
             out_trade_no: string;
+            /** @description 异步通知地址。商户查询参数参与签名，保留字段由平台覆盖。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。 */
             notify_url: string;
             return_url?: string;
             name: string;
@@ -6727,6 +6729,7 @@ export interface operations {
                 pid: string;
                 type?: "" | "alipay" | "wxpay";
                 out_trade_no: string;
+                /** @description 异步通知地址。商户查询参数参与签名，保留字段由平台覆盖。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。 */
                 notify_url: string;
                 return_url?: string;
                 name: string;
@@ -6945,6 +6948,7 @@ export interface operations {
                 pid: string;
                 type?: "" | "alipay" | "wxpay";
                 out_trade_no: string;
+                /** @description 异步通知地址。商户查询参数参与签名，保留字段由平台覆盖。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。 */
                 notify_url: string;
                 return_url?: string;
                 name: string;

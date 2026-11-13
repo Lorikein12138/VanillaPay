@@ -387,6 +387,87 @@ func TestHTTP_ProtocolCloseAndRefundQueryAreMerchantScoped(t *testing.T) {
 	}
 }
 
+func TestHTTP_NewV2ActionsRequireExplicitRSA(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	fixture := testsupport.NewHTTPFixture(t, db)
+	merchant, key := db.SeedMerchant(t)
+	plan := db.SeedPlan(t, "explicit RSA", 1000, 365, []string{"alipay"}, nil)
+	db.PrepareBillingMerchant(t, fixture.App, merchant, key, plan)
+	pid, private := protocolMerchantKey(t, db, merchant)
+	order, err := fixture.App.Services.Payment.Create(t.Context(), payment.CreateCommand{
+		MerchantID: merchant, Protocol: "v2", Purpose: "external", OutTradeNo: "explicit-rsa-order",
+		Name: "Pending order", OriginalCents: 100, NotifyURL: "https://merchant.example.test/notify",
+		Actor: platform.Actor{Role: "merchant", MerchantID: merchant, SubjectID: merchant},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	send := func(t *testing.T, path string, values url.Values) map[string]any {
+		t.Helper()
+		values.Set("pid", pid)
+		values.Set("timestamp", strconv.FormatInt(db.Clock.Now().Unix(), 10))
+		values.Set("sign", signV2Independent(t, values, private))
+		response := fixture.RequestWithHeaders(t, http.MethodPost, path, strings.NewReader(values.Encode()), "guest",
+			http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+		result := decodeCompatResponse(t, response.Code, response.Body.Bytes())
+		if result["sign_type"] != "RSA" {
+			t.Fatal("missing RSA response signature")
+		}
+		verifyPlatformV2Response(t, fixture, response.Body.Bytes())
+		return result
+	}
+	for _, endpoint := range []struct {
+		path, key, value, validError string
+	}{
+		{path: "/api/merchant/info"},
+		{path: "/api/merchant/orders"},
+		{path: "/api/pay/close", key: "trade_no", value: order.TradeNo},
+		{path: "/api/pay/refundquery", key: "out_refund_no", value: "nonexistent", validError: "NOT_FOUND"},
+	} {
+		t.Run(endpoint.path, func(t *testing.T) {
+			for _, test := range []struct {
+				name      string
+				signType  []string
+				errorCode string
+			}{
+				{name: "missing", errorCode: "INVALID_SIGNATURE"},
+				{name: "empty", signType: []string{""}, errorCode: "INVALID_SIGNATURE"},
+				{name: "md5", signType: []string{"MD5"}, errorCode: "INVALID_SIGNATURE"},
+				{name: "rsa", signType: []string{"RSA"}, errorCode: endpoint.validError},
+			} {
+				t.Run(test.name, func(t *testing.T) {
+					values := url.Values{}
+					if endpoint.key != "" {
+						values.Set(endpoint.key, endpoint.value)
+					}
+					if test.signType != nil {
+						values["sign_type"] = test.signType
+					}
+					result := send(t, endpoint.path, values)
+					if endpoint.path == "/api/pay/close" && test.errorCode != "" {
+						var state string
+						if err := db.Pool.QueryRow(t.Context(), `SELECT status FROM orders WHERE trade_no=$1`, order.TradeNo).Scan(&state); err != nil || state != "pending" {
+							t.Errorf("close with invalid sign_type changed pending order: state=%q err=%v", state, err)
+						}
+					}
+					if test.errorCode == "" {
+						if result["code"] != float64(0) {
+							t.Fatal("valid RSA request did not succeed")
+						}
+					} else if result["code"] != float64(-1) || result["error_code"] != test.errorCode {
+						t.Errorf("want code=-1 and %s, got code=%v error_code=%v", test.errorCode, result["code"], result["error_code"])
+					}
+				})
+			}
+		})
+	}
+	t.Run("existing V2 query still accepts an omitted sign_type", func(t *testing.T) {
+		if result := send(t, "/api/pay/query", url.Values{"trade_no": {order.TradeNo}}); result["code"] != float64(0) {
+			t.Fatal("existing query no longer accepts an omitted sign_type")
+		}
+	})
+}
+
 func protocolMerchantKey(t *testing.T, db *testsupport.Database, id int64) (string, *rsa.PrivateKey) {
 	t.Helper()
 	private, err := rsa.GenerateKey(rand.Reader, 2048)

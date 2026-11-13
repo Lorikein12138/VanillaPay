@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"maps"
 	"net/url"
 	"sort"
 	"strconv"
@@ -20,6 +21,32 @@ import (
 
 var ErrInvalidSignature = errors.New("INVALID_SIGNATURE")
 var errTimestampExpired = errors.New("TIMESTAMP_EXPIRED")
+
+// These fields belong to the platform in signed callbacks and return URLs.
+var reservedPaymentFields = [...]string{
+	"pid", "trade_no", "out_trade_no", "type", "name", "money", "trade_status", "param",
+	"sign_type", "sign", "api_trade_no", "buyer", "clientip", "addtime", "endtime", "timestamp", "key_id",
+}
+
+func mergeMerchantQuery(raw string, fields url.Values) (url.Values, error) {
+	query, err := url.ParseQuery(raw)
+	if err != nil {
+		return nil, err
+	}
+	for _, field := range reservedPaymentFields {
+		query.Del(field)
+	}
+	if _, err := Canonical(query); err != nil {
+		return nil, err
+	}
+	maps.Copy(query, fields)
+	return query, nil
+}
+
+func signableMerchantQuery(raw string) bool {
+	_, err := mergeMerchantQuery(raw, nil)
+	return err == nil
+}
 
 func Canonical(params url.Values) (string, error) {
 	keys := make([]string, 0, len(params))

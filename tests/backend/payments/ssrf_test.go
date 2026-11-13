@@ -256,7 +256,6 @@ func testRealCallbackAttempts(t *testing.T) {
 			t.Errorf("parse real signed callback form: %v", err)
 		}
 		signed := r.URL.Query()
-		signed.Del("token")
 		if err := payment.VerifyV1(signed, merchantKey); err != nil {
 			t.Errorf("independently configured V1 callback signature was rejected: %v", err)
 		}

@@ -106,11 +106,11 @@ internal fun pendingUploadColor(count: Int, accent: Color, normal: Color): Color
     if (count > 0) accent else normal
 
 @Composable
-internal fun ChannelIcon(channel: Channel, size: Dp, tone: ChannelTone, enabled: Boolean = true) {
+internal fun ChannelIcon(channel: Channel?, size: Dp, tone: ChannelTone, enabled: Boolean = true) {
     val palette = LocalPalette.current
-    val artwork = channelArtwork(channel)
-    val painter = painterResource(artwork.drawable)
-    if (tone == ChannelTone.Brand) {
+    val artwork = channel?.let(::channelArtwork)
+    val painter = painterResource(artwork?.drawable ?: R.drawable.channel_other)
+    if (tone == ChannelTone.Brand && artwork != null) {
         val background = if (enabled) artwork.color(palette.dark) else palette.muted
         Box(
             Modifier.size(size).background(background, RoundedCornerShape(size / 4)),

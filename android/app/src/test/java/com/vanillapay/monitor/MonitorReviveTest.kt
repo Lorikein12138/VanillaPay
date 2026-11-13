@@ -209,6 +209,35 @@ class MonitorReviveTest {
         }
     }
 
+    @Test fun legacyQQReceiptRejectedWith400LeavesTheUploadQueue() {
+        MockWebServer().use { server ->
+            server.start()
+            setState(MonitorState(loaded = true, session = session.copy(base = server.url("/").toString())))
+            setNotificationAccess(false)
+            server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"code":"VALIDATION_ERROR"}}"""))
+            val dao = app.database.dao()
+            val payload = """{"channel":"qqpay","amount_cents":100}"""
+            runBlocking { dao.insertReceipt(Receipt("legacy-qq", session.deviceId, "qqpay", 100, 0, payload)) }
+            val service = Robolectric.buildService(MonitorService::class.java).create()
+            try {
+                assertEquals("/api/v1/device/receipts", nextRequestPath(server))
+                waitFor { runBlocking { dao.recent(session.deviceId).first().single().status == FAILED } }
+                runBlocking {
+                    val receipt = dao.recent(session.deviceId).first().single()
+                    assertEquals("VALIDATION_ERROR", receipt.detail)
+                    assertEquals(0, receipt.attempts)
+                    assertEquals(0, dao.pending(session.deviceId).first())
+                    assertNull(dao.nextRetry(session.deviceId))
+                    assertNull(dao.next(session.deviceId, Long.MAX_VALUE))
+                }
+                assertEquals(1, server.requestCount)
+            } finally {
+                service.destroy()
+                app.database.close()
+            }
+        }
+    }
+
     private fun setState(state: MonitorState) {
         ReflectionHelpers.getField<MutableStateFlow<MonitorState>>(app, "mutableState").value = state
     }

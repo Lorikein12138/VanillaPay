@@ -54,10 +54,10 @@ func (h *Handler) v2Create(w http.ResponseWriter, r *http.Request, api bool) {
 	h.v2JSON(w, http.StatusOK, map[string]any{"code": 0, "msg": "success", "trade_no": order.TradeNo, "pay_type": "jump", "pay_info": cashier, "payurl": cashier})
 }
 
-func (h *Handler) v2Action(action func(http.ResponseWriter, *http.Request, int64, url.Values)) http.HandlerFunc {
+func (h *Handler) v2Action(requireRSA bool, action func(http.ResponseWriter, *http.Request, int64, url.Values)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p, err := parseProtocolParams(r)
-		if err != nil {
+		if err != nil || requireRSA && p.Get("sign_type") != "RSA" {
 			h.protocolError(w, true, "INVALID_SIGNATURE")
 			return
 		}

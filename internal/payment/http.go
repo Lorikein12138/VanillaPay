@@ -55,18 +55,18 @@ func (h *Handler) RegisterProtocolRoutes(r chi.Router) {
 	r.Get("/api/pay/submit", h.V2Submit)
 	r.Post("/api/pay/submit", h.V2Submit)
 	r.Post("/api/pay/create", h.V2Create)
-	r.Post("/api/pay/query", h.v2Action(func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
+	r.Post("/api/pay/query", h.v2Action(false, func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
 		h.queryProtocol(w, r, id, p, true)
 	}))
-	r.Post("/api/pay/refund", h.v2Action(func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
+	r.Post("/api/pay/refund", h.v2Action(false, func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
 		h.refundProtocol(w, r, id, p, true)
 	}))
-	r.Post("/api/pay/close", h.v2Action(h.closeProtocol))
-	r.Post("/api/pay/refundquery", h.v2Action(h.refundQueryProtocol))
-	r.Post("/api/merchant/info", h.v2Action(func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
+	r.Post("/api/pay/close", h.v2Action(true, h.closeProtocol))
+	r.Post("/api/pay/refundquery", h.v2Action(true, h.refundQueryProtocol))
+	r.Post("/api/merchant/info", h.v2Action(true, func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
 		h.merchantInfoProtocol(w, r, id, p, true)
 	}))
-	r.Post("/api/merchant/orders", h.v2Action(func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
+	r.Post("/api/merchant/orders", h.v2Action(true, func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
 		h.merchantOrdersProtocol(w, r, id, p, true)
 	}))
 }
@@ -412,11 +412,6 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
 		return "", errors.New("invalid return URL")
 	}
-	query, err := url.ParseQuery(u.RawQuery)
-	if err != nil {
-		return "", err
-	}
-	stripPaymentFields(query)
 	var pid, outTrade, channel, name, param, buyer, clientIP, protocol string
 	var amount int64
 	var created, paid time.Time
@@ -426,7 +421,7 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	if err != nil {
 		return "", err
 	}
-	params := query
+	params := url.Values{}
 	params.Set("pid", pid)
 	params.Set("trade_no", trade)
 	params.Set("out_trade_no", outTrade)
@@ -437,6 +432,10 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	params.Set("sign_type", "MD5")
 	if param != "" {
 		params.Set("param", param)
+	}
+	params, err = mergeMerchantQuery(u.RawQuery, params)
+	if err != nil {
+		return "", err
 	}
 	switch protocol {
 	case "v1":

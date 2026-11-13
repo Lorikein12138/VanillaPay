@@ -152,6 +152,15 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 	if work.eventID == 0 || alreadyRunning {
 		return nil
 	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, work.url, nil)
+	if err != nil {
+		return s.finishCallbackAttempt(ctx, work, 0, "", "INVALID_URL", err)
+	}
+	// Older orders may have a query that cannot be represented in Canonical.
+	// In that case deliver the signed protocol fields alone.
+	if query, queryErr := mergeMerchantQuery(request.URL.RawQuery, work.params); queryErr == nil {
+		work.params = query
+	}
 	key, err := platform.Decrypt(s.key[:], work.keyCipher)
 	if err != nil {
 		return s.finishCallbackAttempt(ctx, work, 0, "", "SIGNING_KEY_UNAVAILABLE", err)
@@ -179,15 +188,7 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 	default:
 		return s.finishCallbackAttempt(ctx, work, 0, "", "UNSUPPORTED_PROTOCOL", errors.New("unsupported callback protocol"))
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, work.url, nil)
-	if err != nil {
-		return s.finishCallbackAttempt(ctx, work, 0, "", "INVALID_URL", err)
-	}
-	merchantQuery := stripReservedRawQuery(request.URL.RawQuery)
 	request.URL.RawQuery = work.params.Encode()
-	if merchantQuery != "" {
-		request.URL.RawQuery = merchantQuery + "&" + request.URL.RawQuery
-	}
 	work.startedWall = time.Now()
 	response, err := s.httpClient.DoPublic(ctx, request)
 	if err != nil {
