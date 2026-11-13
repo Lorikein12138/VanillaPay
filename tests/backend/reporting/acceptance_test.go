@@ -24,8 +24,8 @@ func TestDB_ReportingRemainingAcceptance(t *testing.T) {
 	insertOrder(t, db, merchantID, "acceptance-report-pending", "pending", "pending", "", start.Add(time.Hour), nil, nil, 75)
 	insideEnd := end.Add(-time.Second)
 	insertOrder(t, db, merchantID, "acceptance-report-paid-end", "paid before end", "paid", "wxpay", insideEnd, datePtr(insideEnd), nil, 225)
-	insertOrder(t, db, merchantID, "acceptance-report-expired", "expired", "expired", "qqpay", insideEnd, nil, nil, 50)
-	insertOrder(t, db, merchantID, "acceptance-report-at-end", "excluded at end", "paid", "qqpay", end, datePtr(end), nil, 900)
+	insertOrder(t, db, merchantID, "acceptance-report-expired", "expired", "expired", "alipay", insideEnd, nil, nil, 50)
+	insertOrder(t, db, merchantID, "acceptance-report-at-end", "excluded at end", "paid", "alipay", end, datePtr(end), nil, 900)
 
 	t.Run("V46.B.r02/v01", func(t *testing.T) {
 		stats, err := app.Services.Portal.Stats(t.Context(), actor, portal.StatsQuery{Start: start, End: end, Timezone: "UTC"})

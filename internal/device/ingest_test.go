@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"vanillapay/internal/platform"
 )
 
 func TestUnit_DeviceSuccessEnvelopeIncludesNullError(t *testing.T) {
@@ -28,12 +29,12 @@ func TestUnit_DeviceEventAndChannelValidation(t *testing.T) {
 	if uuidPattern.MatchString("not-a-uuid") {
 		t.Fatal("invalid event identifier accepted")
 	}
-	for _, channel := range []string{"alipay", "wxpay", "qqpay"} {
-		if !validDeviceChannel(channel) {
+	for _, channel := range []string{"alipay", "wxpay"} {
+		if !platform.ValidPaymentChannel(channel) {
 			t.Errorf("valid channel %q rejected", channel)
 		}
 	}
-	if validDeviceChannel("unknown") {
+	if platform.ValidPaymentChannel("unknown") || platform.ValidPaymentChannel("qqpay") {
 		t.Fatal("unknown device channel accepted")
 	}
 }

@@ -37,7 +37,6 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	type callback struct {
 		mu     sync.Mutex
 		values []url.Values
-		query  []url.Values
 	}
 	seen := &callback{}
 	callbackURL := fixture.Network.ServeTLS(t, "merchant.example.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,12 +45,7 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 			return
 		}
 		seen.mu.Lock()
-		copyValues := make(url.Values, len(r.PostForm))
-		for key, entries := range r.PostForm {
-			copyValues[key] = append([]string(nil), entries...)
-		}
-		seen.values = append(seen.values, copyValues)
-		seen.query = append(seen.query, r.URL.Query())
+		seen.values = append(seen.values, r.URL.Query())
 		seen.mu.Unlock()
 		_, _ = w.Write([]byte("success"))
 	}))
@@ -133,15 +127,12 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("deliver real V1 callback through local TLS: %v", err)
 	}
 	seen.mu.Lock()
-	v1Notice, v1NotifyQuery := seen.values[0], seen.query[0]
+	v1Notice := seen.values[0]
 	seen.mu.Unlock()
-	if v1NotifyQuery.Has("out_trade_no") || v1NotifyQuery.Has("sign") || v1NotifyQuery.Has("param") || v1NotifyQuery.Has("key_id") || v1NotifyQuery.Has("clientip") {
-		t.Fatal("V1 notify query retained reserved collisions")
-	}
 	if v1Notice.Get("money") != "1.00" || v1Notice.Get("trade_no") != v1.TradeNo || !verifyV1Independent(v1Notice, merchantKey) {
 		t.Fatalf("V1 callback amount/signature = money %q trade %q", v1Notice.Get("money"), v1Notice.Get("trade_no"))
 	}
-	assertCompatibleQuery(t, v1NotifyQuery, v1Notice, "return-v1-amount")
+	assertCompatibleQuery(t, v1Notice, "return-v1-amount")
 	checkoutV1 := fixture.Request(t, http.MethodGet, "/api/v1/checkout/"+v1.TradeNo, nil, "guest")
 	var paidEnvelope struct {
 		Data struct {
@@ -156,7 +147,7 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	if err != nil || v1Return.Query().Get("campaign") != "original" || v1Return.Query().Get("money") != "1.00" || v1Return.Query().Get("trade_no") != v1.TradeNo || v1Return.Query().Get("trade_status") != "TRADE_SUCCESS" || !verifyV1Independent(v1Return.Query(), merchantKey) {
 		t.Fatalf("V1 signed return did not preserve original query and sign original cents: %s err=%v", *paidEnvelope.Data.ReturnURLSigned, err)
 	}
-	assertCompatibleQuery(t, v1Return.Query(), v1Return.Query(), "return-v1-amount")
+	assertCompatibleQuery(t, v1Return.Query(), "return-v1-amount")
 	// sub2api confirms a notification by querying act=order with every
 	// parameter in both the query and the form body; identical values are one
 	// parameter and must not be rejected as INVALID_SIGNATURE.
@@ -293,16 +284,13 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("deliver real V2 callback through local TLS: %v", err)
 	}
 	seen.mu.Lock()
-	v2Notice, v2NotifyQuery := seen.values[len(seen.values)-1], seen.query[len(seen.query)-1]
+	v2Notice := seen.values[len(seen.values)-1]
 	seen.mu.Unlock()
-	if v2NotifyQuery.Has("out_trade_no") || v2NotifyQuery.Has("sign") || v2NotifyQuery.Has("param") || v2NotifyQuery.Has("key_id") || v2NotifyQuery.Has("clientip") {
-		t.Fatal("V2 notify query retained reserved collisions")
-	}
 	if v2Notice.Get("money") != "1.00" || v2Notice.Get("trade_no") != v2.TradeNo {
 		t.Fatalf("V2 callback amount=%q trade=%q", v2Notice.Get("money"), v2Notice.Get("trade_no"))
 	}
 	verifyPlatformV2Values(t, fixture, v2Notice)
-	assertCompatibleQuery(t, v2NotifyQuery, v2Notice, "return-v2-amount")
+	assertCompatibleQuery(t, v2Notice, "return-v2-amount")
 	v2Checkout := fixture.Request(t, http.MethodGet, "/api/v1/checkout/"+v2.TradeNo, nil, "guest")
 	if v2Checkout.Code != http.StatusOK || json.Unmarshal(v2Checkout.Body.Bytes(), &reservedData) != nil {
 		t.Fatalf("read paid V2 checkout: status=%d body=%s", v2Checkout.Code, v2Checkout.Body.String())
@@ -311,7 +299,7 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 		t.Fatalf("V2 signed return did not preserve allowed target: %s", signedURL)
 	}
 	v2ReturnValues := mustParseURLQuery(t, signedURL)
-	assertCompatibleQuery(t, v2ReturnValues, v2ReturnValues, "return-v2-amount")
+	assertCompatibleQuery(t, v2ReturnValues, "return-v2-amount")
 	verifyPlatformV2Values(t, fixture, v2ReturnValues)
 
 	t.Run("V35.B.r01/v01", func(t *testing.T) {
@@ -356,9 +344,9 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	})
 }
 
-func assertCompatibleQuery(t *testing.T, original, signed url.Values, outTrade string) {
+func assertCompatibleQuery(t *testing.T, signed url.Values, outTrade string) {
 	t.Helper()
-	if original.Get("order_id") != "38" || original.Get("resume_token") != "resume" || original.Get("status") != "success" {
+	if signed.Get("order_id") != "38" || signed.Get("resume_token") != "resume" || signed.Get("status") != "success" {
 		t.Fatal("lost merchant routing parameters")
 	}
 	if len(signed["out_trade_no"]) != 1 || signed.Get("out_trade_no") != outTrade || len(signed["sign"]) != 1 || signed.Get("sign") == "old" || signed.Has("param") || signed.Get("key_id") == "old" {
@@ -429,24 +417,7 @@ func verifyPlatformV2Values(t *testing.T, fixture *testsupport.HTTPFixture, valu
 		if !ok {
 			t.Fatal("platform signing key is not RSA")
 		}
-		signature, err := base64.StdEncoding.DecodeString(values.Get("sign"))
-		if err != nil {
-			t.Fatal("decode V2 RSA signature")
-		}
-		fields := values
-		names := make([]string, 0, len(fields))
-		for name, entries := range fields {
-			if name != "sign" && name != "sign_type" && len(entries) > 0 && entries[0] != "" {
-				names = append(names, name)
-			}
-		}
-		sort.Strings(names)
-		parts := make([]string, 0, len(names))
-		for _, name := range names {
-			parts = append(parts, name+"="+fields.Get(name))
-		}
-		digest := sha256.Sum256([]byte(strings.Join(parts, "&")))
-		if rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], signature) == nil {
+		if verifyV2Independent(values, pub) {
 			matched = true
 			break
 		}
@@ -454,6 +425,26 @@ func verifyPlatformV2Values(t *testing.T, fixture *testsupport.HTTPFixture, valu
 	if !matched {
 		t.Fatalf("V2 response signature did not verify against published platform keys: %#v", values)
 	}
+}
+
+func verifyV2Independent(values url.Values, pub *rsa.PublicKey) bool {
+	signature, err := base64.StdEncoding.DecodeString(values.Get("sign"))
+	if err != nil {
+		return false
+	}
+	names := make([]string, 0, len(values))
+	for name, entries := range values {
+		if name != "sign" && name != "sign_type" && len(entries) > 0 && entries[0] != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		parts = append(parts, name+"="+values.Get(name))
+	}
+	digest := sha256.Sum256([]byte(strings.Join(parts, "&")))
+	return rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], signature) == nil
 }
 
 func mustParseJSONValues(t *testing.T, body []byte) url.Values {
@@ -475,6 +466,12 @@ func mustParseJSONValues(t *testing.T, body []byte) url.Values {
 			} else {
 				values.Set(key, "")
 			}
+		default:
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			values.Set(key, string(encoded))
 		}
 	}
 	return values

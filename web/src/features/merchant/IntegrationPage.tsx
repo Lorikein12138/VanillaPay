@@ -46,7 +46,7 @@ export function IntegrationPage({ user }: { user: Schema['AuthUserDTO'] }) {
               <dl className="space-y-4">
                 {Object.entries(data[version]).map(([operation, url]) => (
                   <div key={operation}>
-                    <dt className="mb-1.5 text-caption text-text-3">{operation}</dt>
+                    <dt className="mb-1.5 text-caption text-text-3">{t(`merchant.integration.endpoints.${operation}`, { defaultValue: operation })}</dt>
                     <dd><CopyField value={url} /></dd>
                   </div>
                 ))}

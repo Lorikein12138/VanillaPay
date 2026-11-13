@@ -17,8 +17,6 @@ class ReceiptParserTest {
             Example(Channel.WeChat, "微信支付", "微信支付收款0.01元(朋友到店)", 1),
             Example(Channel.WeChat, "微信", "[2条]微信支付: 收款0.02元", 2),
             Example(Channel.WeChat, "[3条]微信支付", "个人收款码到账¥0.03", 3),
-            Example(Channel.QQ, "QQ钱包", "QQ钱包…收款1.00元", 100),
-            Example(Channel.QQ, "QQ钱包收款", "QQ钱包: 收款到账¥1.02", 102),
         )
         for ((channel, title, body, cents) in examples) {
             val parsed = parseReceipt(notice(channel, title, body))
@@ -31,7 +29,7 @@ class ReceiptParserTest {
     }
 
     @Test fun rejectsPaymentsRefundsAndChatForEveryProvider() {
-        val titles = listOf("支付宝", "微信支付", "QQ钱包")
+        val titles = listOf("支付宝", "微信支付")
         for ((channel, title) in Channel.entries.zip(titles)) {
             for (body in listOf("付款1.00元", "退款到账¥1.00", "转出1.00元", "今天午餐花了1.00元", "请收款1.00元")) {
                 val notice = notice(channel, title, body)
@@ -42,7 +40,6 @@ class ReceiptParserTest {
         }
         assertNull(parseReceipt(notice(Channel.Alipay, "支付宝", "支付宝成功收款0.00元")))
         assertNull(parseReceipt(notice(Channel.WeChat, "微信支付", "微信支付收款1.001元")))
-        assertNull(parseReceipt(notice(Channel.QQ, "QQ钱包", "QQ钱包收款1.00元").copy(packageName = "other")))
     }
 
     @Test fun rawTextTruncatesWithoutSplittingUnicode() {

@@ -64,12 +64,9 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 	if err := validateExternalCommand(in); err != nil {
 		return OrderDTO{}, err
 	}
-	tradeNo, err := randomTradeNo(s.random)
-	if err != nil {
-		return OrderDTO{}, err
-	}
+	digest := createRequestDigest(in)
 	var result OrderDTO
-	err = sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	err := sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{in.MerchantID}, false); err != nil {
 			return err
 		}
@@ -77,8 +74,25 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 		if err := s.eligibility.IPAllowed(ctx, tx, in.MerchantID, sourceIP); err != nil {
 			return err
 		}
-		var snapshot EligibilitySnapshot
-		snapshot, err = s.eligibility.CheckCreateTx(ctx, tx, in.MerchantID, in.OriginalCents)
+		var banned bool
+		if err := tx.QueryRow(ctx, `SELECT banned_at IS NOT NULL FROM merchants WHERE id=$1`, in.MerchantID).Scan(&banned); err != nil {
+			return err
+		}
+		if banned {
+			return apiErr("ACCOUNT_BANNED", 403)
+		}
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, fmt.Sprintf("order:%d:%s", in.MerchantID, in.OutTradeNo)); err != nil {
+			return err
+		}
+		existing, found, err := s.reusableOrder(ctx, tx, in, digest)
+		if err != nil {
+			return err
+		}
+		if found {
+			result = existing
+			return nil
+		}
+		snapshot, err := s.eligibility.CheckCreateTx(ctx, tx, in.MerchantID, in.OriginalCents)
 		if err != nil {
 			return err
 		}
@@ -96,17 +110,11 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 		if seconds < 1 || seconds > snapshot.MaxTTLSeconds {
 			return apiErr("TTL_OUT_OF_RANGE", 400)
 		}
+		tradeNo, err := randomTradeNo(s.random)
+		if err != nil {
+			return err
+		}
 		expires := s.clock.Now().Add(time.Duration(seconds) * time.Second)
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, fmt.Sprintf("order:%d:%s", in.MerchantID, in.OutTradeNo)); err != nil {
-			return err
-		}
-		var exists bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM orders WHERE merchant_id=$1 AND out_trade_no=$2)`, in.MerchantID, in.OutTradeNo).Scan(&exists); err != nil {
-			return err
-		}
-		if exists {
-			return apiErr("DUPLICATE_ORDER", 409)
-		}
 		channel := ""
 		actual := (*int64)(nil)
 		var asset *string
@@ -126,7 +134,7 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 			asset = &id
 		}
 		snapshot.Channels = channels
-		orderID, created, err := s.orderCreateTx(ctx, tx, in.MerchantID, tradeNo, in, snapshot, expires, channel, actual, offset, asset)
+		orderID, created, err := s.orderCreateTx(ctx, tx, in.MerchantID, tradeNo, in, digest, snapshot, expires, channel, actual, offset, asset)
 		if err != nil {
 			return err
 		}
@@ -191,13 +199,13 @@ func (s *Service) CancelSubscriptionOrderTx(ctx context.Context, tx pgx.Tx, orde
 		return err
 	}
 	if tag.RowsAffected() > 0 {
-		_, err = tx.Exec(ctx, `UPDATE amount_reservations SET release_after=(SELECT expires_at+interval '24 hours' FROM orders WHERE id=$1) WHERE order_id=$1`, orderID)
+		err = scheduleReservationRelease(ctx, tx, orderID)
 	}
 	return err
 }
 
 func (s *Service) SelectChannel(ctx context.Context, tradeNo, channel string) (CheckoutDTO, error) {
-	if !validChannel(channel) {
+	if !platform.ValidPaymentChannel(channel) {
 		return CheckoutDTO{}, apiErr("VALIDATION_ERROR", 400)
 	}
 	var merchantID, orderID int64
@@ -394,25 +402,25 @@ func (s *Service) Query(ctx context.Context, actor platform.Actor, selector Orde
 
 func (s *Service) MarkPaidTx(ctx context.Context, tx pgx.Tx, orderID int64, in PaidCommand) error {
 	var merchantID, affectedMerchantID int64
-	var status, purpose, channel string
+	var status, purpose, channel, expireReason string
 	var actual pgtype.Int8
 	var expires time.Time
 	var notify pgtype.Text
 	var trade string
-	if err := tx.QueryRow(ctx, `SELECT merchant_id,COALESCE(buyer_id,merchant_id),status,purpose,COALESCE(channel,''),actual_cents,expires_at,notify_url,trade_no FROM orders WHERE id=$1 FOR UPDATE`, orderID).Scan(&merchantID, &affectedMerchantID, &status, &purpose, &channel, &actual, &expires, &notify, &trade); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT merchant_id,COALESCE(buyer_id,merchant_id),status,purpose,COALESCE(channel,''),actual_cents,expires_at,notify_url,trade_no,COALESCE(expire_reason,'') FROM orders WHERE id=$1 FOR UPDATE`, orderID).Scan(&merchantID, &affectedMerchantID, &status, &purpose, &channel, &actual, &expires, &notify, &trade, &expireReason); err != nil {
 		return err
 	}
 	if status == "paid" {
 		return nil
 	}
 	if in.Manual {
-		if status != "pending" && status != "expired" {
+		if status != "pending" && (status != "expired" || expireReason == "cancelled" && purpose == "external") {
 			return apiErr("ORDER_NOT_PAYABLE", 409)
 		}
 	} else if status != "pending" || !expires.After(s.clock.Now()) {
 		return apiErr("ORDER_NOT_PAYABLE", 409)
 	}
-	if !validChannel(in.Channel) {
+	if !platform.ValidPaymentChannel(in.Channel) {
 		return apiErr("VALIDATION_ERROR", 400)
 	}
 	if channel != "" && channel != in.Channel {
@@ -501,21 +509,21 @@ func (s *Service) SupplementIdempotent(ctx context.Context, actor platform.Actor
 		if banned {
 			return apiErr("ACCOUNT_BANNED", 403)
 		}
-		var status string
+		var status, purpose, expireReason string
 		var channel pgtype.Text
 		var original int64
 		var allowed []string
-		if err := tx.QueryRow(ctx, `SELECT status,channel,original_cents,allowed_channels_snapshot FROM orders WHERE id=$1 FOR UPDATE`, orderID).Scan(&status, &channel, &original, &allowed); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT status,purpose,channel,original_cents,allowed_channels_snapshot,COALESCE(expire_reason,'') FROM orders WHERE id=$1 FOR UPDATE`, orderID).Scan(&status, &purpose, &channel, &original, &allowed, &expireReason); err != nil {
 			return err
 		}
-		if status != "pending" && status != "expired" {
+		if status != "pending" && (status != "expired" || expireReason == "cancelled" && purpose == "external") {
 			return apiErr("ORDER_NOT_PAYABLE", 409)
 		}
 		selected := in.Channel
 		if selected == "" && channel.Valid {
 			selected = channel.String
 		}
-		if !validChannel(selected) || !containsChannel(allowed, selected) {
+		if !platform.ValidPaymentChannel(selected) || !containsChannel(allowed, selected) {
 			return apiErr("CHANNEL_NOT_ALLOWED", 403)
 		}
 		if !channel.Valid {
@@ -582,7 +590,7 @@ func (s *Service) ExpireBatch(ctx context.Context, limit int) (int, error) {
 			}
 			changed = tag.RowsAffected() == 1
 			if changed {
-				_, err = tx.Exec(ctx, `UPDATE amount_reservations SET release_after=(SELECT expires_at+interval '24 hours' FROM orders WHERE id=$1) WHERE order_id=$1`, it.id)
+				err = scheduleReservationRelease(ctx, tx, it.id)
 			}
 			return err
 		})
@@ -661,14 +669,14 @@ func (s *Service) RequestRefund(ctx context.Context, in RefundCommand) (RefundDT
 		}
 		if in.OutRefundNo != "" {
 			var exists bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM refunds WHERE out_refund_no=$1)`, in.OutRefundNo).Scan(&exists); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM refunds WHERE merchant_id=$1 AND out_refund_no=$2)`, in.MerchantID, in.OutRefundNo).Scan(&exists); err != nil {
 				return err
 			}
 			if exists {
 				return apiErr("IDEMPOTENCY_CONFLICT", 409)
 			}
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO refunds(public_id,order_id,out_refund_no,requested_cents,status,reason,request_digest) VALUES($1,$2,NULLIF($3,''),$4,'pending',NULLIF($5,''),$6)`, id, orderID, in.OutRefundNo, amount, in.Reason, in.RequestDigest)
+		_, err = tx.Exec(ctx, `INSERT INTO refunds(public_id,order_id,out_refund_no,requested_cents,status,reason,request_digest,merchant_id) VALUES($1,$2,NULLIF($3,''),$4,'pending',NULLIF($5,''),$6,$7)`, id, orderID, in.OutRefundNo, amount, in.Reason, in.RequestDigest, in.MerchantID)
 		if err != nil {
 			return err
 		}
@@ -924,7 +932,7 @@ func (s *Service) OrderID(ctx context.Context, trade string) (int64, error) {
 	return s.repository.OrderID(ctx, trade)
 }
 
-func (s *Service) orderCreateTx(ctx context.Context, tx pgx.Tx, merchantID int64, trade string, in CreateCommand, snapshot EligibilitySnapshot, expires time.Time, channel string, actual *int64, offset *int, asset *string) (int64, time.Time, error) {
+func (s *Service) orderCreateTx(ctx context.Context, tx pgx.Tx, merchantID int64, trade string, in CreateCommand, digest []byte, snapshot EligibilitySnapshot, expires time.Time, channel string, actual *int64, offset *int, asset *string) (int64, time.Time, error) {
 	keyVersion := snapshot.KeyVersion
 	id := int64(0)
 	created := time.Time{}
@@ -962,7 +970,7 @@ func (s *Service) orderCreateTx(ctx context.Context, tx pgx.Tx, merchantID int64
 	if err != nil {
 		return 0, created, err
 	}
-	err = tx.QueryRow(ctx, `INSERT INTO orders(trade_no,merchant_id,out_trade_no,purpose,protocol,name,product_id,param,original_cents,actual_cents,amount_offset_cents,channel,allowed_channels_snapshot,qr_asset_id,notify_url,return_url,signing_key_version,signing_key_cipher,merchant_username_snapshot,merchant_pid_snapshot,buyer_hint,clientip,channel_locked_at,expires_at,status,created_at) SELECT $1,m.id,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,m.username,m.pid,$18,$19,CASE WHEN $11::text IS NULL THEN NULL ELSE $22::timestamptz END,$20,'pending',$22::timestamptz FROM merchants m WHERE m.id=$21 RETURNING id,created_at`, trade, in.OutTradeNo, in.Purpose, in.Protocol, name, in.ProductID, in.Param, in.OriginalCents, actualValue, offsetValue, channelValue, snapshot.Channels, assetValue, notify, returnURL, keyVersion, keyCipher, in.BuyerHint, clientIP, expires, merchantID, s.clock.Now()).Scan(&id, &created)
+	err = tx.QueryRow(ctx, `INSERT INTO orders(trade_no,merchant_id,out_trade_no,purpose,protocol,name,product_id,param,original_cents,actual_cents,amount_offset_cents,channel,allowed_channels_snapshot,qr_asset_id,notify_url,return_url,signing_key_version,signing_key_cipher,merchant_username_snapshot,merchant_pid_snapshot,buyer_hint,clientip,channel_locked_at,expires_at,status,created_at,create_request_digest) SELECT $1,m.id,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,m.username,m.pid,$18,$19,CASE WHEN $11::text IS NULL THEN NULL ELSE $22::timestamptz END,$20,'pending',$22::timestamptz,$23 FROM merchants m WHERE m.id=$21 RETURNING id,created_at`, trade, in.OutTradeNo, in.Purpose, in.Protocol, name, in.ProductID, in.Param, in.OriginalCents, actualValue, offsetValue, channelValue, snapshot.Channels, assetValue, notify, returnURL, keyVersion, keyCipher, in.BuyerHint, clientIP, expires, merchantID, s.clock.Now(), digest).Scan(&id, &created)
 	return id, created, err
 }
 
@@ -1018,7 +1026,7 @@ func validateExternalCommand(in CreateCommand) error {
 			return apiErr("VALIDATION_ERROR", 400)
 		}
 	}
-	if in.Channel != "" && !validChannel(in.Channel) {
+	if in.Channel != "" && !platform.ValidPaymentChannel(in.Channel) {
 		return apiErr("VALIDATION_ERROR", 400)
 	}
 	if len(in.Channels) > 0 {
@@ -1031,14 +1039,11 @@ func validOutTradeNo(value string) bool {
 		return false
 	}
 	for _, r := range value {
-		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && !strings.ContainsRune("_-.", r) {
+		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && !strings.ContainsRune("_-.|", r) {
 			return false
 		}
 	}
 	return true
-}
-func validChannel(value string) bool {
-	return value == "alipay" || value == "wxpay" || value == "qqpay"
 }
 func validCallbackURL(raw string) bool {
 	u, err := url.Parse(raw)
@@ -1056,9 +1061,7 @@ func validCallbackURL(raw string) bool {
 	if ip, err := netip.ParseAddr(host); err == nil && (!ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()) {
 		return false
 	}
-	// The callback query is not signed and is forwarded verbatim apart from
-	// reserved fields, so repeated or non-standard segments are kept as-is.
-	return true
+	return signableMerchantQuery(u.RawQuery)
 }
 func validReturnURL(raw string) bool {
 	u, err := url.Parse(raw)
@@ -1068,59 +1071,9 @@ func validReturnURL(raw string) bool {
 	return signableMerchantQuery(u.RawQuery)
 }
 
-// reservedPaymentFields are the protocol fields the platform owns in signed
-// callback forms and return URLs. Merchant URLs may carry them (the epay
-// ecosystem commonly does); the platform drops them and its own values win.
-var reservedPaymentFields = map[string]struct{}{
-	"pid": {}, "trade_no": {}, "out_trade_no": {}, "type": {}, "name": {}, "money": {}, "trade_status": {}, "param": {},
-	"sign_type": {}, "sign": {}, "api_trade_no": {}, "buyer": {}, "clientip": {}, "addtime": {}, "endtime": {}, "timestamp": {}, "key_id": {},
-}
-
-// signableMerchantQuery reports whether the merchant query parses and, after
-// reserved fields are dropped, has no repeated key: repeated keys cannot be
-// represented in the single-valued signing canonical form.
-func signableMerchantQuery(raw string) bool {
-	query, err := url.ParseQuery(raw)
-	if err != nil {
-		return false
-	}
-	stripPaymentFields(query)
-	for _, values := range query {
-		if len(values) > 1 {
-			return false
-		}
-	}
-	return true
-}
-
-func stripPaymentFields(query url.Values) {
-	for field := range reservedPaymentFields {
-		query.Del(field)
-	}
-}
-
-// stripReservedRawQuery removes reserved payment fields from a raw query while
-// keeping every other segment byte-for-byte and in order, so merchant routing
-// parameters reach the callback endpoint exactly as configured.
-func stripReservedRawQuery(raw string) string {
-	kept := make([]string, 0, strings.Count(raw, "&")+1)
-	for _, part := range strings.Split(raw, "&") {
-		if part == "" {
-			continue
-		}
-		key, _, _ := strings.Cut(part, "=")
-		if name, err := url.QueryUnescape(key); err == nil {
-			if _, reserved := reservedPaymentFields[name]; reserved {
-				continue
-			}
-		}
-		kept = append(kept, part)
-	}
-	return strings.Join(kept, "&")
-}
 func intersectChannels(subscription, requested []string, assets map[string]string) []string {
 	out := []string{}
-	for _, ch := range []string{"alipay", "wxpay", "qqpay"} {
+	for _, ch := range platform.PaymentChannels() {
 		if containsChannel(subscription, ch) && assets[ch] != "" && (len(requested) == 0 || containsChannel(requested, ch)) {
 			out = append(out, ch)
 		}

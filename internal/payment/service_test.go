@@ -102,12 +102,17 @@ func TestUnit_ProtocolFormAcceptsIdenticalQueryAndBody(t *testing.T) {
 }
 
 func TestUnit_ReturnURLAcceptsReservedPaymentFields(t *testing.T) {
-	for _, raw := range []string{"javascript:alert(1)", "https://user:pass@merchant.example/return"} {
+	for _, raw := range []string{
+		"javascript:alert(1)",
+		"https://user:pass@merchant.example/return",
+		"https://merchant.example/return?route=one&route=two",
+		"https://merchant.example/return?route=one;two",
+	} {
 		if validReturnURL(raw) {
 			t.Errorf("validReturnURL(%q) unexpectedly accepted", raw)
 		}
 	}
-	if !validReturnURL("https://merchant.example/return?campaign=spring&trade_no=old&sign=old") {
+	if !validReturnURL("https://merchant.example/return?campaign=spring&trade_no=old&%74rade_no=older&sign=old") {
 		t.Fatal("ordinary HTTPS return URL was rejected")
 	}
 }

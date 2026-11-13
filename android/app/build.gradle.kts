@@ -14,7 +14,7 @@ require(defaultBase.all { it.code in 33..126 && it != '"' && it != '\\' }) {
     "vanillapayBaseUrl must be an ASCII URL without whitespace, quotes or backslashes"
 }
 
-val monitorVersion = "1.1.0"
+val monitorVersion = "1.1.1"
 val (major, minor, patch) = monitorVersion.split('.').map(String::toInt)
 require(minor in 0..99 && patch in 0..99) { "versionName requires minor and patch below 100" }
 val monitorVersionCode = major * 10_000 + minor * 100 + patch

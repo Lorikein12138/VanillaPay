@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const DefaultStatsTimezone = "Asia/Shanghai"
+
 type PageQuery struct {
 	Cursor     string `json:"cursor,omitempty"`
 	Limit      int    `json:"limit,omitempty"`

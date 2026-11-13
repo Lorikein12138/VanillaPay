@@ -5,7 +5,6 @@ import java.math.BigDecimal
 enum class Channel(val wire: String, val packageName: String, val display: String) {
     Alipay("alipay", "com.eg.android.AlipayGphone", "支付宝"),
     WeChat("wxpay", "com.tencent.mm", "微信"),
-    QQ("qqpay", "com.tencent.mobileqq", "QQ"),
 }
 
 data class PaymentNotice(
@@ -40,7 +39,6 @@ fun parseReceipt(notice: PaymentNotice): ParsedReceipt? {
     val match = when (channel) {
         Channel.Alipay -> alipay(title, body)
         Channel.WeChat -> weChat(title, body, count != null)
-        Channel.QQ -> qqPay(title, body)
     } ?: return null
     val cents = runCatching { BigDecimal(match.groupValues[1]).movePointRight(2).longValueExact() }.getOrNull()
         ?.takeIf { it > 0 } ?: return null

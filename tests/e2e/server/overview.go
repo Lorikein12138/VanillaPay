@@ -18,6 +18,7 @@ type overviewOrder struct {
 	Name               string     `json:"name"`
 	Channel            *string    `json:"channel,omitempty"`
 	Status             string     `json:"status"`
+	ExpireReason       *string    `json:"expire_reason,omitempty"`
 	OriginalCents      int64      `json:"original_cents"`
 	ActualCents        *int64     `json:"actual_cents,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
@@ -91,9 +92,9 @@ func seedOverviewOrders(ctx context.Context, pool *pgxpool.Pool, pid string, ord
 		var orderID int64
 		channels := order.AllowedChannels
 		if channels == nil {
-			channels = []string{"alipay", "wxpay", "qqpay"}
+			channels = []string{"alipay", "wxpay"}
 		}
-		err := tx.QueryRow(ctx, `INSERT INTO orders(trade_no,out_trade_no,merchant_id,merchant_username_snapshot,purpose,protocol,name,channel,status,original_cents,actual_cents,created_at,paid_at,refunded_at,expires_at,notify_url,return_url,allowed_channels_snapshot) VALUES($1,$2,$3,$4,'external','v1',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`, order.TradeNo, outTrade, merchantID, username, order.Name, order.Channel, order.Status, order.OriginalCents, order.ActualCents, order.CreatedAt, order.PaidAt, refundedAt, order.CreatedAt.AddDate(0, 3, 0), order.NotifyURL, order.ReturnURL, channels).Scan(&orderID)
+		err := tx.QueryRow(ctx, `INSERT INTO orders(trade_no,out_trade_no,merchant_id,merchant_username_snapshot,purpose,protocol,name,channel,status,original_cents,actual_cents,created_at,paid_at,refunded_at,expires_at,notify_url,return_url,allowed_channels_snapshot,expire_reason) VALUES($1,$2,$3,$4,'external','v1',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`, order.TradeNo, outTrade, merchantID, username, order.Name, order.Channel, order.Status, order.OriginalCents, order.ActualCents, order.CreatedAt, order.PaidAt, refundedAt, order.CreatedAt.AddDate(0, 3, 0), order.NotifyURL, order.ReturnURL, channels, order.ExpireReason).Scan(&orderID)
 		if err != nil {
 			return err
 		}
@@ -114,7 +115,7 @@ func seedOverviewOrders(ctx context.Context, pool *pgxpool.Pool, pid string, ord
 		}
 		if order.RefundPending {
 			digest := sha256.Sum256([]byte(order.TradeNo))
-			if _, err := tx.Exec(ctx, `INSERT INTO refunds(public_id,order_id,requested_cents,status,reason,request_digest) VALUES($1,$2,$3,'pending',$4,$5)`, order.TradeNo+"-refund", orderID, order.OriginalCents, "Fixture refund request", digest[:]); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO refunds(public_id,order_id,requested_cents,status,reason,request_digest,merchant_id) VALUES($1,$2,$3,'pending',$4,$5,$6)`, order.TradeNo+"-refund", orderID, order.OriginalCents, "Fixture refund request", digest[:], merchantID); err != nil {
 				return err
 			}
 		}

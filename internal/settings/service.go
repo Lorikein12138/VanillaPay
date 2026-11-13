@@ -752,7 +752,7 @@ func (s *Service) QRSlots(ctx context.Context, actor platform.Actor) ([]QRDTO, e
 		return nil, err
 	}
 	out := make([]QRDTO, 0, 3)
-	for _, channel := range []string{"alipay", "wxpay", "qqpay"} {
+	for _, channel := range platform.PaymentChannels() {
 		if value, ok := latest[channel]; ok {
 			out = append(out, value)
 		} else {
@@ -766,7 +766,7 @@ func (s *Service) SetQREnabled(ctx context.Context, actor platform.Actor, channe
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
 		return QRDTO{}, &platform.Error{Code: "UNAUTHENTICATED", HTTPStatus: 401}
 	}
-	if channel != "alipay" && channel != "wxpay" && channel != "qqpay" {
+	if !platform.ValidPaymentChannel(channel) {
 		return QRDTO{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
 	var out QRDTO

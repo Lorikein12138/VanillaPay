@@ -26,9 +26,9 @@ func TestDB_StatsSeparatesHalfOpenOrderCountsFromPaidAmounts(t *testing.T) {
 	insertOrder(t, db, merchantID, "inside-paid", "paid", "paid", "alipay", start, datePtr(start.Add(time.Hour)), nil, 100)
 	insertOrder(t, db, merchantID, "inside-pending", "pending", "pending", "", start.Add(time.Hour), nil, nil, 200)
 	insertOrder(t, db, merchantID, "at-end", "excluded", "expired", "wxpay", end, nil, nil, 300)
-	insertOrder(t, db, merchantID, "refunded", "excluded refund", "refunded", "qqpay", start.Add(2*time.Hour), datePtr(start.Add(2*time.Hour)), datePtr(start.Add(3*time.Hour)), 400)
+	insertOrder(t, db, merchantID, "refunded", "excluded refund", "refunded", "alipay", start.Add(2*time.Hour), datePtr(start.Add(2*time.Hour)), datePtr(start.Add(3*time.Hour)), 400)
 	insertOrder(t, db, merchantID, "created-before-paid-inside", "paid amount", "paid", "wxpay", start.Add(-time.Hour), datePtr(start.Add(4*time.Hour)), nil, 500)
-	insertOrder(t, db, merchantID, "created-inside-paid-at-end", "created count", "paid", "qqpay", start.Add(5*time.Hour), datePtr(end), nil, 600)
+	insertOrder(t, db, merchantID, "created-inside-paid-at-end", "created count", "paid", "alipay", start.Add(5*time.Hour), datePtr(end), nil, 600)
 	insertOrder(t, db, otherID, "other-merchant", "other", "paid", "alipay", start, datePtr(start.Add(time.Hour)), nil, 700)
 
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
@@ -39,7 +39,7 @@ func TestDB_StatsSeparatesHalfOpenOrderCountsFromPaidAmounts(t *testing.T) {
 	if stats.TotalOrderCount != 3 || stats.StatusCounts["paid"] != 2 || stats.StatusCounts["pending"] != 1 || stats.StatusCounts["expired"] != 0 {
 		t.Fatalf("created-at counts = total %d, status %#v", stats.TotalOrderCount, stats.StatusCounts)
 	}
-	if stats.TotalAmountCents != 600 || stats.Channels["alipay"].AmountCents != 100 || stats.Channels["wxpay"].AmountCents != 500 || stats.Channels["qqpay"].AmountCents != 0 {
+	if stats.TotalAmountCents != 600 || stats.Channels["alipay"].AmountCents != 100 || stats.Channels["wxpay"].AmountCents != 500 {
 		t.Fatalf("paid-at amounts = total %d channels %#v", stats.TotalAmountCents, stats.Channels)
 	}
 	if stats.UnassignedCount != 1 || len(stats.Trend) != 1 || stats.Trend[0].Date != "2026-10-30" {
@@ -54,7 +54,7 @@ func TestDB_StatsSeparatesHalfOpenOrderCountsFromPaidAmounts(t *testing.T) {
 		}
 	})
 	t.Run("V46.B.r01/v02", func(t *testing.T) {
-		if stats.Channels["alipay"].AmountCents != 100 || stats.Channels["wxpay"].AmountCents != 500 || stats.Channels["qqpay"].AmountCents != 0 || stats.UnassignedCount != 1 {
+		if stats.Channels["alipay"].AmountCents != 100 || stats.Channels["wxpay"].AmountCents != 500 || stats.UnassignedCount != 1 {
 			t.Fatalf("channel and unassigned totals = %#v unassigned=%d", stats.Channels, stats.UnassignedCount)
 		}
 	})

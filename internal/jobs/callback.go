@@ -20,7 +20,7 @@ func (w *callbackScanWorker) Work(ctx context.Context, _ *river.Job[CallbackScan
 		return errors.New("callback scanner is unavailable")
 	}
 	return pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT DISTINCT o.id FROM callback_events c JOIN orders o ON o.id=c.order_id WHERE c.state IN ('pending','failed','running') AND (c.next_attempt_at IS NULL OR c.next_attempt_at<=now()) AND o.status='paid' AND o.refunded_at IS NULL AND o.notify_url IS NOT NULL AND o.notify_url<>'' ORDER BY o.id LIMIT 200`)
+		rows, err := tx.Query(ctx, `SELECT DISTINCT o.id FROM callback_events c JOIN orders o ON o.id=c.order_id WHERE (c.state='running' OR (c.state IN ('pending','failed') AND c.next_attempt_at<=now())) AND o.status='paid' AND o.refunded_at IS NULL AND o.notify_url IS NOT NULL AND o.notify_url<>'' ORDER BY o.id LIMIT 200`)
 		if err != nil {
 			return err
 		}

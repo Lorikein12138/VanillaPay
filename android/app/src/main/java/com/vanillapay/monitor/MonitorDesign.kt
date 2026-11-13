@@ -100,18 +100,17 @@ internal class ChannelArtwork(@get:DrawableRes val drawable: Int, private val li
 internal fun channelArtwork(channel: Channel): ChannelArtwork = when (channel) {
     Channel.Alipay -> ChannelArtwork(R.drawable.channel_alipay, Color(0xff1677ff), Color(0xff6ba6ff))
     Channel.WeChat -> ChannelArtwork(R.drawable.channel_wechat, Color(0xff07a855), Color(0xff47d68a))
-    Channel.QQ -> ChannelArtwork(R.drawable.channel_qq, Color(0xff008cdb), Color(0xff58bfff))
 }
 
 internal fun pendingUploadColor(count: Int, accent: Color, normal: Color): Color =
     if (count > 0) accent else normal
 
 @Composable
-internal fun ChannelIcon(channel: Channel, size: Dp, tone: ChannelTone, enabled: Boolean = true) {
+internal fun ChannelIcon(channel: Channel?, size: Dp, tone: ChannelTone, enabled: Boolean = true) {
     val palette = LocalPalette.current
-    val artwork = channelArtwork(channel)
-    val painter = painterResource(artwork.drawable)
-    if (tone == ChannelTone.Brand) {
+    val artwork = channel?.let(::channelArtwork)
+    val painter = painterResource(artwork?.drawable ?: R.drawable.channel_other)
+    if (tone == ChannelTone.Brand && artwork != null) {
         val background = if (enabled) artwork.color(palette.dark) else palette.muted
         Box(
             Modifier.size(size).background(background, RoundedCornerShape(size / 4)),

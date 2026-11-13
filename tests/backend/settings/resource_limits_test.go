@@ -18,7 +18,7 @@ func TestDB_MediaAndDeviceSlotsDoNotExpandWithPlan(t *testing.T) {
 	db := testsupport.NewDatabase(t)
 	merchantID, _ := db.SeedMerchant(t)
 	firstPlan := db.SeedPlan(t, "resource-limit-basic", 1000, 30, []string{"alipay"}, nil)
-	secondPlan := db.SeedPlan(t, "resource-limit-premium", 10000, 365, []string{"alipay", "wxpay", "qqpay"}, nil)
+	secondPlan := db.SeedPlan(t, "resource-limit-premium", 10000, 365, []string{"alipay", "wxpay"}, nil)
 	application := db.NewApplication(t)
 	merchant := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 	admin := platform.Actor{Role: "admin", SubjectID: 1}
@@ -29,17 +29,17 @@ func TestDB_MediaAndDeviceSlotsDoNotExpandWithPlan(t *testing.T) {
 			t.Fatalf("grant basic plan: %v", err)
 		}
 		for _, item := range []struct{ channel, payload string }{
-			{"alipay", "https://qr.alipay.com/slot-a"}, {"wxpay", "wxp://slot?source=qr"}, {"qqpay", "https://i.qianbao.qq.com/slot-c"},
+			{"alipay", "https://qr.alipay.com/slot-a"}, {"wxpay", "wxp://slot?source=qr"},
 		} {
 			if _, err := application.Services.Settings.UploadQR(t.Context(), merchant, item.channel, bytes.NewReader(qrPNG(t, item.payload))); err != nil {
 				t.Fatalf("upload %s QR slot: %v", item.channel, err)
 			}
 		}
 		if _, err := application.Services.Settings.UploadQR(t.Context(), merchant, "alipay", bytes.NewReader(qrPNG(t, "https://qr.alipay.com/slot-replacement"))); err != nil {
-			t.Fatalf("replace existing Alipay slot instead of allocating a fourth: %v", err)
+			t.Fatalf("replace existing Alipay slot instead of allocating a third: %v", err)
 		}
 		if _, err := application.Services.Subscription.Grant(t.Context(), admin, merchantID, subscription.GrantRequest{
-			PlanID: strconv.FormatInt(secondPlan, 10), ExpiresAt: db.Clock.Now().Add(365 * 24 * time.Hour), Channels: []string{"alipay", "wxpay", "qqpay"}, ExpectedRevision: 1, Reason: "limit premium fixture",
+			PlanID: strconv.FormatInt(secondPlan, 10), ExpiresAt: db.Clock.Now().Add(365 * 24 * time.Hour), Channels: []string{"alipay", "wxpay"}, ExpectedRevision: 1, Reason: "limit premium fixture",
 		}); err != nil {
 			t.Fatalf("switch merchant to a plan with all channels: %v", err)
 		}
@@ -61,8 +61,8 @@ func TestDB_MediaAndDeviceSlotsDoNotExpandWithPlan(t *testing.T) {
 		if err := db.Pool.QueryRow(context.Background(), `SELECT count(*) FROM devices WHERE merchant_id=$1 AND revoked_at IS NULL`, merchantID).Scan(&activeDevices); err != nil {
 			t.Fatal("count active merchant devices")
 		}
-		if activeQR != 3 || activeDevices != 1 {
-			t.Fatalf("plan changed resource cap: active QR=%d active devices=%d, want 3/1", activeQR, activeDevices)
+		if activeQR != 2 || activeDevices != 1 {
+			t.Fatalf("plan changed resource cap: active QR=%d active devices=%d, want 2/1", activeQR, activeDevices)
 		}
 		t.Run("V40.B.r06/v01", func(t *testing.T) {
 			_, secondBindingErr := application.Services.Device.NewBinding(t.Context(), merchant, false)

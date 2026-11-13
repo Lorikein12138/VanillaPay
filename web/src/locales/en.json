@@ -114,7 +114,7 @@
     "features": {
       "codes": "Alipay and WeChat payment codes, together",
       "devices": "Monitor incoming payments and confirm orders",
-      "callbacks": "Automatic callback retries, with manual replay"
+      "callbacks": "Up to 10 automatic callback attempts scheduled within 24 hours, with manual replay"
     },
     "welcome": "Welcome back",
     "subtitle": "Sign in with your username or email",
@@ -167,6 +167,9 @@
     }
   },
   "merchant": {
+    "integration": {
+      "endpoints": { "submit": "Redirect to payment", "mapi": "Create order", "create": "Create order", "query": "Query order", "refund": "Request refund", "info": "Query merchant", "orders": "List orders", "close": "Close order", "refundquery": "Query refund" }
+    },
     "navigation": "Merchant navigation",
     "logout": "Sign out",
     "nav": {
@@ -226,7 +229,6 @@
       "channels": {
         "alipay": "Alipay",
         "wxpay": "WeChat Pay",
-        "qqpay": "QQ Wallet",
         "unassigned": "Unassigned"
       },
       "statuses": {
@@ -280,6 +282,7 @@
       "no": "No",
       "manualReason": "Supplement reason",
       "expireReason": "Expiry reason",
+      "expireReasons": { "timeout": "Payment timed out", "banned": "Merchant banned", "cancelled": "Order closed" },
       "callbackStatus": "Callback status",
       "refundInfo": "Refund information",
       "noRefund": "No refund requests",
@@ -858,6 +861,9 @@
         "preferences": "Preferences changed"
       },
       "merchant": {
+    "integration": {
+      "endpoints": { "submit": "Redirect to payment", "mapi": "Create order", "create": "Create order", "query": "Query order", "refund": "Request refund", "info": "Query merchant", "orders": "List orders", "close": "Close order", "refundquery": "Query refund" }
+    },
         "register": "Account registration",
         "reset_password": "Password changed",
         "reset_key": "Key reset",
@@ -939,8 +945,7 @@
     "notFoundHelp": "Check the order link or return to the merchant to place a new order.",
     "channels": {
       "alipay": "Alipay",
-      "wxpay": "WeChat Pay",
-      "qqpay": "QQ Wallet"
+      "wxpay": "WeChat Pay"
     },
     "status": {
       "paid": "Payment successful",

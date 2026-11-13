@@ -133,6 +133,27 @@ func TestOpenAPI_PublicFooterItemType(t *testing.T) {
 	checkRequestSchema(t, "public.footer[]", item, reflect.TypeFor[settings.FooterItem](), nil)
 }
 
+func TestOpenAPI_PaymentProtocolForms(t *testing.T) {
+	forms := map[string]string{
+		"/api.php":             "V1ActionForm",
+		"/api/merchant/info":   "V2MerchantInfoForm",
+		"/api/merchant/orders": "V2MerchantOrdersForm",
+		"/api/pay/close":       "V2QueryForm",
+		"/api/pay/refundquery": "V2RefundQueryForm",
+	}
+	paths := testsupport.OpenAPI(t).Paths
+	for path, name := range forms {
+		t.Run(path, func(t *testing.T) {
+			op := paths.Find(path).Post
+			content := op.RequestBody.Value.Content
+			form := content["application/x-www-form-urlencoded"]
+			if len(content) != 1 || form == nil || form.Schema.Ref != "#/components/schemas/"+name {
+				t.Fatalf("protocol request must use %s form fields", name)
+			}
+		})
+	}
+}
+
 func checkRequestSchema(t *testing.T, path string, ref *openapi3.SchemaRef, typ reflect.Type, variants map[string]any) {
 	t.Helper()
 	if ref == nil || ref.Value == nil {

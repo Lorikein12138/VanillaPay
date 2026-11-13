@@ -114,7 +114,7 @@
     "features": {
       "codes": "支付宝、微信收款码统一管理",
       "devices": "监控设备到账，自动确认订单",
-      "callbacks": "回调失败自动重试，可手动补发"
+      "callbacks": "回调自动投递最多 10 次，计划在 24 小时内完成，可手动补发"
     },
     "welcome": "欢迎回来",
     "subtitle": "使用用户名或邮箱登录",
@@ -167,6 +167,9 @@
     }
   },
   "merchant": {
+    "integration": {
+      "endpoints": { "submit": "跳转支付", "mapi": "创建订单", "create": "创建订单", "query": "查询订单", "refund": "申请退款", "info": "查询商户信息", "orders": "批量查询订单", "close": "关闭订单", "refundquery": "查询退款" }
+    },
     "navigation": "商户导航",
     "logout": "退出登录",
     "nav": {
@@ -226,7 +229,6 @@
       "channels": {
         "alipay": "支付宝",
         "wxpay": "微信支付",
-        "qqpay": "QQ 钱包",
         "unassigned": "未分配"
       },
       "statuses": {
@@ -280,6 +282,7 @@
       "no": "否",
       "manualReason": "补单原因",
       "expireReason": "过期原因",
+      "expireReasons": { "timeout": "支付超时", "banned": "商户已封禁", "cancelled": "订单已关闭" },
       "callbackStatus": "回调状态",
       "refundInfo": "退款信息",
       "noRefund": "暂无退款申请",
@@ -858,6 +861,9 @@
         "preferences": "修改偏好"
       },
       "merchant": {
+    "integration": {
+      "endpoints": { "submit": "跳转支付", "mapi": "创建订单", "create": "创建订单", "query": "查询订单", "refund": "申请退款", "info": "查询商户信息", "orders": "批量查询订单", "close": "关闭订单", "refundquery": "查询退款" }
+    },
         "register": "注册账户",
         "reset_password": "修改密码",
         "reset_key": "重置 Key",
@@ -939,8 +945,7 @@
     "notFoundHelp": "请检查订单链接，或返回商户重新下单。",
     "channels": {
       "alipay": "支付宝",
-      "wxpay": "微信支付",
-      "qqpay": "QQ 钱包"
+      "wxpay": "微信支付"
     },
     "status": {
       "paid": "支付成功",

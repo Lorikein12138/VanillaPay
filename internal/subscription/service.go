@@ -867,7 +867,7 @@ func validChannels(channels []string) bool {
 	}
 	seen := map[string]bool{}
 	for _, ch := range channels {
-		if ch != "alipay" && ch != "wxpay" && ch != "qqpay" || seen[ch] {
+		if !platform.ValidPaymentChannel(ch) || seen[ch] {
 			return false
 		}
 		seen[ch] = true

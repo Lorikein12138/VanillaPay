@@ -26,7 +26,7 @@ func TestDB_ExportUsesListFiltersFormulaEscapingAndAuditsOutcome(t *testing.T) {
 	insertOrder(t, db, merchantID, "export-formula-minus", "-1+1", "paid", "alipay", created.Add(4*time.Second), datePtr(created.Add(4*time.Second)), nil, 202)
 	insertOrder(t, db, merchantID, "export-formula-at", "@IMPORTXML(\"x\")", "paid", "alipay", created.Add(5*time.Second), datePtr(created.Add(5*time.Second)), nil, 203)
 	insertOrder(t, db, merchantID, "export-quoted", "comma, line\nwith \"quotes\"", "paid", "alipay", created.Add(6*time.Second), datePtr(created.Add(6*time.Second)), nil, 204)
-	insertOrder(t, db, otherID, "other-export", "private item", "paid", "qqpay", created, datePtr(created), nil, 400)
+	insertOrder(t, db, otherID, "other-export", "private item", "paid", "alipay", created, datePtr(created), nil, 400)
 
 	var output bytes.Buffer
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID, RequestID: "report-export-test"}
@@ -128,7 +128,7 @@ func TestDB_ExportMatchesFilteredListsAndIncludesRefundedOrders(t *testing.T) {
 	now := db.Clock.Now()
 	insertOrder(t, db, merchantOne, "csv-refunded-one", "refunded one", "refunded", "alipay", now, datePtr(now), datePtr(now), 100)
 	insertOrder(t, db, merchantTwo, "csv-refunded-two", "refunded two", "refunded", "wxpay", now.Add(time.Second), datePtr(now.Add(time.Second)), datePtr(now.Add(2*time.Second)), 200)
-	insertOrder(t, db, merchantOne, "csv-paid-one", "paid one", "paid", "qqpay", now.Add(3*time.Second), datePtr(now.Add(3*time.Second)), nil, 300)
+	insertOrder(t, db, merchantOne, "csv-paid-one", "paid one", "paid", "alipay", now.Add(3*time.Second), datePtr(now.Add(3*time.Second)), nil, 300)
 	actors := []platform.Actor{
 		{Role: "merchant", SubjectID: merchantOne, MerchantID: merchantOne},
 		{Role: "admin", SubjectID: 1},

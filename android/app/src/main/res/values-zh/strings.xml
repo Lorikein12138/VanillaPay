@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">VanillaPay Monitor</string>
+    <string name="launcher_name">VanillaPay</string>
+    <string name="other_channel">其他渠道</string>
+</resources>

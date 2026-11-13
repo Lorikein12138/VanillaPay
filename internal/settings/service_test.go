@@ -55,8 +55,7 @@ func TestUnit_QRPayloadRequiresExactProviderHost(t *testing.T) {
 		{"wxpay", "wxp://f2f0abc", true},
 		{"wxpay", "https://wx.tenpay.com/cgi-bin/mmpayweb-bin/checkmweb", true},
 		{"wxpay", "https://evil.example/?next=wx.tenpay.com", false},
-		{"qqpay", "https://i.qianbao.qq.com/qr", true},
-		{"qqpay", "https://qianbao.qq.com.attacker.example/qr", false},
+		{"qqpay", "https://i.qianbao.qq.com/qr", false},
 	}
 	for _, tc := range cases {
 		if got := validQRPayload(tc.channel, tc.payload); got != tc.valid {

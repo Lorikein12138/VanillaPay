@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -159,7 +160,7 @@ internal fun SetupScreen(
         Headline("开始监听之前")
         Paragraph("这些设置决定手机锁屏后还能不能收到到账通知。建议用一台常年插电的备用机。")
         Panel {
-            CheckRow("读取通知", "识别支付宝、微信、QQ 的到账通知。必须开启。", checks.access, "去开启", openAccess)
+            CheckRow("读取通知", "识别支付宝和微信的到账通知。必须开启。", checks.access, "去开启", openAccess)
             Rule()
             CheckRow("允许发送通知", "通知栏常驻「正在监听」，点开回到 app。", checks.posting, "去开启", openPosting)
             Rule()
@@ -287,7 +288,7 @@ private fun Metric(label: String, value: Int, modifier: Modifier, color: Color) 
 @Composable
 internal fun ReceiptRow(receipt: Receipt) {
     val palette = LocalPalette.current
-    val channel = Channel.entries.first { it.wire == receipt.channel }
+    val channel = Channel.entries.firstOrNull { it.wire == receipt.channel }
     val (status, color, detail) = when (receipt.status) {
         MATCHED -> Triple("已匹配", palette.good, receipt.detail?.let { "订单 $it" })
         QUEUED -> Triple("待上传", palette.wait, "网络恢复后自动重试")
@@ -303,7 +304,7 @@ internal fun ReceiptRow(receipt: Receipt) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 ChannelIcon(channel, size = 14.dp, tone = ChannelTone.Plain)
-                Text(channel.display, color = palette.secondary, fontSize = 13.sp,
+                Text(channel?.display ?: stringResource(R.string.other_channel), color = palette.secondary, fontSize = 13.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(localTime(receipt.occurredAt, "HH:mm:ss"), Modifier.alignByBaseline(), color = palette.subtle,
@@ -399,14 +400,15 @@ internal fun DiagnosticsScreen(
         }
         if (entries.isEmpty()) Panel { Caption("暂无可测试的通知") }
         entries.forEach { entry ->
-            val channel = Channel.entries.first { it.wire == entry.channel }
+            val channel = Channel.entries.firstOrNull { it.wire == entry.channel }
+            val channelName = channel?.display ?: stringResource(R.string.other_channel)
             Panel {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     ChannelIcon(channel, size = 14.dp, tone = ChannelTone.Plain)
-                    Caption("${channel.display} · ${localTime(entry.postTime, "MM-dd HH:mm:ss")}")
+                    Caption("$channelName · ${localTime(entry.postTime, "MM-dd HH:mm:ss")}")
                 }
                 val cents = entry.cents
-                Pill(if (cents == null) "未识别" else "识别为 ${channel.display} · ${yuan(cents)}",
+                Pill(if (cents == null) "未识别" else "识别为 $channelName · ${yuan(cents)}",
                     if (cents == null) LocalPalette.current.secondary else LocalPalette.current.good)
                 Column {
                     Text(entry.raw)

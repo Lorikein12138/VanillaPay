@@ -210,7 +210,6 @@ it('uses only plan channels, byte validation and the latest subscription revisio
   }))
   mount('/console/merchants/42')
   const dialog = await grant()
-  expect(within(dialog).queryByRole('checkbox', { name: 'QQ 钱包' })).toBeNull()
   fill(dialog, '原因', '中'.repeat(167))
   expect(within(dialog).getByRole('button', { name: '调整订阅' })).toBeDisabled()
   fill(dialog, '原因', '人工开通'); submit(dialog, '调整订阅')
@@ -461,17 +460,17 @@ it('does not navigate or reopen a dialog when a create response arrives after le
 
 
 it('resets channels to the selected plan subset before submitting', async () => {
-  const other = { ...plan, id: '4', name: { zh_CN: 'QQ 套餐', en: 'QQ' }, channels: ['qqpay'] }
+  const other = { ...plan, id: '4', name: { zh_CN: '微信套餐', en: 'WeChat' }, channels: ['wxpay'] }
   server.use(http.get('*/api/v1/console/plans', () => success({ items: [plan, other], total: 2, next_cursor: null })),
     http.put('*/api/v1/console/merchants/42/subscription', async ({ request }) => {
-      expect(await request.json()).toMatchObject({ plan_id: '4', channels: ['qqpay'], expected_revision: 5 })
+      expect(await request.json()).toMatchObject({ plan_id: '4', channels: ['wxpay'], expected_revision: 5 })
       return success(current.subscription)
     }))
   mount('/console/merchants/42')
   const dialog = await grant()
   await chooseSelect(userEvent.setup(), within(dialog).getByLabelText('套餐', { exact: true }), '4')
   expect(within(dialog).queryByRole('checkbox', { name: '支付宝' })).toBeNull()
-  expect(within(dialog).getByRole('checkbox', { name: 'QQ 钱包' })).toBeChecked()
+  expect(within(dialog).getByRole('checkbox', { name: '微信支付' })).toBeChecked()
   submit(dialog, '调整订阅'); await screen.findByText('订阅已更新。')
 })
 

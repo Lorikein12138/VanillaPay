@@ -17,10 +17,6 @@ import (
 
 var uuidPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
-func validDeviceChannel(value string) bool {
-	return value == "alipay" || value == "wxpay" || value == "qqpay"
-}
-
 func (s *Service) Ingest(ctx context.Context, device DeviceIdentity, req ReceiptRequest) (ReceiptResult, error) {
 	if device.DeviceID <= 0 || device.MerchantID <= 0 {
 		return ReceiptResult{}, deviceErr("DEVICE_UNAUTHORIZED", 401)
@@ -31,7 +27,7 @@ func (s *Service) Ingest(ctx context.Context, device DeviceIdentity, req Receipt
 		actor.RequestID = metadata.RequestID
 	}
 	ctx = platform.WithActor(ctx, actor)
-	if !uuidPattern.MatchString(req.EventID) || !validDeviceChannel(req.Channel) || req.AmountCents <= 0 || req.AmountCents > payment.MaxAmountCents || req.OccurredAt.IsZero() || len(req.ProviderTradeNo) > 128 || len(req.PayerHint) > 200 || len([]rune(req.RawText)) > 4096 {
+	if !uuidPattern.MatchString(req.EventID) || !platform.ValidPaymentChannel(req.Channel) || req.AmountCents <= 0 || req.AmountCents > payment.MaxAmountCents || req.OccurredAt.IsZero() || len(req.ProviderTradeNo) > 128 || len(req.PayerHint) > 200 || len([]rune(req.RawText)) > 4096 {
 		return ReceiptResult{}, deviceErr("VALIDATION_ERROR", 400)
 	}
 	digestData, _ := json.Marshal(req)

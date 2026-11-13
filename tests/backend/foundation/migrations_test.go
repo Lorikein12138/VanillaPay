@@ -62,8 +62,8 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 	}
 	t.Run("V03.B.r01/v01", func(t *testing.T) {
 		var version int64
-		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 9 {
-			t.Fatalf("empty isolated schema goose version=%d err=%v, want 9", version, err)
+		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 10 {
+			t.Fatalf("empty isolated schema goose version=%d err=%v, want 10", version, err)
 		}
 	})
 
@@ -95,6 +95,33 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 		after := applicationCatalog(ctx, t, admin, schema)
 		if strings.Join(before, "\n") != strings.Join(after, "\n") {
 			t.Fatalf("down/up changed application constraints/indexes\nbefore:\n%s\nafter:\n%s", strings.Join(before, "\n"), strings.Join(after, "\n"))
+		}
+	})
+	t.Run("payment channels reject legacy rows before changing data", func(t *testing.T) {
+		if _, err := provider.DownTo(ctx, 9); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := migrationDB.ExecContext(ctx, `INSERT INTO plans(name_zh,price_cents,duration_days,channels) VALUES('legacy',100,1,ARRAY['alipay','qqpay'])`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.UpTo(ctx, 10); err == nil || !strings.Contains(err.Error(), "plans=1") {
+			t.Fatalf("legacy plan must stop migration with row count: %v", err)
+		}
+		var legacy bool
+		if err := migrationDB.QueryRowContext(ctx, `SELECT 'qqpay'=ANY(channels) FROM plans WHERE name_zh='legacy'`).Scan(&legacy); err != nil || !legacy {
+			t.Fatalf("failed migration changed the legacy plan: legacy=%t err=%v", legacy, err)
+		}
+		if _, err := migrationDB.ExecContext(ctx, `UPDATE plans SET channels=ARRAY['alipay'] WHERE name_zh='legacy'`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.UpTo(ctx, 10); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := migrationDB.ExecContext(ctx, `UPDATE plans SET channels=ARRAY['qqpay'] WHERE name_zh='legacy'`); err == nil {
+			t.Fatal("migration did not enforce the two-channel plan constraint")
+		}
+		if _, err := migrationDB.ExecContext(ctx, `DELETE FROM plans WHERE name_zh='legacy'`); err != nil {
+			t.Fatal(err)
 		}
 	})
 	t.Run("turnstile upgrade", func(t *testing.T) {

@@ -19,6 +19,7 @@ type CreateCommand struct {
 	ProductID     string
 	Param         string
 	OriginalCents int64
+	money         string
 	NotifyURL     string
 	ReturnURL     string
 	ClientIP      string

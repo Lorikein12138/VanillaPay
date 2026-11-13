@@ -1508,13 +1508,13 @@ export interface paths {
         };
         /**
          * GET /api.php
-         * @description V1 查询/退款：key 必填；提供 sign 时也校验 MD5。act=order 查询，act=refund 请求退款。
+         * @description V1 商户协议，key 必填，提供 sign 时也校验 MD5。act=order 查单，act=refund 请求退款，act=query 查询商户和订单统计，act=orders 分页查询外部订单，count 为符合筛选条件的总数。
          */
         get: operations["get_api_php"];
         put?: never;
         /**
          * POST /api.php
-         * @description V1 查询/退款：key 必填；提供 sign 时也校验 MD5。act=order 查询，act=refund 请求退款。兼容易支付客户端在查询串与表单中重复发送同一参数：同名参数两处值相同视为一个参数，值不同返回 INVALID_SIGNATURE。
+         * @description V1 商户协议，key 必填，提供 sign 时也校验 MD5。act=order 查单，act=refund 请求退款，act=query 查询商户和订单统计，act=orders 分页查询外部订单。兼容易支付客户端在查询串与表单中重复发送同一参数：同名参数两处值相同视为一个参数，值不同返回 INVALID_SIGNATURE。
          */
         post: operations["post_api_php"];
         delete?: never;
@@ -1577,6 +1577,86 @@ export interface paths {
          * @description 支付协议使用表单/查询参数签名，不使用网站 JSON 信封。V1 为 MD5，V2 为 RSA-SHA256，timestamp 在允许时间窗内。POST 不接受查询串与表单重复参数。
          */
         post: operations["post_api_pay_refund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/merchant/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /api/merchant/info
+         * @description 查询本商户外部订单统计，今日和昨日按 Asia/Shanghai 划分，金额按已支付订单原始金额计算。
+         */
+        post: operations["post_api_merchant_info"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/merchant/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /api/merchant/orders
+         * @description 分页查询本商户外部订单。按创建时间和内部 ID 倒序，count 为符合筛选条件的总数。响应签名时 data 使用响应中的原始紧凑 JSON（保留数组顺序、对象键顺序及字符转义）。
+         */
+        post: operations["post_api_merchant_orders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /api/pay/close
+         * @description 关闭本商户未过期的待支付外部订单。trade_no 与 out_trade_no 至少提供一个，同时提供时须指向同一订单。
+         */
+        post: operations["post_api_pay_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/refundquery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /api/pay/refundquery
+         * @description 查询本商户外部订单的退款请求。refund_no 与 out_refund_no 至少提供一个，同时提供时须指向同一退款。
+         */
+        post: operations["post_api_pay_refundquery"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2190,7 +2270,6 @@ export interface components {
             channels: {
                 alipay: components["schemas"]["PortalChannelStats"];
                 wxpay: components["schemas"]["PortalChannelStats"];
-                qqpay: components["schemas"]["PortalChannelStats"];
             } | null;
             /** Format: date-time */
             end: string;
@@ -2655,12 +2734,18 @@ export interface components {
                 mapi: string;
                 query: string;
                 refund: string;
+                info: string;
+                orders: string;
             };
             v2: {
                 submit: string;
                 create: string;
                 query: string;
                 refund: string;
+                info: string;
+                orders: string;
+                close: string;
+                refundquery: string;
             };
             merchant_public_key: string | null;
             platform_public_keys: {
@@ -2724,6 +2809,7 @@ export interface components {
             key_version: string | null;
             clientip: string | null;
             receipt_id: string | null;
+            /** @description 异步通知以 GET 发送合并后的签名查询参数。商户查询参数参与签名，保留字段由平台覆盖，空值按协议略过。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。历史订单含此类查询串时只发送签名后的协议字段。2xx 响应体去除首尾空白后须忽略大小写地等于 success。每代最多 10 次，失败间隔依次为 1m、2m、5m、15m、30m、1h、2h、6h、14h。 */
             callback_attempts: components["schemas"]["PaymentRefundAttempt"][] | null;
             refund: components["schemas"]["PortalRefundDTO"] | null;
         };
@@ -2747,7 +2833,10 @@ export interface components {
             pid: string;
             trade_no: string;
             out_trade_no: string;
-            type: string;
+            /** @enum {string} */
+            type: "" | "alipay" | "wxpay";
+            /** @description 仅待支付且未过期时返回收银台 URL。 */
+            payurl?: string;
             /** Format: int64 */
             status: number;
             addtime: string;
@@ -2794,6 +2883,8 @@ export interface components {
             trade_no: string;
             pay_type: string;
             pay_info: string;
+            /** @description 与 pay_info 相同的收银台 URL。 */
+            payurl: string;
             timestamp: string;
             /** @enum {string} */
             sign_type: "RSA";
@@ -2807,7 +2898,10 @@ export interface components {
             pid: string;
             trade_no: string;
             out_trade_no: string;
-            type: string;
+            /** @enum {string} */
+            type: "" | "alipay" | "wxpay";
+            /** @description 仅待支付且未过期时返回收银台 URL。 */
+            payurl?: string;
             /** Format: int64 */
             status: number;
             addtime: string;
@@ -2850,13 +2944,16 @@ export interface components {
         };
         V1CreateForm: {
             pid: string;
-            type?: string;
+            /** @enum {string} */
+            type?: "" | "alipay" | "wxpay";
             out_trade_no: string;
+            /** @description 异步通知地址。商户查询参数参与签名，保留字段由平台覆盖。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。 */
             notify_url: string;
             return_url?: string;
             name: string;
             money: string;
             clientip?: string;
+            /** @description 买家环境，接受任意值。 */
             device?: string;
             param?: string;
             product_id?: string;
@@ -2866,13 +2963,16 @@ export interface components {
         };
         V2CreateForm: {
             pid: string;
-            type?: string;
+            /** @enum {string} */
+            type?: "" | "alipay" | "wxpay";
             out_trade_no: string;
+            /** @description 异步通知地址。商户查询参数参与签名，保留字段由平台覆盖。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。 */
             notify_url: string;
             return_url?: string;
             name: string;
             money: string;
             clientip?: string;
+            /** @description 买家环境，接受任意值。 */
             device?: string;
             param?: string;
             product_id?: string;
@@ -2895,12 +2995,24 @@ export interface components {
             sign?: string;
             sign_type?: string;
             /** @enum {string} */
-            act: "order" | "refund";
+            act: "order" | "refund" | "query" | "orders";
             trade_no?: string;
             out_trade_no?: string;
             money?: string;
             out_refund_no?: string;
             reason?: string;
+            /**
+             * @description 超过 50 按 50 处理。
+             * @default 10
+             */
+            limit: number;
+            /** @default 0 */
+            offset: number;
+            /**
+             * @description 0 为待支付或已过期，1 为已支付，2 为已退款。
+             * @enum {integer}
+             */
+            status?: 0 | 1 | 2;
         };
         V2QueryForm: {
             pid: string;
@@ -2920,6 +3032,152 @@ export interface components {
             money: string;
             out_refund_no: string;
             reason?: string;
+        };
+        V1MerchantInfo: {
+            /** @enum {integer} */
+            code: 1;
+            pid: string;
+            order_money_today: string;
+            order_money_lastday: string;
+            /** @enum {integer} */
+            active: 0 | 1;
+            orders: number;
+            orders_today: number;
+            orders_lastday: number;
+        };
+        V2MerchantInfo: {
+            /** @enum {integer} */
+            code: 0;
+            pid: string;
+            order_money_today: string;
+            order_money_lastday: string;
+            /** @enum {integer} */
+            status: 0 | 1;
+            order_num: number;
+            order_num_today: number;
+            order_num_lastday: number;
+            timestamp: string;
+            /** @enum {string} */
+            sign_type: "RSA";
+            key_id: string;
+            sign: string;
+        };
+        V1MerchantOrderItem: {
+            trade_no: string;
+            out_trade_no: string;
+            /** @enum {string} */
+            type: "" | "alipay" | "wxpay";
+            pid: string;
+            addtime: string;
+            endtime: string | null;
+            name: string;
+            money: string;
+            param: string;
+            buyer: string;
+            /** @enum {integer} */
+            status: 0 | 1 | 2;
+        };
+        V2MerchantOrderItem: {
+            trade_no: string;
+            out_trade_no: string;
+            /** @enum {string} */
+            type: "" | "alipay" | "wxpay";
+            pid: string;
+            addtime: string;
+            endtime: string | null;
+            name: string;
+            money: string;
+            param: string;
+            buyer: string;
+            /** @enum {integer} */
+            status: 0 | 1 | 2;
+            api_trade_no: string;
+            clientip: string;
+            refundmoney: string;
+        };
+        V1MerchantOrders: {
+            /** @enum {integer} */
+            code: 1;
+            msg: string;
+            count: number;
+            data: components["schemas"]["V1MerchantOrderItem"][];
+        };
+        V2MerchantOrders: {
+            /** @enum {integer} */
+            code: 0;
+            msg: string;
+            count: number;
+            data: components["schemas"]["V2MerchantOrderItem"][];
+            timestamp: string;
+            /** @enum {string} */
+            sign_type: "RSA";
+            key_id: string;
+            sign: string;
+        };
+        V2MerchantInfoForm: {
+            pid: string;
+            timestamp: string;
+            /** @enum {string} */
+            sign_type: "RSA";
+            sign: string;
+        };
+        V2MerchantOrdersForm: {
+            pid: string;
+            timestamp: string;
+            /** @enum {string} */
+            sign_type: "RSA";
+            sign: string;
+            /**
+             * @description 超过 50 按 50 处理。
+             * @default 10
+             */
+            limit: number;
+            /** @default 0 */
+            offset: number;
+            /**
+             * @description 0 为待支付或已过期，1 为已支付，2 为已退款。
+             * @enum {integer}
+             */
+            status?: 0 | 1 | 2;
+        };
+        V2Close: {
+            /** @enum {integer} */
+            code: 0;
+            msg: string;
+            timestamp: string;
+            /** @enum {string} */
+            sign_type: "RSA";
+            key_id: string;
+            sign: string;
+        };
+        V2RefundQueryForm: {
+            pid: string;
+            timestamp: string;
+            /** @enum {string} */
+            sign_type: "RSA";
+            sign: string;
+            refund_no?: string;
+            out_refund_no?: string;
+        };
+        V2RefundQuery: {
+            /** @enum {integer} */
+            code: 0;
+            refund_no: string;
+            out_refund_no: string;
+            trade_no: string;
+            out_trade_no: string;
+            money: string;
+            /** @enum {integer} */
+            status: 0 | 1 | 2;
+            /** @enum {string} */
+            refund_status: "pending" | "completed" | "rejected";
+            addtime: string;
+            endtime: string;
+            timestamp: string;
+            /** @enum {string} */
+            sign_type: "RSA";
+            key_id: string;
+            sign: string;
         };
     };
     responses: {
@@ -4842,7 +5100,7 @@ export interface operations {
                 Origin: string;
             };
             path: {
-                channel: "alipay" | "wxpay" | "qqpay";
+                channel: "alipay" | "wxpay";
             };
             cookie?: never;
         };
@@ -4882,7 +5140,7 @@ export interface operations {
                 Origin: string;
             };
             path: {
-                channel: "alipay" | "wxpay" | "qqpay";
+                channel: "alipay" | "wxpay";
             };
             cookie?: never;
         };
@@ -6183,12 +6441,15 @@ export interface operations {
                 key: string;
                 sign?: string;
                 sign_type?: string;
-                act: "order" | "refund";
+                act: "order" | "refund" | "query" | "orders";
                 trade_no?: string;
                 out_trade_no?: string;
                 money?: string;
                 out_refund_no?: string;
                 reason?: string;
+                limit?: number;
+                offset?: number;
+                status?: 0 | 1 | 2;
             };
             header?: never;
             path?: never;
@@ -6202,7 +6463,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["V1Order"] | components["schemas"]["V1Refund"] | components["schemas"]["ProtocolError"];
+                    "application/json": components["schemas"]["V1Order"] | components["schemas"]["V1Refund"] | components["schemas"]["V1MerchantInfo"] | components["schemas"]["V1MerchantOrders"] | components["schemas"]["ProtocolError"];
                 };
             };
         };
@@ -6226,7 +6487,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["V1Order"] | components["schemas"]["V1Refund"] | components["schemas"]["ProtocolError"];
+                    "application/json": components["schemas"]["V1Order"] | components["schemas"]["V1Refund"] | components["schemas"]["V1MerchantInfo"] | components["schemas"]["V1MerchantOrders"] | components["schemas"]["ProtocolError"];
                 };
             };
         };
@@ -6330,12 +6591,145 @@ export interface operations {
             };
         };
     };
+    post_api_merchant_info: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["V2MerchantInfoForm"];
+            };
+        };
+        responses: {
+            /** @description 已签名的协议结果；业务失败亦使用 HTTP 200 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V2MerchantInfo"] | components["schemas"]["V2Error"];
+                };
+            };
+            /** @description 平台签名密钥不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProtocolError"];
+                };
+            };
+        };
+    };
+    post_api_merchant_orders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["V2MerchantOrdersForm"];
+            };
+        };
+        responses: {
+            /** @description 已签名的协议结果；业务失败亦使用 HTTP 200 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V2MerchantOrders"] | components["schemas"]["V2Error"];
+                };
+            };
+            /** @description 平台签名密钥不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProtocolError"];
+                };
+            };
+        };
+    };
+    post_api_pay_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["V2QueryForm"];
+            };
+        };
+        responses: {
+            /** @description 已签名的协议结果；业务失败亦使用 HTTP 200 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V2Close"] | components["schemas"]["V2Error"];
+                };
+            };
+            /** @description 平台签名密钥不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProtocolError"];
+                };
+            };
+        };
+    };
+    post_api_pay_refundquery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["V2RefundQueryForm"];
+            };
+        };
+        responses: {
+            /** @description 已签名的协议结果；业务失败亦使用 HTTP 200 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V2RefundQuery"] | components["schemas"]["V2Error"];
+                };
+            };
+            /** @description 平台签名密钥不可用 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProtocolError"];
+                };
+            };
+        };
+    };
     get_api_pay_submit: {
         parameters: {
             query: {
                 pid: string;
-                type?: string;
+                type?: "" | "alipay" | "wxpay";
                 out_trade_no: string;
+                /** @description 异步通知地址。商户查询参数参与签名，保留字段由平台覆盖。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。 */
                 notify_url: string;
                 return_url?: string;
                 name: string;
@@ -6552,8 +6946,9 @@ export interface operations {
         parameters: {
             query: {
                 pid: string;
-                type?: string;
+                type?: "" | "alipay" | "wxpay";
                 out_trade_no: string;
+                /** @description 异步通知地址。商户查询参数参与签名，保留字段由平台覆盖。无法解析的查询串或重复的非保留键会导致下单返回 INVALID_URL。 */
                 notify_url: string;
                 return_url?: string;
                 name: string;

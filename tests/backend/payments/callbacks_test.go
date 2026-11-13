@@ -135,8 +135,8 @@ func TestDB_CallbackRetryKeepsTradeNumberIdempotencyKey(t *testing.T) {
 			return
 		}
 		mu.Lock()
-		values := make(url.Values, len(r.PostForm))
-		for key, entries := range r.PostForm {
+		values := make(url.Values, len(r.URL.Query()))
+		for key, entries := range r.URL.Query() {
 			values[key] = append([]string(nil), entries...)
 		}
 		received = append(received, values)
@@ -146,7 +146,7 @@ func TestDB_CallbackRetryKeepsTradeNumberIdempotencyKey(t *testing.T) {
 			http.Error(w, "temporary receiver failure", http.StatusServiceUnavailable)
 			return
 		}
-		_, _ = w.Write([]byte("success"))
+		_, _ = w.Write([]byte(" \tSUCCESS\n"))
 	}))
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
 	order, err := fixture.App.Services.Payment.Create(t.Context(), payment.CreateCommand{

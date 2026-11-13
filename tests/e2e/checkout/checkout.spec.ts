@@ -5,13 +5,12 @@ import type { components } from '../../../web/src/api/schema'
 import { chooseMenu, polishShot } from '../merchant/fixtures'
 
 type Checkout = components['schemas']['PaymentCheckoutDTO']
-const channelNames = { alipay: '支付宝', wxpay: '微信支付', qqpay: 'QQ 钱包' } as const
+const channelNames = { alipay: '支付宝', wxpay: '微信支付' } as const
 
 async function prepare(request: APIRequestContext) {
   const qrURLs = {
     alipay: 'https://qr.alipay.com/checkout-example',
     wxpay: 'wxp://checkout-example',
-    qqpay: 'https://i.qianbao.qq.com/checkout-example',
   } satisfies Record<keyof typeof channelNames, string>
   const codes = Object.fromEntries(await Promise.all(Object.entries(qrURLs).map(async ([channel, url]) => {
     const png = await QRCode.toBuffer(url, { width: 300 })
@@ -53,18 +52,10 @@ async function expectChannelLayout(page: Page) {
   const buttons = Object.values(channelNames).map((name) => page.getByRole('button', { name, exact: true }))
   for (const button of buttons) await expect(button).toBeVisible()
   const boxes = (await Promise.all(buttons.map((button) => button.boundingBox()))).map((box) => box!)
-  // Three channels share one row from the `sm` breakpoint and stack as full-width rows below it.
-  const row = page.viewportSize()!.width >= 640
-  for (const [previous, next] of boxes.slice(1).map((box, index) => [boxes[index]!, box] as const)) {
-    expect(next.width).toBeCloseTo(previous.width)
-    if (row) {
-      expect(next.y).toBe(previous.y)
-      expect(next.x).toBeGreaterThan(previous.x + previous.width)
-    } else {
-      expect(next.x).toBe(previous.x)
-      expect(next.y).toBeGreaterThan(previous.y + previous.height)
-    }
-  }
+  const [first, second] = boxes
+  expect(second!.width).toBeCloseTo(first!.width)
+  expect(second!.y).toBe(first!.y)
+  expect(second!.x).toBeGreaterThan(first!.x + first!.width)
 }
 
 test('public v1 checkout locks a channel, serves its signed QR and receives a real device payment', async ({ page, request }) => {
@@ -89,7 +80,6 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
   await expect.poll(() => qr.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBe(300)
   await expect(page.getByRole('note')).toContainText('请务必支付 ¥29.99')
   await expect(page.getByRole('button', { name: '微信支付', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'QQ 钱包', exact: true })).toHaveCount(0)
   await screenshots(page, 'locked')
   const receipt = await request.post('/api/v1/device/receipts', {
     headers: { Authorization: `Bearer ${deviceToken}` },

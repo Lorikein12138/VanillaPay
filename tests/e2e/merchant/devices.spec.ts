@@ -154,7 +154,10 @@ test('links to the published Android installer and serves it as an attachment', 
 
 test('obtains a security email code, resets the key once and saves an IP whitelist', async ({ page, account, request }) => {
   await signIn(page, account, '/integration')
-  await polishShot(page, 'integration')
+  for (const path of ['/api.php?act=query', '/api.php?act=orders', '/api/merchant/info', '/api/merchant/orders', '/api/pay/close', '/api/pay/refundquery']) {
+    await expect(page.getByText(new URL(path, page.url()).href, { exact: true })).toBeVisible()
+  }
+  await merchantVisualShots(page, async () => { await polishShot(page, 'integration', true, 'payment-protocol-compat-shots') })
   await page.getByRole('button', { name: '重置 Key', exact: true }).click()
   await polishShot(page, 'reset-key-dialog', false)
   await mailbox(page, request, account.username)

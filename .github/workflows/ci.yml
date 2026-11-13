@@ -175,6 +175,21 @@ jobs:
         working-directory: android
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Require a monitor version change for app source changes
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if ! git diff --quiet "$PR_BASE_SHA" HEAD -- app/src/main/; then
+            previous=$(git show "$PR_BASE_SHA:android/app/build.gradle.kts" | sed -n 's/^val monitorVersion = "\([^"]*\)"$/\1/p')
+            current=$(sed -n 's/^val monitorVersion = "\([^"]*\)"$/\1/p' app/build.gradle.kts)
+            if [[ -z "$previous" || -z "$current" || "$previous" == "$current" ]]; then
+              echo 'Changes under android/app/src/main/ require a monitorVersion change.'
+              exit 1
+            fi
+          fi
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
