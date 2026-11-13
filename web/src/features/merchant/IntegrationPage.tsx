@@ -123,7 +123,7 @@ function NotifyDomainsForm({ name, value }: { name: string; value: Schema['Merch
     </Field>
     {saved && <Notice tone="success">{t('risk.domains.saved')}</Notice>}
     {action.error != null && <ModuleError error={action.error} />}
-    <FormActions><Button type="submit" variant="primary" loading={action.busy}>{t('risk.domains.save')}</Button></FormActions>
+    <FormActions className="border-t-[0.5px] border-border pt-5"><Button type="submit" variant="primary" loading={action.busy}>{t('risk.domains.save')}</Button></FormActions>
   </form>
 }
 

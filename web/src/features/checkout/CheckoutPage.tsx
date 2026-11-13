@@ -96,7 +96,7 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
   const gated = data?.verification?.required === true
   const amount = data?.channel && !gated ? data.actual_cents : data?.original_cents
   return <PaymentShell merchant={data?.merchant?.username || 'VanillaPay'} controls={<><LanguageSwitch /><ThemeSwitch /></>} footer={t('checkout.footer')}>
-    {blocked ? <PaymentResult kind="unavailable" title={t('checkout.ipBlocked')}><p>{t('checkout.ipBlockedHelp')}</p></PaymentResult>
+    {blocked ? <PaymentResult kind="blocked" title={t('checkout.ipBlocked')}><p>{t('checkout.ipBlockedHelp')}</p></PaymentResult>
       : state.missing ? <PaymentResult kind="unavailable" title={t('checkout.notFound')}><p>{t('checkout.notFoundHelp')}</p></PaymentResult>
       : !data ? state.isPending ? <p role="status">{t('checkout.loading')}</p> : <Notice tone="error">{t('checkout.retryError')} <Button variant="ghost" onClick={() => void state.refetch()}>{t('checkout.retry')}</Button></Notice>
         : terminal ? <><PaymentResult kind={data.status as 'paid' | 'expired' | 'refunded'} title={t(`checkout.status.${data.status}`, { defaultValue: data.status })}>

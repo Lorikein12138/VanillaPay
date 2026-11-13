@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Check, Clock, RotateCcw, Store } from 'lucide-react'
+import { Check, Clock, RotateCcw, ShieldX, Store } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, type ButtonProps } from './button'
 import { channelPaths } from './channel-paths'
@@ -128,8 +128,8 @@ export function PaymentQR({ src, alt }: { src: string; alt: string }) {
   return <div className="mx-auto w-full max-w-[248px] rounded-2xl bg-white p-4 shadow-[0_0_0_0.5px_rgba(20,20,19,0.1)]"><img className="aspect-square w-full object-contain" src={src} alt={alt} /></div>
 }
 
-export function PaymentResult({ kind, title, children }: { kind: 'paid' | 'expired' | 'refunded' | 'unavailable'; title: ReactNode; children: ReactNode }) {
-  const Icon = kind === 'paid' ? Check : kind === 'refunded' ? RotateCcw : Clock
+export function PaymentResult({ kind, title, children }: { kind: 'paid' | 'expired' | 'refunded' | 'unavailable' | 'blocked'; title: ReactNode; children: ReactNode }) {
+  const Icon = kind === 'paid' ? Check : kind === 'refunded' ? RotateCcw : kind === 'blocked' ? ShieldX : Clock
   return <div className="flex flex-col items-center gap-4 pt-3 text-center">
     <span className={kind === 'paid' ? 'rounded-full bg-dot-ok/10 p-4 text-dot-ok' : 'rounded-full bg-muted p-4 text-text-2'}><Icon className="size-7" aria-hidden="true" /></span>
     <h1 className="font-serif text-[1.625rem] leading-[1.25] tracking-[-0.01em]">{title}</h1><div className="flex w-full flex-col items-center gap-4 text-label text-text-2">{children}</div>
