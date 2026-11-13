@@ -189,7 +189,7 @@ func testCallbackRetryScheduleAndEvidence(t *testing.T) callbackRetrySnapshot {
 			t.Fatalf("retry attempt %d evidence id=%d start=%s finish=%s status=%d code=%q duration=%d url=%q", attempt, attemptID, started, finished, status, code, duration, redacted)
 		}
 		if attempt < 10 {
-			wantDelay := []time.Duration{0, time.Minute, 5 * time.Minute, 15 * time.Minute, 30 * time.Minute, time.Hour, 3 * time.Hour, 6 * time.Hour, 12 * time.Hour, 24 * time.Hour}[attempt]
+			wantDelay := []time.Duration{0, time.Minute, 2 * time.Minute, 5 * time.Minute, 15 * time.Minute, 30 * time.Minute, time.Hour, 2 * time.Hour, 6 * time.Hour, 14 * time.Hour}[attempt]
 			if next == nil {
 				t.Fatalf("retry attempt %d omitted next attempt time, want delay %s", attempt, wantDelay)
 			}
@@ -249,17 +249,19 @@ func testRealCallbackAttempts(t *testing.T) {
 	timeoutFinished := make(chan struct{}, 1)
 	const callbackQuerySecret = "callback-query-secret-must-not-be-stored"
 	network.ServeTLS(t, "callback.vp.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/notify" {
+		if r.Method != http.MethodGet || r.URL.Path != "/notify" {
 			t.Errorf("callback request route = %s %s", r.Method, r.URL.Path)
 		}
 		if err := r.ParseForm(); err != nil {
 			t.Errorf("parse real signed callback form: %v", err)
 		}
-		if err := payment.VerifyV1(r.PostForm, merchantKey); err != nil {
+		signed := r.URL.Query()
+		signed.Del("token")
+		if err := payment.VerifyV1(signed, merchantKey); err != nil {
 			t.Errorf("independently configured V1 callback signature was rejected: %v", err)
 		}
-		if r.PostForm.Get("money") != "1.00" || r.PostForm.Get("param") != "callback=round4" {
-			t.Errorf("callback did not use original money/param snapshot: %#v", r.PostForm)
+		if signed.Get("money") != "1.00" || signed.Get("param") != "callback=round4" {
+			t.Errorf("callback did not use original money/param snapshot: %#v", signed)
 		}
 		switch mode {
 		case "timeout":
@@ -271,7 +273,7 @@ func testRealCallbackAttempts(t *testing.T) {
 			http.Redirect(w, r, "https://other.vp.test/notify", http.StatusFound)
 		case "wrong_body":
 			w.WriteHeader(http.StatusOK)
-			_, _ = io.WriteString(w, "accepted")
+			_, _ = io.WriteString(w, "unsuccessful")
 		case "success":
 			w.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(w, "success")

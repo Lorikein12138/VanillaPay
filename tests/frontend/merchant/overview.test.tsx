@@ -70,9 +70,9 @@ describe('overview sections', () => {
     expect(screen.getByText('最后在线 12秒钟前')).toBeVisible()
   })
   it('renders all order states, null channel and the actual amount with original fallback', () => {
-    const orders = [order('paid', 'alipay'), order('pending', null), order('expired', 'wxpay'), order('refunded', 'qqpay')]
+    const orders = [order('paid', 'alipay'), order('pending', null), order('expired', 'wxpay'), order('refunded', 'alipay')]
     mount(<RecentOrders orders={orders} />)
-    for (const label of ['已支付', '待支付', '已过期', '已退款', '未分配', '支付宝', '微信支付', 'QQ 钱包']) expect(screen.getByText(label, { exact: true })).toBeVisible()
+    for (const label of ['已支付', '待支付', '已过期', '已退款', '未分配', '支付宝', '微信支付']) expect(screen.getAllByText(label, { exact: true })[0]).toBeVisible()
     const rows = screen.getAllByRole('row').slice(1)
     expect(within(rows[0]!).getByText('¥123.46')).toBeVisible()
     expect(within(rows[1]!).getByText('¥123.45')).toBeVisible()

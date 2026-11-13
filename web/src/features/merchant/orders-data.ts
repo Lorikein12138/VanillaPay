@@ -5,7 +5,7 @@ import { APIError } from '@/api/client'
 export type OrderFilters = Pick<NonNullable<operations['get_api_v1_merchant_orders']['parameters']['query']>, 'status' | 'channel' | 'start' | 'end' | 'query'>
 export type OrderAction = 'supplement' | 'refund' | 'reject' | 'resolve' | 'replay'
 export const orderStatuses = ['pending', 'paid', 'expired', 'refunded'] as const
-export const orderChannels = ['alipay', 'wxpay', 'qqpay'] as const
+export const orderChannels = ['alipay', 'wxpay'] as const
 
 export function orderSearch(search: Record<string, unknown>): OrderFilters {
   const result: OrderFilters = {}
@@ -21,7 +21,7 @@ export function orderSearch(search: Record<string, unknown>): OrderFilters {
 export function availableOrderActions(detail: components['schemas']['OrderDetail']): OrderAction[] {
   const { order, refund, notify_url } = detail
   const actions: OrderAction[] = []
-  if (order.status === 'pending' || order.status === 'expired') actions.push('supplement')
+  if (order.status === 'pending' || (order.status === 'expired' && (order.expire_reason !== 'cancelled' || order.purpose !== 'external'))) actions.push('supplement')
   if (order.status === 'paid') {
     actions.push('refund')
     if (refund?.status === 'pending') actions.push('resolve', 'reject')

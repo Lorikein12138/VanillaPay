@@ -33,7 +33,6 @@ func TestDB_QRAssetLifecycle(t *testing.T) {
 	}{
 		{channel: "alipay", payload: "https://qr.alipay.com/asset-lifecycle"},
 		{channel: "wxpay", payload: "wxp://f2f0?asset=lifecycle"},
-		{channel: "qqpay", payload: "https://i.qianbao.qq.com/asset-lifecycle"},
 	} {
 
 		t.Run("V19.B.r01/"+item.channel, func(t *testing.T) {
@@ -50,8 +49,8 @@ func TestDB_QRAssetLifecycle(t *testing.T) {
 	}
 	t.Run("V19.B.r01/v01", func(t *testing.T) {
 		var count int
-		if err := db.Pool.QueryRow(t.Context(), `SELECT count(*) FROM media_assets WHERE owner_merchant_id=$1 AND kind='qr' AND active=true`, merchantID).Scan(&count); err != nil || count != 3 {
-			t.Fatalf("active valid QR slots=%d err=%v, want all three channels", count, err)
+		if err := db.Pool.QueryRow(t.Context(), `SELECT count(*) FROM media_assets WHERE owner_merchant_id=$1 AND kind='qr' AND active=true`, merchantID).Scan(&count); err != nil || count != 2 {
+			t.Fatalf("active valid QR slots=%d err=%v, want both channels", count, err)
 		}
 	})
 

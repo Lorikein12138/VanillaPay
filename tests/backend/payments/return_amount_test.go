@@ -46,12 +46,13 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 			return
 		}
 		seen.mu.Lock()
-		copyValues := make(url.Values, len(r.PostForm))
-		for key, entries := range r.PostForm {
-			copyValues[key] = append([]string(nil), entries...)
+		query := r.URL.Query()
+		signed := cloneValues(query)
+		for _, key := range []string{"order_id", "resume_token", "status"} {
+			signed.Del(key)
 		}
-		seen.values = append(seen.values, copyValues)
-		seen.query = append(seen.query, r.URL.Query())
+		seen.values = append(seen.values, signed)
+		seen.query = append(seen.query, query)
 		seen.mu.Unlock()
 		_, _ = w.Write([]byte("success"))
 	}))
@@ -135,9 +136,6 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	seen.mu.Lock()
 	v1Notice, v1NotifyQuery := seen.values[0], seen.query[0]
 	seen.mu.Unlock()
-	if v1NotifyQuery.Has("out_trade_no") || v1NotifyQuery.Has("sign") || v1NotifyQuery.Has("param") || v1NotifyQuery.Has("key_id") || v1NotifyQuery.Has("clientip") {
-		t.Fatal("V1 notify query retained reserved collisions")
-	}
 	if v1Notice.Get("money") != "1.00" || v1Notice.Get("trade_no") != v1.TradeNo || !verifyV1Independent(v1Notice, merchantKey) {
 		t.Fatalf("V1 callback amount/signature = money %q trade %q", v1Notice.Get("money"), v1Notice.Get("trade_no"))
 	}
@@ -295,9 +293,6 @@ func TestHTTP_ProtocolAmountsAndSignedReturnContracts(t *testing.T) {
 	seen.mu.Lock()
 	v2Notice, v2NotifyQuery := seen.values[len(seen.values)-1], seen.query[len(seen.query)-1]
 	seen.mu.Unlock()
-	if v2NotifyQuery.Has("out_trade_no") || v2NotifyQuery.Has("sign") || v2NotifyQuery.Has("param") || v2NotifyQuery.Has("key_id") || v2NotifyQuery.Has("clientip") {
-		t.Fatal("V2 notify query retained reserved collisions")
-	}
 	if v2Notice.Get("money") != "1.00" || v2Notice.Get("trade_no") != v2.TradeNo {
 		t.Fatalf("V2 callback amount=%q trade=%q", v2Notice.Get("money"), v2Notice.Get("trade_no"))
 	}
@@ -475,6 +470,12 @@ func mustParseJSONValues(t *testing.T, body []byte) url.Values {
 			} else {
 				values.Set(key, "")
 			}
+		default:
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			values.Set(key, string(encoded))
 		}
 	}
 	return values

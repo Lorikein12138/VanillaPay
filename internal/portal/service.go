@@ -317,7 +317,7 @@ func (s *Service) Stats(ctx context.Context, actor platform.Actor, q StatsQuery)
 		return StatsDTO{}, apiError("VALIDATION_ERROR", 400)
 	}
 	dto := StatsDTO{Start: q.Start.UTC(), End: q.End.UTC(), Timezone: q.Timezone, AmountBasis: "paid_at", OrderBasis: "created_at", StatusCounts: map[string]int64{"paid": 0, "pending": 0, "expired": 0}, Channels: map[string]ChannelStats{}, Trend: []TrendPoint{}}
-	for _, ch := range []string{"alipay", "wxpay", "qqpay"} {
+	for _, ch := range platform.PaymentChannels() {
 		dto.Channels[ch] = ChannelStats{}
 	}
 	merchantID := any(nil)
@@ -458,7 +458,7 @@ func (s *Service) Stats(ctx context.Context, actor platform.Actor, q StatsQuery)
 
 func normalizeStatsQuery(q StatsQuery) (StatsQuery, error) {
 	if q.Timezone == "" {
-		q.Timezone = "Asia/Shanghai"
+		q.Timezone = DefaultStatsTimezone
 	}
 	if _, err := time.LoadLocation(q.Timezone); err != nil {
 		return StatsQuery{}, err
@@ -627,7 +627,7 @@ func (s *Service) listOrders(ctx context.Context, mid *int64, q OrderFilter, lim
 	if status != "" && status != "paid" && status != "pending" && status != "expired" && status != "refunded" {
 		return page, apiError("VALIDATION_ERROR", 400)
 	}
-	if channel != "" && channel != "alipay" && channel != "wxpay" && channel != "qqpay" {
+	if channel != "" && !platform.ValidPaymentChannel(channel) {
 		return page, apiError("VALIDATION_ERROR", 400)
 	}
 	cursorAt := time.Time{}
@@ -711,7 +711,7 @@ func (s *Service) ListReceipts(ctx context.Context, actor platform.Actor, q Rece
 	if err != nil {
 		return Page[ReceiptDTO]{}, err
 	}
-	if q.Channel != "" && q.Channel != "alipay" && q.Channel != "wxpay" && q.Channel != "qqpay" || q.MatchState != "" && q.MatchState != "matched" && q.MatchState != "unmatched" {
+	if q.Channel != "" && !platform.ValidPaymentChannel(q.Channel) || q.MatchState != "" && q.MatchState != "matched" && q.MatchState != "unmatched" {
 		return Page[ReceiptDTO]{}, apiError("VALIDATION_ERROR", 400)
 	}
 	cursorAt := time.Time{}

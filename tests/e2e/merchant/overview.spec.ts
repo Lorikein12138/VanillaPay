@@ -15,11 +15,11 @@ test('shows real scoped stats, a fixed seven-day chart and the latest six orders
   }
   const orders = [
     row(0, 0, 6, 'paid', 'alipay', 120000), row(1, 0, 5, 'pending', null, 2500),
-    row(2, 0, 4, 'expired', 'wxpay', 3000), row(3, 0, 3, 'refunded', 'qqpay', 9900),
+    row(2, 0, 4, 'expired', 'wxpay', 3000), row(3, 0, 3, 'refunded', 'alipay', 9900),
     // Created yesterday but paid today: the amount and order-count bases differ.
-    row(4, 1, 5, 'paid', 'wxpay', 80000, 0), row(5, 6, 4, 'paid', 'qqpay', 100000),
+    row(4, 1, 5, 'paid', 'wxpay', 80000, 0), row(5, 6, 4, 'paid', 'alipay', 100000),
     row(6, 7, 4, 'paid', 'alipay', 50000), row(7, 29, 4, 'paid', 'wxpay', 150000),
-    row(8, 30, 4, 'paid', 'qqpay', 200000), row(9, 1, 2, 'paid', 'alipay', 100000),
+    row(8, 30, 4, 'paid', 'alipay', 200000), row(9, 1, 2, 'paid', 'alipay', 100000),
   ]
   expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders } })).status()).toBe(204)
   expect((await request.post('/__e2e/device', { data: { pid: account.pid, state: 'online', name: '收银台安卓机' } })).status()).toBe(204)
@@ -58,7 +58,7 @@ test('shows real scoped stats, a fixed seven-day chart and the latest six orders
   await expect(rows).toHaveCount(6)
   for (const [position, index, channel, amount, status] of [
     [0, 0, '支付宝', '¥1,200.01', '已支付'], [1, 1, '未分配', '¥25.00', '待支付'],
-    [2, 2, '微信支付', '¥30.01', '已过期'], [3, 3, 'QQ 钱包', '¥99.01', '已退款'],
+    [2, 2, '微信支付', '¥30.01', '已过期'], [3, 3, '支付宝', '¥99.01', '已退款'],
     [4, 4, '微信支付', '¥800.01', '已支付'], [5, 9, '支付宝', '¥1,000.01', '已支付'],
   ] as const) {
     await expect(rows.nth(position).locator('td').first()).toHaveText(`${prefix}-${index}`)

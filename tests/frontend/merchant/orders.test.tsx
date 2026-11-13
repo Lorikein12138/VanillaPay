@@ -20,7 +20,7 @@ type Schema = components['schemas']
 const identity: Schema['SessionIdentity'] = { user: { id: '1', role: 'merchant', username: 'orders_shop', pid: '9000000000000001', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 3600000).toISOString() }
 function detail(status = 'pending', channel: string | null = 'alipay'): Schema['OrderDetail'] {
   return { order: order(status, channel), notify_url: 'https://callback.example.test/notify', return_url: 'https://shop.example.test/return', clientip: null, key_version: null, receipt_id: null, callback_attempts: [], refund: null,
-    allowed_channels_snapshot: ['alipay', 'wxpay', 'qqpay'], callback_replays_used: 0, callback_replay_limit: 2147483646 }
+    allowed_channels_snapshot: ['alipay', 'wxpay'], callback_replays_used: 0, callback_replay_limit: 2147483646 }
 }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: Schema['ErrorCode']) => HttpResponse.json({ error: { code, fields: {}, details: {}, message: code }, request_id: crypto.randomUUID() }, { status })
@@ -167,7 +167,6 @@ describe('order actions', () => {
     const channel = within(await screen.findByRole('listbox'))
     expect(channel.getByRole('option', { name: '支付宝' })).not.toHaveAttribute('aria-disabled', 'true')
     expect(channel.getByRole('option', { name: '微信支付' })).toHaveAttribute('aria-disabled', 'true')
-    expect(channel.getByRole('option', { name: 'QQ 钱包' })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('keeps replay visible but disabled at the generation limit', async () => {

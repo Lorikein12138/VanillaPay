@@ -159,7 +159,7 @@ internal fun SetupScreen(
         Headline("开始监听之前")
         Paragraph("这些设置决定手机锁屏后还能不能收到到账通知。建议用一台常年插电的备用机。")
         Panel {
-            CheckRow("读取通知", "识别支付宝、微信、QQ 的到账通知。必须开启。", checks.access, "去开启", openAccess)
+            CheckRow("读取通知", "识别支付宝和微信的到账通知。必须开启。", checks.access, "去开启", openAccess)
             Rule()
             CheckRow("允许发送通知", "通知栏常驻「正在监听」，点开回到 app。", checks.posting, "去开启", openPosting)
             Rule()

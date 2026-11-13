@@ -39,7 +39,7 @@ class MonitorScreenshotTest {
             Receipt("1", session.deviceId, "alipay", 1201, time, "", status = MATCHED, detail = "VP2026110914320011"),
             Receipt("2", session.deviceId, "wxpay", 3800, time - 1_584_000, "", status = QUEUED),
             Receipt("3", session.deviceId, "wxpay", 500, time - 2_033_000, "", status = UNMATCHED),
-            Receipt("4", session.deviceId, "qqpay", 9999, time - 2_280_000, "", status = FAILED, detail = "EVENT_CONFLICT"),
+            Receipt("4", session.deviceId, "wxpay", 9999, time - 2_280_000, "", status = FAILED, detail = "EVENT_CONFLICT"),
         )
         val diagnostics = listOf(
             Diagnostic("1", time, "wxpay", "微信支付\n微信支付收款0.01元(朋友到店)", 1),

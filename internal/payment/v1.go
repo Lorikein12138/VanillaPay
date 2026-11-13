@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"vanillapay/internal/platform"
 )
 
 func (h *Handler) V1Submit(w http.ResponseWriter, r *http.Request) { h.v1Create(w, r, false) }
@@ -55,7 +57,7 @@ func (h *Handler) v1Create(w http.ResponseWriter, r *http.Request, api bool) {
 		fail(errorCode(err))
 		return
 	}
-	payURL := strings.TrimRight(h.PublicBaseURL, "/") + "/pay/" + url.PathEscape(order.TradeNo)
+	payURL := h.cashierURL(order.TradeNo)
 	if api {
 		v1JSON(w, http.StatusOK, map[string]any{"code": 1, "msg": "success", "trade_no": order.TradeNo, "payurl": payURL})
 		return
@@ -95,7 +97,7 @@ func (h *Handler) externalCommand(r *http.Request, p url.Values, merchantID int6
 		return CreateCommand{}, apiErr("INVALID_URL", 400)
 	}
 	channel := p.Get("type")
-	if channel != "" && !validChannel(channel) {
+	if channel != "" && !platform.ValidPaymentChannel(channel) {
 		return CreateCommand{}, apiErr("VALIDATION_ERROR", 400)
 	}
 	var ttl *int
@@ -122,11 +124,8 @@ func (h *Handler) externalCommand(r *http.Request, p url.Values, merchantID int6
 	if !api && p.Get("return_url") == "" {
 		return CreateCommand{}, apiErr("INVALID_URL", 400)
 	}
-	if p.Get("device") != "" && !containsValue([]string{"pc", "mobile", "qq", "wechat", "alipay", "douyin", "jump"}, p.Get("device")) {
-		return CreateCommand{}, apiErr("VALIDATION_ERROR", 400)
-	}
 	out := p.Get("out_trade_no")
-	return CreateCommand{MerchantID: merchantID, Protocol: protocol, Purpose: "external", OutTradeNo: out, Name: name, ProductID: p.Get("product_id"), Param: p.Get("param"), OriginalCents: cents, NotifyURL: p.Get("notify_url"), ReturnURL: p.Get("return_url"), ClientIP: clientIP, SourceIP: source, Channel: channel, ExpireSeconds: ttl, Actor: h.requestActor(r, merchantID)}, nil
+	return CreateCommand{MerchantID: merchantID, Protocol: protocol, Purpose: "external", OutTradeNo: out, Name: name, ProductID: p.Get("product_id"), Param: p.Get("param"), OriginalCents: cents, money: p.Get("money"), NotifyURL: p.Get("notify_url"), ReturnURL: p.Get("return_url"), ClientIP: clientIP, SourceIP: source, Channel: channel, ExpireSeconds: ttl, Actor: h.requestActor(r, merchantID)}, nil
 }
 
 func (h *Handler) V1API(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +152,10 @@ func (h *Handler) V1API(w http.ResponseWriter, r *http.Request) {
 		h.queryProtocol(w, r, id, p, false)
 	case "refund":
 		h.refundProtocol(w, r, id, p, false)
+	case "query":
+		h.merchantInfoProtocol(w, r, id, p, false)
+	case "orders":
+		h.merchantOrdersProtocol(w, r, id, p, false)
 	default:
 		v1JSON(w, http.StatusOK, map[string]any{"code": -1, "msg": "不支持的操作", "error_code": "UNSUPPORTED_ACTION"})
 	}

@@ -34,7 +34,7 @@ func registerSubscriptionFixtures(mux *http.ServeMux, pool *pgxpool.Pool, key [3
 			}
 			for _, name := range [][2]string{{"基础套餐", "Basic"}, {"进阶套餐", "Plus"}} {
 				var id int64
-				billingErr = pool.QueryRow(r.Context(), `INSERT INTO plans(name_zh,name_en,price_cents,duration_days,channels,purchase_limit) VALUES($1,$2,1200,30,ARRAY['alipay','wxpay','qqpay'],3) RETURNING id`, name[0], name[1]).Scan(&id)
+				billingErr = pool.QueryRow(r.Context(), `INSERT INTO plans(name_zh,name_en,price_cents,duration_days,channels,purchase_limit) VALUES($1,$2,1200,30,ARRAY['alipay','wxpay'],3) RETURNING id`, name[0], name[1]).Scan(&id)
 				if billingErr != nil {
 					return
 				}
@@ -129,7 +129,7 @@ func seedBilling(ctx context.Context, pool *pgxpool.Pool, key [32]byte) error {
 	if err := pool.QueryRow(ctx, `SELECT id,key_cipher FROM merchants WHERE pid=$1`, merchant["pid"]).Scan(&merchantID, &cipher); err != nil {
 		return err
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO subscriptions(merchant_id,snapshot,expires_at,source) VALUES($1,'{"channels":["alipay","wxpay","qqpay"]}',now()+interval '10 years','manual')`, merchantID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO subscriptions(merchant_id,snapshot,expires_at,source) VALUES($1,'{"channels":["alipay","wxpay"]}',now()+interval '10 years','manual')`, merchantID); err != nil {
 		return err
 	}
 	if _, err := pool.Exec(ctx, `UPDATE site_settings SET billing=jsonb_set(billing,'{merchant_pid}',to_jsonb($1::text)) WHERE singleton=true`, merchant["pid"]); err != nil {
@@ -138,7 +138,7 @@ func seedBilling(ctx context.Context, pool *pgxpool.Pool, key [32]byte) error {
 	if _, err := pool.Exec(ctx, `INSERT INTO secret_settings(name,encrypted_value) VALUES('billing_key',$1) ON CONFLICT(name) DO UPDATE SET encrypted_value=excluded.encrypted_value`, cipher); err != nil {
 		return err
 	}
-	for _, channel := range []string{"alipay", "wxpay", "qqpay"} {
+	for _, channel := range []string{"alipay", "wxpay"} {
 		id, err := platform.RandomToken(rand.Reader, 18)
 		if err != nil {
 			return err

@@ -40,7 +40,7 @@ func (s *Service) UploadQR(ctx context.Context, actor platform.Actor, channel st
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
 		return QRDTO{}, &platform.Error{Code: "UNAUTHENTICATED", HTTPStatus: 401}
 	}
-	if channel != "alipay" && channel != "wxpay" && channel != "qqpay" {
+	if !platform.ValidPaymentChannel(channel) {
 		return QRDTO{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
 	img, _, err := readImage(src)
@@ -155,8 +155,6 @@ func validQRPayload(channel, payload string) bool {
 		return u.Scheme == "https" && strings.EqualFold(u.Hostname(), "qr.alipay.com")
 	case "wxpay":
 		return (u.Scheme == "wxp" && strings.HasPrefix(payload, "wxp://") && (u.Host != "" || u.Path != "")) || (u.Scheme == "https" && strings.EqualFold(u.Hostname(), "wx.tenpay.com"))
-	case "qqpay":
-		return u.Scheme == "https" && (strings.EqualFold(u.Hostname(), "i.qianbao.qq.com") || strings.EqualFold(u.Hostname(), "qianbao.qq.com"))
 	default:
 		return false
 	}

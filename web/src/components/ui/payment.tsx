@@ -31,7 +31,6 @@ export function sortChannels<T extends string>(channels: readonly T[]): T[] {
 const channelColors: Record<keyof typeof channelPaths, string> = {
   alipay: '[--channel-color:#1677ff] dark:[--channel-color:#6ba6ff]',
   wxpay: '[--channel-color:#07a855] dark:[--channel-color:#47d68a]',
-  qqpay: '[--channel-color:#008cdb] dark:[--channel-color:#58bfff]',
 }
 /**
  * `brand` is a coloured tile for places where the channel is the thing being
@@ -96,7 +95,7 @@ export function ChannelOption({ channel, selected = false, children, className, 
 export function ChannelGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
   return <div role="group" aria-label={label} className="flex flex-col gap-2.5">
     <p className="text-caption text-text-3">{label}</p>
-    <div className={cn('grid gap-2.5', count === 2 ? 'grid-cols-2' : count > 2 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1')}>{children}</div>
+    <div className={cn('grid gap-2.5', count === 2 ? 'grid-cols-2' : 'grid-cols-1')}>{children}</div>
   </div>
 }
 

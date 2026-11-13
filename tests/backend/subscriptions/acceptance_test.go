@@ -52,11 +52,11 @@ func TestDB_SubscriptionRemainingAcceptance(t *testing.T) {
 		app := db.NewApplication(t)
 		admin := platform.Actor{Role: "admin", SubjectID: 1}
 		unlimited, err := app.Services.Subscription.SavePlan(t.Context(), admin, subscription.PlanCommand{
-			Name:       subscription.LocalizedName{ZhCN: "三渠道不限购", En: "All channels, unlimited"},
-			PriceCents: 1800, DurationDays: 90, Channels: []string{"alipay", "wxpay", "qqpay"}, PurchaseLimit: nil,
+			Name:       subscription.LocalizedName{ZhCN: "双渠道不限购", En: "All channels, unlimited"},
+			PriceCents: 1800, DurationDays: 90, Channels: []string{"alipay", "wxpay"}, PurchaseLimit: nil,
 		})
-		if err != nil || len(unlimited.Channels) != 3 || unlimited.PurchaseLimit != nil {
-			t.Fatalf("valid unlimited three-channel plan = %#v, %v", unlimited, err)
+		if err != nil || len(unlimited.Channels) != 2 || unlimited.PurchaseLimit != nil {
+			t.Fatalf("valid unlimited two-channel plan = %#v, %v", unlimited, err)
 		}
 		limit := 2
 		limited, err := app.Services.Subscription.SavePlan(t.Context(), admin, subscription.PlanCommand{

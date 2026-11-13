@@ -21,6 +21,24 @@ async function screenshot(page: Page, name: string) {
   await page.screenshot({ path: fileURLToPath(new URL(`../../../.artifacts/orders-shots/${name}-${theme}-${width}.png`, import.meta.url)), fullPage: name !== 'confirmation', animations: 'disabled' })
 }
 
+test('shows a closed order and preserves a pipe in filters and CSV', async ({ page, account, request }) => {
+  const order = { ...fixtureOrder('expired'), expire_reason: 'cancelled', out_trade_no: 'shop|' + crypto.randomUUID() }
+  expect((await request.post('/__e2e/orders', { data: { pid: account.pid, orders: [order] } })).status()).toBe(204)
+  await page.goto('/login?redirect=%2Forders')
+  await login(page, account)
+  await expect(page).toHaveURL(/\/orders$/)
+  await page.goto('/orders?' + new URLSearchParams({ query: order.out_trade_no }).toString())
+  await expect(rows(page)).toHaveCount(1)
+  await expect.poll(() => new URL(page.url()).searchParams.get('query')).toBe(order.out_trade_no)
+  const csv = await page.request.get('/api/v1/merchant/orders/export.csv?' + new URLSearchParams({ query: order.out_trade_no }).toString(), { headers: { Origin: new URL(page.url()).origin } })
+  expect(csv.status()).toBe(200)
+  expect(await csv.text()).toContain(order.out_trade_no)
+  await page.getByRole('link', { name: order.trade_no, exact: true }).click()
+  await expect(page.getByText('订单已关闭', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '补单', exact: true })).toHaveCount(0)
+  await merchantVisualShots(page, async () => { await polishShot(page, 'closed-order', true, 'payment-protocol-compat-shots') })
+})
+
 test('persists the screenshot theme before an order page reload', async ({ page, account }) => {
   await page.goto('/login?redirect=%2Forders')
   await login(page, account)

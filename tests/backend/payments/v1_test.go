@@ -16,7 +16,7 @@ import (
 	"vanillapay/tests/backend/testsupport"
 )
 
-func TestHTTP_V1SubmitCreatesOneSignedOrderAndRejectsDuplicateTradeNumber(t *testing.T) {
+func TestHTTP_V1SubmitCreatesOneSignedOrderAndReusesDuplicateTradeNumber(t *testing.T) {
 	db := testsupport.NewDatabase(t)
 	merchantID, merchantKey := db.SeedMerchant(t)
 	planID := db.SeedPlan(t, "api merchant", 1000, 3650, []string{"alipay"}, nil)
@@ -40,7 +40,7 @@ func TestHTTP_V1SubmitCreatesOneSignedOrderAndRejectsDuplicateTradeNumber(t *tes
 	secondRequest.RemoteAddr = "192.0.2.8:32000"
 	second := httptest.NewRecorder()
 	router.ServeHTTP(second, secondRequest)
-	if second.Code != http.StatusOK || !strings.Contains(second.Body.String(), "DUPLICATE_ORDER") {
+	if second.Code != http.StatusFound || second.Header().Get("Location") != first.Header().Get("Location") {
 		t.Fatalf("duplicate V1 response status=%d body=%s", second.Code, second.Body.String())
 	}
 	var count int
@@ -59,7 +59,7 @@ func TestHTTP_V1SubmitCreatesOneSignedOrderAndRejectsDuplicateTradeNumber(t *tes
 	})
 	t.Run("V28.B.r04/v01", func(t *testing.T) {
 		if count != 1 {
-			t.Fatalf("same-merchant out_trade_no has %d rows after duplicate rejection", count)
+			t.Fatalf("same-merchant out_trade_no has %d rows after duplicate reuse", count)
 		}
 	})
 	secondID, secondKey := db.SeedMerchant(t)

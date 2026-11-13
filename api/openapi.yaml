@@ -2278,7 +2278,6 @@ paths:
             enum:
               - alipay
               - wxpay
-              - qqpay
         - name: Origin
           in: header
           required: true
@@ -2336,7 +2335,6 @@ paths:
             enum:
               - alipay
               - wxpay
-              - qqpay
         - name: Origin
           in: header
           required: true
@@ -4132,6 +4130,8 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/V1Order'
                   - $ref: '#/components/schemas/V1Refund'
+                  - $ref: '#/components/schemas/V1MerchantInfo'
+                  - $ref: '#/components/schemas/V1MerchantOrders'
                   - $ref: '#/components/schemas/ProtocolError'
       parameters:
         - name: pid
@@ -4163,6 +4163,8 @@ paths:
             enum:
               - order
               - refund
+              - query
+              - orders
         - name: trade_no
           in: query
           required: false
@@ -4188,7 +4190,28 @@ paths:
           required: false
           schema:
             type: string
-      description: V1 查询/退款：key 必填；提供 sign 时也校验 MD5。act=order 查询，act=refund 请求退款。
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 10
+            description: 超过 50 按 50 处理。
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            maximum: 10000
+        - name: status
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            enum: [0, 1, 2]
+            description: 0 为待支付或已过期，1 为已支付，2 为已退款。
+      description: V1 商户协议，key 必填，提供 sign 时也校验 MD5。act=order 查单，act=refund 请求退款，act=query 查询商户和订单统计，act=orders 分页查询外部订单，count 为符合筛选条件的总数。
     post:
       operationId: post_api_php
       summary: POST /api.php
@@ -4203,8 +4226,10 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/V1Order'
                   - $ref: '#/components/schemas/V1Refund'
+                  - $ref: '#/components/schemas/V1MerchantInfo'
+                  - $ref: '#/components/schemas/V1MerchantOrders'
                   - $ref: '#/components/schemas/ProtocolError'
-      description: V1 查询/退款：key 必填；提供 sign 时也校验 MD5。act=order 查询，act=refund 请求退款。兼容易支付客户端在查询串与表单中重复发送同一参数：同名参数两处值相同视为一个参数，值不同返回 INVALID_SIGNATURE。
+      description: V1 商户协议，key 必填，提供 sign 时也校验 MD5。act=order 查单，act=refund 请求退款，act=query 查询商户和订单统计，act=orders 分页查询外部订单。兼容易支付客户端在查询串与表单中重复发送同一参数：同名参数两处值相同视为一个参数，值不同返回 INVALID_SIGNATURE。
       requestBody:
         required: true
         content:
@@ -4295,6 +4320,118 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/V2RefundForm'
+  /api/merchant/info:
+    post:
+      operationId: post_api_merchant_info
+      summary: POST /api/merchant/info
+      description: 查询本商户外部订单统计，今日和昨日按 Asia/Shanghai 划分，金额按已支付订单原始金额计算。
+      security:
+        - PaymentV2Signature: []
+      responses:
+        '200':
+          description: 已签名的协议结果；业务失败亦使用 HTTP 200
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/V2MerchantInfo'
+                  - $ref: '#/components/schemas/V2Error'
+        '500':
+          description: 平台签名密钥不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolError'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/V2MerchantInfoForm'
+  /api/merchant/orders:
+    post:
+      operationId: post_api_merchant_orders
+      summary: POST /api/merchant/orders
+      description: 分页查询本商户外部订单。按创建时间和内部 ID 倒序，count 为符合筛选条件的总数。响应签名时 data 使用响应中的原始紧凑 JSON（保留数组顺序、对象键顺序及字符转义）。
+      security:
+        - PaymentV2Signature: []
+      responses:
+        '200':
+          description: 已签名的协议结果；业务失败亦使用 HTTP 200
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/V2MerchantOrders'
+                  - $ref: '#/components/schemas/V2Error'
+        '500':
+          description: 平台签名密钥不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolError'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/V2MerchantOrdersForm'
+  /api/pay/close:
+    post:
+      operationId: post_api_pay_close
+      summary: POST /api/pay/close
+      description: 关闭本商户未过期的待支付外部订单。trade_no 与 out_trade_no 至少提供一个，同时提供时须指向同一订单。
+      security:
+        - PaymentV2Signature: []
+      responses:
+        '200':
+          description: 已签名的协议结果；业务失败亦使用 HTTP 200
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/V2Close'
+                  - $ref: '#/components/schemas/V2Error'
+        '500':
+          description: 平台签名密钥不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolError'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/V2QueryForm'
+  /api/pay/refundquery:
+    post:
+      operationId: post_api_pay_refundquery
+      summary: POST /api/pay/refundquery
+      description: 查询本商户外部订单的退款请求。refund_no 与 out_refund_no 至少提供一个，同时提供时须指向同一退款。
+      security:
+        - PaymentV2Signature: []
+      responses:
+        '200':
+          description: 已签名的协议结果；业务失败亦使用 HTTP 200
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/V2RefundQuery'
+                  - $ref: '#/components/schemas/V2Error'
+        '500':
+          description: 平台签名密钥不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolError'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/V2RefundQueryForm'
   /api/pay/submit:
     get:
       operationId: get_api_pay_submit
@@ -4332,11 +4469,14 @@ paths:
           required: false
           schema:
             type: string
+            enum: ['', alipay, wxpay]
         - name: out_trade_no
           in: query
           required: true
           schema:
             type: string
+            maxLength: 64
+            pattern: '^[A-Za-z0-9_.|-]{1,64}$'
         - name: notify_url
           in: query
           required: true
@@ -4367,6 +4507,7 @@ paths:
           required: false
           schema:
             type: string
+            description: 买家环境，接受任意值。
         - name: param
           in: query
           required: false
@@ -4640,11 +4781,14 @@ paths:
           required: false
           schema:
             type: string
+            enum: ['', alipay, wxpay]
         - name: out_trade_no
           in: query
           required: true
           schema:
             type: string
+            maxLength: 64
+            pattern: '^[A-Za-z0-9_.|-]{1,64}$'
         - name: notify_url
           in: query
           required: true
@@ -4675,6 +4819,7 @@ paths:
           required: false
           schema:
             type: string
+            description: 买家环境，接受任意值。
         - name: param
           in: query
           required: false
@@ -6279,12 +6424,9 @@ components:
               $ref: '#/components/schemas/PortalChannelStats'
             wxpay:
               $ref: '#/components/schemas/PortalChannelStats'
-            qqpay:
-              $ref: '#/components/schemas/PortalChannelStats'
           required:
             - alipay
             - wxpay
-            - qqpay
           nullable: true
           type: object
         end:
@@ -7593,11 +7735,17 @@ components:
               type: string
             refund:
               type: string
+            info:
+              type: string
+            orders:
+              type: string
           required:
             - submit
             - mapi
             - query
             - refund
+            - info
+            - orders
           additionalProperties: false
         v2:
           type: object
@@ -7610,11 +7758,23 @@ components:
               type: string
             refund:
               type: string
+            info:
+              type: string
+            orders:
+              type: string
+            close:
+              type: string
+            refundquery:
+              type: string
           required:
             - submit
             - create
             - query
             - refund
+            - info
+            - orders
+            - close
+            - refundquery
           additionalProperties: false
         merchant_public_key:
           type: string
@@ -7801,6 +7961,7 @@ components:
           type: string
           nullable: true
         callback_attempts:
+          description: 异步通知以 GET 发送签名查询参数。2xx 响应体去除首尾空白后须忽略大小写地等于 success。每代最多 10 次，失败间隔依次为 1m、2m、5m、15m、30m、1h、2h、6h、14h。
           type: array
           items:
             $ref: '#/components/schemas/PaymentRefundAttempt'
@@ -7874,6 +8035,10 @@ components:
           type: string
         type:
           type: string
+          enum: ['', alipay, wxpay]
+        payurl:
+          type: string
+          description: 仅待支付且未过期时返回收银台 URL。
         status:
           type: integer
           format: int64
@@ -8005,6 +8170,9 @@ components:
           type: string
         pay_info:
           type: string
+        payurl:
+          type: string
+          description: 与 pay_info 相同的收银台 URL。
         timestamp:
           type: string
         sign_type:
@@ -8021,6 +8189,7 @@ components:
         - trade_no
         - pay_type
         - pay_info
+        - payurl
         - timestamp
         - sign_type
         - key_id
@@ -8043,6 +8212,10 @@ components:
           type: string
         type:
           type: string
+          enum: ['', alipay, wxpay]
+        payurl:
+          type: string
+          description: 仅待支付且未过期时返回收银台 URL。
         status:
           type: integer
           format: int64
@@ -8170,8 +8343,11 @@ components:
           type: string
         type:
           type: string
+          enum: ['', alipay, wxpay]
         out_trade_no:
           type: string
+          maxLength: 64
+          pattern: '^[A-Za-z0-9_.|-]{1,64}$'
         notify_url:
           type: string
         return_url:
@@ -8184,6 +8360,7 @@ components:
           type: string
         device:
           type: string
+          description: 买家环境，接受任意值。
         param:
           type: string
         product_id:
@@ -8209,8 +8386,11 @@ components:
           type: string
         type:
           type: string
+          enum: ['', alipay, wxpay]
         out_trade_no:
           type: string
+          maxLength: 64
+          pattern: '^[A-Za-z0-9_.|-]{1,64}$'
         notify_url:
           type: string
         return_url:
@@ -8223,6 +8403,7 @@ components:
           type: string
         device:
           type: string
+          description: 买家环境，接受任意值。
         param:
           type: string
         product_id:
@@ -8278,6 +8459,8 @@ components:
           enum:
             - order
             - refund
+            - query
+            - orders
         trade_no:
           type: string
         out_trade_no:
@@ -8288,6 +8471,21 @@ components:
           type: string
         reason:
           type: string
+        limit:
+          type: integer
+          minimum: 0
+          default: 10
+          description: 超过 50 按 50 处理。
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+          maximum: 10000
+        status:
+          type: integer
+          minimum: 0
+          enum: [0, 1, 2]
+          description: 0 为待支付或已过期，1 为已支付，2 为已退款。
       required:
         - pid
         - key
@@ -8342,4 +8540,372 @@ components:
         - sign
         - money
         - out_refund_no
+      additionalProperties: false
+    V1MerchantInfo:
+      type: object
+      properties:
+        code:
+          type: integer
+          enum: [1]
+        pid:
+          type: string
+        order_money_today:
+          type: string
+        order_money_lastday:
+          type: string
+        active:
+          type: integer
+          enum: [0, 1]
+        orders:
+          type: integer
+        orders_today:
+          type: integer
+        orders_lastday:
+          type: integer
+      required:
+        - code
+        - pid
+        - order_money_today
+        - order_money_lastday
+        - active
+        - orders
+        - orders_today
+        - orders_lastday
+      additionalProperties: false
+    V2MerchantInfo:
+      type: object
+      properties:
+        code:
+          type: integer
+          enum: [0]
+        pid:
+          type: string
+        order_money_today:
+          type: string
+        order_money_lastday:
+          type: string
+        status:
+          type: integer
+          enum: [0, 1]
+        order_num:
+          type: integer
+        order_num_today:
+          type: integer
+        order_num_lastday:
+          type: integer
+        timestamp:
+          type: string
+        sign_type:
+          type: string
+          enum: [RSA]
+        key_id:
+          type: string
+        sign:
+          type: string
+      required:
+        - code
+        - pid
+        - order_money_today
+        - order_money_lastday
+        - status
+        - order_num
+        - order_num_today
+        - order_num_lastday
+        - timestamp
+        - sign_type
+        - key_id
+        - sign
+      additionalProperties: false
+    V1MerchantOrderItem:
+      type: object
+      properties:
+        trade_no:
+          type: string
+        out_trade_no:
+          type: string
+        type:
+          type: string
+          enum: ['', alipay, wxpay]
+        pid:
+          type: string
+        addtime:
+          type: string
+        endtime:
+          type: string
+          nullable: true
+        name:
+          type: string
+        money:
+          type: string
+        param:
+          type: string
+        buyer:
+          type: string
+        status:
+          type: integer
+          enum: [0, 1, 2]
+      required:
+        - trade_no
+        - out_trade_no
+        - type
+        - pid
+        - addtime
+        - endtime
+        - name
+        - money
+        - param
+        - buyer
+        - status
+      additionalProperties: false
+    V2MerchantOrderItem:
+      type: object
+      properties:
+        trade_no:
+          type: string
+        out_trade_no:
+          type: string
+        type:
+          type: string
+          enum: ['', alipay, wxpay]
+        pid:
+          type: string
+        addtime:
+          type: string
+        endtime:
+          type: string
+          nullable: true
+        name:
+          type: string
+        money:
+          type: string
+        param:
+          type: string
+        buyer:
+          type: string
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        api_trade_no:
+          type: string
+        clientip:
+          type: string
+        refundmoney:
+          type: string
+      required:
+        - trade_no
+        - out_trade_no
+        - type
+        - pid
+        - addtime
+        - endtime
+        - name
+        - money
+        - param
+        - buyer
+        - status
+        - api_trade_no
+        - clientip
+        - refundmoney
+      additionalProperties: false
+    V1MerchantOrders:
+      type: object
+      properties:
+        code:
+          type: integer
+          enum: [1]
+        msg:
+          type: string
+        count:
+          type: integer
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/V1MerchantOrderItem'
+      required:
+        - code
+        - msg
+        - count
+        - data
+      additionalProperties: false
+    V2MerchantOrders:
+      type: object
+      properties:
+        code:
+          type: integer
+          enum: [0]
+        msg:
+          type: string
+        count:
+          type: integer
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/V2MerchantOrderItem'
+        timestamp:
+          type: string
+        sign_type:
+          type: string
+          enum: [RSA]
+        key_id:
+          type: string
+        sign:
+          type: string
+      required:
+        - code
+        - msg
+        - count
+        - data
+        - timestamp
+        - sign_type
+        - key_id
+        - sign
+      additionalProperties: false
+    V2MerchantInfoForm:
+      type: object
+      properties:
+        pid:
+          type: string
+        timestamp:
+          type: string
+        sign_type:
+          type: string
+          enum: [RSA]
+        sign:
+          type: string
+      required:
+        - pid
+        - timestamp
+        - sign_type
+        - sign
+      additionalProperties: false
+    V2MerchantOrdersForm:
+      type: object
+      properties:
+        pid:
+          type: string
+        timestamp:
+          type: string
+        sign_type:
+          type: string
+          enum: [RSA]
+        sign:
+          type: string
+        limit:
+          type: integer
+          minimum: 0
+          default: 10
+          description: 超过 50 按 50 处理。
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+          maximum: 10000
+        status:
+          type: integer
+          minimum: 0
+          enum: [0, 1, 2]
+          description: 0 为待支付或已过期，1 为已支付，2 为已退款。
+      required:
+        - pid
+        - timestamp
+        - sign_type
+        - sign
+      additionalProperties: false
+    V2Close:
+      type: object
+      properties:
+        code:
+          type: integer
+          enum: [0]
+        msg:
+          type: string
+        timestamp:
+          type: string
+        sign_type:
+          type: string
+          enum: [RSA]
+        key_id:
+          type: string
+        sign:
+          type: string
+      required:
+        - code
+        - msg
+        - timestamp
+        - sign_type
+        - key_id
+        - sign
+      additionalProperties: false
+    V2RefundQueryForm:
+      type: object
+      properties:
+        pid:
+          type: string
+        timestamp:
+          type: string
+        sign_type:
+          type: string
+          enum: [RSA]
+        sign:
+          type: string
+        refund_no:
+          type: string
+        out_refund_no:
+          type: string
+      required:
+        - pid
+        - timestamp
+        - sign_type
+        - sign
+      additionalProperties: false
+    V2RefundQuery:
+      type: object
+      properties:
+        code:
+          type: integer
+          enum: [0]
+        refund_no:
+          type: string
+        out_refund_no:
+          type: string
+        trade_no:
+          type: string
+        out_trade_no:
+          type: string
+        money:
+          type: string
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        refund_status:
+          type: string
+          enum: [pending, completed, rejected]
+        addtime:
+          type: string
+        endtime:
+          type: string
+        timestamp:
+          type: string
+        sign_type:
+          type: string
+          enum: [RSA]
+        key_id:
+          type: string
+        sign:
+          type: string
+      required:
+        - code
+        - refund_no
+        - out_refund_no
+        - trade_no
+        - out_trade_no
+        - money
+        - status
+        - refund_status
+        - addtime
+        - endtime
+        - timestamp
+        - sign_type
+        - key_id
+        - sign
       additionalProperties: false

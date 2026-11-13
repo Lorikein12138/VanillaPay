@@ -76,7 +76,6 @@ func TestHTTP_ImageUploadValidationResponses(t *testing.T) {
 		{http.MethodPost, "/api/v1/console/assets/logo", "admin:matrix-admin"},
 		{http.MethodPut, "/api/v1/merchant/collection/codes/alipay", "merchant:matrix-merchant"},
 		{http.MethodPut, "/api/v1/merchant/collection/codes/wxpay", "merchant:matrix-merchant"},
-		{http.MethodPut, "/api/v1/merchant/collection/codes/qqpay", "merchant:matrix-merchant"},
 	} {
 		for _, file := range []struct {
 			name, code string
@@ -108,6 +107,25 @@ func TestHTTP_ImageUploadValidationResponses(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestHTTP_RetiredQRChannelReturnsValidationError(t *testing.T) {
+	fixture, _ := securityFixture(t)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "upload.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write([]byte("unsupported channel")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	headers := http.Header{"Content-Type": {writer.FormDataContentType()}}
+	response := fixture.RequestWithHeaders(t, http.MethodPut, "/api/v1/merchant/collection/codes/qqpay", &body, "merchant:matrix-merchant", headers)
+	assertAPIError(t, response, http.StatusBadRequest, "VALIDATION_ERROR")
 }
 
 func TestHTTP_AnnouncementReadRejectsStaleRevision(t *testing.T) {

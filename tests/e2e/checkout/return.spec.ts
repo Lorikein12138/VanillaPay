@@ -15,7 +15,7 @@ test('a hanging merchant return receives only one document navigation after a si
   const initial: Checkout = {
     trade_no: 'return-once', name: '月度会员', product_id: '', merchant: { username: '示例小店', id: '1' },
     status: 'pending', reason: 'no_channel', original_cents: 3000, actual_cents: null, channel: null,
-    available_channels: ['alipay', 'wxpay', 'qqpay'], qr_image_url: null, expires_at: new Date(Date.now() + 300000).toISOString(),
+    available_channels: ['alipay', 'wxpay'], qr_image_url: null, expires_at: new Date(Date.now() + 300000).toISOString(),
     server_time: new Date().toISOString(), device_online: true, can_pay: false, return_url_signed: null, requires_exact_amount: true,
   }
   page.on('request', (request) => {

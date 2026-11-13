@@ -55,7 +55,7 @@ func TestHTTP_IntegrationKeyLifecycle(t *testing.T) {
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
 		}
-		callbackRequests <- r.PostForm
+		callbackRequests <- r.URL.Query()
 		_, _ = w.Write([]byte("success"))
 	}))
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}

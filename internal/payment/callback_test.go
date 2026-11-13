@@ -6,7 +6,7 @@ import (
 )
 
 func TestUnit_CallbackRetryPlanAndURLRedaction(t *testing.T) {
-	want := []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute, 30 * time.Minute, time.Hour, 3 * time.Hour, 6 * time.Hour, 12 * time.Hour, 24 * time.Hour}
+	want := []time.Duration{time.Minute, 2 * time.Minute, 5 * time.Minute, 15 * time.Minute, 30 * time.Minute, time.Hour, 2 * time.Hour, 6 * time.Hour, 14 * time.Hour}
 	for i, delay := range want {
 		got, ok := callbackRetryDelay(i + 1)
 		if !ok || got != delay {

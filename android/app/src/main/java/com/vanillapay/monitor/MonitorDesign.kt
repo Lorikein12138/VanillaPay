@@ -100,7 +100,6 @@ internal class ChannelArtwork(@get:DrawableRes val drawable: Int, private val li
 internal fun channelArtwork(channel: Channel): ChannelArtwork = when (channel) {
     Channel.Alipay -> ChannelArtwork(R.drawable.channel_alipay, Color(0xff1677ff), Color(0xff6ba6ff))
     Channel.WeChat -> ChannelArtwork(R.drawable.channel_wechat, Color(0xff07a855), Color(0xff47d68a))
-    Channel.QQ -> ChannelArtwork(R.drawable.channel_qq, Color(0xff008cdb), Color(0xff58bfff))
 }
 
 internal fun pendingUploadColor(count: Int, accent: Color, normal: Color): Color =

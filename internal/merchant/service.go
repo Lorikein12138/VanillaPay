@@ -383,7 +383,7 @@ func (s *Service) Integration(ctx context.Context, actor platform.Actor, publicB
 	if publicKey != nil {
 		rsaPublic = *publicKey
 	}
-	return map[string]any{"pid": string(pid), "key": string(plain), "key_version": keyVersion, "base_url": base, "v1": map[string]string{"submit": base + "/submit.php", "mapi": base + "/mapi.php", "query": base + "/api.php?act=order", "refund": base + "/api.php?act=refund"}, "v2": map[string]string{"submit": base + "/api/pay/submit", "create": base + "/api/pay/create", "query": base + "/api/pay/query", "refund": base + "/api/pay/refund"}, "merchant_public_key": rsaPublic, "platform_public_keys": platformKeys, "ip_whitelist": IPWhitelist{Enabled: enabled, Entries: entries}}, nil
+	return map[string]any{"pid": string(pid), "key": string(plain), "key_version": keyVersion, "base_url": base, "v1": map[string]string{"submit": base + "/submit.php", "mapi": base + "/mapi.php", "query": base + "/api.php?act=order", "refund": base + "/api.php?act=refund", "info": base + "/api.php?act=query", "orders": base + "/api.php?act=orders"}, "v2": map[string]string{"submit": base + "/api/pay/submit", "create": base + "/api/pay/create", "query": base + "/api/pay/query", "refund": base + "/api/pay/refund", "close": base + "/api/pay/close", "refundquery": base + "/api/pay/refundquery", "info": base + "/api/merchant/info", "orders": base + "/api/merchant/orders"}, "merchant_public_key": rsaPublic, "platform_public_keys": platformKeys, "ip_whitelist": IPWhitelist{Enabled: enabled, Entries: entries}}, nil
 }
 
 func (s *Service) UpdatePreferences(ctx context.Context, actor platform.Actor, locale, theme string) (map[string]string, error) {

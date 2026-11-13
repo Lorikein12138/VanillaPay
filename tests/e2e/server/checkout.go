@@ -100,7 +100,7 @@ func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir
 	if _, err := tx.Exec(ctx, `UPDATE merchants SET username='示例小店' WHERE id=$1`, merchantID); err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO subscriptions(merchant_id,snapshot,expires_at,source) VALUES($1,'{"channels":["alipay","wxpay","qqpay"]}',now()+interval '1 year','manual')`, merchantID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO subscriptions(merchant_id,snapshot,expires_at,source) VALUES($1,'{"channels":["alipay","wxpay"]}',now()+interval '1 year','manual')`, merchantID); err != nil {
 		return nil, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO merchant_collection_settings(merchant_id,float_limit_cents,float_direction) VALUES($1,10,'down')`, merchantID); err != nil {
@@ -110,7 +110,7 @@ func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir
 	if _, err := tx.Exec(ctx, `INSERT INTO devices(public_id,merchant_id,token_hash,name,last_seen_at,ever_online) VALUES($1,$2,$3,'示例收款设备',now(),true)`, id, merchantID, hash[:]); err != nil {
 		return nil, err
 	}
-	for _, channel := range []string{"alipay", "wxpay", "qqpay"} {
+	for _, channel := range []string{"alipay", "wxpay"} {
 		code := codes[channel]
 		if config, err := png.DecodeConfig(bytes.NewReader(code.PNG)); err != nil || config.Width != 300 || config.Height != 300 || code.URL == "" {
 			return nil, errors.New("invalid checkout fixture code for " + channel)

@@ -6,7 +6,7 @@ import { yuanToCents } from '@/features/merchant/collection-data'
 export type Schema = components['schemas']
 export type MerchantFilters = Pick<NonNullable<operations['get_api_v1_console_merchants']['parameters']['query']>, 'query' | 'banned' | 'subscription_active'>
 export type PurchaseFilters = Pick<NonNullable<operations['get_api_v1_console_purchases']['parameters']['query']>, 'start' | 'end' | 'state' | 'merchant_id' | 'plan_id'>
-export const channels = ['alipay', 'wxpay', 'qqpay'] as const
+export const channels = ['alipay', 'wxpay'] as const
 export const purchaseStates = ['pending', 'paid', 'expired', 'cancelled', 'refunded'] as const
 export const bytes = (value: string) => new TextEncoder().encode(value).length
 export const validBanReason = (value: string) => Array.from(value.trim()).length >= 1 && Array.from(value.trim()).length <= 500

@@ -173,7 +173,7 @@ func (d *Database) PrepareBillingMerchant(t *testing.T, application *app.App, me
 	if _, err := application.Services.Settings.UpdateGroup(ctx, platform.Actor{Role: "admin", SubjectID: 1}, "billing", settingsUpdate(version, value)); err != nil {
 		t.Fatalf("configure billing merchant: %v", err)
 	}
-	qrPayloads := map[string]string{"alipay": "https://qr.alipay.com/fixture", "wxpay": "wxp://fixture", "qqpay": "https://qianbao.qq.com/fixture"}
+	qrPayloads := map[string]string{"alipay": "https://qr.alipay.com/fixture", "wxpay": "wxp://fixture"}
 	for _, channel := range channels {
 		assetID := fmt.Sprintf("fixture-qr-%d", seedSequence.Add(1))
 		payloadCipher, err := platform.Encrypt(d.Key[:], []byte(qrPayloads[channel]), rand.Reader)

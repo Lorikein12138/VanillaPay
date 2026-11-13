@@ -182,7 +182,7 @@ function OrderInformation({ detail, merchant }: { detail: Detail; merchant?: Rea
         { label: t('merchant.orders.productId'), value: order.product_id, mono: true },
         { label: t('merchant.orders.manual'), value: order.is_manual ? t('merchant.orders.yes') : null },
         { label: t('merchant.orders.manualReason'), value: order.manual_reason },
-        { label: t('merchant.orders.expireReason'), value: order.expire_reason },
+        { label: t('merchant.orders.expireReason'), value: order.expire_reason && t(`merchant.orders.expireReasons.${order.expire_reason}`, { defaultValue: order.expire_reason }) },
         { label: t('merchant.orders.param'), value: order.param, mono: true },
         { label: t('merchant.orders.notifyUrl'), value: detail.notify_url, mono: true, wide: true },
         { label: t('merchant.orders.returnUrl'), value: detail.return_url, mono: true, wide: true },

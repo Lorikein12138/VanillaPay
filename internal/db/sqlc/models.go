@@ -310,6 +310,7 @@ type Order struct {
 	BuyerHint                string             `json:"buyer_hint"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+	CreateRequestDigest      []byte             `json:"create_request_digest"`
 }
 
 type Plan struct {
@@ -394,6 +395,7 @@ type Refund struct {
 	RequestedAt    pgtype.Timestamptz `json:"requested_at"`
 	HandledAt      pgtype.Timestamptz `json:"handled_at"`
 	HandledBy      pgtype.Int8        `json:"handled_by"`
+	MerchantID     int64              `json:"merchant_id"`
 }
 
 type SecretSetting struct {

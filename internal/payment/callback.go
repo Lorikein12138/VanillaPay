@@ -71,7 +71,7 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 		var state string
 		var payload []byte
 		var tries int
-		err := tx.QueryRow(ctx, `SELECT c.id,c.public_id,c.generation,c.state,c.attempt_count,c.payload_snapshot,o.protocol,o.notify_url,o.signing_key_cipher,o.trade_no,o.out_trade_no,o.merchant_pid_snapshot,o.channel,o.name,o.original_cents,o.param,o.buyer_hint,COALESCE(host(o.clientip),''),o.created_at,o.paid_at,COALESCE((SELECT r.provider_trade_no FROM receipts r WHERE r.order_id=o.id LIMIT 1),'') FROM callback_events c JOIN orders o ON o.id=c.order_id WHERE c.order_id=$1 AND c.state IN ('pending','failed','running') AND (c.next_attempt_at IS NULL OR c.next_attempt_at<=$2) ORDER BY c.generation DESC LIMIT 1 FOR UPDATE OF c,o`, orderID, s.clock.Now()).Scan(&work.eventID, &work.publicEventID, &work.generation, &state, &tries, &payload, &work.protocol, &work.url, &work.keyCipher, &work.paramsTrade, &work.paramsOutTrade, &work.paramsPID, &work.paramsChannel, &work.paramsName, &work.paramsCents, &work.paramsExtra, &work.paramsBuyer, &work.paramsIP, &work.paramsCreated, &work.paramsPaid, &work.paramsProvider)
+		err := tx.QueryRow(ctx, `SELECT c.id,c.public_id,c.generation,c.state,c.attempt_count,c.payload_snapshot,o.protocol,o.notify_url,o.signing_key_cipher,o.trade_no,o.out_trade_no,o.merchant_pid_snapshot,o.channel,o.name,o.original_cents,o.param,o.buyer_hint,COALESCE(host(o.clientip),''),o.created_at,o.paid_at,COALESCE((SELECT r.provider_trade_no FROM receipts r WHERE r.order_id=o.id LIMIT 1),'') FROM callback_events c JOIN orders o ON o.id=c.order_id WHERE c.order_id=$1 AND (c.state='running' OR (c.state IN ('pending','failed') AND c.next_attempt_at<=$2)) ORDER BY c.generation DESC LIMIT 1 FOR UPDATE OF c,o`, orderID, s.clock.Now()).Scan(&work.eventID, &work.publicEventID, &work.generation, &state, &tries, &payload, &work.protocol, &work.url, &work.keyCipher, &work.paramsTrade, &work.paramsOutTrade, &work.paramsPID, &work.paramsChannel, &work.paramsName, &work.paramsCents, &work.paramsExtra, &work.paramsBuyer, &work.paramsIP, &work.paramsCreated, &work.paramsPaid, &work.paramsProvider)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
@@ -179,23 +179,27 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 	default:
 		return s.finishCallbackAttempt(ctx, work, 0, "", "UNSUPPORTED_PROTOCOL", errors.New("unsupported callback protocol"))
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, work.url, strings.NewReader(work.params.Encode()))
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, work.url, nil)
 	if err != nil {
 		return s.finishCallbackAttempt(ctx, work, 0, "", "INVALID_URL", err)
 	}
-	request.URL.RawQuery = stripReservedRawQuery(request.URL.RawQuery)
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	merchantQuery := stripReservedRawQuery(request.URL.RawQuery)
+	request.URL.RawQuery = work.params.Encode()
+	if merchantQuery != "" {
+		request.URL.RawQuery = merchantQuery + "&" + request.URL.RawQuery
+	}
 	work.startedWall = time.Now()
 	response, err := s.httpClient.DoPublic(ctx, request)
 	if err != nil {
-		return s.finishCallbackAttempt(ctx, work, 0, "", "NETWORK_ERROR", err)
+		// http.Client errors may contain the complete signed request URL.
+		return s.finishCallbackAttempt(ctx, work, 0, "", "NETWORK_ERROR", errors.New("callback delivery failed"))
 	}
 	defer func() { _ = response.Body.Close() }() // Cleanup must not replace the operation result.
-	body, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
-	if readErr != nil {
+	body, readErr := io.ReadAll(io.LimitReader(response.Body, 4097))
+	if readErr != nil && len(body) <= 4096 {
 		return s.finishCallbackAttempt(ctx, work, response.StatusCode, string(body), "RESPONSE_READ_ERROR", readErr)
 	}
-	if response.StatusCode >= 200 && response.StatusCode < 300 && strings.TrimSpace(string(body)) == "success" {
+	if response.StatusCode >= 200 && response.StatusCode < 300 && len(body) <= 4096 && strings.EqualFold(strings.TrimSpace(string(body)), "success") {
 		return s.finishCallbackAttempt(ctx, work, response.StatusCode, string(body), "", nil)
 	}
 	return s.finishCallbackAttempt(ctx, work, response.StatusCode, string(body), "CALLBACK_NOT_CONFIRMED", fmt.Errorf("callback response was not strict success"))
@@ -333,7 +337,7 @@ func (s *Service) finishCallbackAttempt(ctx context.Context, work callbackWork, 
 }
 
 func callbackRetryDelay(attempt int) (time.Duration, bool) {
-	schedule := [...]time.Duration{0, time.Minute, 5 * time.Minute, 15 * time.Minute, 30 * time.Minute, time.Hour, 3 * time.Hour, 6 * time.Hour, 12 * time.Hour, 24 * time.Hour}
+	schedule := [...]time.Duration{0, time.Minute, 2 * time.Minute, 5 * time.Minute, 15 * time.Minute, 30 * time.Minute, time.Hour, 2 * time.Hour, 6 * time.Hour, 14 * time.Hour}
 	if attempt < 1 || attempt >= len(schedule) {
 		return 0, false
 	}

@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"encoding/pem"
-	"io"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -50,18 +49,19 @@ func TestHTTP_MerchantQueryKeptRawAndReservedFieldsReplaced(t *testing.T) {
 	var mu sync.Mutex
 	var deliveries []delivery
 	callbackURL := fixture.Network.ServeTLS(t, "merchant.example.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Parse only the body: ParseForm would also parse the merchant query and
-		// reject its semicolon segment, which is the merchant's own business.
-		body, err := io.ReadAll(r.Body)
-		form, parseErr := url.ParseQuery(string(body))
-		if err != nil || parseErr != nil || r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
-			http.Error(w, "invalid callback form", http.StatusBadRequest)
+		routing, signed, found := strings.Cut(r.URL.RawQuery, "&")
+		if strings.HasPrefix(r.URL.RawQuery, rawMerchantRouting+"&") {
+			routing, signed, found = rawMerchantRouting, strings.TrimPrefix(r.URL.RawQuery, rawMerchantRouting+"&"), true
+		}
+		form, err := url.ParseQuery(signed)
+		if !found || err != nil || r.Method != http.MethodGet || r.ContentLength != 0 {
+			http.Error(w, "invalid callback query", http.StatusBadRequest)
 			return
 		}
 		mu.Lock()
-		deliveries = append(deliveries, delivery{rawQuery: r.URL.RawQuery, form: form})
+		deliveries = append(deliveries, delivery{rawQuery: routing, form: form})
 		mu.Unlock()
-		_, _ = w.Write([]byte("success"))
+		_, _ = w.Write([]byte(" Success "))
 	}))
 	notifyURL := callbackURL + "/notify?" + rawMerchantRouting + rawReservedCollides
 	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}

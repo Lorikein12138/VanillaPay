@@ -10,7 +10,6 @@ type Channel = operations['put_api_v1_merchant_collection_codes_channel']['param
 const labels = {
   alipay: '支付宝',
   wxpay: '微信支付',
-  qqpay: 'QQ 钱包',
 } satisfies Record<Channel, string>
 
 describe('channel icons', () => {
@@ -58,10 +57,10 @@ describe('channel icons', () => {
   })
 
   it('lists channels in one canonical order whatever order the API returns', () => {
-    expect(sortChannels(['qqpay', 'future-channel', 'wxpay', 'alipay'])).toEqual(['alipay', 'wxpay', 'qqpay', 'future-channel'])
-    render(<ChannelList channels={['alipay', 'qqpay', 'wxpay']} name={(channel) => labels[channel as Channel]} />)
+    expect(sortChannels(['future-channel', 'wxpay', 'alipay'])).toEqual(['alipay', 'wxpay', 'future-channel'])
+    render(<ChannelList channels={['alipay', 'wxpay']} name={(channel) => labels[channel as Channel]} />)
 
-    const text = screen.getAllByText(/支付宝|微信支付|QQ 钱包/).map((node) => node.textContent)
-    expect(text).toEqual(['支付宝', '微信支付', 'QQ 钱包'])
+    const text = screen.getAllByText(/支付宝|微信支付/).map((node) => node.textContent)
+    expect(text).toEqual(['支付宝', '微信支付'])
   })
 })

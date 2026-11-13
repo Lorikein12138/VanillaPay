@@ -55,8 +55,20 @@ func (h *Handler) RegisterProtocolRoutes(r chi.Router) {
 	r.Get("/api/pay/submit", h.V2Submit)
 	r.Post("/api/pay/submit", h.V2Submit)
 	r.Post("/api/pay/create", h.V2Create)
-	r.Post("/api/pay/query", h.V2Query)
-	r.Post("/api/pay/refund", h.V2Refund)
+	r.Post("/api/pay/query", h.v2Action(func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
+		h.queryProtocol(w, r, id, p, true)
+	}))
+	r.Post("/api/pay/refund", h.v2Action(func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
+		h.refundProtocol(w, r, id, p, true)
+	}))
+	r.Post("/api/pay/close", h.v2Action(h.closeProtocol))
+	r.Post("/api/pay/refundquery", h.v2Action(h.refundQueryProtocol))
+	r.Post("/api/merchant/info", h.v2Action(func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
+		h.merchantInfoProtocol(w, r, id, p, true)
+	}))
+	r.Post("/api/merchant/orders", h.v2Action(func(w http.ResponseWriter, r *http.Request, id int64, p url.Values) {
+		h.merchantOrdersProtocol(w, r, id, p, true)
+	}))
 }
 
 func (h *Handler) RegisterAPIRoutes(r chi.Router) {
@@ -75,8 +87,7 @@ func (h *Handler) RegisterAPIRoutes(r chi.Router) {
 }
 
 func (h *Handler) queryProtocol(w http.ResponseWriter, r *http.Request, merchantID int64, p url.Values, v2 bool) {
-	if err := h.Service.CheckProtocolIP(r.Context(), merchantID, h.realIP(r)); err != nil {
-		h.protocolError(w, v2, errorCode(err))
+	if !h.authorizeProtocolIP(w, r, merchantID, v2) {
 		return
 	}
 	trade, out := p.Get("trade_no"), p.Get("out_trade_no")
@@ -90,6 +101,9 @@ func (h *Handler) queryProtocol(w http.ResponseWriter, r *http.Request, merchant
 		return
 	}
 	data := h.protocolOrder(dto)
+	if dto.Status == "pending" && dto.ExpiresAt.After(h.Service.clock.Now()) {
+		data["payurl"] = h.cashierURL(dto.TradeNo)
+	}
 	var pid, buyer, clientIP string
 	var refundStatus, refundNo pgtype.Text
 	if err := h.Service.pool.QueryRow(r.Context(), `SELECT o.merchant_pid_snapshot,COALESCE(o.buyer_hint,''),COALESCE(host(o.clientip),''),(SELECT status FROM refunds WHERE order_id=o.id ORDER BY requested_at DESC LIMIT 1),(SELECT public_id FROM refunds WHERE order_id=o.id ORDER BY requested_at DESC LIMIT 1) FROM orders o WHERE o.trade_no=$1`, dto.TradeNo).Scan(&pid, &buyer, &clientIP, &refundStatus, &refundNo); err != nil {
@@ -122,8 +136,7 @@ func (h *Handler) queryProtocol(w http.ResponseWriter, r *http.Request, merchant
 }
 
 func (h *Handler) refundProtocol(w http.ResponseWriter, r *http.Request, merchantID int64, p url.Values, v2 bool) {
-	if err := h.Service.CheckProtocolIP(r.Context(), merchantID, h.realIP(r)); err != nil {
-		h.protocolError(w, v2, errorCode(err))
+	if !h.authorizeProtocolIP(w, r, merchantID, v2) {
 		return
 	}
 	trade, out := p.Get("trade_no"), p.Get("out_trade_no")
@@ -754,6 +767,9 @@ func errorCode(err error) string {
 	if errors.As(err, &api) {
 		return api.Code
 	}
+	if errors.Is(err, errTimestampExpired) {
+		return "TIMESTAMP_EXPIRED"
+	}
 	if errors.Is(err, ErrInvalidSignature) {
 		return "INVALID_SIGNATURE"
 	}
@@ -780,21 +796,15 @@ func validateV2Capabilities(p url.Values) error {
 	return nil
 }
 func (h *Handler) protocolOrder(d OrderDTO) map[string]any {
-	status := 0
-	switch d.Status {
-	case "paid":
-		status = 1
-	case "refunded":
-		status = 2
-	}
+	status := protocolOrderStatus(d.Status)
 	channel := ""
 	if d.Channel != nil {
 		channel = *d.Channel
 	}
-	add := d.CreatedAt.In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05")
+	add := formatProtocolTime(d.CreatedAt)
 	var end any
 	if d.PaidAt != nil {
-		end = d.PaidAt.In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05")
+		end = formatProtocolTime(*d.PaidAt)
 	}
 	actual := any(nil)
 	if d.ActualCents != nil {
@@ -835,14 +845,6 @@ func parseIntDefault(v string, fallback int) int {
 		return -1
 	}
 	return n
-}
-func containsValue(values []string, value string) bool {
-	for _, v := range values {
-		if v == value {
-			return true
-		}
-	}
-	return false
 }
 func remoteAddrIP(value string) netip.Addr {
 	host := value

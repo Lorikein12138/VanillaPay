@@ -19,6 +19,7 @@ import (
 )
 
 var ErrInvalidSignature = errors.New("INVALID_SIGNATURE")
+var errTimestampExpired = errors.New("TIMESTAMP_EXPIRED")
 
 func Canonical(params url.Values) (string, error) {
 	keys := make([]string, 0, len(params))
@@ -83,7 +84,7 @@ func VerifyV2(params url.Values, publicKey *rsa.PublicKey, now time.Time) error 
 	}
 	delta := now.Unix() - unix
 	if delta < -300 || delta > 300 {
-		return errors.New("TIMESTAMP_EXPIRED")
+		return errTimestampExpired
 	}
 	sig, err := base64.StdEncoding.DecodeString(params.Get("sign"))
 	if err != nil {

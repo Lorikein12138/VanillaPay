@@ -166,7 +166,7 @@ describe('binding lifecycle', () => {
 describe('security proof and one-time key', () => {
   const integration: Schema['Integration'] = {
     pid: user.pid!, key: 'fixture-current-key', key_version: 1, base_url: 'https://example.test',
-    v1: { submit: '', mapi: '', query: '', refund: '' }, v2: { submit: '', create: '', query: '', refund: '' },
+    v1: { submit: '', mapi: '', query: '', refund: '', info: '', orders: '' }, v2: { submit: '', create: '', query: '', refund: '', info: '', orders: '', close: '', refundquery: '' },
     merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] },
   }
 
@@ -241,7 +241,7 @@ describe('security proof and one-time key', () => {
   })
   it('discards the integration endpoint key before caching and only reveals on demand', async () => {
     const secret = crypto.randomUUID()
-    const data: Schema['Integration'] = { pid: user.pid!, key: secret, key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '' }, v2: { submit: '', create: '', query: '', refund: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } }
+    const data: Schema['Integration'] = { pid: user.pid!, key: secret, key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '', info: '', orders: '' }, v2: { submit: '', create: '', query: '', refund: '', info: '', orders: '', close: '', refundquery: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } }
     const get = vi.spyOn(api, 'integration').mockResolvedValue(data)
     const { client } = wrapper(<IntegrationPage user={user} />)
     await screen.findByText('商户凭据')
@@ -391,7 +391,7 @@ describe('collection bounds and cache invalidation', () => {
     await waitFor(() => expect(versions).toEqual([settings.version, 2]))
   })
   it.each(['toggle', 'unbind', 'binding', 'reset', 'rsa', 'whitelist'] as const)('invalidates merchant stats after the actual %s write flow', async (kind) => {
-    const integration: Schema['Integration'] = { pid: user.pid!, key: crypto.randomUUID(), key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '' }, v2: { submit: '', create: '', query: '', refund: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } }
+    const integration: Schema['Integration'] = { pid: user.pid!, key: crypto.randomUUID(), key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '', info: '', orders: '' }, v2: { submit: '', create: '', query: '', refund: '', info: '', orders: '', close: '', refundquery: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } }
     vi.spyOn(api, 'integration').mockResolvedValue(integration)
     vi.spyOn(api, 'resetKey').mockResolvedValue({ pid: user.pid!, key: crypto.randomUUID(), key_version: 2 })
     vi.spyOn(api, 'saveRSA').mockResolvedValue({ fingerprint: 'fixture', updated_at: new Date().toISOString() })
