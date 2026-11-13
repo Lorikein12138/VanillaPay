@@ -55,23 +55,33 @@ type OrderDTO struct {
 }
 
 type CheckoutDTO struct {
-	TradeNo             string            `json:"trade_no"`
-	Name                string            `json:"name"`
-	ProductID           string            `json:"product_id"`
-	Merchant            map[string]string `json:"merchant"`
-	Status              string            `json:"status"`
-	Reason              *string           `json:"reason"`
-	OriginalCents       int64             `json:"original_cents"`
-	ActualCents         *int64            `json:"actual_cents"`
-	Channel             *string           `json:"channel"`
-	AvailableChannels   []string          `json:"available_channels"`
-	QRImageURL          *string           `json:"qr_image_url"`
-	ExpiresAt           time.Time         `json:"expires_at"`
-	ServerTime          time.Time         `json:"server_time"`
-	DeviceOnline        bool              `json:"device_online"`
-	CanPay              bool              `json:"can_pay"`
-	ReturnURLSigned     *string           `json:"return_url_signed"`
-	RequiresExactAmount bool              `json:"requires_exact_amount"`
+	TradeNo             string                `json:"trade_no"`
+	Name                string                `json:"name"`
+	ProductID           string                `json:"product_id"`
+	Merchant            map[string]string     `json:"merchant"`
+	Status              string                `json:"status"`
+	Reason              *string               `json:"reason"`
+	OriginalCents       int64                 `json:"original_cents"`
+	ActualCents         *int64                `json:"actual_cents"`
+	Channel             *string               `json:"channel"`
+	AvailableChannels   []string              `json:"available_channels"`
+	QRImageURL          *string               `json:"qr_image_url"`
+	ExpiresAt           time.Time             `json:"expires_at"`
+	ServerTime          time.Time             `json:"server_time"`
+	DeviceOnline        bool                  `json:"device_online"`
+	CanPay              bool                  `json:"can_pay"`
+	ReturnURLSigned     *string               `json:"return_url_signed"`
+	RequiresExactAmount bool                  `json:"requires_exact_amount"`
+	Verification        *CheckoutVerification `json:"verification,omitempty"`
+}
+
+type CheckoutVerification struct {
+	Required bool   `json:"required"`
+	SiteKey  string `json:"site_key"`
+}
+
+type CheckoutVerifyRequest struct {
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 type OrderSelector struct {
@@ -155,6 +165,7 @@ type OrderEligibility interface {
 	CheckChannelTx(context.Context, pgx.Tx, int64, string, int64) (EligibilitySnapshot, error)
 }
 type EligibilitySnapshot struct {
+	platform.PlanLimits
 	MerchantUsername       string
 	PID                    string
 	KeyCipher              []byte

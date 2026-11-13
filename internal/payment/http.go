@@ -74,6 +74,7 @@ func (h *Handler) RegisterProtocolRoutes(r chi.Router) {
 func (h *Handler) RegisterAPIRoutes(r chi.Router) {
 	r.Get("/checkout/{tradeNo}", h.Checkout)
 	r.Post("/checkout/{tradeNo}/channel", h.SelectCheckoutChannel)
+	r.Post("/checkout/{tradeNo}/verify", h.VerifyCheckout)
 	r.Get("/merchant/orders", h.ListOrders)
 	r.Get("/merchant/orders/export.csv", h.ExportOrders)
 	r.Get("/merchant/orders/{trade_no}", h.OrderDetail)
@@ -306,7 +307,12 @@ func (h *Handler) v2JSON(w http.ResponseWriter, status int, data map[string]any)
 
 func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	trade := chi.URLParam(r, "tradeNo")
-	dto, err := h.checkoutData(r.Context(), trade)
+	risk, err := readCheckoutRisk(r.Context(), h.Service.pool, h.realIP(r))
+	if err != nil {
+		httpJSON(w, r, nil, err, 200)
+		return
+	}
+	dto, err := h.checkoutData(r.Context(), trade, risk.SiteKey, platform.CheckoutCookieToken(r, trade))
 	httpJSON(w, r, dto, err, 200)
 }
 func (h *Handler) SelectCheckoutChannel(w http.ResponseWriter, r *http.Request) {
@@ -318,7 +324,13 @@ func (h *Handler) SelectCheckoutChannel(w http.ResponseWriter, r *http.Request) 
 		httpJSON(w, r, nil, apiErr("CSRF_FAILED", 403), 200)
 		return
 	}
-	dto, err := h.Service.SelectChannel(r.Context(), chi.URLParam(r, "tradeNo"), req.Channel)
+	ip := h.realIP(r)
+	if _, err := readCheckoutRisk(r.Context(), h.Service.pool, ip); err != nil {
+		httpJSON(w, r, nil, err, 200)
+		return
+	}
+	trade := chi.URLParam(r, "tradeNo")
+	dto, err := h.Service.selectChannel(r.Context(), trade, req.Channel, ip, platform.CheckoutCookieToken(r, trade))
 	httpJSON(w, r, dto, err, 200)
 }
 
@@ -341,7 +353,7 @@ func (h *Handler) sameOrigin(r *http.Request) bool {
 	}
 	return strings.EqualFold(u.Scheme, scheme) && strings.EqualFold(u.Host, r.Host)
 }
-func (h *Handler) checkoutData(ctx context.Context, trade string) (CheckoutDTO, error) {
+func (h *Handler) checkoutData(ctx context.Context, trade, siteKey, token string) (CheckoutDTO, error) {
 	var dto CheckoutDTO
 	var merchantID int64
 	var merchantName string
@@ -389,6 +401,17 @@ func (h *Handler) checkoutData(ctx context.Context, trade string) (CheckoutDTO, 
 	}
 	if reason != "" {
 		dto.Reason = &reason
+	}
+	if siteKey != "" && dto.Status == "pending" && dto.ExpiresAt.After(dto.ServerTime) {
+		required := !h.Service.checkoutVerified(trade, token, dto.ExpiresAt)
+		dto.Verification = &CheckoutVerification{Required: required, SiteKey: siteKey}
+		if required {
+			dto.ActualCents = nil
+			dto.Channel = nil
+			dto.AvailableChannels = []string{}
+			dto.RequiresExactAmount = false
+			return dto, nil
+		}
 	}
 	dto.CanPay = dto.Status == "pending" && reason == "" && channel.Valid && actual.Valid
 	if dto.CanPay {

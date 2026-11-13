@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"vanillapay/internal/platform"
 )
 
 type SQLEligibility struct{ Now func() time.Time }
@@ -78,6 +79,7 @@ func (e SQLEligibility) load(ctx context.Context, tx pgx.Tx, merchantID, amount 
 	}
 	var entitlement struct {
 		Channels []string `json:"channels"`
+		platform.PlanLimits
 	}
 	if len(snapshot) == 0 || json.Unmarshal(snapshot, &entitlement) != nil {
 		if err := tx.QueryRow(ctx, `SELECT channels FROM plans WHERE id=(SELECT plan_id FROM subscriptions WHERE merchant_id=$1)`, merchantID).Scan(&entitlement.Channels); err != nil {
@@ -85,6 +87,7 @@ func (e SQLEligibility) load(ctx context.Context, tx pgx.Tx, merchantID, amount 
 		}
 	}
 	result.Channels = entitlement.Channels
+	result.PlanLimits = entitlement.PlanLimits
 	var online bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM devices WHERE merchant_id=$1 AND revoked_at IS NULL AND last_seen_at>$2::timestamptz-interval '90 seconds')`, merchantID, clockNow(e.Now)).Scan(&online); err != nil {
 		return result, err

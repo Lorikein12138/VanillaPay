@@ -35,6 +35,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/merchant/integration/reset-key", h.ResetKey)
 	r.Put("/merchant/integration/rsa-public-key", h.RSAPublicKey)
 	r.Put("/merchant/integration/ip-whitelist", h.IPWhitelist)
+	r.Get("/merchant/integration/notify-domains", h.GetNotifyDomains)
+	r.Put("/merchant/integration/notify-domains", h.PutNotifyDomains)
 }
 
 func (h *Handler) ListConsole(w http.ResponseWriter, r *http.Request) {

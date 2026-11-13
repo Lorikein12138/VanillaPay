@@ -46,7 +46,7 @@ function rejectResponse(response: Response, problem: Schema['ErrorEnvelope']['er
   throw new APIError(response.status, problem)
 }
 
-async function request<T>(path: string, body?: unknown, protectedRequest = true, idempotencyKey?: string, method?: string, signal?: AbortSignal, csrfOverride?: string): Promise<T> {
+async function request<T>(path: string, body?: unknown, protectedRequest = true, idempotencyKey?: string, method?: string, signal?: AbortSignal, csrfOverride?: string, noContent?: T): Promise<T> {
   const role = path.startsWith('/api/v1/console/') ? 'console' : 'merchant'
   const version = sessionVersions[role]
   const csrf = csrfOverride ?? (protectedRequest ? csrfTokens[role] : '')
@@ -71,6 +71,7 @@ async function request<T>(path: string, body?: unknown, protectedRequest = true,
   if (!response.ok) {
     rejectResponse(response, envelope && 'error' in envelope && envelope.error ? envelope.error : undefined, protectedRequest && !signal?.aborted, role, version)
   }
+  if (response.status === 204 && noContent !== undefined) return noContent
   if (!envelope || !('data' in envelope)) throw new APIError(502)
   return envelope.data
 }
@@ -116,6 +117,7 @@ async function exportOrders(filters: OrdersQuery, role: Role = 'merchant') {
 
 export const api = {
   checkout: (tradeNo: string, signal?: AbortSignal) => request<Schema['PaymentCheckoutDTO']>(`/api/v1/checkout/${encodeURIComponent(tradeNo)}`, undefined, false, undefined, 'GET', signal),
+  verifyCheckout: (tradeNo: string, value: operations['post_api_v1_checkout_tradeNo_verify']['requestBody']['content']['application/json']) => request<null>(`/api/v1/checkout/${encodeURIComponent(tradeNo)}/verify`, value, false, undefined, 'POST', undefined, undefined, null),
   selectCheckoutChannel: (tradeNo: string, value: operations['post_api_v1_checkout_tradeNo_channel']['requestBody']['content']['application/json'], signal?: AbortSignal) => request<Schema['PaymentCheckoutDTO']>(`/api/v1/checkout/${encodeURIComponent(tradeNo)}/channel`, value, false, undefined, 'POST', signal),
   subscription: () => request<Schema['SubscriptionOverview']>('/api/v1/merchant/subscription'),
   purchase: (value: Schema['SubscriptionPurchaseRequest'], key: string) => request<Schema['SubscriptionPurchaseDTO']>('/api/v1/merchant/subscription/purchases', value, true, key),
@@ -167,6 +169,8 @@ export const api = {
   resetKey: (security_proof: Schema['AuthSecurityProof']) => request<Schema['MerchantKeyDTO']>('/api/v1/merchant/integration/reset-key', { security_proof }),
   saveRSA: (value: Schema['MerchantRSAKeyRequest']) => request<operations['put_api_v1_merchant_integration_rsa_public_key']['responses'][200]['content']['application/json']['data']>('/api/v1/merchant/integration/rsa-public-key', value, true, undefined, 'PUT'),
   saveWhitelist: (value: Schema['MerchantIPWhitelist']) => request<Schema['MerchantIPWhitelist']>('/api/v1/merchant/integration/ip-whitelist', value, true, undefined, 'PUT'),
+  notifyDomains: (signal?: AbortSignal) => request<Schema['MerchantNotifyDomains']>('/api/v1/merchant/integration/notify-domains', undefined, true, undefined, 'GET', signal),
+  saveNotifyDomains: (value: Schema['MerchantNotifyDomains']) => request<Schema['MerchantNotifyDomains']>('/api/v1/merchant/integration/notify-domains', value, true, undefined, 'PUT'),
   orders: (limit: number) => request<Schema['OrdersPage']>(`/api/v1/merchant/orders?${new URLSearchParams({ limit: String(limit) })}`),
   orderPage: (filters: OrdersQuery) => request<Schema['OrdersPage']>(`/api/v1/merchant/orders?${queryString(filters)}`),
   order: (tradeNo: string) => request<Schema['OrderDetail']>(`/api/v1/merchant/orders/${encodeURIComponent(tradeNo)}`),
@@ -207,7 +211,7 @@ export const consoleApi = {
   deletePlan: (id: string, revision: number) => request<Schema['SubscriptionDeletedPlanResult']>(`/api/v1/console/plans/${encodeURIComponent(id)}`, { revision }, true, undefined, 'DELETE'),
   purchases: (filters: NonNullable<operations['get_api_v1_console_purchases']['parameters']['query']>, signal?: AbortSignal) => request<Schema['SubscriptionPurchasePage']>(`/api/v1/console/purchases?${queryString(filters)}`, undefined, true, undefined, 'GET', signal),
   settings: (signal?: AbortSignal) => request<Schema['Settings']>('/api/v1/console/settings', undefined, true, undefined, 'GET', signal),
-  saveSettings: (group: 'site' | 'home' | 'footer_legal' | 'mail' | 'security' | 'payment' | 'billing', value: Schema['SettingsUpdateGroup']) => request<NonNullable<Schema['SettingsGroupResult']>>(`/api/v1/console/settings/${group}`, value, true, undefined, 'PUT'),
+  saveSettings: (group: operations['put_api_v1_console_settings_group']['parameters']['path']['group'], value: Schema['SettingsUpdateGroup']) => request<NonNullable<Schema['SettingsGroupResult']>>(`/api/v1/console/settings/${group}`, value, true, undefined, 'PUT'),
   testMail: (recipient: string, signal?: AbortSignal) =>
     request<NonNullable<operations['post_api_v1_console_settings_mail_test']['responses'][202]['content']['application/json']['data']>>(
       '/api/v1/console/settings/mail/test', { recipient }, true, undefined, 'POST', signal,

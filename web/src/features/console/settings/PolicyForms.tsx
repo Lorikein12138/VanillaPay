@@ -5,7 +5,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Turnstile } from '@/features/auth/Turnstile'
 import { FormError } from '@/components/FormError'
-import { Checkbox, Textarea } from '@/components/ui/input'
+import { Checkbox, Input, Textarea } from '@/components/ui/input'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Notice } from '@/components/ui/notice'
 import { AccountField } from '@/features/auth/account-shared'
@@ -185,6 +185,28 @@ export function PaymentForm({
       </FieldGrid>
     </div>
   )
+}
+
+export function RiskForm({ value, onChange, errorText }: {
+  value: SettingsDrafts['risk']
+  onChange: (patch: Partial<SettingsDrafts['risk']>) => void
+  errorText: (field: string) => string | undefined
+}) {
+  const { t } = useTranslation()
+  const error = errorText('checkout_turnstile_enabled')
+  return <>
+    <Field htmlFor="risk-ip-limit" label={t('consoleSettings.riskIpLimit')} hint={t('consoleSettings.riskIpLimitHint')} error={errorText('ip_daily_order_limit')}>
+      <Input id="risk-ip-limit" inputMode="numeric" aria-describedby="risk-ip-limit-hint" value={value.ip_daily_order_limit} onChange={(event) => onChange({ ip_daily_order_limit: event.target.value })} />
+    </Field>
+    <Field htmlFor="risk-ip-blacklist" label={t('consoleSettings.riskIpBlacklist')} hint={t('consoleSettings.riskIpBlacklistHint')} error={errorText('ip_blacklist')}>
+      <Textarea id="risk-ip-blacklist" rows={5} aria-describedby="risk-ip-blacklist-hint" value={value.ip_blacklist} onChange={(event) => onChange({ ip_blacklist: event.target.value })} />
+    </Field>
+    <Field htmlFor="risk-name-words" label={t('consoleSettings.riskNameWords')} hint={t('consoleSettings.riskNameWordsHint')} error={errorText('name_block_words')}>
+      <Textarea id="risk-name-words" rows={5} aria-describedby="risk-name-words-hint" value={value.name_block_words} onChange={(event) => onChange({ name_block_words: event.target.value })} />
+    </Field>
+    <Checkbox checked={value.checkout_turnstile_enabled} aria-invalid={!!error} aria-describedby={error ? 'risk-turnstile-error' : undefined} onChange={(event) => onChange({ checkout_turnstile_enabled: event.target.checked })}>{t('consoleSettings.riskTurnstile')}</Checkbox>
+    {error && <FormError id="risk-turnstile-error">{error}</FormError>}
+  </>
 }
 
 export function BillingForm({

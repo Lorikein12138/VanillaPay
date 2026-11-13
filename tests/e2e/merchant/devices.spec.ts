@@ -5,6 +5,28 @@ import type { APIRequestContext, Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
 import { chooseSelect, expect, login, merchantVisualShots, noOverflow, test, clickControl, polishShot } from './fixtures'
 
+test('saves the merchant callback domain allowlist', async ({ page, account }) => {
+  await signIn(page, account, '/integration')
+  const card = page.getByRole('region', { name: '回调域名白名单' })
+  const entries = card.getByLabel('允许的域名')
+  await expect(entries).toHaveValue('')
+  await card.getByRole('checkbox', { name: '启用回调域名白名单' }).check()
+  await entries.fill('*.EXAMPLE.com\n例子.中国')
+  await card.getByRole('button', { name: '保存域名白名单' }).click()
+  await expect(card.getByText('已保存回调域名白名单。')).toBeVisible()
+  await expect(entries).toHaveValue('*.example.com\nxn--fsqu00a.xn--fiqs8s')
+  await page.reload()
+  await expect(card.getByRole('checkbox', { name: '启用回调域名白名单' })).toBeChecked()
+  await expect(entries).toHaveValue('*.example.com\nxn--fsqu00a.xn--fiqs8s')
+  if ([360, 1280].includes(page.viewportSize()!.width)) {
+    for (const theme of ['浅色', '深色']) {
+      await clickControl(page, theme)
+      await card.scrollIntoViewIfNeeded()
+      await polishShot(page, 'merchant-notify-domains', false, 'payment-risk-shots')
+    }
+  }
+})
+
 async function shot(page: Page, name: string) {
   const width = page.viewportSize()?.width
   if (width !== 360 && width !== 1280) return

@@ -21,6 +21,9 @@ func TestDB_SubscriptionEntitlementTransitions(t *testing.T) {
 	billingPlan := db.SeedPlan(t, "entitlement-billing", 1000, 3650, []string{"alipay", "wxpay"}, nil)
 	app := db.NewApplication(t)
 	deviceToken := db.PrepareBillingMerchant(t, app, billingID, billingKey, billingPlan)
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE plans SET min_order_cents=101,max_order_cents=20000,daily_limit_cents=90050 WHERE id=$1`, firstPlan); err != nil {
+		t.Fatal(err)
+	}
 	actor := platform.Actor{Role: "merchant", SubjectID: buyerID, MerchantID: buyerID}
 
 	t.Run("V24.B.r01/v01", func(t *testing.T) {
@@ -49,7 +52,16 @@ func TestDB_SubscriptionEntitlementTransitions(t *testing.T) {
 		t.Fatalf("fulfilled initial entitlement = %#v, err=%v", current, err)
 	}
 	firstExpiry := *current.ExpiresAt
-	renewal, err := app.Services.Subscription.Purchase(t.Context(), actor, subscription.PurchaseRequest{PlanID: itoa(firstPlan), PlanRevision: 1, ExpectedSubscriptionRevision: current.Revision}, "entitlement-renew-001")
+	requireSnapshotLimits(t, current.Plan, 101, 20000, 90050)
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE plans SET revision=2,min_order_cents=201,max_order_cents=30000,daily_limit_cents=90051 WHERE id=$1`, firstPlan); err != nil {
+		t.Fatal(err)
+	}
+	current, err = app.Services.Subscription.GetCurrent(t.Context(), actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireSnapshotLimits(t, current.Plan, 101, 20000, 90050)
+	renewal, err := app.Services.Subscription.Purchase(t.Context(), actor, subscription.PurchaseRequest{PlanID: itoa(firstPlan), PlanRevision: 2, ExpectedSubscriptionRevision: current.Revision}, "entitlement-renew-001")
 	if err != nil || renewal.PurchaseKind != "renew" {
 		t.Fatalf("same-plan renewal = %#v, err=%v", renewal, err)
 	}
@@ -59,6 +71,7 @@ func TestDB_SubscriptionEntitlementTransitions(t *testing.T) {
 		if err != nil || updated.ExpiresAt == nil || !updated.ExpiresAt.Equal(firstExpiry.Add(30*24*time.Hour)) {
 			t.Fatalf("renewal expiry=%v, want previous expiry+30d (%v), err=%v", updated.ExpiresAt, firstExpiry.Add(30*24*time.Hour), err)
 		}
+		requireSnapshotLimits(t, updated.Plan, 201, 30000, 90051)
 	})
 
 	// Expire the entitlement using the fixture clock, then start a new fixed-duration chain.
@@ -162,6 +175,15 @@ func TestDB_SubscriptionEntitlementTransitions(t *testing.T) {
 			t.Fatalf("pre-existing selected order status=%q err=%v, want paid", state, err)
 		}
 	})
+}
+
+func requireSnapshotLimits(t *testing.T, plan *subscription.PlanDTO, minimum, maximum, daily int64) {
+	t.Helper()
+	if plan == nil || plan.MinOrderCents == nil || *plan.MinOrderCents != minimum ||
+		plan.MaxOrderCents == nil || *plan.MaxOrderCents != maximum ||
+		plan.DailyLimitCents == nil || *plan.DailyLimitCents != daily {
+		t.Fatalf("subscription snapshot missing expected limits: %+v", plan)
+	}
 }
 
 func completeEntitlementPurchase(t *testing.T, db *testsupport.Database, app *app.App, deviceToken string, purchase subscription.PurchaseDTO, eventID string) {

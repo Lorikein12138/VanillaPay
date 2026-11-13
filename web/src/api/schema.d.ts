@@ -620,6 +620,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/merchant/integration/notify-domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取商户回调域名白名单 */
+        get: operations["get_api_v1_merchant_integration_notify_domains"];
+        /** 保存商户回调域名白名单 */
+        put: operations["put_api_v1_merchant_integration_notify_domains"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/device/bind": {
         parameters: {
             query?: never;
@@ -821,7 +839,7 @@ export interface paths {
         get?: never;
         /**
          * PUT /api/v1/console/settings/{group}
-         * @description group 为 site/home/footer_legal/mail/security/payment/billing。正常会话为管理员；security 还接受修复专用恢复会话 + CSRF，仅允许修复 Turnstile。
+         * @description group 为 site/home/footer_legal/mail/security/payment/risk/billing。正常会话为管理员；security 还接受修复专用恢复会话 + CSRF，仅允许修复 Turnstile。
          */
         put: operations["put_api_v1_console_settings_group"];
         post?: never;
@@ -1472,7 +1490,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/v1/checkout/{tradeNo} */
+        /**
+         * GET /api/v1/checkout/{tradeNo}
+         * @description 来源 IP 命中黑名单时返回 IP_BLOCKED。启用人机验证的待支付订单在验证前隐藏二维码、实际付款金额和可选渠道。
+         */
         get: operations["get_api_v1_checkout_tradeNo"];
         put?: never;
         post?: never;
@@ -1491,8 +1512,31 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/v1/checkout/{tradeNo}/channel */
+        /**
+         * POST /api/v1/checkout/{tradeNo}/channel
+         * @description 来源 IP 命中黑名单时返回 IP_BLOCKED。启用验证的待支付订单需要该订单的验证 Cookie，否则返回 CHECKOUT_VERIFICATION_REQUIRED。开启验证时，通过 GET 取得付款二维码。
+         */
         post: operations["post_api_v1_checkout_tradeNo_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/checkout/{tradeNo}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 验证收银台 Turnstile
+         * @description 成功后设置绑定订单且不晚于订单到期的 HttpOnly、SameSite=Lax Cookie，HTTPS 时附加 Secure。关闭验证或订单已结束时直接返回 204。来源 IP 命中黑名单时返回 IP_BLOCKED。
+         */
+        post: operations["post_api_v1_checkout_tradeNo_verify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2036,6 +2080,11 @@ export interface components {
             enabled: boolean;
             entries: string[] | null;
         };
+        MerchantNotifyDomains: {
+            enabled: boolean;
+            /** @description 主机名转小写及 Punycode。*.example.com 匹配任意层级的子域名，example.com 需单独添加。禁止 IP 和单独的 *。启用时至少需要一条。 */
+            entries: string[];
+        };
         MerchantKeyDTO: {
             key: string;
             /** Format: int64 */
@@ -2071,6 +2120,11 @@ export interface components {
             server_time: string;
             status: string;
             trade_no: string;
+            /** @description 仅验证启用且订单待支付、未过期时提供。required 表示当前请求尚未通过验证。 */
+            verification?: {
+                required: boolean;
+                site_key: string;
+            };
         };
         PaymentRefundAttempt: {
             /** Format: int64 */
@@ -2369,7 +2423,7 @@ export interface components {
             /** Format: int64 */
             affected_merchants: number;
             group: string;
-            value: components["schemas"]["SiteGroup"] | components["schemas"]["Home"] | components["schemas"]["SettingsFooterLegal"] | components["schemas"]["MailSettings"] | components["schemas"]["SecuritySettingsUpdate"] | components["schemas"]["SettingsGroupBounds"] | components["schemas"]["BillingSettingsUpdate"];
+            value: components["schemas"]["SiteGroup"] | components["schemas"]["Home"] | components["schemas"]["SettingsFooterLegal"] | components["schemas"]["MailSettings"] | components["schemas"]["SecuritySettingsUpdate"] | components["schemas"]["SettingsGroupBounds"] | components["schemas"]["PaymentRisk"] | components["schemas"]["BillingSettingsUpdate"];
             /** Format: int64 */
             version: number;
         };
@@ -2399,7 +2453,7 @@ export interface components {
         SettingsUpdateGroup: {
             /** Format: int64 */
             expected_version: number;
-            value: components["schemas"]["SiteGroup"] | components["schemas"]["Home"] | components["schemas"]["SettingsFooterLegal"] | components["schemas"]["MailSettingsInput"] | components["schemas"]["SecuritySettingsInput"] | components["schemas"]["RecoverySecurityInput"] | components["schemas"]["SettingsGroupBounds"] | components["schemas"]["BillingSettingsInput"];
+            value: components["schemas"]["SiteGroup"] | components["schemas"]["Home"] | components["schemas"]["SettingsFooterLegal"] | components["schemas"]["MailSettingsInput"] | components["schemas"]["SecuritySettingsInput"] | components["schemas"]["RecoverySecurityInput"] | components["schemas"]["SettingsGroupBounds"] | components["schemas"]["PaymentRisk"] | components["schemas"]["BillingSettingsInput"];
         };
         SubscriptionAdminPurchaseDTO: {
             cashier_url: string | null;
@@ -2447,6 +2501,9 @@ export interface components {
             name: components["schemas"]["SubscriptionLocalizedName"];
             /** Format: int64 */
             price_cents: number;
+            min_order_cents?: components["schemas"]["PlanOrderLimitCents"];
+            max_order_cents?: components["schemas"]["PlanOrderLimitCents"];
+            daily_limit_cents?: components["schemas"]["PlanDailyLimitCents"];
             /** Format: int32 */
             purchase_limit: number | null;
             /** Format: int64 */
@@ -2461,6 +2518,9 @@ export interface components {
             name: components["schemas"]["SubscriptionLocalizedName"];
             /** Format: int64 */
             price_cents: number;
+            min_order_cents?: components["schemas"]["PlanOrderLimitCents"];
+            max_order_cents?: components["schemas"]["PlanOrderLimitCents"];
+            daily_limit_cents?: components["schemas"]["PlanDailyLimitCents"];
             /** Format: int32 */
             purchase_limit: number | null;
             /** Format: int64 */
@@ -2470,6 +2530,16 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        /**
+         * Format: int64
+         * @description 单笔原始金额边界，单位为分。空值或省略表示不限。最小值不得大于最大值。
+         */
+        PlanOrderLimitCents: number | null;
+        /**
+         * Format: int64
+         * @description 上海自然日原始金额上限，单位为分。包含当日已支付和所有未过期待支付的外部订单。空值或省略表示不限。
+         */
+        PlanDailyLimitCents: number | null;
         SubscriptionPurchaseDTO: {
             cashier_url: string | null;
             /** Format: date-time */
@@ -2513,7 +2583,7 @@ export interface components {
             source: string;
         };
         /** @enum {string} */
-        ErrorCode: "ACCOUNT_BANNED" | "AGREEMENT_REQUIRED" | "ALREADY_INITIALIZED" | "ALREADY_REFUNDED" | "REFUND_ALREADY_HANDLED" | "AMOUNT_CAPACITY_EXHAUSTED" | "AMOUNT_OUT_OF_RANGE" | "BILLING_CREDENTIAL_STALE" | "BILLING_NOT_READY" | "BINDING_EXPIRED" | "BINDING_USED" | "CALLBACK_NOT_CONFIRMED" | "CALLBACK_PENDING" | "CALLBACK_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "CHANNEL_LOCKED" | "CHANNEL_NOT_ALLOWED" | "CSRF_FAILED" | "DEVICE_ALREADY_BOUND" | "DEVICE_OFFLINE" | "DEVICE_UNAUTHORIZED" | "DUPLICATE_ORDER" | "EMAIL_DOMAIN_DENIED" | "EMAIL_SEND_TOO_SOON" | "EMAIL_TAKEN" | "EVENT_CONFLICT" | "FLOAT_OUT_OF_RANGE" | "FORBIDDEN" | "IDEMPOTENCY_CONFLICT" | "INTERNAL_ERROR" | "INVALID_2FA" | "INVALID_CODE" | "INVALID_CREDENTIALS" | "INVALID_PUBLIC_KEY" | "INVALID_QR" | "INVALID_SIGNATURE" | "INVALID_URL" | "IP_NOT_ALLOWED" | "LEGAL_VERSION_CHANGED" | "MAIL_UNAVAILABLE" | "NOT_FOUND" | "ORDER_NOT_PAID" | "ORDER_NOT_PAYABLE" | "PARTIAL_REFUND_UNSUPPORTED" | "PLAN_UNAVAILABLE" | "PLATFORM_KEY_UNAVAILABLE" | "PURCHASE_LIMIT_REACHED" | "PURCHASE_PENDING" | "QR_UNAVAILABLE" | "REFUND_PENDING" | "SETUP_REQUIRED" | "SUBSCRIPTION_INACTIVE" | "TIMESTAMP_EXPIRED" | "TTL_OUT_OF_RANGE" | "TURNSTILE_FAILED" | "TURNSTILE_UNAVAILABLE" | "UNAUTHENTICATED" | "UNSUPPORTED_ACTION" | "UNSUPPORTED_MEDIA_TYPE" | "UNSUPPORTED_METHOD" | "UNSUPPORTED_PARAMETER" | "UNSUPPORTED_PROTOCOL" | "UPLOAD_TOO_LARGE" | "USERNAME_TAKEN" | "VALIDATION_ERROR" | "VERSION_CONFLICT";
+        ErrorCode: "ACCOUNT_BANNED" | "AGREEMENT_REQUIRED" | "ALREADY_INITIALIZED" | "ALREADY_REFUNDED" | "REFUND_ALREADY_HANDLED" | "AMOUNT_CAPACITY_EXHAUSTED" | "AMOUNT_OUT_OF_RANGE" | "DAILY_LIMIT_EXCEEDED" | "IP_DAILY_LIMIT_EXCEEDED" | "IP_BLOCKED" | "NAME_BLOCKED" | "URL_DOMAIN_NOT_ALLOWED" | "CHECKOUT_VERIFICATION_REQUIRED" | "BILLING_CREDENTIAL_STALE" | "BILLING_NOT_READY" | "BINDING_EXPIRED" | "BINDING_USED" | "CALLBACK_NOT_CONFIRMED" | "CALLBACK_PENDING" | "CALLBACK_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "CHANNEL_LOCKED" | "CHANNEL_NOT_ALLOWED" | "CSRF_FAILED" | "DEVICE_ALREADY_BOUND" | "DEVICE_OFFLINE" | "DEVICE_UNAUTHORIZED" | "DUPLICATE_ORDER" | "EMAIL_DOMAIN_DENIED" | "EMAIL_SEND_TOO_SOON" | "EMAIL_TAKEN" | "EVENT_CONFLICT" | "FLOAT_OUT_OF_RANGE" | "FORBIDDEN" | "IDEMPOTENCY_CONFLICT" | "INTERNAL_ERROR" | "INVALID_2FA" | "INVALID_CODE" | "INVALID_CREDENTIALS" | "INVALID_PUBLIC_KEY" | "INVALID_QR" | "INVALID_SIGNATURE" | "INVALID_URL" | "IP_NOT_ALLOWED" | "LEGAL_VERSION_CHANGED" | "MAIL_UNAVAILABLE" | "NOT_FOUND" | "ORDER_NOT_PAID" | "ORDER_NOT_PAYABLE" | "PARTIAL_REFUND_UNSUPPORTED" | "PLAN_UNAVAILABLE" | "PLATFORM_KEY_UNAVAILABLE" | "PURCHASE_LIMIT_REACHED" | "PURCHASE_PENDING" | "QR_UNAVAILABLE" | "REFUND_PENDING" | "SETUP_REQUIRED" | "SUBSCRIPTION_INACTIVE" | "TIMESTAMP_EXPIRED" | "TTL_OUT_OF_RANGE" | "TURNSTILE_FAILED" | "TURNSTILE_UNAVAILABLE" | "UNAUTHENTICATED" | "UNSUPPORTED_ACTION" | "UNSUPPORTED_MEDIA_TYPE" | "UNSUPPORTED_METHOD" | "UNSUPPORTED_PARAMETER" | "UNSUPPORTED_PROTOCOL" | "UPLOAD_TOO_LARGE" | "USERNAME_TAKEN" | "VALIDATION_ERROR" | "VERSION_CONFLICT";
         ErrorEnvelope: {
             error: {
                 code: components["schemas"]["ErrorCode"];
@@ -2631,6 +2701,19 @@ export interface components {
             merchant_id: number | null;
             credential_valid: boolean;
         };
+        PaymentRisk: {
+            /**
+             * Format: int32
+             * @description 每个 clientip 在上海自然日内可创建的外部订单数，0 表示关闭。
+             */
+            ip_daily_order_limit: number;
+            /** @description IPv4、IPv6 或 CIDR。保存后返回规范化网段。 */
+            ip_blacklist: string[];
+            /** @description 对商品原名和屏蔽词应用 NFKC 和小写转换后按子串匹配。 */
+            name_block_words: string[];
+            /** @description 启用时需要已配置 Turnstile site key 和 secret，否则返回 VALIDATION_ERROR。 */
+            checkout_turnstile_enabled: boolean;
+        };
         Settings: {
             /** Format: int64 */
             version: number;
@@ -2640,6 +2723,7 @@ export interface components {
             mail: components["schemas"]["MailSettings"];
             security: components["schemas"]["SecuritySettings"];
             payment: components["schemas"]["SettingsGroupBounds"];
+            risk: components["schemas"]["PaymentRisk"];
             billing: components["schemas"]["BillingSettings"];
         };
         BillingSettingsUpdate: {
@@ -3278,6 +3362,17 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description 当前回调域名白名单，默认关闭 */
+        MerchantNotifyDomainsResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SuccessEnvelope"] & {
+                    data?: components["schemas"]["MerchantNotifyDomains"];
+                };
             };
         };
         /** @description 请求失败；error.code 使用 ErrorCode 枚举 */
@@ -4548,6 +4643,43 @@ export interface operations {
             500: components["responses"]["Error500"];
         };
     };
+    get_api_v1_merchant_integration_notify_domains: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["MerchantNotifyDomainsResponse"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    put_api_v1_merchant_integration_notify_domains: {
+        parameters: {
+            query?: never;
+            header: {
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantNotifyDomains"];
+            };
+        };
+        responses: {
+            200: components["responses"]["MerchantNotifyDomainsResponse"];
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            500: components["responses"]["Error500"];
+        };
+    };
     post_api_v1_device_bind: {
         parameters: {
             query?: never;
@@ -4912,7 +5044,7 @@ export interface operations {
                 Origin: string;
             };
             path: {
-                group: "site" | "home" | "footer_legal" | "mail" | "security" | "payment" | "billing";
+                group: "site" | "home" | "footer_legal" | "mail" | "security" | "payment" | "risk" | "billing";
             };
             cookie?: never;
         };
@@ -6392,6 +6524,7 @@ export interface operations {
                     };
                 };
             };
+            403: components["responses"]["Error403"];
             404: components["responses"]["Error404"];
             500: components["responses"]["Error500"];
         };
@@ -6432,6 +6565,40 @@ export interface operations {
             409: components["responses"]["Error409"];
             422: components["responses"]["Error422"];
             500: components["responses"]["Error500"];
+        };
+    };
+    post_api_v1_checkout_tradeNo_verify: {
+        parameters: {
+            query?: never;
+            header: {
+                Origin: string;
+            };
+            path: {
+                tradeNo: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    turnstile_token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 验证完成或无需验证 */
+            204: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error400"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            500: components["responses"]["Error500"];
+            503: components["responses"]["Error503"];
         };
     };
     get_api_php: {
@@ -6757,12 +6924,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 协议结果；业务失败亦使用 HTTP 200 */
+            /** @description 协议错误，或新的风控规则拒绝时的可读错误页 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
+                    "text/html": string;
                     "application/json": components["schemas"]["V2Error"];
                 };
             };
@@ -6798,12 +6966,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 协议结果；业务失败亦使用 HTTP 200 */
+            /** @description 协议错误，或新的风控规则拒绝时的可读错误页 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
+                    "text/html": string;
                     "application/json": components["schemas"]["V2Error"];
                 };
             };

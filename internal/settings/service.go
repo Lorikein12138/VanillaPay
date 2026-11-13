@@ -207,6 +207,17 @@ func (s *Service) updatePreparedGroup(ctx context.Context, actor platform.Actor,
 				return err
 			}
 		}
+		var risk platform.PaymentRisk
+		if group == "risk" {
+			if err := json.Unmarshal(clean, &risk); err != nil {
+				return err
+			}
+			if risk.CheckoutTurnstileEnabled {
+				if err := validateCheckoutTurnstile(ctx, tx); err != nil {
+					return err
+				}
+			}
+		}
 		var affected int64
 		var newVersion int64
 		if err := updateSettingsGroupTx(ctx, tx, group, clean, s.clock.Now(), current, &newVersion); err != nil {
@@ -252,6 +263,10 @@ func (s *Service) updatePreparedGroup(ctx context.Context, actor platform.Actor,
 		if group != "payment" {
 			metadata = nil
 		}
+		if group == "risk" {
+			metadata = map[string]any{"checkout_turnstile_enabled": risk.CheckoutTurnstileEnabled, "ip_daily_limit_enabled": risk.IPDailyOrderLimit > 0,
+				"ip_blacklist_count": len(risk.IPBlacklist), "name_block_words_count": len(risk.NameBlockWords)}
+		}
 		if err := settingsAudit(ctx, tx, actor, group, newVersion, metadata); err != nil {
 			return err
 		}
@@ -277,6 +292,8 @@ func updateSettingsGroupTx(ctx context.Context, tx pgx.Tx, group string, clean j
 		query = `UPDATE site_settings SET security=$1::jsonb || jsonb_strip_nulls(jsonb_build_object('allowed_hostname',security->'allowed_hostname')),version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	case "payment":
 		query = `UPDATE site_settings SET payment=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
+	case "risk":
+		query = `UPDATE site_settings SET risk=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	case "billing":
 		query = `UPDATE site_settings SET billing=$1::jsonb,version=version+1,updated_at=$2 WHERE singleton=true AND version=$3 RETURNING version`
 	default:

@@ -36,6 +36,9 @@ export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
       await dialog.getByLabel('英文名称').fill('Standard')
       await dialog.getByLabel('价格（元）').fill('29.99')
       await dialog.getByLabel('时长（天）').fill('30')
+      await dialog.getByLabel('单笔最低金额（元）').fill('1.01')
+      await dialog.getByLabel('单笔最高金额（元）').fill('200.00')
+      await dialog.getByLabel('日收款限额（元）').fill('900.50')
       await dialog.getByRole('checkbox', { name: '支付宝', exact: true }).check()
       await dialog.getByRole('checkbox', { name: '微信支付', exact: true }).check()
     }
@@ -47,7 +50,8 @@ export function registerManagementTests({ seed, captcha, signIn }: Helpers) {
     expect(createdPlan.status()).toBe(201)
     const { channels } = createdPlan.request().postDataJSON() as { channels: string[] }
     expect(channels).toEqual(['alipay', 'wxpay'])
-    const { data: plan } = await createdPlan.json() as { data: { id: string; revision: number } }
+    const { data: plan } = await createdPlan.json() as { data: { id: string; revision: number; min_order_cents: number; max_order_cents: number; daily_limit_cents: number } }
+    expect(plan).toMatchObject({ min_order_cents: 101, max_order_cents: 20000, daily_limit_cents: 90050 })
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await shots(page, 'plans')
     // Use the responsive card action at 360; the table row action at desktop.

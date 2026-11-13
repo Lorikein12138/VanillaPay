@@ -56,6 +56,7 @@ const settings: S['Settings'] = {
     float_default_cents: 0,
     float_direction: 'up',
   },
+  risk: { ip_daily_order_limit: 0, ip_blacklist: [], name_block_words: [], checkout_turnstile_enabled: false },
   billing: { merchant_pid: '', key_configured: false, merchant_id: null, credential_valid: true },
 }
 const server = setupServer(http.get('*/api/v1/merchant/me', () => new HttpResponse(null, { status: 401 })), )

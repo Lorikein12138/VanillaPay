@@ -257,6 +257,10 @@ func (s *Service) SignCheckoutMedia(tradeNo, assetID string, expires time.Time) 
 }
 
 func (s *Service) OpenAsset(ctx context.Context, assetID string, merchantID int64, tradeNo, expiry, signature string) (MediaFile, error) {
+	return s.openAsset(ctx, assetID, merchantID, tradeNo, expiry, signature, "")
+}
+
+func (s *Service) openAsset(ctx context.Context, assetID string, merchantID int64, tradeNo, expiry, signature, checkoutToken string) (MediaFile, error) {
 	var path, mime, kind string
 	var owner *int64
 	var active bool
@@ -275,8 +279,16 @@ func (s *Service) OpenAsset(ctx context.Context, assetID string, merchantID int6
 		if err == nil {
 			validUntil := time.Unix(unix, 0)
 			if validUntil.After(s.clock.Now()) && hmac.Equal([]byte(strings.ToLower(signature)), []byte(s.SignCheckoutMedia(tradeNo, assetID, validUntil))) {
-				var orderOK bool
-				if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM orders WHERE trade_no=$1 AND qr_asset_id=$2 AND status='pending' AND expires_at>=$3 AND expires_at>$4)`, tradeNo, assetID, validUntil, s.clock.Now()).Scan(&orderOK); err == nil && orderOK {
+				var expires time.Time
+				var required bool
+				if err := s.pool.QueryRow(ctx, `SELECT o.expires_at,
+					COALESCE((to_jsonb(s)->'risk'->>'checkout_turnstile_enabled')::boolean,false)
+					AND COALESCE(btrim(s.security->>'turnstile_site_key'),'') <> ''
+					AND EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND octet_length(encrypted_value)>0)
+					FROM orders o CROSS JOIN site_settings s WHERE s.singleton AND o.trade_no=$1
+					AND o.qr_asset_id=$2 AND o.status='pending' AND o.expires_at>=$3 AND o.expires_at>$4`,
+					tradeNo, assetID, validUntil, s.clock.Now()).Scan(&expires, &required); err == nil &&
+					(!required || platform.CheckoutVerified(s.key[:], tradeNo, checkoutToken, s.clock.Now(), expires)) {
 					allowed = true
 				}
 			}

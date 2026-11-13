@@ -55,7 +55,7 @@ func (h *Handler) GetSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	groups := row.Groups
-	settingsResult(w, r, map[string]any{"version": row.Version, "site": groups["site"], "home": groups["home"], "footer_legal": groups["footer_legal"], "mail": groups["mail"], "security": groups["security"], "payment": groups["payment"], "billing": groups["billing"]}, nil, http.StatusOK)
+	settingsResult(w, r, map[string]any{"version": row.Version, "site": groups["site"], "home": groups["home"], "footer_legal": groups["footer_legal"], "mail": groups["mail"], "security": groups["security"], "payment": groups["payment"], "risk": groups["risk"], "billing": groups["billing"]}, nil, http.StatusOK)
 }
 func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	var req UpdateGroup
@@ -153,7 +153,7 @@ func (h *Handler) OpenAsset(w http.ResponseWriter, r *http.Request) {
 	trade := r.URL.Query().Get("trade_no")
 	expiry := r.URL.Query().Get("expires")
 	signature := r.URL.Query().Get("signature")
-	asset, err := h.Service.OpenAsset(r.Context(), chi.URLParam(r, "asset_id"), actor.MerchantID, trade, expiry, signature)
+	asset, err := h.Service.openAsset(r.Context(), chi.URLParam(r, "asset_id"), actor.MerchantID, trade, expiry, signature, platform.CheckoutCookieToken(r, trade))
 	if err != nil {
 		settingsResult(w, r, nil, err, http.StatusOK)
 		return

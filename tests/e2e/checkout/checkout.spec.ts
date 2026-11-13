@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import QRCode from 'qrcode'
+import { prepareCheckout } from './fixtures'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import type { components } from '../../../web/src/api/schema'
 import { chooseMenu, polishShot } from '../merchant/fixtures'
@@ -7,27 +6,6 @@ import { chooseMenu, polishShot } from '../merchant/fixtures'
 type Checkout = components['schemas']['PaymentCheckoutDTO']
 const channelNames = { alipay: '支付宝', wxpay: '微信支付' } as const
 
-async function prepare(request: APIRequestContext) {
-  const qrURLs = {
-    alipay: 'https://qr.alipay.com/checkout-example',
-    wxpay: 'wxp://checkout-example',
-  } satisfies Record<keyof typeof channelNames, string>
-  const codes = Object.fromEntries(await Promise.all(Object.entries(qrURLs).map(async ([channel, url]) => {
-    const png = await QRCode.toBuffer(url, { width: 300 })
-    return [channel, { url, png: png.toString('base64') }] as const
-  })))
-  const response = await request.post('/__e2e/checkout', { data: { codes } })
-  expect(response.status()).toBe(200)
-  const fixture = await response.json() as { pid: string; v1_key: string; device_token: string; created_at: string }
-  const form: Record<string, string> = { pid: fixture.pid, name: '月度会员', money: '30.00', out_trade_no: crypto.randomUUID(), clientip: '127.0.0.1', notify_url: 'https://merchant.example.test/notify' }
-  const canonical = Object.keys(form).sort().map((key) => `${key}=${form[key]}`).join('&')
-  form.sign = createHash('md5').update(canonical + fixture.v1_key).digest('hex')
-  const created = await request.post('/mapi.php', { form })
-  expect(created.status()).toBe(200)
-  const result = await created.json() as { code: number; trade_no: string; error_code?: string }
-  expect(result.code, result.error_code).toBe(1)
-  return { trade: result.trade_no, deviceToken: fixture.device_token }
-}
 async function checkout(request: APIRequestContext, trade: string) {
   const response = await request.get(`/api/v1/checkout/${trade}`)
   expect(response.status()).toBe(200)
@@ -59,7 +37,7 @@ async function expectChannelLayout(page: Page) {
 }
 
 test('public v1 checkout locks a channel, serves its signed QR and receives a real device payment', async ({ page, request }) => {
-  const { trade, deviceToken } = await prepare(request)
+  const { trade, deviceToken } = await prepareCheckout(request)
   await page.goto(`/pay/${trade}`)
   await expect(page.getByRole('heading', { name: '月度会员' })).toBeVisible()
   const initial = await checkout(request, trade)
@@ -97,7 +75,7 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
 // State coverage below uses the real GET expiry transition.
 for (const state of ['expired', 'offline'] as const) {
   test(`public checkout explains ${state}`, async ({ page, request }) => {
-    const { trade } = await prepare(request)
+    const { trade } = await prepareCheckout(request)
     expect((await request.post('/__e2e/checkout', { data: { trade_no: trade, state } })).status()).toBe(204)
     await page.goto(`/pay/${trade}`)
     if (state === 'expired') await expect(page.getByRole('heading', { name: '订单已过期' })).toBeVisible()

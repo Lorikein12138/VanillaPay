@@ -14,12 +14,13 @@ import { Notice } from '@/components/ui/notice'
 import { InlineActions, RecordResults, Records } from '@/components/ui/records'
 import { AccountError, AccountField } from '@/features/auth/account-shared'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
-import { centsToYuan } from '@/features/merchant/collection-data'
+import { centsToYuan, yuanToCents } from '@/features/merchant/collection-data'
 import { money } from '@/features/merchant/overview-data'
 import { ChannelChoices, Channels } from './ManageParts'
 import { channels, invalidateConsole, planInput, planName, validPurchaseLimit, type Schema } from './manage-data'
 
 type Plan = Schema['SubscriptionPlanDTO']
+const amountFields = ['min_order_cents', 'max_order_cents', 'daily_limit_cents'] as const
 export function PlansPage() {
   const { t, i18n } = useTranslation(), [deleted, setDeleted] = useState(false), [notice, setNotice] = useState('')
   const [dialog, setDialog] = useState<{ mode: 'edit' | 'delete'; plan?: Plan } | null>(null)
@@ -55,10 +56,18 @@ function PlanDialog({ plan, deleting, onClose, onSuccess }: {
   const [price, setPrice] = useState(plan ? centsToYuan(plan.price_cents) : '')
   const [days, setDays] = useState(plan ? String(plan.duration_days) : '')
   const [limit, setLimit] = useState(plan?.purchase_limit == null ? '' : String(plan.purchase_limit))
+  const [amountLimits, setAmountLimits] = useState(() => Object.fromEntries(amountFields.map((field) => {
+    const cents = plan?.[field]
+    return [field, cents == null ? '' : centsToYuan(cents)]
+  })))
   const [selected, setSelected] = useState(plan?.channels ?? []), [revision, setRevision] = useState(plan?.revision)
   const [latest, setLatest] = useState<Plan | null>(null), [conflict, setConflict] = useState(false), [reviewed, setReviewed] = useState(false)
   const value = planInput(zh, en, price, days, selected, limit)
-  const valid = (deleting || !!value) && (!conflict || reviewed) && !latest?.deleted
+  const [minimum, maximum, daily] = amountFields.map((field) => yuanToCents(amountLimits[field] ?? ''))
+  const invalidAmount = (field: typeof amountFields[number], cents: number | null | undefined) =>
+    !!amountLimits[field] && (cents == null || cents < 1 || cents > 999999999)
+  const orderInvalid = minimum != null && maximum != null && minimum > maximum
+  const valid = (deleting || (!!value && !orderInvalid && !amountFields.some((field, index) => invalidAmount(field, [minimum, maximum, daily][index])))) && (!conflict || reviewed) && !latest?.deleted
   const title = t(deleting ? 'manage.deletePlan' : plan ? 'manage.editPlan' : 'manage.createPlan')
   const submitLabel = plan && !deleting ? t('manage.savePlan') : title
   async function submit() {
@@ -69,7 +78,10 @@ function PlanDialog({ plan, deleting, onClose, onSuccess }: {
         if (deleting && plan && revision !== undefined) {
           const result = await consoleApi.deletePlan(plan.id, revision)
           message = t('manage.deletedResult', { count: result.cancelled_pending_purchases })
-        } else if (value) await consoleApi.savePlan({ ...value, ...(plan ? { id: plan.id, revision } : {}) })
+        } else if (value) await consoleApi.savePlan({
+          ...value, ...(plan ? { id: plan.id, revision } : {}),
+          min_order_cents: minimum ?? null, max_order_cents: maximum ?? null, daily_limit_cents: daily ?? null,
+        })
         await invalidateConsole(client)
         if (!action.active.current) return
         if (action.active.current) onSuccess(message)
@@ -95,6 +107,10 @@ function PlanDialog({ plan, deleting, onClose, onSuccess }: {
           { label: t('manage.channels'), value: <Channels value={latest.channels} /> },
           { label: t('manage.limit'), value: latest.purchase_limit ?? t('manage.unlimited') },
           { label: t('manage.price'), value: money(latest.price_cents, i18n.language) },
+          ...amountFields.map((field) => {
+            const cents = latest[field]
+            return { label: t(`risk.plan.${field}`), value: cents == null ? t('manage.unlimited') : money(cents, i18n.language) }
+          }),
           { label: t('manage.days'), value: latest.duration_days },
           { label: t('manage.status'), value: latest.deleted ? t('manage.deleted') : t('manage.active') },
         ]} />}
@@ -108,6 +124,9 @@ function PlanDialog({ plan, deleting, onClose, onSuccess }: {
           <AccountField label={t('manage.days')} hint={t('manage.daysHint')} inputMode="numeric" value={days} disabled={action.busy} onChange={(event) => setDays(event.target.value)} />
           <AccountField label={t('manage.limit')} hint={t('manage.limitHint')} inputMode="numeric" value={limit} disabled={action.busy}
             error={!validPurchaseLimit(limit) && t('manage.limitInvalid')} onChange={(event) => setLimit(event.target.value)} />
+          {amountFields.map((field, index) => <AccountField key={field} label={t(`risk.plan.${field}`)} hint={t('risk.plan.hint')} inputMode="decimal" value={amountLimits[field] ?? ''} disabled={action.busy}
+            error={invalidAmount(field, [minimum, maximum, daily][index]) ? t('risk.plan.invalid') : field === 'max_order_cents' && orderInvalid ? t('risk.plan.range') : undefined}
+            onChange={(event) => setAmountLimits((previous) => ({ ...previous, [field]: event.target.value }))} />)}
         </FieldGrid>
         <ChannelChoices allowed={channels} value={selected} onChange={setSelected} disabled={action.busy} />
       </>}

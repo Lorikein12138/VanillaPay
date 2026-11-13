@@ -30,6 +30,7 @@ const server = setupServer(
   http.get('*/api/v1/merchant/receipts', () => success({ items: [], total: 0, next_cursor: null })),
   http.get('*/api/v1/merchant/collection', () => success({ codes: [], settings, device })),
   http.get('*/api/v1/merchant/collection/codes', () => success({ codes: [] })),
+  http.get('*/api/v1/merchant/integration/notify-domains', () => success({ enabled: false, entries: [] })),
 )
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })

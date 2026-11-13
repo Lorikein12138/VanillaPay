@@ -2,6 +2,8 @@ package subscription
 
 import (
 	"time"
+
+	"vanillapay/internal/platform"
 )
 
 type LocalizedName struct {
@@ -10,6 +12,7 @@ type LocalizedName struct {
 }
 
 type PlanDTO struct {
+	platform.PlanLimits
 	ID             string        `json:"id"`
 	Revision       int64         `json:"revision"`
 	Name           LocalizedName `json:"name"`
@@ -23,6 +26,7 @@ type PlanDTO struct {
 }
 
 type PlanCommand struct {
+	platform.PlanLimits
 	ID            string        `json:"id,omitempty"`
 	Revision      int64         `json:"revision,omitempty"`
 	Name          LocalizedName `json:"name"`
@@ -98,13 +102,16 @@ type PurchasePage struct {
 }
 
 type SavePlanRequest struct {
-	ID            string        `json:"id,omitempty"`
-	Revision      int64         `json:"revision,omitempty"`
-	Name          LocalizedName `json:"name"`
-	PriceCents    int64         `json:"price_cents"`
-	DurationDays  int           `json:"duration_days"`
-	Channels      *[]string     `json:"channels"`
-	PurchaseLimit *int          `json:"purchase_limit"`
+	MinOrderCents   *int64        `json:"min_order_cents,omitempty"`
+	MaxOrderCents   *int64        `json:"max_order_cents,omitempty"`
+	DailyLimitCents *int64        `json:"daily_limit_cents,omitempty"`
+	ID              string        `json:"id,omitempty"`
+	Revision        int64         `json:"revision,omitempty"`
+	Name            LocalizedName `json:"name"`
+	PriceCents      int64         `json:"price_cents"`
+	DurationDays    int           `json:"duration_days"`
+	Channels        *[]string     `json:"channels"`
+	PurchaseLimit   *int          `json:"purchase_limit"`
 }
 
 type DeletePlanRequest struct {

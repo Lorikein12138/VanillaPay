@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { type Settings, type SettingsGroup } from '../settings-data'
 import { FooterForm, HomeForm } from './ContentForms'
 import { MailForm } from './MailForm'
-import { BillingForm, PaymentForm, SecurityForm } from './PolicyForms'
+import { BillingForm, PaymentForm, RiskForm, SecurityForm } from './PolicyForms'
 import { SiteForm } from './SiteForm'
 import type { useSettingsEditor } from './useSettingsEditor'
 
@@ -90,5 +90,7 @@ export function SettingsForms({
           {...secretProps}
         />
       )
+    case 'risk':
+      return <RiskForm value={groupValue(group, settings)} onChange={(value) => update(group, value)} errorText={errorText} />
   }
 }

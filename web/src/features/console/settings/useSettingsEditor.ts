@@ -5,6 +5,7 @@ import { APIError, consoleApi } from '@/api/client'
 import { refreshPublicConfig } from '@/lib/public-config'
 import {
   normalizeDomains,
+  riskSettingsValue,
   settingsEqual,
   settingsGroups,
   settingsRequestFits,
@@ -189,7 +190,7 @@ export function useSettingsEditor(group: SettingsGroup) {
       return
     }
     if (needsProof && !proofToken) return
-    const value = { ...current }
+    const value = group === 'risk' ? riskSettingsValue(current as SettingsDrafts['risk']) : { ...current } as Exclude<SettingsDrafts[SettingsGroup], SettingsDrafts['risk']>
     if (group === 'footer_legal') {
       const items =
         (current as SettingsDrafts['footer_legal']).items?.map((item, sort) => ({ ...item, sort })) ?? []
@@ -232,6 +233,17 @@ export function useSettingsEditor(group: SettingsGroup) {
         await refresh()
       } else if (group === 'security' && cause instanceof APIError && cause.problem?.fields?.email_domains) {
         setFieldErrors({ email_domains: 'security_domains' })
+      } else if (group === 'risk' && cause instanceof APIError && cause.problem?.fields) {
+        const messages = {
+          ip_daily_order_limit: 'risk_ip_limit',
+          ip_blacklist: 'risk_ip_blacklist',
+          name_block_words: 'risk_name_words',
+          checkout_turnstile_enabled: 'risk_turnstile',
+        }
+        const fields = cause.problem.fields
+        const errors = Object.fromEntries(Object.entries(messages).filter(([field]) => fields[`value.${field}`]))
+        if (Object.keys(errors).length) setFieldErrors(errors)
+        else setError(cause)
       } else if (
         cause instanceof APIError &&
         cause.status === 409 &&

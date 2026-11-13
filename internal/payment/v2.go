@@ -39,7 +39,12 @@ func (h *Handler) v2Create(w http.ResponseWriter, r *http.Request, api bool) {
 	}
 	order, err := h.Service.Create(r.Context(), in)
 	if err != nil {
-		h.v2JSON(w, http.StatusOK, map[string]any{"code": -1, "msg": errorCode(err), "error_code": errorCode(err)})
+		code := errorCode(err)
+		if !api && submitRiskMessages[code] != "" {
+			writeSubmitError(w, code)
+			return
+		}
+		h.v2JSON(w, http.StatusOK, map[string]any{"code": -1, "msg": code, "error_code": code})
 		return
 	}
 	cashier := h.cashierURL(order.TradeNo)

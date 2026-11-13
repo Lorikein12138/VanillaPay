@@ -13,7 +13,7 @@ import (
 	"vanillapay/internal/platform"
 )
 
-const hardAmountLimit int64 = 999999999
+const hardAmountLimit = platform.HardAmountLimit
 
 type UpdateGroup struct {
 	ExpectedVersion int64           `json:"expected_version"`
@@ -232,6 +232,15 @@ func ValidateGroup(group string, value json.RawMessage) (json.RawMessage, map[st
 		}
 		if v.MinAmountCents < 1 || v.MaxAmountCents < v.MinAmountCents || v.MaxAmountCents > hardAmountLimit || v.DefaultTTLSeconds < 60 || v.MaxTTLSeconds < v.DefaultTTLSeconds || v.MaxTTLSeconds > 86400 || v.FloatMinCents < 0 || v.FloatMaxCents < v.FloatMinCents || v.FloatMaxCents > 999 || v.FloatDefaultCents < v.FloatMinCents || v.FloatDefaultCents > v.FloatMaxCents || (v.FloatDirection != "up" && v.FloatDirection != "down") {
 			return nil, nil, errors.New("VALIDATION_ERROR")
+		}
+		return marshal(v), secrets, nil
+	case "risk":
+		var v platform.PaymentRisk
+		if err := decodeGroup(value, &v); err != nil {
+			return nil, nil, err
+		}
+		if err := normalizeRisk(&v); err != nil {
+			return nil, nil, err
 		}
 		return marshal(v), secrets, nil
 	case "billing":
