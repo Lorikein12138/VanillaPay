@@ -223,7 +223,7 @@ func securityFixture(t *testing.T) (*testsupport.HTTPFixture, map[string]session
 	if err := db.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings WHERE singleton=true`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	value := json.RawMessage(`{"turnstile_site_key":"contract-site","turnstile_secret":"contract-secret","turnstile_enabled":true, "turnstile_token": "ok:settings_security","restrict_email_domains":false,"email_domains":[],"ban_contact":{"zh_CN":"","en":""}}`)
+	value := json.RawMessage(`{"turnstile_site_key":"contract-site","turnstile_secret":"contract-secret","turnstile_enabled":true, "turnstile_token": "ok:settings_security","restrict_email_domains":false,"registration_review":false,"email_domains":[],"ban_contact":{"zh_CN":"","en":""}}`)
 	if _, err := fixture.App.Services.Settings.UpdateGroup(t.Context(), platform.Actor{Role: "admin", SubjectID: 1}, "security", settings.UpdateGroup{ExpectedVersion: version, Value: value}); err != nil {
 		t.Fatal(err)
 	}

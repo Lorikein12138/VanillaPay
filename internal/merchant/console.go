@@ -23,6 +23,7 @@ type ConsoleMerchantQuery struct {
 	Query              string
 	Banned             *bool
 	SubscriptionActive *bool
+	ApprovalState      string
 	Cursor             string
 	Limit              int
 	MerchantID         *int64
@@ -37,6 +38,9 @@ type ConsoleMerchantPage struct {
 func (s *Service) ListConsole(ctx context.Context, actor platform.Actor, q ConsoleMerchantQuery) (ConsoleMerchantPage, error) {
 	if actor.Role != "admin" {
 		return ConsoleMerchantPage{}, &platform.Error{Code: "FORBIDDEN", HTTPStatus: 403}
+	}
+	if q.ApprovalState != "" && q.ApprovalState != "pending" && q.ApprovalState != "approved" && q.ApprovalState != "rejected" {
+		return ConsoleMerchantPage{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
 	}
 	if len([]rune(q.Query)) > 100 {
 		return ConsoleMerchantPage{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400}
@@ -63,12 +67,12 @@ func (s *Service) ListConsole(ctx context.Context, actor platform.Actor, q Conso
 	if q.SubscriptionActive != nil {
 		active = *q.SubscriptionActive
 	}
-	baseWhere := `($1='' OR position(lower($1) in lower(m.username))>0 OR position(lower($1) in lower(m.email_normalized))>0 OR position(lower($1) in lower(m.pid))>0) AND ($2::boolean IS NULL OR (m.banned_at IS NOT NULL)=$2) AND ($3::boolean IS NULL OR COALESCE(s.expires_at>now(),false)=$3) AND ($4::bigint IS NULL OR m.id=$4)`
+	baseWhere := `($1='' OR position(lower($1) in lower(m.username))>0 OR position(lower($1) in lower(m.email_normalized))>0 OR position(lower($1) in lower(m.pid))>0) AND ($2::boolean IS NULL OR (m.banned_at IS NOT NULL)=$2) AND ($3::boolean IS NULL OR COALESCE(s.expires_at>now(),false)=$3) AND ($4::bigint IS NULL OR m.id=$4) AND ($5='' OR m.approval_state=$5)`
 	var page ConsoleMerchantPage
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM merchants m LEFT JOIN subscriptions s ON s.merchant_id=m.id WHERE `+baseWhere, q.Query, banned, active, q.MerchantID).Scan(&page.Total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM merchants m LEFT JOIN subscriptions s ON s.merchant_id=m.id WHERE `+baseWhere, q.Query, banned, active, q.MerchantID, q.ApprovalState).Scan(&page.Total); err != nil {
 		return page, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT m.id,m.username,m.email_normalized,m.pid,m.banned_at,m.ban_reason,m.totp_cipher,m.preferences,m.created_at,s.snapshot,s.expires_at,s.revision,s.source,d.public_id,d.name,d.app_version,d.last_seen_at FROM merchants m LEFT JOIN subscriptions s ON s.merchant_id=m.id LEFT JOIN devices d ON d.merchant_id=m.id AND d.revoked_at IS NULL WHERE `+baseWhere+` AND ($5::timestamptz IS NULL OR (m.created_at,m.id)<($5,$6)) ORDER BY m.created_at DESC,m.id DESC LIMIT $7`, q.Query, banned, active, q.MerchantID, cursorTime, cursorID, q.Limit+1)
+	rows, err := s.pool.Query(ctx, `SELECT m.id,m.username,m.email_normalized,m.pid,m.banned_at,m.ban_reason,m.totp_cipher,m.preferences,m.created_at,m.approval_state,m.approval_reason,m.approval_reviewed_at,s.snapshot,s.expires_at,s.revision,s.source,d.public_id,d.name,d.app_version,d.last_seen_at FROM merchants m LEFT JOIN subscriptions s ON s.merchant_id=m.id LEFT JOIN devices d ON d.merchant_id=m.id AND d.revoked_at IS NULL WHERE `+baseWhere+` AND ($6::timestamptz IS NULL OR (m.created_at,m.id)<($6,$7)) ORDER BY m.created_at DESC,m.id DESC LIMIT $8`, q.Query, banned, active, q.MerchantID, q.ApprovalState, cursorTime, cursorID, q.Limit+1)
 	if err != nil {
 		return page, err
 	}
@@ -79,7 +83,7 @@ func (s *Service) ListConsole(ctx context.Context, actor platform.Actor, q Conso
 	more := false
 	for rows.Next() {
 		var row consoleMerchantRow
-		if err := rows.Scan(&row.ID, &row.Username, &row.Email, &row.PID, &row.BannedAt, &row.BanReason, &row.TOTPCipher, &row.Preferences, &row.CreatedAt, &row.SubscriptionSnapshot, &row.SubscriptionExpires, &row.SubscriptionRevision, &row.SubscriptionSource, &row.DeviceID, &row.DeviceName, &row.DeviceVersion, &row.DeviceLastSeen); err != nil {
+		if err := rows.Scan(&row.ID, &row.Username, &row.Email, &row.PID, &row.BannedAt, &row.BanReason, &row.TOTPCipher, &row.Preferences, &row.CreatedAt, &row.ApprovalState, &row.ApprovalReason, &row.ApprovalReviewedAt, &row.SubscriptionSnapshot, &row.SubscriptionExpires, &row.SubscriptionRevision, &row.SubscriptionSource, &row.DeviceID, &row.DeviceName, &row.DeviceVersion, &row.DeviceLastSeen); err != nil {
 			return page, err
 		}
 		if len(page.Items) == q.Limit {
@@ -116,7 +120,7 @@ func (s *Service) ConsoleDetail(ctx context.Context, actor platform.Actor, merch
 	item := page.Items[0]
 	user := make(map[string]any, 12)
 	for key, value := range item {
-		if key != "subscription" && key != "device" {
+		if key != "subscription" && key != "device" && !strings.HasPrefix(key, "approval_") {
 			user[key] = value
 		}
 	}
@@ -124,7 +128,8 @@ func (s *Service) ConsoleDetail(ctx context.Context, actor platform.Actor, merch
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"user": user, "subscription": item["subscription"], "device": item["device"], "collection": collection}, nil
+	approval := map[string]any{"approval_state": item["approval_state"], "approval_reason": item["approval_reason"], "approval_reviewed_at": item["approval_reviewed_at"]}
+	return map[string]any{"user": user, "subscription": item["subscription"], "device": item["device"], "collection": collection, "approval": approval}, nil
 }
 
 type consoleMerchantRow struct {
@@ -135,6 +140,9 @@ type consoleMerchantRow struct {
 	TOTPCipher           []byte
 	Preferences          []byte
 	CreatedAt            time.Time
+	ApprovalState        string
+	ApprovalReason       *string
+	ApprovalReviewedAt   *time.Time
 	SubscriptionSnapshot []byte
 	SubscriptionExpires  pgtype.Timestamptz
 	SubscriptionRevision pgtype.Int8
@@ -195,6 +203,9 @@ func (r consoleMerchantRow) dto(now time.Time) map[string]any {
 	_ = json.Unmarshal(data, &item)
 	item["subscription"] = subscription
 	item["device"] = device
+	item["approval_state"] = r.ApprovalState
+	item["approval_reason"] = r.ApprovalReason
+	item["approval_reviewed_at"] = r.ApprovalReviewedAt
 	return item
 }
 
@@ -239,6 +250,10 @@ func (s *Service) consoleCollection(ctx context.Context, merchantID int64) (map[
 
 func consoleFilterFingerprint(q ConsoleMerchantQuery) string {
 	banned, active, merchant := "*", "*", "*"
+	approval := "*"
+	if q.ApprovalState != "" {
+		approval = q.ApprovalState
+	}
 	if q.Banned != nil {
 		banned = strconv.FormatBool(*q.Banned)
 	}
@@ -248,7 +263,7 @@ func consoleFilterFingerprint(q ConsoleMerchantQuery) string {
 	if q.MerchantID != nil {
 		merchant = strconv.FormatInt(*q.MerchantID, 10)
 	}
-	query := strings.Join([]string{strings.ToLower(q.Query), banned, active, merchant}, "|")
+	query := strings.Join([]string{strings.ToLower(q.Query), banned, active, merchant, approval}, "|")
 	digest := sha256.Sum256([]byte(query))
 	return hex.EncodeToString(digest[:])
 }

@@ -45,7 +45,7 @@ export function writableGroup(settings: Settings, group: SettingsGroup): Setting
       return { host, port, username, from_address, from_name, tls_mode }
     }
     case 'security': {
-      const { turnstile_site_key, turnstile_enabled, restrict_email_domains, email_domains, ban_contact } =
+      const { turnstile_site_key, turnstile_enabled, restrict_email_domains, email_domains, ban_contact, registration_review } =
         settings.security
       return {
         turnstile_site_key,
@@ -53,6 +53,7 @@ export function writableGroup(settings: Settings, group: SettingsGroup): Setting
         restrict_email_domains,
         email_domains: email_domains ?? [],
         ban_contact,
+        registration_review,
       }
     }
     case 'billing':

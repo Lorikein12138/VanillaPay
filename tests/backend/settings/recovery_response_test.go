@@ -18,7 +18,7 @@ func TestHTTP_RecoveryResponseConfigurationSnapshot(t *testing.T) {
 			admin := bootstrapRecoveryAdmin(t, fixture, "snapshot")
 			secret := rand.Text()
 			if configured {
-				value := map[string]any{"turnstile_site_key": "snapshot-site", "turnstile_enabled": true, "turnstile_token": "ok:settings_security", "turnstile_secret": secret, "restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "", "en": ""}}
+				value := map[string]any{"turnstile_site_key": "snapshot-site", "turnstile_enabled": true, "turnstile_token": "ok:settings_security", "turnstile_secret": secret, "restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "", "en": ""}}
 				assertRecoveryAPIError(t, updateSettingsGroupHTTP(t, fixture, admin, "security", value), http.StatusOK, "")
 			} else if _, err := db.Pool.Exec(t.Context(), `UPDATE site_settings SET security=jsonb_set(security,'{turnstile_site_key}','"snapshot-site"'),version=version+1 WHERE singleton=true`); err != nil {
 				t.Fatal("configure public security fields")

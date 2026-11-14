@@ -31,7 +31,7 @@ func TestHTTP_PasswordResetMailDoesNotRevealAccount(t *testing.T) {
 			if err := db.Pool.QueryRow(t.Context(), `SELECT version FROM site_settings WHERE singleton=true`).Scan(&version); err != nil {
 				t.Fatal(err)
 			}
-			security := json.RawMessage(`{"turnstile_site_key":"reset-site-key","turnstile_secret":"reset-site-secret","turnstile_enabled":true, "turnstile_token": "ok:settings_security","restrict_email_domains":false,"email_domains":[],"ban_contact":{"zh_CN":"support@example.test","en":"support@example.test"}}`)
+			security := json.RawMessage(`{"turnstile_site_key":"reset-site-key","turnstile_secret":"reset-site-secret","turnstile_enabled":true, "turnstile_token": "ok:settings_security","restrict_email_domains":false,"registration_review":false,"email_domains":[],"ban_contact":{"zh_CN":"support@example.test","en":"support@example.test"}}`)
 			if _, err := fixture.App.Services.Settings.UpdateGroup(t.Context(), platform.Actor{Role: "admin", SubjectID: 1}, "security", internalsettings.UpdateGroup{ExpectedVersion: version, Value: security}); err != nil {
 				t.Fatal(err)
 			}

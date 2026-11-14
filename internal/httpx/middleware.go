@@ -139,6 +139,16 @@ func requireRole(service *auth.Service, role string, next http.Handler) http.Han
 			writeAPIError(w, r, http.StatusForbidden, "ACCOUNT_BANNED")
 			return
 		}
+		if role == "merchant" && !allowedForBannedMerchant(r.URL.Path) {
+			switch identity.User.ApprovalState {
+			case "pending":
+				writeAPIError(w, r, http.StatusForbidden, "ACCOUNT_PENDING_REVIEW")
+				return
+			case "rejected":
+				writeAPIError(w, r, http.StatusForbidden, "REGISTRATION_REJECTED")
+				return
+			}
+		}
 		identity.Actor = attachActorMetadata(r.Context(), identity.Actor)
 		ctx := platform.WithActor(r.Context(), identity.Actor)
 		ctx = context.WithValue(ctx, userContextKey{}, identity.User)

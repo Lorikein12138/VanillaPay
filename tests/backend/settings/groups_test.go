@@ -38,7 +38,7 @@ func TestHTTP_SettingsGroupLifecycleAndValidation(t *testing.T) {
 		}},
 		{"security", map[string]any{
 			"turnstile_site_key": "settings-test-site-key", "turnstile_secret": "turnstile-secret-original", "turnstile_enabled": false,
-			"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"},
+			"restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"},
 		}},
 		{"payment", map[string]any{
 			"min_amount_cents": 1, "max_amount_cents": 999999999, "default_ttl_seconds": 300, "max_ttl_seconds": 3600,
@@ -201,7 +201,7 @@ func TestHTTP_SettingsGroupLifecycleAndValidation(t *testing.T) {
 		}{
 			{"payment", map[string]any{"min_amount_cents": -1, "max_amount_cents": 999999999, "default_ttl_seconds": 300, "max_ttl_seconds": 3600, "float_min_cents": 0, "float_max_cents": 999, "float_default_cents": 100, "float_direction": "down"}},
 			{"payment", map[string]any{"min_amount_cents": 1, "max_amount_cents": 1000000000, "default_ttl_seconds": 300, "max_ttl_seconds": 3600, "float_min_cents": 0, "float_max_cents": 999, "float_default_cents": 100, "float_direction": "down"}},
-			{"security", map[string]any{"turnstile_site_key": "settings-test-site-key", "turnstile_secret": "turnstile-secret-original", "turnstile_enabled": false, "restrict_email_domains": true, "email_domains": []string{"evil/domain"}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"}}},
+			{"security", map[string]any{"turnstile_site_key": "settings-test-site-key", "turnstile_secret": "turnstile-secret-original", "turnstile_enabled": false, "restrict_email_domains": true, "registration_review": false, "email_domains": []string{"evil/domain"}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"}}},
 		} {
 			response := updateSettingsGroupHTTP(t, fixture, admin, tc.group, tc.value)
 			assertRecoveryAPIError(t, response, http.StatusBadRequest, "VALIDATION_ERROR")

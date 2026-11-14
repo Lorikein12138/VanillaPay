@@ -16,7 +16,7 @@ import { AccountError, AccountField, validPassword, validUsername } from '@/feat
 import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { OrderTime } from '@/features/merchant/OrderParts'
 import { Choice, DeviceStatus, MerchantStatus } from './ManageParts'
-import { invalidateConsole, planName, type MerchantFilters } from './manage-data'
+import { approvalStates, invalidateConsole, planName, type MerchantFilters } from './manage-data'
 
 export function MerchantsPage({ filters, onFilters }: { filters: MerchantFilters; onFilters: (filters: MerchantFilters) => void }) {
   const { t, i18n } = useTranslation(), [create, setCreate] = useState(false)
@@ -43,7 +43,7 @@ export function MerchantsPage({ filters, onFilters }: { filters: MerchantFilters
         { label: t('manage.plan'), value: (item) => planName(item.subscription.plan, i18n.language) || t('manage.none') },
         { label: t('manage.expiry'), value: (item) => <OrderTime value={item.subscription.expires_at} /> },
         { label: t('manage.device'), value: (item) => <DeviceStatus device={item.device} /> },
-        { label: t('manage.status'), value: (item) => <MerchantStatus banned={item.banned} /> },
+        { label: t('manage.status'), value: (item) => <MerchantStatus banned={item.banned} approval={item.approval_state} /> },
         { label: t('manage.manage'), value: (item) => <RecordLink to={'/console/merchants/' + item.id}>{t('manage.manage')}</RecordLink> },
       ]} />
     </RecordResults>
@@ -54,9 +54,10 @@ function MerchantFiltersForm({ filters, onFilters }: { filters: MerchantFilters;
   const { t } = useTranslation(), [query, setQuery] = useState(filters.query ?? '')
   const [banned, setBanned] = useState(filters.banned === undefined ? '' : String(filters.banned))
   const [subscription, setSubscription] = useState(filters.subscription_active === undefined ? '' : String(filters.subscription_active))
+  const [approval, setApproval] = useState<string>(filters.approval_state ?? '')
   return <Card><FormStack onSubmit={(event) => {
     event.preventDefault()
-    if (Array.from(query.trim()).length <= 100) onFilters({ query: query.trim() || undefined, banned: banned === '' ? undefined : banned === 'true', subscription_active: subscription === '' ? undefined : subscription === 'true' })
+    if (Array.from(query.trim()).length <= 100) onFilters({ query: query.trim() || undefined, banned: banned === '' ? undefined : banned === 'true', subscription_active: subscription === '' ? undefined : subscription === 'true', approval_state: approvalStates.find((state) => state === approval) })
   }}><FieldGrid>
     <AccountField label={t('manage.search')} value={query} onChange={(event) => setQuery(event.target.value)} />
     <Choice label={t('manage.status')} value={banned} onChange={setBanned}>
@@ -65,8 +66,12 @@ function MerchantFiltersForm({ filters, onFilters }: { filters: MerchantFilters;
     <Choice label={t('manage.subscription')} value={subscription} onChange={setSubscription}>
       <SelectOption value="">{t('manage.all')}</SelectOption><SelectOption value="true">{t('manage.active')}</SelectOption><SelectOption value="false">{t('manage.inactive')}</SelectOption>
     </Choice>
+    <Choice label={t('manage.approval')} value={approval} onChange={setApproval}>
+      <SelectOption value="">{t('manage.all')}</SelectOption>
+      {approvalStates.map((state) => <SelectOption key={state} value={state}>{t(`manage.approvalStates.${state}` as const)}</SelectOption>)}
+    </Choice>
   </FieldGrid><FormActions>
-    <Button onClick={() => { setQuery(''); setBanned(''); setSubscription(''); onFilters({}) }}>{t('manage.resetFilters')}</Button>
+    <Button onClick={() => { setQuery(''); setBanned(''); setSubscription(''); setApproval(''); onFilters({}) }}>{t('manage.resetFilters')}</Button>
     <Button type="submit" variant="primary" disabled={Array.from(query.trim()).length > 100}>{t('manage.apply')}</Button>
   </FormActions></FormStack></Card>
 }

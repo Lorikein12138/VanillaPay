@@ -136,6 +136,7 @@ type OrderDTO struct {
 	Status           string     `json:"status"`
 	ExpireReason     *string    `json:"expire_reason"`
 	IsManual         bool       `json:"is_manual"`
+	IsTest           bool       `json:"is_test"`
 	ManualReason     *string    `json:"manual_reason"`
 	CreatedAt        time.Time  `json:"created_at"`
 	PaidAt           *time.Time `json:"paid_at"`

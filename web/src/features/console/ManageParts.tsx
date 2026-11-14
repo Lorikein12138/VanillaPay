@@ -38,8 +38,10 @@ export function Channels({ value }: { value: string[] | null }) {
     ? <ChannelList channels={value} name={(channel) => t(`merchant.overview.channels.${channel}`, { defaultValue: channel })} />
     : null
 }
-export function MerchantStatus({ banned }: { banned: boolean }) {
+export function MerchantStatus({ banned, approval = 'approved' }: { banned: boolean; approval?: Schema['MerchantApprovalState'] }) {
   const { t } = useTranslation()
+  if (approval === 'pending') return <StatusDot tone="wait">{t('manage.approvalStates.pending')}</StatusDot>
+  if (approval === 'rejected') return <StatusDot tone="off">{t('manage.approvalStates.rejected')}</StatusDot>
   return <StatusDot tone={banned ? 'off' : 'ok'}>{t(banned ? 'manage.banned' : 'manage.normal')}</StatusDot>
 }
 export function DeviceStatus({ device }: { device: Schema['DeviceDeviceDTO'] }) {

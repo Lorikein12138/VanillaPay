@@ -6,6 +6,7 @@ import { Identifier } from '@/components/ui/layout'
 import { ChannelLabel } from '@/components/ui/payment'
 import { RecordLink } from '@/components/ui/records'
 import { Table, Td, Th } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import { money } from './overview-data'
 import { orderChannels, orderStatuses, type OrderFilters } from './orders-data'
 
@@ -80,7 +81,7 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
                 <div className="mt-1 text-text-3"><Identifier value={order.out_trade_no} className="text-caption" /></div>
               </Td>
               {role === 'console' && <Td className="max-w-[160px]"><RecordLink to={'/console/merchants/' + order.merchant_id}>{order.merchant_username}</RecordLink></Td>}
-              <Td className="max-w-[220px] break-words">{order.name}</Td>
+              <Td className="max-w-[220px] break-words">{order.name}{order.is_test && <TestBadge className="ml-2" />}</Td>
               <Td className="whitespace-nowrap text-text-2"><OrderChannel channel={order.channel} /></Td>
               <Td align="right" className="whitespace-nowrap font-medium">{amount(order)}</Td>
               <Td><OrderStatus status={order.status} /></Td>
@@ -93,7 +94,7 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
         {orders.map((order) => (
           <li key={order.trade_no} className="rounded-card border-[0.5px] border-border bg-surface p-4">
             <div className="flex items-start justify-between gap-3">
-              <p className="m-0 min-w-0 break-words text-[15px] leading-snug">{order.name}</p>
+              <p className="m-0 min-w-0 break-words text-[15px] leading-snug">{order.name}{order.is_test && <TestBadge className="ml-2" />}</p>
               <span className="shrink-0 font-serif text-[1.375rem] leading-none tabular-nums">{amount(order)}</span>
             </div>
             <div className="mt-2.5">{link(order)}</div>
@@ -116,4 +117,10 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
       </ul>
     </>
   )
+}
+
+/** Marks a merchant test payment, which sends no callback. */
+export function TestBadge({ className }: { className?: string }) {
+  const { t } = useTranslation()
+  return <span className={cn('inline-flex rounded-full bg-accent-soft px-2 py-px align-[0.1em] text-caption leading-[1.4] whitespace-nowrap text-accent-text', className)}>{t('merchant.orders.testBadge')}</span>
 }

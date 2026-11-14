@@ -62,7 +62,7 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 	}
 	t.Run("V03.B.r01/v01", func(t *testing.T) {
 		var version int64
-		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 11 {
+		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 12 {
 			t.Fatalf("empty isolated schema goose version=%d err=%v, want 11", version, err)
 		}
 	})

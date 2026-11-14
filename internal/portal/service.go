@@ -510,10 +510,10 @@ func (s *Service) OrderDetail(ctx context.Context, actor platform.Actor, tradeNo
 	var paid, refunded pgtype.Timestamptz
 	var channels []string
 	var callbackReplaysUsed int
-	err := s.pool.QueryRow(ctx, `SELECT o.trade_no,o.out_trade_no,o.merchant_id,o.merchant_username_snapshot,o.purpose,o.protocol,o.channel,o.name,o.product_id,o.param,o.original_cents,o.actual_cents,o.status,o.expire_reason,o.is_manual,o.manual_reason,o.created_at,o.paid_at,o.expires_at,o.refunded_at,
+	err := s.pool.QueryRow(ctx, `SELECT o.trade_no,o.out_trade_no,o.merchant_id,o.merchant_username_snapshot,o.purpose,o.protocol,o.channel,o.name,o.product_id,o.param,o.original_cents,o.actual_cents,o.status,o.expire_reason,o.is_manual,o.is_test,o.manual_reason,o.created_at,o.paid_at,o.expires_at,o.refunded_at,
 		COALESCE(c.state,CASE WHEN o.purpose='subscription' THEN 'internal_fulfillment' ELSE 'none' END),r.public_id,o.allowed_channels_snapshot,GREATEST(COALESCE(c.generation,1)-1,0)
 		FROM orders o LEFT JOIN receipts r ON r.order_id=o.id LEFT JOIN LATERAL (SELECT state,generation FROM callback_events WHERE order_id=o.id ORDER BY generation DESC LIMIT 1) c ON true WHERE o.id=$1`, id).
-		Scan(&dto.TradeNo, &dto.OutTradeNo, &dto.MerchantID, &dto.MerchantUsername, &dto.Purpose, &dto.Protocol, &ch, &dto.Name, &dto.ProductID, &dto.Param, &dto.OriginalCents, &actualCents, &dto.Status, &reason, &dto.IsManual, &manual, &dto.CreatedAt, &paid, &dto.ExpiresAt, &refunded, &dto.CallbackStatus, &receipt, &channels, &callbackReplaysUsed)
+		Scan(&dto.TradeNo, &dto.OutTradeNo, &dto.MerchantID, &dto.MerchantUsername, &dto.Purpose, &dto.Protocol, &ch, &dto.Name, &dto.ProductID, &dto.Param, &dto.OriginalCents, &actualCents, &dto.Status, &reason, &dto.IsManual, &dto.IsTest, &manual, &dto.CreatedAt, &paid, &dto.ExpiresAt, &refunded, &dto.CallbackStatus, &receipt, &channels, &callbackReplaysUsed)
 	if err != nil {
 		return nil, err
 	}
@@ -657,7 +657,7 @@ func (s *Service) listOrders(ctx context.Context, mid *int64, q OrderFilter, lim
 		var paid, refunded pgtype.Timestamptz
 		var actualCents pgtype.Int8
 		var receipt pgtype.Text
-		if err := rows.Scan(&rowID, &d.TradeNo, &d.OutTradeNo, &d.MerchantID, &d.MerchantUsername, &d.Purpose, &d.Protocol, &ch, &d.Name, &d.ProductID, &d.Param, &d.OriginalCents, &actualCents, &d.Status, &reason, &d.IsManual, &manual, &d.CreatedAt, &paid, &d.ExpiresAt, &refunded, &d.CallbackStatus, &receipt); err != nil {
+		if err := rows.Scan(&rowID, &d.TradeNo, &d.OutTradeNo, &d.MerchantID, &d.MerchantUsername, &d.Purpose, &d.Protocol, &ch, &d.Name, &d.ProductID, &d.Param, &d.OriginalCents, &actualCents, &d.Status, &reason, &d.IsManual, &d.IsTest, &manual, &d.CreatedAt, &paid, &d.ExpiresAt, &refunded, &d.CallbackStatus, &receipt); err != nil {
 			return page, err
 		}
 		if ch.Valid {

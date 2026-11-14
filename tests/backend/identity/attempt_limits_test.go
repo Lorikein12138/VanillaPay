@@ -41,7 +41,7 @@ func TestDB_EmailCodeAttemptLimitSurvivesRollback(t *testing.T) {
 			password := "Aa1!" + rand.Text()
 			request := auth.RegisterRequest{Username: username, Email: email, EmailCode: wrong, Password: password, PasswordConfirmation: password, AcceptTerms: true, AcceptPrivacy: true, TermsRevision: 1, PrivacyRevision: 1, TurnstileToken: "ok:register"}
 			for attempt := 1; attempt <= wrongAttempts; attempt++ {
-				_, err := service.Register(ctx, request)
+				_, _, err := service.Register(ctx, request)
 				assertAttemptError(t, err, "INVALID_CODE")
 				var failures, merchants int
 				var consumed *time.Time
@@ -53,7 +53,7 @@ func TestDB_EmailCodeAttemptLimitSurvivesRollback(t *testing.T) {
 				}
 			}
 			request.EmailCode = correct
-			_, err := service.Register(ctx, request)
+			_, _, err := service.Register(ctx, request)
 			if wrongAttempts == 4 {
 				if err != nil {
 					t.Fatalf("correct fifth attempt must succeed: %v", err)

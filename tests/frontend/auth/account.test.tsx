@@ -26,7 +26,7 @@ vi.mock('@/features/auth/Turnstile', () => ({ Turnstile: ({ onToken, action }: {
 vi.mock('qrcode', () => ({ default: { toDataURL: () => Promise.resolve('data:image/png;base64,AA==') } }))
 const baseUser: AccountSchema['AuthUserDTO'] = { id: '1', role: 'merchant', username: 'account_shop', email: 'account@example.test', pid: '9000000000000001', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'light', created_at: new Date().toISOString() }
 const identity = (user = baseUser): AccountSchema['SessionIdentity'] => ({ user, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 3600000).toISOString() })
-const config: AccountSchema['PublicConfig'] = { site_name: 'VanillaPay', logo_url: '', favicon_url: '/favicon.ico?v=default', turnstile: { enabled: true, site_key: 'fixture', login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, legal_revisions: { terms: 7, privacy: 9 }, home: { mode: 'default', html: null, url: null }, footer: [] }
+const config: AccountSchema['PublicConfig'] = { site_name: 'VanillaPay', logo_url: '', favicon_url: '/favicon.ico?v=default', turnstile: { enabled: true, site_key: 'fixture', login_action: 'login', register_action: 'register' }, registration_open: true, registration_review: false, email_domain_restriction: { enabled: false, domains: [] }, legal_revisions: { terms: 7, privacy: 9 }, home: { mode: 'default', html: null, url: null }, footer: [] }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: AccountSchema['ErrorCode'], details = {}) => HttpResponse.json({ error: { code, message: code, fields: {}, details }, request_id: crypto.randomUUID() }, { status })
 const server = setupServer(emptyNotifications, http.get('*/api/v1/public/config', () => success(config)), http.get('*/api/v1/merchant/me', () => success(identity())))
@@ -159,6 +159,33 @@ describe('public account flows', () => {
     await waitFor(() => expect(registrationProof).not.toBeInTheDocument())
     expect(screen.getByRole('button', { name: '创建账户' })).toBeDisabled()
   })
+  it('announces registration review and sends a pending account to the login notice', async () => {
+    server.use(
+      http.get('*/api/v1/public/config', () => success({ ...config, registration_review: true })),
+      http.post('*/api/v1/auth/email-codes', () => success({ sent: true, retry_after_seconds: 3 })),
+      http.post('*/api/v1/auth/register', () => success({ user: baseUser, next_path: '/login', pending_review: true })),
+      http.get('*/api/v1/merchant/me', () => failure(401, 'UNAUTHENTICATED')),
+    )
+    const { router } = mount('/register')
+    await screen.findByText('注册后可登录查看审核状态。审核通过后即可收款，结果也会发到你的邮箱。')
+    fill('用户名', 'new_shop'); fill('邮箱', 'new@example.test')
+    const secret = crypto.randomUUID(); fill('新密码', secret); fill('确认新密码', secret)
+    fill('邮箱验证码', '123456')
+    fireEvent.click(screen.getByRole('checkbox', { name: '我同意服务条款' })); fireEvent.click(screen.getByRole('checkbox', { name: '我同意隐私政策' }))
+    fireEvent.click(screen.getByRole('button', { name: '完成验证' }))
+    fireEvent.click(screen.getByRole('button', { name: '获取邮箱验证码' }))
+    await screen.findByText('0:03')
+    fireEvent.click(await screen.findByRole('button', { name: '完成验证' })); fireEvent.click(screen.getByRole('button', { name: '创建账户' }))
+    await screen.findByText('注册成功。请登录查看审核状态，审核结果也会发到你的邮箱。')
+    expect(router.state.location.pathname).toBe('/login')
+    expect(router.state.location.search).toEqual({ notice: 'pending_review' })
+  })
+
+  it('hides the review notice when review is off', async () => {
+    mount('/register'); await screen.findByLabelText('用户名')
+    expect(screen.queryByText('注册后可登录查看审核状态。审核通过后即可收款，结果也会发到你的邮箱。')).toBeNull()
+  })
+
   it('resets Turnstile after email failure and honors the 429 retry delay', async () => {
     server.use(http.post('*/api/v1/auth/email-codes', () => failure(429, 'EMAIL_SEND_TOO_SOON', { retry_after_seconds: 2 })))
     mount('/reset-password'); await screen.findByLabelText('邮箱')

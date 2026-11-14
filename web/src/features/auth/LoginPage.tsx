@@ -18,7 +18,7 @@ import { consoleDestination, loginDestination } from '@/lib/redirect'
 
 type Challenge = components['schemas']['AuthLoginResult']
 
-export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: string; notice?: 'registered' | 'password_reset' | 'password_changed' | 'initialized' | 'repaired'; role?: 'merchant' | 'console' }) {
+export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: string; notice?: 'registered' | 'pending_review' | 'password_reset' | 'password_changed' | 'initialized' | 'repaired'; role?: 'merchant' | 'console' }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -43,7 +43,7 @@ export function LoginPage({ redirect, notice, role = 'merchant' }: { redirect?: 
   const client = admin ? consoleApi : api
   const errorKey = <K extends string>(key: K) => (admin && key === 'auth.errors.setup' ? 'console.setupMissing' : key)
   const hero = t(admin ? 'console.hero' : 'auth.hero')
-  const notices = { registered: 'auth.notices.registered', password_reset: 'auth.notices.password_reset', password_changed: admin ? 'console.notices.password_changed' : 'auth.notices.password_changed', initialized: 'console.notices.initialized', repaired: 'console.notices.repaired' } as const
+  const notices = { registered: 'auth.notices.registered', pending_review: 'auth.notices.pending_review', password_reset: 'auth.notices.password_reset', password_changed: admin ? 'console.notices.password_changed' : 'auth.notices.password_changed', initialized: 'console.notices.initialized', repaired: 'console.notices.repaired' } as const
 
   async function submit(event: FormEvent) {
     event.preventDefault()

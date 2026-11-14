@@ -24,6 +24,7 @@ import { Route as MerchantDevicesRouteImport } from './routes/_merchant.devices'
 import { Route as MerchantIntegrationRouteImport } from './routes/_merchant.integration'
 import { Route as MerchantNotificationsRouteImport } from './routes/_merchant.notifications'
 import { Route as MerchantOrdersRouteImport } from './routes/_merchant.orders'
+import { Route as MerchantRegistrationReviewRouteImport } from './routes/_merchant.registration-review'
 import { Route as MerchantSubscriptionRouteImport } from './routes/_merchant.subscription'
 import { Route as ConsoleIndexRouteImport } from './routes/console.index'
 import { Route as ConsoleSplatRouteImport } from './routes/console.$'
@@ -133,6 +134,12 @@ const MerchantOrdersRoute = MerchantOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => MerchantRoute,
 } as any)
+const MerchantRegistrationReviewRoute =
+  MerchantRegistrationReviewRouteImport.update({
+    id: '/registration-review',
+    path: '/registration-review',
+    getParentRoute: () => MerchantRoute,
+  } as any)
 const MerchantSubscriptionRoute = MerchantSubscriptionRouteImport.update({
   id: '/subscription',
   path: '/subscription',
@@ -285,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/integration': typeof MerchantIntegrationRoute
   '/notifications': typeof MerchantNotificationsRoute
   '/orders': typeof MerchantOrdersRouteWithChildren
+  '/registration-review': typeof MerchantRegistrationReviewRoute
   '/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
@@ -322,6 +330,7 @@ export interface FileRoutesByTo {
   '/devices': typeof MerchantDevicesRoute
   '/integration': typeof MerchantIntegrationRoute
   '/notifications': typeof MerchantNotificationsRoute
+  '/registration-review': typeof MerchantRegistrationReviewRoute
   '/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
@@ -362,6 +371,7 @@ export interface FileRoutesById {
   '/_merchant/integration': typeof MerchantIntegrationRoute
   '/_merchant/notifications': typeof MerchantNotificationsRoute
   '/_merchant/orders': typeof MerchantOrdersRouteWithChildren
+  '/_merchant/registration-review': typeof MerchantRegistrationReviewRoute
   '/_merchant/subscription': typeof MerchantSubscriptionRoute
   '/console/$': typeof ConsoleSplatRoute
   '/console/account': typeof ConsoleAccountRoute
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/integration'
     | '/notifications'
     | '/orders'
+    | '/registration-review'
     | '/subscription'
     | '/console/$'
     | '/console/account'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/integration'
     | '/notifications'
+    | '/registration-review'
     | '/subscription'
     | '/console/$'
     | '/console/account'
@@ -480,6 +492,7 @@ export interface FileRouteTypes {
     | '/_merchant/integration'
     | '/_merchant/notifications'
     | '/_merchant/orders'
+    | '/_merchant/registration-review'
     | '/_merchant/subscription'
     | '/console/$'
     | '/console/account'
@@ -625,6 +638,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/orders'
       preLoaderRoute: typeof MerchantOrdersRouteImport
+      parentRoute: typeof MerchantRoute
+    }
+    '/_merchant/registration-review': {
+      id: '/_merchant/registration-review'
+      path: '/registration-review'
+      fullPath: '/registration-review'
+      preLoaderRoute: typeof MerchantRegistrationReviewRouteImport
       parentRoute: typeof MerchantRoute
     }
     '/_merchant/subscription': {
@@ -836,6 +856,7 @@ interface MerchantRouteChildren {
   MerchantIntegrationRoute: typeof MerchantIntegrationRoute
   MerchantNotificationsRoute: typeof MerchantNotificationsRoute
   MerchantOrdersRoute: typeof MerchantOrdersRouteWithChildren
+  MerchantRegistrationReviewRoute: typeof MerchantRegistrationReviewRoute
   MerchantSubscriptionRoute: typeof MerchantSubscriptionRoute
 }
 
@@ -849,6 +870,7 @@ const MerchantRouteChildren: MerchantRouteChildren = {
   MerchantIntegrationRoute: MerchantIntegrationRoute,
   MerchantNotificationsRoute: MerchantNotificationsRoute,
   MerchantOrdersRoute: MerchantOrdersRouteWithChildren,
+  MerchantRegistrationReviewRoute: MerchantRegistrationReviewRoute,
   MerchantSubscriptionRoute: MerchantSubscriptionRoute,
 }
 

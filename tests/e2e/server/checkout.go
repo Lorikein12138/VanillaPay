@@ -143,5 +143,5 @@ func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return map[string]string{"pid": merchant["pid"], "v1_key": string(plain), "device_token": deviceToken, "created_at": time.Now().UTC().Format(time.RFC3339Nano)}, nil
+	return map[string]string{"pid": merchant["pid"], "username": merchant["username"], "password": merchant["password"], "v1_key": string(plain), "device_token": deviceToken, "created_at": time.Now().UTC().Format(time.RFC3339Nano)}, nil
 }

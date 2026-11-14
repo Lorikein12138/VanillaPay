@@ -84,6 +84,7 @@ export function LatestSettings({ group, settings }: { group: SettingsGroup; sett
             row('emailDomains', value.email_domains?.join(', ')),
             row('banContactZh', value.ban_contact.zh_CN),
             row('banContactEn', value.ban_contact.en),
+            row('registrationReview', enabled(value.registration_review)),
             row('turnstileSecret', configured(value.secret_configured)),
           ]}
         />

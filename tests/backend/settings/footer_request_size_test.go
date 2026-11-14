@@ -43,7 +43,7 @@ func TestHTTP_MigratedFooterAtPreviousRequestLimitCanBeSaved(t *testing.T) {
 	if _, err := db.Pool.Exec(ctx, `UPDATE site_settings SET footer_legal=$1::jsonb WHERE singleton`, legacy.Value); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.UpTo(ctx, 9); err != nil {
+	if _, err := provider.Up(ctx); err != nil {
 		t.Fatal(err)
 	}
 

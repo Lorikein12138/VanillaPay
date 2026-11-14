@@ -112,8 +112,8 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	result, err := h.Service.Register(r.Context(), req)
-	writeResult(w, r, map[string]any{"user": result, "next_path": "/login"}, err, http.StatusCreated)
+	result, pendingReview, err := h.Service.Register(r.Context(), req)
+	writeResult(w, r, map[string]any{"user": result, "next_path": "/login", "pending_review": pendingReview}, err, http.StatusCreated)
 }
 func (h *Handler) loginMerchant(w http.ResponseWriter, r *http.Request) { h.login(w, r, "merchant") }
 func (h *Handler) loginAdmin(w http.ResponseWriter, r *http.Request)    { h.login(w, r, "admin") }

@@ -73,7 +73,7 @@ function PublicAccountForm({ mode, config }: { mode: 'register' | 'reset_passwor
       try {
         if (register) {
           const result = await api.register({ username: username.trim(), email: email.trim(), email_code: code.trim(), password, password_confirmation: confirmation, accept_terms: terms, accept_privacy: privacy, terms_revision: config.legal_revisions.terms, privacy_revision: config.legal_revisions.privacy, ...verification })
-          if (action.active.current) { setPassword(''); setConfirmation(''); setCode(''); await navigate({ to: safePath(result.next_path) ?? '/login', search: { notice: 'registered' }, replace: true }) }
+          if (action.active.current) { setPassword(''); setConfirmation(''); setCode(''); await navigate({ to: safePath(result.next_path) ?? '/login', search: { notice: result.pending_review ? 'pending_review' : 'registered' }, replace: true }) }
         } else {
           await api.resetPassword({ email: email.trim(), email_code: code.trim(), password, password_confirmation: confirmation, ...verification })
           api.forgetSession(); clearPortalSession(client, 'merchant')
@@ -89,6 +89,7 @@ function PublicAccountForm({ mode, config }: { mode: 'register' | 'reset_passwor
   }
   return <form className="space-y-5" aria-label={register ? t('polish.registerAsAMerchant') : t('polish.resetPassword')} onSubmit={(event) => { event.preventDefault(); void submit() }}>
     <h2 className="font-serif text-[1.75rem] leading-[1.2] font-normal tracking-[-0.01em]">{register ? t('polish.registerAsAMerchant') : t('polish.setANewPassword')}</h2>
+    {register && config.registration_review && <Notice tone="info">{t('polish.registrationReviewNotice')}</Notice>}
     {register && <AccountField label={t('polish.username')} autoComplete="username" required disabled={busy} value={username} onChange={(event) => { setUsername(event.target.value); setCode('') }} pattern="[A-Za-z0-9_-]{3,32}" title={t('polish.332LettersNumbersUnderscoresOrHyphens')} />}
     <AccountField label={t('polish.email')} type="email" autoComplete="email" required disabled={busy} value={email} onChange={(event) => { setEmail(event.target.value); setCode('') }} />
     {register && config.email_domain_restriction.enabled && !!config.email_domain_restriction.domains?.length && <p className="text-caption text-text-2">{t('polish.emailDomainHint', { domains: config.email_domain_restriction.domains.join(i18n.resolvedLanguage === 'en' ? ', ' : '、') })}</p>}

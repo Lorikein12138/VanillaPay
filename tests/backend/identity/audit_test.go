@@ -45,9 +45,9 @@ func TestDB_AuditSecurityCoverage(t *testing.T) {
 		"turnstile_site_key": "audit-local-site-key",
 		"turnstile_secret":   "audit-local-secret",
 		"turnstile_enabled":  true, "turnstile_token": "ok:settings_security",
-		"restrict_email_domains": false,
-		"email_domains":          []string{},
-		"ban_contact":            map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"},
+		"restrict_email_domains": false, "registration_review": false,
+		"email_domains": []string{},
+		"ban_contact":   map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"},
 	})
 	if err != nil {
 		t.Fatal("encode isolated Siteverify settings")

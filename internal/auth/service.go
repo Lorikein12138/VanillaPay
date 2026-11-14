@@ -446,41 +446,42 @@ func targetDigestValue(purpose, username, targetEmail, email string) []byte {
 	return HashOpaque(value)
 }
 
-func (s *Service) Register(ctx context.Context, req RegisterRequest) (UserDTO, error) {
+func (s *Service) Register(ctx context.Context, req RegisterRequest) (UserDTO, bool, error) {
 	username, err := NormalizeUsername(req.Username)
 	if err != nil {
-		return UserDTO{}, appError("VALIDATION_ERROR", 400)
+		return UserDTO{}, false, appError("VALIDATION_ERROR", 400)
 	}
 	email, err := NormalizeEmail(req.Email)
 	if err != nil {
-		return UserDTO{}, appError("VALIDATION_ERROR", 400)
+		return UserDTO{}, false, appError("VALIDATION_ERROR", 400)
 	}
 	if err := ValidatePassword(req.Password, req.PasswordConfirmation); err != nil {
-		return UserDTO{}, appError("VALIDATION_ERROR", 400)
+		return UserDTO{}, false, appError("VALIDATION_ERROR", 400)
 	}
 	if !req.AcceptTerms || !req.AcceptPrivacy {
-		return UserDTO{}, appError("AGREEMENT_REQUIRED", 400)
+		return UserDTO{}, false, appError("AGREEMENT_REQUIRED", 400)
 	}
 	if err := s.requireTurnstile(ctx, req.TurnstileToken, "register"); err != nil {
-		return UserDTO{}, err
+		return UserDTO{}, false, err
 	}
 	passwordHash, err := HashPassword(req.Password, s.random)
 	if err != nil {
-		return UserDTO{}, err
+		return UserDTO{}, false, err
 	}
 	var result UserDTO
+	var review bool
 	for attempt := 0; attempt < 3; attempt++ {
 		pid, err := GeneratePID(s.random)
 		if err != nil {
-			return UserDTO{}, err
+			return UserDTO{}, false, err
 		}
 		merchantKey, err := GenerateMerchantKey(s.random)
 		if err != nil {
-			return UserDTO{}, err
+			return UserDTO{}, false, err
 		}
 		keyCipher, err := platform.Encrypt(s.encryptionKey[:], []byte(merchantKey), s.random)
 		if err != nil {
-			return UserDTO{}, err
+			return UserDTO{}, false, err
 		}
 		err = sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			if err := sqlc.LockBusinessRows(ctx, tx, nil, false); err != nil {
@@ -488,7 +489,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (UserDTO, e
 			}
 			var enabled bool
 			var domains []string
-			if err := tx.QueryRow(ctx, `SELECT COALESCE((security->>'restrict_email_domains')::boolean,false),ARRAY(SELECT jsonb_array_elements_text(COALESCE(security->'email_domains','[]'::jsonb))) FROM site_settings WHERE singleton=true`).Scan(&enabled, &domains); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT COALESCE((security->>'restrict_email_domains')::boolean,false),COALESCE((security->>'registration_review')::boolean,false),ARRAY(SELECT jsonb_array_elements_text(COALESCE(security->'email_domains','[]'::jsonb))) FROM site_settings WHERE singleton=true`).Scan(&enabled, &review, &domains); err != nil {
 				return err
 			}
 			if enabled && !ValidateEmailDomain(email, domains) {
@@ -506,7 +507,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (UserDTO, e
 			}
 			var id int64
 			var created time.Time
-			if err := tx.QueryRow(ctx, `INSERT INTO merchants(username,username_normalized,email,email_normalized,pid,password_hash,key_cipher) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at`, req.Username, username, email, email, pid, passwordHash, keyCipher).Scan(&id, &created); err != nil {
+			if err := tx.QueryRow(ctx, `INSERT INTO merchants(username,username_normalized,email,email_normalized,pid,password_hash,key_cipher,approval_state) VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN $8 THEN 'pending' ELSE 'approved' END) RETURNING id,created_at`, req.Username, username, email, email, pid, passwordHash, keyCipher, review).Scan(&id, &created); err != nil {
 				return mapIdentityConflict(err)
 			}
 			if _, err := tx.Exec(ctx, `INSERT INTO legal_acceptances(merchant_id,kind,revision) VALUES($1,'terms',$2),($1,'privacy',$3)`, id, termsRev, privacyRev); err != nil {
@@ -520,18 +521,18 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (UserDTO, e
 			}
 			result = UserDTO{ID: fmt.Sprint(id), Role: "merchant", Username: req.Username, Email: email, PID: pid, Banned: false, Locale: "zh-CN", Theme: "system", CreatedAt: created}
 			merchantID := id
-			return recordAudit(ctx, tx, platform.Actor{Role: "system", SubjectID: id, MerchantID: id}, &merchantID, "merchant.register", "merchant", fmt.Sprint(id), "success", nil)
+			return recordAudit(ctx, tx, platform.Actor{Role: "system", SubjectID: id, MerchantID: id}, &merchantID, "merchant.register", "merchant", fmt.Sprint(id), "success", []byte(fmt.Sprintf(`{"pending_review":%t}`, review)))
 		})
 		if err == nil {
-			return result, nil
+			return result, review, nil
 		}
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" && strings.Contains(pgErr.ConstraintName, "pid") {
 			continue
 		}
-		return UserDTO{}, err
+		return UserDTO{}, false, err
 	}
-	return UserDTO{}, appError("VERSION_CONFLICT", 409)
+	return UserDTO{}, false, appError("VERSION_CONFLICT", 409)
 }
 
 func (s *Service) Login(ctx context.Context, role string, req LoginRequest) (LoginResult, error) {
@@ -1041,6 +1042,9 @@ func nextPath(account Account) string {
 	}
 	if account.BannedAt != nil {
 		return "/banned"
+	}
+	if account.ApprovalState == "pending" || account.ApprovalState == "rejected" {
+		return "/registration-review"
 	}
 	return "/dashboard"
 }

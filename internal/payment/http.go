@@ -82,6 +82,7 @@ func (h *Handler) RegisterAPIRoutes(r chi.Router) {
 	r.Post("/merchant/orders/{trade_no}/refund", h.MarkRefunded)
 	r.Post("/merchant/refunds/{id}/resolve", h.ResolveRefund)
 	r.Post("/merchant/orders/{trade_no}/callback-replay", h.CallbackReplay)
+	r.Post("/merchant/test-payment", h.TestPayment)
 	r.Get("/console/orders", h.ListOrders)
 	r.Get("/console/orders/export.csv", h.ExportOrders)
 	r.Get("/console/orders/{trade_no}", h.OrderDetail)
@@ -440,7 +441,8 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	var created, paid time.Time
 	var cipher []byte
 	var provider string
-	err = h.Service.pool.QueryRow(ctx, `SELECT merchant_pid_snapshot,out_trade_no,COALESCE(channel,''),name,COALESCE(param,''),COALESCE(buyer_hint,''),COALESCE(host(clientip),''),protocol,original_cents,created_at,paid_at,signing_key_cipher,COALESCE((SELECT r.provider_trade_no FROM receipts r WHERE r.order_id=o.id LIMIT 1),'') FROM orders o WHERE trade_no=$1 AND status='paid'`, trade).Scan(&pid, &outTrade, &channel, &name, &param, &buyer, &clientIP, &protocol, &amount, &created, &paid, &cipher, &provider)
+	var hideName bool
+	err = h.Service.pool.QueryRow(ctx, `SELECT merchant_pid_snapshot,out_trade_no,COALESCE(channel,''),name,COALESCE(param,''),COALESCE(buyer_hint,''),COALESCE(host(clientip),''),protocol,original_cents,created_at,paid_at,signing_key_cipher,COALESCE((SELECT r.provider_trade_no FROM receipts r WHERE r.order_id=o.id LIMIT 1),''),(SELECT m.callback_hide_name FROM merchants m WHERE m.id=o.merchant_id) FROM orders o WHERE trade_no=$1 AND status='paid'`, trade).Scan(&pid, &outTrade, &channel, &name, &param, &buyer, &clientIP, &protocol, &amount, &created, &paid, &cipher, &provider, &hideName)
 	if err != nil {
 		return "", err
 	}
@@ -449,7 +451,7 @@ func (h *Handler) signedReturnURL(ctx context.Context, trade, target string) (st
 	params.Set("trade_no", trade)
 	params.Set("out_trade_no", outTrade)
 	params.Set("type", channel)
-	params.Set("name", truncateUTF8(name, 127))
+	params.Set("name", callbackName(name, hideName))
 	params.Set("money", formatMoney(amount))
 	params.Set("trade_status", "TRADE_SUCCESS")
 	params.Set("sign_type", "MD5")

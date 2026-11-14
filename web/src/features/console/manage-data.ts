@@ -4,10 +4,11 @@ import type { components, operations } from '@/api/schema'
 import { yuanToCents } from '@/features/merchant/collection-data'
 
 export type Schema = components['schemas']
-export type MerchantFilters = Pick<NonNullable<operations['get_api_v1_console_merchants']['parameters']['query']>, 'query' | 'banned' | 'subscription_active'>
+export type MerchantFilters = Pick<NonNullable<operations['get_api_v1_console_merchants']['parameters']['query']>, 'query' | 'banned' | 'subscription_active' | 'approval_state'>
 export type PurchaseFilters = Pick<NonNullable<operations['get_api_v1_console_purchases']['parameters']['query']>, 'start' | 'end' | 'state' | 'merchant_id' | 'plan_id'>
 export const channels = ['alipay', 'wxpay'] as const
 export const purchaseStates = ['pending', 'paid', 'expired', 'cancelled', 'refunded'] as const
+export const approvalStates = ['pending', 'approved', 'rejected'] as const
 export const bytes = (value: string) => new TextEncoder().encode(value).length
 export const validBanReason = (value: string) => Array.from(value.trim()).length >= 1 && Array.from(value.trim()).length <= 500
 export const validGrantReason = (value: string) => !!value.trim() && bytes(value.trim()) <= 500
@@ -21,6 +22,7 @@ export function merchantSearch(search: Record<string, unknown>): MerchantFilters
     query: typeof search.query === 'string' ? Array.from(search.query.trim()).slice(0, 100).join('') || undefined : undefined,
     banned: search.banned === true || search.banned === 'true' ? true : search.banned === false || search.banned === 'false' ? false : undefined,
     subscription_active: search.subscription_active === true || search.subscription_active === 'true' ? true : search.subscription_active === false || search.subscription_active === 'false' ? false : undefined,
+    approval_state: approvalStates.find((state) => state === search.approval_state),
   }
 }
 export function purchaseSearch(search: Record<string, unknown>): PurchaseFilters {

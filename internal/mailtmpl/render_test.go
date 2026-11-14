@@ -22,6 +22,9 @@ func TestUnit_MailTemplates(t *testing.T) {
 		{Verification, "verification", "注册验证码", "Registration verification code", "", "482731", Payload{Purpose: "register", Code: "482731"}},
 		{DeviceOffline, "device-offline", "设备离线", "Device offline", "/devices", "2026-11-10 11:24:18 UTC+8", Payload{DeviceName: "前台收款机 / Front counter", LastHeartbeat: &last}},
 		{RefundRequest, "refund-request", "退款申请", "Refund request", "/orders/VP20261110001234", "VP20261110001234", Payload{TradeNo: "VP20261110001234"}},
+		{RegistrationApproved, "registration-approved", "注册审核已通过", "Registration approved", "/login", "/login", Payload{}},
+		{RegistrationRejected, "registration-rejected", "注册审核未通过", "Registration not approved", "", "资料不完整 / Incomplete details", Payload{Reason: "资料不完整 / Incomplete details"}},
+		{CallbackFailed, "callback-failed", "异步通知连续失败", "Payment notifications failing", "/orders/VP20261110001234", "VP20261110001234", Payload{TradeNo: "VP20261110001234"}},
 		{MailTest, "smtp-test", "SMTP 测试邮件", "SMTP test email", "", "SMTP", Payload{}},
 	} {
 		for _, locale := range []string{"zh-CN", "en"} {

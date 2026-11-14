@@ -12,6 +12,11 @@ export const merchantNavigation = [
   { label: '订阅套餐', key: 'subscription', path: '/subscription', icon: CreditCard, enabled: true },
 ] as const
 
+export function restrictedMerchantPath(user: { banned: boolean; approval_state?: 'pending' | 'rejected' }) {
+  if (user.banned) return '/banned'
+  if (user.approval_state) return '/registration-review'
+}
+
 export function isMerchantPath(path: string) {
-  return path === '/banned' || path === '/account' || path === '/account/logs' || merchantNavigation.some((item) => path === item.path || path.startsWith(`${item.path}/`))
+  return path === '/registration-review' || path === '/banned' || path === '/account' || path === '/account/logs' || merchantNavigation.some((item) => path === item.path || path.startsWith(`${item.path}/`))
 }

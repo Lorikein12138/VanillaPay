@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	sqlc "vanillapay/internal/db/sqlc"
+	"vanillapay/internal/mailtmpl"
 	"vanillapay/internal/platform"
 )
 
@@ -47,6 +48,7 @@ type callbackWork struct {
 	paramsCreated  time.Time
 	paramsPaid     pgtype.Timestamptz
 	paramsProvider string
+	hideName       bool
 	startedWall    time.Time
 }
 
@@ -71,7 +73,7 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 		var state string
 		var payload []byte
 		var tries int
-		err := tx.QueryRow(ctx, `SELECT c.id,c.public_id,c.generation,c.state,c.attempt_count,c.payload_snapshot,o.protocol,o.notify_url,o.signing_key_cipher,o.trade_no,o.out_trade_no,o.merchant_pid_snapshot,o.channel,o.name,o.original_cents,o.param,o.buyer_hint,COALESCE(host(o.clientip),''),o.created_at,o.paid_at,COALESCE((SELECT r.provider_trade_no FROM receipts r WHERE r.order_id=o.id LIMIT 1),'') FROM callback_events c JOIN orders o ON o.id=c.order_id WHERE c.order_id=$1 AND (c.state='running' OR (c.state IN ('pending','failed') AND c.next_attempt_at<=$2)) ORDER BY c.generation DESC LIMIT 1 FOR UPDATE OF c,o`, orderID, s.clock.Now()).Scan(&work.eventID, &work.publicEventID, &work.generation, &state, &tries, &payload, &work.protocol, &work.url, &work.keyCipher, &work.paramsTrade, &work.paramsOutTrade, &work.paramsPID, &work.paramsChannel, &work.paramsName, &work.paramsCents, &work.paramsExtra, &work.paramsBuyer, &work.paramsIP, &work.paramsCreated, &work.paramsPaid, &work.paramsProvider)
+		err := tx.QueryRow(ctx, `SELECT c.id,c.public_id,c.generation,c.state,c.attempt_count,c.payload_snapshot,o.protocol,o.notify_url,o.signing_key_cipher,o.trade_no,o.out_trade_no,o.merchant_pid_snapshot,o.channel,o.name,o.original_cents,o.param,o.buyer_hint,COALESCE(host(o.clientip),''),o.created_at,o.paid_at,COALESCE((SELECT r.provider_trade_no FROM receipts r WHERE r.order_id=o.id LIMIT 1),''),(SELECT m.callback_hide_name FROM merchants m WHERE m.id=o.merchant_id) FROM callback_events c JOIN orders o ON o.id=c.order_id WHERE c.order_id=$1 AND (c.state='running' OR (c.state IN ('pending','failed') AND c.next_attempt_at<=$2)) ORDER BY c.generation DESC LIMIT 1 FOR UPDATE OF c,o`, orderID, s.clock.Now()).Scan(&work.eventID, &work.publicEventID, &work.generation, &state, &tries, &payload, &work.protocol, &work.url, &work.keyCipher, &work.paramsTrade, &work.paramsOutTrade, &work.paramsPID, &work.paramsChannel, &work.paramsName, &work.paramsCents, &work.paramsExtra, &work.paramsBuyer, &work.paramsIP, &work.paramsCreated, &work.paramsPaid, &work.paramsProvider, &work.hideName)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
@@ -117,7 +119,7 @@ func (s *Service) ProcessCallback(ctx context.Context, orderID int64) error {
 		work.params.Set("trade_no", work.paramsTrade)
 		work.params.Set("out_trade_no", work.paramsOutTrade)
 		work.params.Set("type", work.paramsChannel)
-		work.params.Set("name", truncateUTF8(work.paramsName, 127))
+		work.params.Set("name", callbackName(work.paramsName, work.hideName))
 		work.params.Set("money", formatMoney(work.paramsCents))
 		work.params.Set("trade_status", "TRADE_SUCCESS")
 		if work.paramsExtra != "" {
@@ -330,7 +332,7 @@ func (s *Service) finishCallbackAttempt(ctx context.Context, work callbackWork, 
 		if _, err := tx.Exec(ctx, `UPDATE callback_events SET state=$1,next_attempt_at=$2 WHERE id=$3`, finalState, next, work.eventID); err != nil {
 			return err
 		}
-		return nil
+		return s.updateCallbackAlertTx(ctx, tx, merchantID, work, cause == nil)
 	}); err != nil {
 		return err
 	}
@@ -430,4 +432,73 @@ func platformPublicKeyInfo(key *rsa.PublicKey) (string, string, error) {
 	}
 	sum := sha256.Sum256(der)
 	return hex.EncodeToString(sum[:8]), string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})), nil
+}
+
+// callbackAlertThreshold is the attempt number whose failure raises the
+// merchant alert. Each event can reach it once; the merchant flag keeps one
+// alert per failure episode until any callback succeeds again.
+const callbackAlertThreshold = 3
+
+func (s *Service) updateCallbackAlertTx(ctx context.Context, tx pgx.Tx, merchantID int64, work callbackWork, succeeded bool) error {
+	if succeeded {
+		_, err := tx.Exec(ctx, `UPDATE merchants SET callback_alert_armed=true WHERE id=$1 AND NOT callback_alert_armed`, merchantID)
+		return err
+	}
+	if work.attempt != callbackAlertThreshold {
+		return nil
+	}
+	var episode int64
+	var email, locale string
+	err := tx.QueryRow(ctx, `UPDATE merchants SET callback_alert_armed=false,callback_alert_episode=callback_alert_episode+1 WHERE id=$1 AND callback_alert_armed RETURNING callback_alert_episode,email_normalized,COALESCE(preferences->>'locale','zh-CN')`, merchantID).Scan(&episode, &email, &locale)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	dedupe := fmt.Sprintf("callback_failed:%d:%d", merchantID, episode)
+	public, err := randomOpaque(s.random, 18)
+	if err != nil {
+		return err
+	}
+	trade := work.paramsTrade
+	payload, _ := json.Marshal(map[string]any{
+		"title":   map[string]string{"zh_CN": "异步通知连续失败", "en": "Payment notifications failing"},
+		"summary": map[string]string{"zh_CN": "订单 " + trade + " 的异步通知已连续 3 次失败，请检查回调地址", "en": "Notifications for order " + trade + " failed 3 times in a row. Please check your notify URL."},
+		"action":  map[string]string{"page": "/dashboard/orders", "entity_id": trade},
+	})
+	if _, err := tx.Exec(ctx, `INSERT INTO notifications(public_id,merchant_id,kind,source_id,dedupe_key,safe_payload) VALUES($1,$2,'callback_failed',$3,$4,$5) ON CONFLICT(dedupe_key) DO NOTHING`, public, merchantID, work.publicEventID, dedupe, payload); err != nil {
+		return err
+	}
+	return s.queueMerchantMailTx(ctx, tx, email, mailtmpl.CallbackFailed, dedupe, mailtmpl.Payload{Locale: locale, TradeNo: trade})
+}
+
+func (s *Service) queueMerchantMailTx(ctx context.Context, tx pgx.Tx, recipient, template, dedupe string, payload mailtmpl.Payload) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	recipientCipher, err := platform.Encrypt(s.key[:], []byte(recipient), s.random)
+	if err != nil {
+		return err
+	}
+	payloadCipher, err := platform.Encrypt(s.key[:], data, s.random)
+	if err != nil {
+		return err
+	}
+	public, err := randomOpaque(s.random, 18)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO mail_deliveries(public_id,dedupe_key,template,recipient_cipher,payload_cipher,state) VALUES($1,$2,$3,$4,$5,'queued') ON CONFLICT(dedupe_key) DO NOTHING`, public, dedupe, template, recipientCipher, payloadCipher)
+	return err
+}
+
+// callbackName is the name field merchants receive in notifications and
+// signed returns. Merchants may hide the buyer-facing product name.
+func callbackName(name string, hide bool) string {
+	if hide {
+		return "product"
+	}
+	return truncateUTF8(name, 127)
 }

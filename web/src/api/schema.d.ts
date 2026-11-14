@@ -535,6 +535,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/console/merchants/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /api/v1/console/merchants/{id}/approve
+         * @description 审核通过待审核或已驳回的注册商户；已通过时原样返回。
+         */
+        post: operations["post_api_v1_console_merchants_id_approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/console/merchants/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /api/v1/console/merchants/{id}/reject
+         * @description 驳回待审核的注册商户；非待审核状态返回 409 VERSION_CONFLICT。
+         */
+        post: operations["post_api_v1_console_merchants_id_reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/console/merchants/{id}/reset-password": {
         parameters: {
             query?: never;
@@ -632,6 +672,44 @@ export interface paths {
         /** 保存商户回调域名白名单 */
         put: operations["put_api_v1_merchant_integration_notify_domains"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/merchant/integration/callback-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取商户回调字段设置 */
+        get: operations["get_api_v1_merchant_integration_callback_settings"];
+        /** 保存商户回调字段设置 */
+        put: operations["put_api_v1_merchant_integration_callback_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/merchant/test-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 创建商户测试支付订单
+         * @description 走正常下单流程（套餐、渠道、收款码、单笔与日限额照常校验），不带异步通知地址，不校验接口 IP 白名单、商品名屏蔽词与回调域名；同一商户未支付的旧测试订单会先被关闭。
+         */
+        post: operations["post_api_v1_merchant_test_payment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1972,6 +2050,13 @@ export interface components {
             setup_id: string;
         };
         AuthUserDTO: {
+            /**
+             * @description 商户账户待审核或已拒绝时返回。
+             * @enum {string}
+             */
+            approval_state?: "pending" | "rejected";
+            /** @description 注册审核拒绝原因。 */
+            approval_reason?: string;
             ban_reason: string | null;
             banned: boolean;
             /** Format: date-time */
@@ -2079,6 +2164,25 @@ export interface components {
         MerchantIPWhitelist: {
             enabled: boolean;
             entries: string[] | null;
+        };
+        MerchantCallbackSettings: {
+            /** @description 开启后异步通知与签名跳转的 name 字段固定为 product，签名按替换后的值计算。 */
+            hide_name: boolean;
+        };
+        MerchantTestPaymentRequest: {
+            /** Format: int64 */
+            amount_cents: number;
+            /**
+             * @description 指定渠道时直接锁定该渠道；null 由付款人在收银台选择。
+             * @enum {string|null}
+             */
+            channel: "alipay" | "wxpay" | null;
+        };
+        MerchantTestPayment: {
+            trade_no: string;
+            cashier_url: string;
+            /** Format: date-time */
+            expires_at: string;
         };
         MerchantNotifyDomains: {
             enabled: boolean;
@@ -2258,6 +2362,8 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
             is_manual: boolean;
+            /** @description 商户后台「测试支付」创建的订单。 */
+            is_test: boolean;
             manual_reason: string | null;
             merchant_id: string;
             merchant_username: string;
@@ -2583,7 +2689,7 @@ export interface components {
             source: string;
         };
         /** @enum {string} */
-        ErrorCode: "ACCOUNT_BANNED" | "AGREEMENT_REQUIRED" | "ALREADY_INITIALIZED" | "ALREADY_REFUNDED" | "REFUND_ALREADY_HANDLED" | "AMOUNT_CAPACITY_EXHAUSTED" | "AMOUNT_OUT_OF_RANGE" | "DAILY_LIMIT_EXCEEDED" | "IP_DAILY_LIMIT_EXCEEDED" | "IP_BLOCKED" | "NAME_BLOCKED" | "URL_DOMAIN_NOT_ALLOWED" | "CHECKOUT_VERIFICATION_REQUIRED" | "BILLING_CREDENTIAL_STALE" | "BILLING_NOT_READY" | "BINDING_EXPIRED" | "BINDING_USED" | "CALLBACK_NOT_CONFIRMED" | "CALLBACK_PENDING" | "CALLBACK_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "CHANNEL_LOCKED" | "CHANNEL_NOT_ALLOWED" | "CSRF_FAILED" | "DEVICE_ALREADY_BOUND" | "DEVICE_OFFLINE" | "DEVICE_UNAUTHORIZED" | "DUPLICATE_ORDER" | "EMAIL_DOMAIN_DENIED" | "EMAIL_SEND_TOO_SOON" | "EMAIL_TAKEN" | "EVENT_CONFLICT" | "FLOAT_OUT_OF_RANGE" | "FORBIDDEN" | "IDEMPOTENCY_CONFLICT" | "INTERNAL_ERROR" | "INVALID_2FA" | "INVALID_CODE" | "INVALID_CREDENTIALS" | "INVALID_PUBLIC_KEY" | "INVALID_QR" | "INVALID_SIGNATURE" | "INVALID_URL" | "IP_NOT_ALLOWED" | "LEGAL_VERSION_CHANGED" | "MAIL_UNAVAILABLE" | "NOT_FOUND" | "ORDER_NOT_PAID" | "ORDER_NOT_PAYABLE" | "PARTIAL_REFUND_UNSUPPORTED" | "PLAN_UNAVAILABLE" | "PLATFORM_KEY_UNAVAILABLE" | "PURCHASE_LIMIT_REACHED" | "PURCHASE_PENDING" | "QR_UNAVAILABLE" | "REFUND_PENDING" | "SETUP_REQUIRED" | "SUBSCRIPTION_INACTIVE" | "TIMESTAMP_EXPIRED" | "TTL_OUT_OF_RANGE" | "TURNSTILE_FAILED" | "TURNSTILE_UNAVAILABLE" | "UNAUTHENTICATED" | "UNSUPPORTED_ACTION" | "UNSUPPORTED_MEDIA_TYPE" | "UNSUPPORTED_METHOD" | "UNSUPPORTED_PARAMETER" | "UNSUPPORTED_PROTOCOL" | "UPLOAD_TOO_LARGE" | "USERNAME_TAKEN" | "VALIDATION_ERROR" | "VERSION_CONFLICT";
+        ErrorCode: "ACCOUNT_BANNED" | "ACCOUNT_PENDING_REVIEW" | "REGISTRATION_REJECTED" | "AGREEMENT_REQUIRED" | "ALREADY_INITIALIZED" | "ALREADY_REFUNDED" | "REFUND_ALREADY_HANDLED" | "AMOUNT_CAPACITY_EXHAUSTED" | "AMOUNT_OUT_OF_RANGE" | "DAILY_LIMIT_EXCEEDED" | "IP_DAILY_LIMIT_EXCEEDED" | "IP_BLOCKED" | "NAME_BLOCKED" | "URL_DOMAIN_NOT_ALLOWED" | "CHECKOUT_VERIFICATION_REQUIRED" | "BILLING_CREDENTIAL_STALE" | "BILLING_NOT_READY" | "BINDING_EXPIRED" | "BINDING_USED" | "CALLBACK_NOT_CONFIRMED" | "CALLBACK_PENDING" | "CALLBACK_UNAVAILABLE" | "CHALLENGE_EXPIRED" | "CHANNEL_LOCKED" | "CHANNEL_NOT_ALLOWED" | "CSRF_FAILED" | "DEVICE_ALREADY_BOUND" | "DEVICE_OFFLINE" | "DEVICE_UNAUTHORIZED" | "DUPLICATE_ORDER" | "EMAIL_DOMAIN_DENIED" | "EMAIL_SEND_TOO_SOON" | "EMAIL_TAKEN" | "EVENT_CONFLICT" | "FLOAT_OUT_OF_RANGE" | "FORBIDDEN" | "IDEMPOTENCY_CONFLICT" | "INTERNAL_ERROR" | "INVALID_2FA" | "INVALID_CODE" | "INVALID_CREDENTIALS" | "INVALID_PUBLIC_KEY" | "INVALID_QR" | "INVALID_SIGNATURE" | "INVALID_URL" | "IP_NOT_ALLOWED" | "LEGAL_VERSION_CHANGED" | "MAIL_UNAVAILABLE" | "NOT_FOUND" | "ORDER_NOT_PAID" | "ORDER_NOT_PAYABLE" | "PARTIAL_REFUND_UNSUPPORTED" | "PLAN_UNAVAILABLE" | "PLATFORM_KEY_UNAVAILABLE" | "PURCHASE_LIMIT_REACHED" | "PURCHASE_PENDING" | "QR_UNAVAILABLE" | "REFUND_PENDING" | "SETUP_REQUIRED" | "SUBSCRIPTION_INACTIVE" | "TIMESTAMP_EXPIRED" | "TTL_OUT_OF_RANGE" | "TURNSTILE_FAILED" | "TURNSTILE_UNAVAILABLE" | "UNAUTHENTICATED" | "UNSUPPORTED_ACTION" | "UNSUPPORTED_MEDIA_TYPE" | "UNSUPPORTED_METHOD" | "UNSUPPORTED_PARAMETER" | "UNSUPPORTED_PROTOCOL" | "UPLOAD_TOO_LARGE" | "USERNAME_TAKEN" | "VALIDATION_ERROR" | "VERSION_CONFLICT";
         ErrorEnvelope: {
             error: {
                 code: components["schemas"]["ErrorCode"];
@@ -2618,6 +2724,8 @@ export interface components {
         RegisteredUser: {
             user: components["schemas"]["AuthUserDTO"];
             next_path: string;
+            /** @description 为 true 时账户须管理员审核通过后才能使用商户业务功能。 */
+            pending_review: boolean;
         };
         TOTPConfirmed: {
             enabled: boolean;
@@ -2651,6 +2759,8 @@ export interface components {
                 register_action: string;
             };
             registration_open: boolean;
+            /** @description 开启后新注册商户须管理员审核通过才能使用商户业务功能。 */
+            registration_review: boolean;
             email_domain_restriction: {
                 enabled: boolean;
                 domains: string[] | null;
@@ -2688,6 +2798,7 @@ export interface components {
         SecuritySettingsUpdate: {
             turnstile_site_key: string;
             turnstile_enabled: boolean;
+            registration_review: boolean;
             restrict_email_domains: boolean;
             /** @description Case-insensitive email domain rules normalized with IDNA. Unicode and Punycode email domains are equivalent. An asterisk matches any sequence of characters, including dots. Rules without an asterisk match the exact domain. A rule cannot mix an explicit xn-- prefix with Unicode characters in a wildcard label. Complete Unicode labels are normalized to ASCII before this check. */
             email_domains: string[] | null;
@@ -2745,6 +2856,7 @@ export interface components {
             ban_contact: components["schemas"]["SettingsLanguageText"];
             /** @description Case-insensitive email domain rules normalized with IDNA. Unicode and Punycode email domains are equivalent. An asterisk matches any sequence of characters, including dots. Rules without an asterisk match the exact domain. A rule cannot mix an explicit xn-- prefix with Unicode characters in a wildcard label. Complete Unicode labels are normalized to ASCII before this check. Rules that fail normalization, mix these representations, or consist only of asterisks are rejected with an email_domains field error. */
             email_domains: string[] | null;
+            registration_review: boolean;
             restrict_email_domains: boolean;
             turnstile_secret?: string | null;
             /** @description 开启人机验证或更换启用中的密钥时必填。 */
@@ -2793,6 +2905,10 @@ export interface components {
             totp_enabled: boolean;
             username: string;
             subscription: components["schemas"]["SubscriptionSubscriptionDTO"];
+            approval_state: components["schemas"]["MerchantApprovalState"];
+            approval_reason: string | null;
+            /** Format: date-time */
+            approval_reviewed_at: string | null;
             device: components["schemas"]["DeviceDeviceDTO"];
         };
         ConsoleMerchantPage: {
@@ -2801,10 +2917,19 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        MerchantApproval: {
+            approval_state: components["schemas"]["MerchantApprovalState"];
+            approval_reason: string | null;
+            /** Format: date-time */
+            approval_reviewed_at: string | null;
+        };
+        /** @enum {string} */
+        MerchantApprovalState: "pending" | "approved" | "rejected";
         ConsoleMerchantDetail: {
             user: components["schemas"]["AuthUserDTO"];
             subscription: components["schemas"]["SubscriptionSubscriptionDTO"];
             device: components["schemas"]["DeviceDeviceDTO"];
+            approval: components["schemas"]["MerchantApproval"];
             collection: components["schemas"]["SettingsCollectionSettings"];
         };
         Integration: {
@@ -3362,6 +3487,28 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description 当前回调字段设置，默认不隐藏商品名 */
+        MerchantCallbackSettingsResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SuccessEnvelope"] & {
+                    data?: components["schemas"]["MerchantCallbackSettings"];
+                };
+            };
+        };
+        /** @description 成功 */
+        MerchantTestPaymentResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SuccessEnvelope"] & {
+                    data?: components["schemas"]["MerchantTestPayment"];
+                };
             };
         };
         /** @description 当前回调域名白名单，默认关闭 */
@@ -4314,6 +4461,7 @@ export interface operations {
                 query?: string;
                 banned?: boolean;
                 subscription_active?: boolean;
+                approval_state?: components["schemas"]["MerchantApprovalState"];
             };
             header?: never;
             path?: never;
@@ -4463,6 +4611,79 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SuccessEnvelope"] & {
                         data?: components["schemas"]["AuthUserDTO"];
+                    };
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            409: components["responses"]["Error409"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    post_api_v1_console_merchants_id_approve: {
+        parameters: {
+            query?: never;
+            header: {
+                Origin: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["MerchantApproval"];
+                    };
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    post_api_v1_console_merchants_id_reject: {
+        parameters: {
+            query?: never;
+            header: {
+                Origin: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessEnvelope"] & {
+                        data?: components["schemas"]["MerchantApproval"];
                     };
                 };
             };
@@ -4677,6 +4898,67 @@ export interface operations {
             400: components["responses"]["Error400"];
             401: components["responses"]["Error401"];
             403: components["responses"]["Error403"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    get_api_v1_merchant_integration_callback_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["MerchantCallbackSettingsResponse"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    put_api_v1_merchant_integration_callback_settings: {
+        parameters: {
+            query?: never;
+            header: {
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantCallbackSettings"];
+            };
+        };
+        responses: {
+            200: components["responses"]["MerchantCallbackSettingsResponse"];
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            500: components["responses"]["Error500"];
+        };
+    };
+    post_api_v1_merchant_test_payment: {
+        parameters: {
+            query?: never;
+            header: {
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantTestPaymentRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["MerchantTestPaymentResponse"];
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            409: components["responses"]["Error409"];
+            422: components["responses"]["Error422"];
             500: components["responses"]["Error500"];
         };
     };

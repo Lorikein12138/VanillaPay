@@ -13,10 +13,13 @@ import (
 )
 
 const (
-	Verification  = "transactional"
-	DeviceOffline = "device_offline"
-	RefundRequest = "refund_request"
-	MailTest      = "mail_test"
+	Verification         = "transactional"
+	DeviceOffline        = "device_offline"
+	RefundRequest        = "refund_request"
+	MailTest             = "mail_test"
+	RegistrationApproved = "registration_approved"
+	RegistrationRejected = "registration_rejected"
+	CallbackFailed       = "callback_failed"
 )
 
 type Payload struct {
@@ -26,6 +29,7 @@ type Payload struct {
 	DeviceName    string     `json:"device_name,omitempty"`
 	LastHeartbeat *time.Time `json:"last_heartbeat,omitempty"`
 	TradeNo       string     `json:"trade_no,omitempty"`
+	Reason        string     `json:"reason,omitempty"`
 
 	// Title and Summary belong to previously queued messages.
 	Title   map[string]string `json:"title,omitempty"`
@@ -158,6 +162,30 @@ func newView(name string, payload Payload, baseURL url.URL) view {
 			v.Action = localize("查看订单", "View order")
 			v.URL = actionURL(baseURL, "/orders/", payload.TradeNo)
 		}
+	case RegistrationApproved:
+		v.Category = localize("账号审核", "Account review")
+		v.Title = localize("注册审核已通过", "Registration approved")
+		v.Intro = localize("你的商户账号已通过审核，现在可以使用商户后台和收款功能。", "Your merchant account has been approved. You can now use your merchant dashboard and accept payments.")
+		v.Action = localize("前往登录", "Sign in")
+		v.URL = actionURL(baseURL, "/login", "")
+	case RegistrationRejected:
+		v.Category = localize("账号审核", "Account review")
+		v.Title = localize("注册审核未通过", "Registration not approved")
+		v.Intro = localize("很抱歉，你的商户账号未通过审核，暂时无法使用商户业务功能。", "Sorry, your merchant account was not approved and cannot use merchant features.")
+		if payload.Reason != "" {
+			v.Details = []detail{{localize("原因", "Reason"), payload.Reason}}
+		}
+		v.Note = localize("如有疑问，请联系平台管理员。", "If you have questions, please contact the platform administrator.")
+	case CallbackFailed:
+		v.Category = localize("订单通知", "Order notification")
+		v.Title = localize("异步通知连续失败", "Payment notifications failing")
+		v.Intro = localize("一笔已支付订单的异步通知连续多次未收到 success 响应，请检查回调地址与服务器状态。", "Payment notifications for a paid order have repeatedly failed to receive a success response. Please check your notify URL and server.")
+		if payload.TradeNo != "" {
+			v.Details = []detail{{localize("订单号", "Order number"), payload.TradeNo}}
+			v.Action = localize("查看订单", "View order")
+			v.URL = actionURL(baseURL, "/orders/", payload.TradeNo)
+		}
+		v.Note = localize("恢复正常（任一回调成功）后，如再次连续失败，我们会再次通知你。", "After any notification succeeds, we'll alert you again if failures recur.")
 	case MailTest:
 		v.Category = localize("站点设置", "Site settings")
 		v.Title = localize("SMTP 测试邮件", "SMTP test email")

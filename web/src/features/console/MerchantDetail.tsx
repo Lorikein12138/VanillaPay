@@ -24,6 +24,8 @@ export function MerchantDetail({ id }: { id: string }) {
     <PageHeader title={detail?.user.username ?? t('manage.merchant')}
       back={<BackLink to="/console/merchants">{t('manage.backMerchants')}</BackLink>}
       actions={detail && <>
+        {detail.approval.approval_state !== 'approved' && <Button variant="primary" onClick={() => setMode('approve')}>{t('manage.approve')}</Button>}
+        {detail.approval.approval_state === 'pending' && <Button variant="dangerOutline" onClick={() => setMode('reject')}>{t('manage.reject')}</Button>}
         <Button onClick={() => setMode('grant')}>{t('manage.adjust')}</Button>
         <Button onClick={() => setMode('reset')}>{t('manage.reset')}</Button>
         <Button variant={detail.user.banned ? 'secondary' : 'dangerOutline'} onClick={() => setMode(detail.user.banned ? 'unban' : 'ban')}>
@@ -31,6 +33,7 @@ export function MerchantDetail({ id }: { id: string }) {
         </Button>
       </>} />
     {notice && <Notice tone="success" onDismiss={() => setNotice('')}>{notice}</Notice>}
+    {detail?.approval.approval_state === 'pending' && <Notice tone="info">{t('manage.pendingNotice')}</Notice>}
     <RecordResults busy={query.isPending} error={query.error} retry={() => void query.refetch()}>
       {detail && <>
         <Card><SectionHeader title={t('manage.basic')} /><DetailList columns={2} items={[
@@ -39,7 +42,9 @@ export function MerchantDetail({ id }: { id: string }) {
           { label: 'PID', value: detail.user.pid, mono: true },
           { label: t('manage.registered'), value: <OrderTime value={detail.user.created_at} /> },
           { label: t('manage.twoFactor'), value: t(detail.user.totp_enabled ? 'manage.enabled' : 'manage.disabled') },
-          { label: t('manage.status'), value: <MerchantStatus banned={detail.user.banned} /> },
+          { label: t('manage.status'), value: <MerchantStatus banned={detail.user.banned} approval={detail.approval.approval_state} /> },
+          { label: t('manage.reviewedAt'), value: detail.approval.approval_reviewed_at && <OrderTime value={detail.approval.approval_reviewed_at} /> },
+          { label: t('manage.rejectReason'), value: detail.approval.approval_reason },
           { label: t('manage.banTime'), value: detail.user.banned_at && <OrderTime value={detail.user.banned_at} /> },
           { label: t('manage.banReason'), value: detail.user.ban_reason },
         ]} /></Card>

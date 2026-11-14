@@ -70,7 +70,7 @@ func TestHTTP_MerchantOwnershipBoundary(t *testing.T) {
 	}
 	security, err := json.Marshal(map[string]any{
 		"turnstile_site_key": "ownership-site-key", "turnstile_secret": "ownership-secret", "turnstile_enabled": true, "turnstile_token": "ok:settings_security",
-		"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
+		"restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
 	})
 	if err != nil {
 		t.Fatal("encode local Siteverify settings")

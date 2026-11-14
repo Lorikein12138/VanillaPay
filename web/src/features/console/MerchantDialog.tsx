@@ -16,7 +16,7 @@ import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { ChannelChoices, Choice, Reason } from './ManageParts'
 import { invalidateConsole, planName, validBanReason, validGrantReason, type Schema } from './manage-data'
 
-export type MerchantAction = 'ban' | 'unban' | 'reset' | 'grant'
+export type MerchantAction = 'ban' | 'unban' | 'reset' | 'grant' | 'approve' | 'reject'
 export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
   mode: MerchantAction; detail: Schema['ConsoleMerchantDetail']; onClose: () => void; onSuccess: (message: string) => void
 }) {
@@ -25,15 +25,16 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
   const [planId, setPlanId] = useState(''), [selected, setSelected] = useState<string[]>([])
   const [expires, setExpires] = useState(localDateInput(detail.subscription.expires_at ?? undefined))
   const [expiryError, setExpiryError] = useState(false)
-  const [conflict, setConflict] = useState<'subscriptionConflict' | 'planUnavailable' | null>(null)
+  const [conflict, setConflict] = useState<'subscriptionConflict' | 'planUnavailable' | 'approvalConflict' | null>(null)
   const plans = useQuery({ ...plansQuery(false), enabled: mode === 'grant' })
   const plan = plans.data?.items?.find((item) => item.id === planId && !item.deleted)
   const expiry = parseLocalDateTime(expires)
-  const valid = mode === 'unban' || (mode === 'ban' ? validBanReason(reason) :
+  const valid = mode === 'unban' || mode === 'approve' || (mode === 'ban' || mode === 'reject' ? validBanReason(reason) :
     mode === 'reset' ? validPassword(password, confirmation) :
       !!plan && !!selected.length && selected.every((channel) => plan.channels?.includes(channel)) &&
       validGrantReason(reason) && Number.isFinite(expiry))
-  const title = t(mode === 'grant' ? 'manage.adjust' : mode === 'ban' ? 'manage.ban' : mode === 'unban' ? 'manage.unban' : 'manage.reset')
+  const title = t(mode === 'grant' ? 'manage.adjust' : mode === 'reset' ? 'manage.reset' : `manage.${mode}` as const)
+  const description = mode === 'ban' || mode === 'unban' || mode === 'approve' || mode === 'reject' ? t(`manage.${mode}Description` as const) : undefined
   async function submit() {
     if (!valid) return
     if (mode === 'grant' && expiry <= Date.now()) {
@@ -48,6 +49,10 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
           message = t('manage.banResult', { count: result.expired_orders })
         } else if (mode === 'unban') {
           await consoleApi.unbanMerchant(detail.user.id); message = t('manage.unbanned')
+        } else if (mode === 'approve') {
+          await consoleApi.approveMerchant(detail.user.id); message = t('manage.approved')
+        } else if (mode === 'reject') {
+          await consoleApi.rejectMerchant(detail.user.id, { reason: reason.trim() }); message = t('manage.rejected')
         } else if (mode === 'reset') {
           await consoleApi.resetMerchantPassword(detail.user.id, { password, password_confirmation: confirmation })
           message = t('manage.resetDone')
@@ -63,7 +68,9 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
         if (action.active.current) onSuccess(message)
       } catch (error) {
         if (!action.active.current) return
-        if (mode === 'grant' && error instanceof APIError && error.problem?.code === 'VERSION_CONFLICT') {
+        if (mode === 'reject' && error instanceof APIError && error.problem?.code === 'VERSION_CONFLICT') {
+          setConflict('approvalConflict'); await invalidateConsole(client)
+        } else         if (mode === 'grant' && error instanceof APIError && error.problem?.code === 'VERSION_CONFLICT') {
           setConflict('subscriptionConflict'); await invalidateConsole(client)
         } else if (mode === 'grant' && error instanceof APIError && error.problem?.code === 'PLAN_UNAVAILABLE') {
           setConflict('planUnavailable'); await plans.refetch()
@@ -71,7 +78,7 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
       }
     })
   }
-  return <Dialog title={title} description={mode === 'ban' ? t('manage.banDescription') : mode === 'unban' ? t('manage.unbanDescription') : undefined}
+  return <Dialog title={title} description={description}
     onClose={onClose} busy={action.busy}>
     <FormStack onSubmit={(event) => { event.preventDefault(); void submit() }}>
       {conflict && <Notice tone="warning">{t(`manage.${conflict}`)}</Notice>}
@@ -87,8 +94,8 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
         <DateTimeField label={t('manage.expiry')} value={expires} disabled={action.busy}
           error={expiryError && t('manage.expiryFuture')} onValueChange={(next) => { setExpires(next); setExpiryError(false) }} />
       </>}
-      {(mode === 'ban' || mode === 'grant') && <Reason value={reason} onChange={setReason} disabled={action.busy}
-        hint={t(mode === 'ban' ? 'manage.banHint' : 'manage.grantHint')} />}
+      {(mode === 'ban' || mode === 'reject' || mode === 'grant') && <Reason value={reason} onChange={setReason} disabled={action.busy || conflict === 'approvalConflict'}
+        hint={t(mode === 'grant' ? 'manage.grantHint' : mode === 'reject' ? 'manage.rejectHint' : 'manage.banHint')} />}
       {mode === 'reset' && <>
         <AccountField label={t('manage.newPassword')} hint={t('manage.passwordHint')} type="password" autoComplete="new-password" value={password}
           disabled={action.busy} onChange={(event) => setPassword(event.target.value)} />
@@ -97,7 +104,7 @@ export function MerchantDialog({ mode, detail, onClose, onSuccess }: {
       </>}
       {action.error != null && <AccountError error={action.error} />}
       <FormActions><Button disabled={action.busy} onClick={onClose}>{t('manage.cancel')}</Button>
-        <Button type="submit" loading={action.busy} disabled={!valid} variant={mode === 'ban' ? 'dangerOutline' : 'primary'}>{title}</Button></FormActions>
+        <Button type="submit" loading={action.busy} disabled={!valid || conflict === 'approvalConflict'} variant={mode === 'ban' || mode === 'reject' ? 'dangerOutline' : 'primary'}>{title}</Button></FormActions>
     </FormStack>
   </Dialog>
 }

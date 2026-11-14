@@ -24,7 +24,7 @@ vi.mock('@/features/auth/Turnstile', () => ({
 type Schema = components['schemas']
 const user: Schema['AuthUserDTO'] = { id: '1', role: 'admin', username: 'console_admin', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }
 const session: Schema['AuthSessionResult'] = { user, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 43200000).toISOString(), next_path: '/console' }
-const config: Schema['PublicConfig'] = { site_name: 'VanillaPay', logo_url: '', favicon_url: '/favicon.ico?v=default', turnstile: { enabled: true, site_key: 'public-site', login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
+const config: Schema['PublicConfig'] = { site_name: 'VanillaPay', logo_url: '', favicon_url: '/favicon.ico?v=default', turnstile: { enabled: true, site_key: 'public-site', login_action: 'login', register_action: 'register' }, registration_open: true, registration_review: false, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
 const success = <T,>(data: T) => HttpResponse.json({ data })
 const failure = (status: number, code: Schema['ErrorCode']) => HttpResponse.json({ error: { code, message: code } }, { status })
 let signedIn = false

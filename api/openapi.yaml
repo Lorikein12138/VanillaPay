@@ -1151,6 +1151,10 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: approval_state
+          in: query
+          schema:
+            $ref: '#/components/schemas/MerchantApprovalState'
     post:
       operationId: post_api_v1_console_merchants
       summary: POST /api/v1/console/merchants
@@ -1328,6 +1332,112 @@ paths:
             schema:
               type: object
               properties: {}
+              additionalProperties: false
+  /api/v1/console/merchants/{id}/approve:
+    post:
+      operationId: post_api_v1_console_merchants_id_approve
+      summary: POST /api/v1/console/merchants/{id}/approve
+      description: 审核通过待审核或已驳回的注册商户；已通过时原样返回。
+      security:
+        - AdminSession: []
+          CSRF: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MerchantApproval'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+              additionalProperties: false
+  /api/v1/console/merchants/{id}/reject:
+    post:
+      operationId: post_api_v1_console_merchants_id_reject
+      summary: POST /api/v1/console/merchants/{id}/reject
+      description: 驳回待审核的注册商户；非待审核状态返回 409 VERSION_CONFLICT。
+      security:
+        - AdminSession: []
+          CSRF: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MerchantApproval'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '500':
+          $ref: '#/components/responses/Error500'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              required:
+                - reason
               additionalProperties: false
   /api/v1/console/merchants/{id}/reset-password:
     post:
@@ -1591,6 +1701,85 @@ paths:
           $ref: '#/components/responses/Error401'
         '403':
           $ref: '#/components/responses/Error403'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /api/v1/merchant/integration/callback-settings:
+    get:
+      operationId: get_api_v1_merchant_integration_callback_settings
+      summary: 读取商户回调字段设置
+      security:
+        - MerchantSession: []
+      responses:
+        '200':
+          $ref: '#/components/responses/MerchantCallbackSettingsResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '500':
+          $ref: '#/components/responses/Error500'
+    put:
+      operationId: put_api_v1_merchant_integration_callback_settings
+      summary: 保存商户回调字段设置
+      security:
+        - MerchantSession: []
+          CSRF: []
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantCallbackSettings'
+      responses:
+        '200':
+          $ref: '#/components/responses/MerchantCallbackSettingsResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '500':
+          $ref: '#/components/responses/Error500'
+  /api/v1/merchant/test-payment:
+    post:
+      operationId: post_api_v1_merchant_test_payment
+      summary: 创建商户测试支付订单
+      description: 走正常下单流程（套餐、渠道、收款码、单笔与日限额照常校验），不带异步通知地址，不校验接口 IP 白名单、商品名屏蔽词与回调域名；同一商户未支付的旧测试订单会先被关闭。
+      security:
+        - MerchantSession: []
+          CSRF: []
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantTestPaymentRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/MerchantTestPaymentResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
         '500':
           $ref: '#/components/responses/Error500'
   /api/v1/device/bind:
@@ -5328,6 +5517,28 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    MerchantCallbackSettingsResponse:
+      description: 当前回调字段设置，默认不隐藏商品名
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MerchantCallbackSettings'
+    MerchantTestPaymentResponse:
+      description: 成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MerchantTestPayment'
     MerchantNotifyDomainsResponse:
       description: 当前回调域名白名单，默认关闭
       content:
@@ -5621,6 +5832,13 @@ components:
     AuthUserDTO:
       additionalProperties: false
       properties:
+        approval_state:
+          type: string
+          enum: [pending, rejected]
+          description: 商户账户待审核或已拒绝时返回。
+        approval_reason:
+          type: string
+          description: 注册审核拒绝原因。
         ban_reason:
           nullable: true
           type: string
@@ -5905,6 +6123,49 @@ components:
         - enabled
         - entries
       type: object
+    MerchantCallbackSettings:
+      type: object
+      additionalProperties: false
+      properties:
+        hide_name:
+          type: boolean
+          description: 开启后异步通知与签名跳转的 name 字段固定为 product，签名按替换后的值计算。
+      required: [hide_name]
+    MerchantTestPaymentRequest:
+      type: object
+      properties:
+        amount_cents:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 999999999
+        channel:
+          type: string
+          nullable: true
+          enum:
+            - alipay
+            - wxpay
+            - null
+          description: 指定渠道时直接锁定该渠道；null 由付款人在收银台选择。
+      required:
+        - amount_cents
+        - channel
+      additionalProperties: false
+    MerchantTestPayment:
+      type: object
+      properties:
+        trade_no:
+          type: string
+        cashier_url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+        - trade_no
+        - cashier_url
+        - expires_at
+      additionalProperties: false
     MerchantNotifyDomains:
       type: object
       additionalProperties: false
@@ -6374,6 +6635,9 @@ components:
           type: string
         is_manual:
           type: boolean
+        is_test:
+          type: boolean
+          description: 商户后台「测试支付」创建的订单。
         manual_reason:
           nullable: true
           type: string
@@ -6427,6 +6691,7 @@ components:
         - status
         - expire_reason
         - is_manual
+        - is_test
         - manual_reason
         - created_at
         - paid_at
@@ -7227,6 +7492,8 @@ components:
       type: string
       enum:
         - ACCOUNT_BANNED
+        - ACCOUNT_PENDING_REVIEW
+        - REGISTRATION_REJECTED
         - AGREEMENT_REQUIRED
         - ALREADY_INITIALIZED
         - ALREADY_REFUNDED
@@ -7383,9 +7650,13 @@ components:
           $ref: '#/components/schemas/AuthUserDTO'
         next_path:
           type: string
+        pending_review:
+          type: boolean
+          description: 为 true 时账户须管理员审核通过后才能使用商户业务功能。
       required:
         - user
         - next_path
+        - pending_review
       additionalProperties: false
     TOTPConfirmed:
       type: object
@@ -7478,6 +7749,9 @@ components:
           additionalProperties: false
         registration_open:
           type: boolean
+        registration_review:
+          type: boolean
+          description: 开启后新注册商户须管理员审核通过才能使用商户业务功能。
         email_domain_restriction:
           type: object
           properties:
@@ -7518,6 +7792,7 @@ components:
         - favicon_url
         - turnstile
         - registration_open
+        - registration_review
         - email_domain_restriction
         - home
         - footer
@@ -7589,6 +7864,8 @@ components:
           type: string
         turnstile_enabled:
           type: boolean
+        registration_review:
+          type: boolean
         restrict_email_domains:
           type: boolean
         email_domains:
@@ -7605,6 +7882,7 @@ components:
         - turnstile_site_key
         - turnstile_enabled
         - restrict_email_domains
+        - registration_review
         - email_domains
         - ban_contact
       additionalProperties: false
@@ -7738,6 +8016,8 @@ components:
             type: string
           nullable: true
           type: array
+        registration_review:
+          type: boolean
         restrict_email_domains:
           type: boolean
         turnstile_secret:
@@ -7752,6 +8032,7 @@ components:
         - turnstile_site_key
         - turnstile_enabled
         - restrict_email_domains
+        - registration_review
         - email_domains
         - ban_contact
       additionalProperties: false
@@ -7862,6 +8143,15 @@ components:
           type: string
         subscription:
           $ref: '#/components/schemas/SubscriptionSubscriptionDTO'
+        approval_state:
+          $ref: '#/components/schemas/MerchantApprovalState'
+        approval_reason:
+          type: string
+          nullable: true
+        approval_reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
         device:
           $ref: '#/components/schemas/DeviceDeviceDTO'
       required:
@@ -7877,6 +8167,9 @@ components:
         - created_at
         - subscription
         - device
+        - approval_state
+        - approval_reason
+        - approval_reviewed_at
       type: object
     ConsoleMerchantPage:
       type: object
@@ -7897,6 +8190,29 @@ components:
         - next_cursor
         - total
       additionalProperties: false
+    MerchantApproval:
+      type: object
+      properties:
+        approval_state:
+          $ref: '#/components/schemas/MerchantApprovalState'
+        approval_reason:
+          type: string
+          nullable: true
+        approval_reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - approval_state
+        - approval_reason
+        - approval_reviewed_at
+      additionalProperties: false
+    MerchantApprovalState:
+      type: string
+      enum:
+        - pending
+        - approved
+        - rejected
     ConsoleMerchantDetail:
       type: object
       properties:
@@ -7906,6 +8222,8 @@ components:
           $ref: '#/components/schemas/SubscriptionSubscriptionDTO'
         device:
           $ref: '#/components/schemas/DeviceDeviceDTO'
+        approval:
+          $ref: '#/components/schemas/MerchantApproval'
         collection:
           $ref: '#/components/schemas/SettingsCollectionSettings'
       required:
@@ -7913,6 +8231,7 @@ components:
         - subscription
         - device
         - collection
+        - approval
       additionalProperties: false
     Integration:
       type: object

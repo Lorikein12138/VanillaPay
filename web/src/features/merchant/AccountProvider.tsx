@@ -12,6 +12,8 @@ import { consoleSafePath, safePath } from '@/lib/redirect'
 import { setTheme } from '@/lib/theme'
 import { useLocalAction } from './CollectionParts'
 
+import { restrictedMerchantPath } from './navigation'
+
 type Schema = components['schemas']
 type AccountContextValue = { user: Schema['AuthUserDTO']; preferences: Schema['Preferences']; busy: boolean; save: (value: Schema['Preferences']) => Promise<void>; refresh: () => Promise<void> }
 const AccountContext = createContext<AccountContextValue | null>(null)
@@ -29,7 +31,10 @@ export function AccountProvider({ session, children, role = 'merchant' }: { role
   const user = identity.data?.user ?? session.user
   const preferences = accountPreferences(user)
   const location = useRouterState({ select: (state) => state.resolvedLocation ?? state.location })
-  const bannedPath = role === 'merchant' && (location.pathname === '/banned') !== user.banned
+  const restrictedPath = restrictedMerchantPath(user)
+  const wrongMerchantPath = role === 'merchant' && (restrictedPath
+    ? location.pathname !== restrictedPath
+    : location.pathname === '/banned' || location.pathname === '/registration-review')
   const changedAccount = user.id !== session.user.id
   const changedName = user.username !== session.user.username
   const changedCookie = hasIdentity && identity.data.cookie !== cookie
@@ -45,10 +50,10 @@ export function AccountProvider({ session, children, role = 'merchant' }: { role
       } else {
         void router.navigate({ to: '/login', search: { redirect: safePath(location.href) }, replace: true })
       }
-    } else if (bannedPath || changedAccount || changedName || changedCookie || changedSession) {
+    } else if (wrongMerchantPath || changedAccount || changedName || changedCookie || changedSession) {
       void router.invalidate()
     }
-  }, [accountApi, bannedPath, changedAccount, changedName, changedCookie, changedSession, client, location.href, rejected, role, router])
+  }, [accountApi, wrongMerchantPath, changedAccount, changedName, changedCookie, changedSession, client, location.href, rejected, role, router])
   useEffect(() => {
     if (hasIdentity && !rejected && !changedCookie) {
       setTheme(preferences.theme)
@@ -79,6 +84,6 @@ export function AccountProvider({ session, children, role = 'merchant' }: { role
     saving.current = false
     if (action.active.current) setBusy(false)
   }
-  if (!identity.data || rejected || bannedPath || changedAccount || changedCookie || changedSession) return null
+  if (!identity.data || rejected || wrongMerchantPath || changedAccount || changedCookie || changedSession) return null
   return <AccountContext.Provider value={{ user, preferences, busy, save, refresh }}>{action.error != null && <div className="px-4 pt-4 sm:px-8"><AccountError error={action.error} /></div>}{children}</AccountContext.Provider>
 }

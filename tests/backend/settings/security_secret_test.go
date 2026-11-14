@@ -24,7 +24,7 @@ func TestHTTP_SecuritySecretOmissionAndEmptyValue(t *testing.T) {
 			}
 			value := map[string]any{
 				"turnstile_site_key": "fixture-site", "turnstile_secret": secret, "turnstile_enabled": false,
-				"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "", "en": ""},
+				"restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "", "en": ""},
 			}
 			assertRecoveryAPIError(t, updateSettingsGroupHTTP(t, fixture, admin, "security", value), http.StatusOK, "")
 			var beforeCipher []byte

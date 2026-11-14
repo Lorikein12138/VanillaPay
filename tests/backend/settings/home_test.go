@@ -185,7 +185,7 @@ func seedPublicConfigSecrets(t *testing.T, fixture *testsupport.HTTPFixture) map
 	})
 	setSettingsGroup(t, fixture, "security", map[string]any{
 		"turnstile_site_key": "turnstile-site-key-sentinel", "turnstile_secret": secrets["turnstile_secret"],
-		"turnstile_enabled": false, "restrict_email_domains": false,
+		"turnstile_enabled": false, "restrict_email_domains": false, "registration_review": false,
 		"email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "", "en": ""},
 	})
 

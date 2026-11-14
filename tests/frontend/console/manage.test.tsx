@@ -19,11 +19,12 @@ const detail: Schema['ConsoleMerchantDetail'] = {
   user: { ...admin.user, role: 'merchant', id: '42', username: '<b>安全商户</b>', email: 'shop@example.test', pid: '100042' },
   subscription: { plan, channels: ['alipay'], expires_at: '2030-01-01T00:00:00Z', source: 'manual', revision: 5, active: true },
   device: unboundDevice,
+  approval: { approval_state: 'approved', approval_reason: null, approval_reviewed_at: null },
   collection: { version: 1, order_ttl_seconds: null, float_limit_cents: null, float_direction: null,
     bounds: { float_min_cents: 0, float_max_cents: 999, ttl_max_seconds: 86400 },
     effective: { order_ttl_seconds: 300, float_limit_cents: 99, float_direction: 'up' } },
 }
-const merchant: Schema['ConsoleMerchant'] = { ...detail.user, subscription: detail.subscription, device: unboundDevice }
+const merchant: Schema['ConsoleMerchant'] = { ...detail.user, subscription: detail.subscription, device: unboundDevice, approval_state: 'approved', approval_reason: null, approval_reviewed_at: null }
 const success = <T,>(data: T) => HttpResponse.json({ data })
 const failure = (code: Schema['ErrorCode']) => HttpResponse.json({ error: { code, message: code, fields: {}, details: {} } }, { status: 409 })
 let current: Schema['ConsoleMerchantDetail'], currentPlan: Schema['SubscriptionPlanDTO']
@@ -185,6 +186,74 @@ it('validates a ban reason, sends trimmed Unicode and reports expired orders; re
   await screen.findByText('已停用商户，已关闭 3 笔待支付订单。')
   const restore = await open('恢复商户'); submit(restore, '恢复商户')
   await screen.findByText('已恢复商户。')
+})
+
+describe('registration review', () => {
+  const pending = { approval_state: 'pending', approval_reason: null, approval_reviewed_at: null } as const
+  it('filters merchants by approval state through the URL', async () => {
+    const calls: URL[] = []
+    server.use(http.get('*/api/v1/console/merchants', ({ request }) => {
+      const url = new URL(request.url); calls.push(url)
+      return success({ items: [{ ...merchant, ...pending }], total: 1, next_cursor: null })
+    }))
+    const { router } = mount(), actor = userEvent.setup()
+    expect((await screen.findAllByText('待审核')).length).toBeGreaterThan(0)
+    await chooseSelect(actor, screen.getByLabelText('审核', { exact: true }), 'pending')
+    await actor.click(screen.getByRole('button', { name: '应用筛选' }))
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ approval_state: 'pending' }))
+    await waitFor(() => expect(calls.at(-1)?.searchParams.get('approval_state')).toBe('pending'))
+  })
+  it('rejects a pending merchant with a trimmed reason and then approves it', async () => {
+    current.approval = { ...pending }
+    const rejects: unknown[] = []
+    let approves = 0
+    server.use(
+      http.post('*/api/v1/console/merchants/42/reject', async ({ request }) => {
+        rejects.push(await request.json())
+        current.approval = { approval_state: 'rejected', approval_reason: '资料不完整', approval_reviewed_at: '2026-11-13T08:00:00Z' }
+        return success(current.approval)
+      }),
+      http.post('*/api/v1/console/merchants/42/approve', () => {
+        approves += 1; current.approval = { approval_state: 'approved', approval_reason: null, approval_reviewed_at: '2026-11-13T09:00:00Z' }
+        return success(current.approval)
+      }),
+    )
+    mount('/console/merchants/42')
+    await screen.findByText('该商户可登录查看审核状态，通过审核后才能创建订单。')
+    expect(screen.getByRole('button', { name: '通过审核' })).toBeInTheDocument()
+    const dialog = await open('拒绝注册')
+    expect(within(dialog).getByRole('button', { name: '拒绝注册' })).toBeDisabled()
+    fill(dialog, '原因', '   ')
+    expect(within(dialog).getByRole('button', { name: '拒绝注册' })).toBeDisabled()
+    fill(dialog, '原因', ' 资料不完整 '); submit(dialog, '拒绝注册')
+    await screen.findByText('已拒绝注册，已通知商户。')
+    expect(rejects).toEqual([{ reason: '资料不完整' }])
+    await screen.findByText('资料不完整')
+    expect(screen.queryByText('该商户可登录查看审核状态，通过审核后才能创建订单。')).toBeNull()
+    expect(screen.queryByRole('button', { name: '拒绝注册' })).toBeNull()
+    const approve = await open('通过审核'); submit(approve, '通过审核')
+    await screen.findByText('已通过审核，已通知商户。')
+    expect(approves).toBe(1)
+    await waitFor(() => expect(screen.queryByRole('button', { name: '通过审核' })).toBeNull())
+  })
+  it('locks the reject dialog and refreshes after a review conflict', async () => {
+    current.approval = { ...pending }
+    let details = 0
+    server.use(
+      http.get('*/api/v1/console/merchants/42', () => { details += 1; return success(current) }),
+      http.post('*/api/v1/console/merchants/42/reject', () => {
+        current.approval = { approval_state: 'approved', approval_reason: null, approval_reviewed_at: '2026-11-13T09:00:00Z' }
+        return failure('VERSION_CONFLICT')
+      }),
+    )
+    mount('/console/merchants/42')
+    const dialog = await open('拒绝注册')
+    fill(dialog, '原因', '重复注册'); submit(dialog, '拒绝注册')
+    await within(dialog).findByText('审核状态已被其他操作修改，已刷新详情。')
+    expect(within(dialog).getByRole('button', { name: '拒绝注册' })).toBeDisabled()
+    expect(within(dialog).getByLabelText('原因', { exact: true })).toBeDisabled()
+    await waitFor(() => expect(details).toBeGreaterThan(1))
+  })
 })
 
 it('resets a password without retaining the form after success', async () => {
