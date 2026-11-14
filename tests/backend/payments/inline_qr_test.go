@@ -2,7 +2,13 @@ package payments
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -29,7 +35,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		clientIP = "198.51.100.80"
 	)
 	db := testsupport.NewDatabase(t)
-	db.Clock.Set(db.Clock.Now().Truncate(time.Second))
+	db.Clock.Set(db.Clock.Now().Truncate(time.Second).Add(123456 * time.Microsecond))
 	fixture := testsupport.NewHTTPFixture(t, db)
 	id, key := db.SeedMerchant(t)
 	otherID, otherKey := db.SeedMerchant(t)
@@ -55,13 +61,20 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	create := func(t *testing.T, protocol, out, channel, money string, optIn, tamper bool, peer string) map[string]any {
+	type createMode int
+	const (
+		ordinary createMode = iota
+		inline
+		inlineWithLegacySignature
+	)
+	create := func(t *testing.T, protocol, out, channel, money string, mode createMode, buyerIP, peer string) map[string]any {
 		t.Helper()
 		params := url.Values{
 			"pid": {pid}, "out_trade_no": {out}, "type": {channel}, "money": {money},
-			"name": {"Inline QR test"}, "notify_url": {"https://merchant.example.test/notify"}, "clientip": {clientIP},
+			"name": {"Inline QR test + 测试"}, "notify_url": {"https://merchant.example.test/notify"}, "clientip": {buyerIP},
+			"param": {""},
 		}
-		if optIn {
+		if mode != ordinary {
 			params.Set("inline_qr", "1")
 		}
 		path := "/mapi.php"
@@ -69,12 +82,23 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 			path = "/api/pay/create"
 			params.Set("timestamp", strconv.FormatInt(db.Clock.Now().Unix(), 10))
 			params.Set("sign_type", "RSA")
-			params.Set("sign", signV2Independent(t, params, private))
+			if mode == inline {
+				digest := sha256.Sum256(inlineQRTestPreimage(params))
+				signature, err := rsa.SignPKCS1v15(rand.Reader, private, crypto.SHA256, digest[:])
+				if err != nil {
+					t.Fatalf("sign V2 inline QR request: %v", err)
+				}
+				params.Set("sign", base64.StdEncoding.EncodeToString(signature))
+			} else {
+				params.Set("sign", signV2Independent(t, params, private))
+			}
+		} else if mode == inline {
+			params.Set("sign_type", "HMAC-SHA256")
+			mac := hmac.New(sha256.New, []byte(key))
+			mac.Write(inlineQRTestPreimage(params))
+			params.Set("sign", hex.EncodeToString(mac.Sum(nil)))
 		} else {
 			params.Set("sign", mustV1ContractSignature(params, key))
-		}
-		if tamper {
-			params.Set("inline_qr", "1")
 		}
 		res := fixture.RequestWithRemoteAddr(t, http.MethodPost, path, strings.NewReader(params.Encode()), "guest",
 			http.Header{"Content-Type": {"application/x-www-form-urlencoded"}}, peer)
@@ -162,13 +186,14 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		for j, channel := range channels {
 			t.Run(protocol.name+"/"+channel.name, func(t *testing.T) {
 				out := protocol.name + "-" + channel.name
-				legacy := create(t, protocol.name, out+"-legacy", channel.name, protocol.money, false, false, "")
+				legacy := create(t, protocol.name, out+"-legacy", channel.name, protocol.money, ordinary, clientIP, "")
 				legacyTrade := assertCashier(t, protocol.name, legacy, false)
-				bad := create(t, protocol.name, out+"-bad-sign", channel.name, protocol.money, false, true, "")
-				if bad["code"] != float64(-1) || bad["error_code"] != "INVALID_SIGNATURE" || bad["qrcode"] != nil {
-					t.Fatalf("adding inline_qr after signing: %v", bad)
+				bad := create(t, protocol.name, out+"-bad-sign", channel.name, protocol.money, inlineWithLegacySignature, clientIP, "")
+				if bad["code"] != float64(-1) || bad["error_code"] != "INVALID_SIGNATURE" ||
+					bad["payurl"] != nil || bad["qrcode"] != nil {
+					t.Fatalf("legacy signature on inline QR request: %v", bad)
 				}
-				data := create(t, protocol.name, out, channel.name, protocol.money, true, false, "")
+				data := create(t, protocol.name, out, channel.name, protocol.money, inline, clientIP, "")
 				trade := assertCashier(t, protocol.name, data, true)
 				var legacyCents int64
 				var expires time.Time
@@ -184,7 +209,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 						legacyCents, data, expires, err, parseErr)
 				}
 				u := assertImage(t, data, channel.payload)
-				retry := create(t, protocol.name, out, channel.name, protocol.money, true, false, "")
+				retry := create(t, protocol.name, out, channel.name, protocol.money, inline, clientIP, "")
 				for _, field := range []string{"trade_no", "payurl", "qrcode", "actual_money", "type", "expires_at"} {
 					if retry[field] != data[field] {
 						t.Errorf("retry changed %s: got %v, want %v", field, retry[field], data[field])
@@ -222,16 +247,30 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 	}
 
 	t.Run("IP blacklist", func(t *testing.T) {
-		data := create(t, "v1", "inline-ip", "alipay", "3.00", true, false, "")
+		const (
+			out          = "inline-ip"
+			blockedPeer  = "203.0.113.8:443"
+			allowedPeer  = "203.0.113.9:443"
+			allowedBuyer = "198.51.100.81"
+		)
+		data := create(t, "v1", out, "alipay", "3.00", inline, clientIP, "")
+		trade := assertCashier(t, "v1", data, true)
 		u := assertImage(t, data, channels[0].payload)
-		const blockedPeer = "203.0.113.8:443"
 		requireRiskError(t, saveRisk(t, fixture, platform.PaymentRisk{IPBlacklist: []string{"203.0.113.8"}}), "")
 		assertMediaDenied(t, u, blockedPeer)
 		assertImage(t, data, channels[0].payload)
-		assertCashier(t, "v1", create(t, "v1", "inline-ip-new", "alipay", "4.00", true, false, blockedPeer), false)
+		assertCashier(t, "v1", create(t, "v1", "inline-ip-new", "alipay", "4.00", inline, clientIP, blockedPeer), false)
 		requireRiskError(t, saveRisk(t, fixture, platform.PaymentRisk{IPBlacklist: []string{clientIP}}), "")
-		assertMediaDenied(t, u, "")
-		rejected := create(t, "v1", "inline-ip-blocked-client", "alipay", "4.00", true, false, "")
+		assertMediaDenied(t, u, allowedPeer)
+		retry := create(t, "v1", out, "alipay", "3.00", inline, allowedBuyer, allowedPeer)
+		if got := assertCashier(t, "v1", retry, false); got != trade {
+			t.Fatalf("retry returned trade %q, want %q", got, trade)
+		}
+		var storedBuyer string
+		if err := db.Pool.QueryRow(t.Context(), `SELECT host(clientip) FROM orders WHERE trade_no=$1`, trade).Scan(&storedBuyer); err != nil || storedBuyer != clientIP {
+			t.Fatalf("stored buyer IP after retry = %q, want %q, err=%v", storedBuyer, clientIP, err)
+		}
+		rejected := create(t, "v1", "inline-ip-blocked-client", "alipay", "4.00", inline, clientIP, "")
 		if rejected["code"] != float64(-1) || rejected["error_code"] != "IP_BLOCKED" || rejected["qrcode"] != nil {
 			t.Fatalf("blocked signed client IP: %v", rejected)
 		}
@@ -251,15 +290,15 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		}
 		oldURLs := make(map[string]*url.URL)
 		for _, protocol := range protocols {
-			data := create(t, protocol.name, protocol.name+"-pre-turnstile", "wxpay", "5.00", true, false, "")
+			data := create(t, protocol.name, protocol.name+"-pre-turnstile", "wxpay", "5.00", inline, clientIP, "")
 			oldURLs[protocol.name] = assertImage(t, data, channels[1].payload)
 		}
 		requireRiskError(t, saveRisk(t, fixture, platform.PaymentRisk{CheckoutTurnstileEnabled: true}), "")
 		for _, protocol := range protocols {
 			oldURL := oldURLs[protocol.name]
 			assertMediaDenied(t, oldURL, "")
-			assertCashier(t, protocol.name, create(t, protocol.name, protocol.name+"-pre-turnstile", "wxpay", "5.00", true, false, ""), false)
-			data := create(t, protocol.name, protocol.name+"-turnstile", "wxpay", "6.00", true, false, "")
+			assertCashier(t, protocol.name, create(t, protocol.name, protocol.name+"-pre-turnstile", "wxpay", "5.00", inline, clientIP, ""), false)
+			data := create(t, protocol.name, protocol.name+"-turnstile", "wxpay", "6.00", inline, clientIP, "")
 			trade := assertCashier(t, protocol.name, data, false)
 			res := fixture.Request(t, http.MethodGet, "/api/v1/checkout/"+trade, nil, "guest")
 			var checkout struct{ Data payment.CheckoutDTO }
@@ -273,7 +312,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 	})
 
 	t.Run("cancelled", func(t *testing.T) {
-		data := create(t, "v2", "inline-cancelled", "alipay", "7.00", true, false, "")
+		data := create(t, "v2", "inline-cancelled", "alipay", "7.00", inline, clientIP, "")
 		trade := assertCashier(t, "v2", data, true)
 		u := assertImage(t, data, channels[0].payload)
 		closeOrder := postCompatV2(t, fixture, "/api/pay/close", pid, private, url.Values{"trade_no": {trade}})
@@ -288,18 +327,19 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 	})
 
 	t.Run("timed out", func(t *testing.T) {
-		data := create(t, "v1", "inline-timeout", "alipay", "8.00", true, false, "")
+		data := create(t, "v1", "inline-timeout", "alipay", "8.00", inline, clientIP, "")
 		trade := assertCashier(t, "v1", data, true)
-		u := assertImage(t, data, channels[0].payload)
 		rawExpiry, _ := data["expires_at"].(string)
 		expires, err := time.Parse(time.RFC3339Nano, rawExpiry)
-		if err != nil {
-			t.Fatal(err)
+		if err != nil || expires.Nanosecond() == 0 {
+			t.Fatalf("expected fractional expiry, got %q, err=%v", rawExpiry, err)
 		}
-		db.Clock.Set(expires.Add(time.Second))
+		db.Clock.Set(expires.Add(-time.Microsecond))
 		if _, err := db.Pool.Exec(t.Context(), `UPDATE devices SET last_seen_at=$1 WHERE merchant_id=$2`, db.Clock.Now(), id); err != nil {
 			t.Fatal(err)
 		}
+		u := assertImage(t, data, channels[0].payload)
+		db.Clock.Set(expires)
 		assertMediaDenied(t, u, "")
 		if _, err := fixture.App.Services.Payment.ExpireBatch(t.Context(), 100); err != nil {
 			t.Fatal(err)
@@ -309,6 +349,16 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		}
 		assertMediaDenied(t, u, "")
 	})
+}
+
+func inlineQRTestPreimage(params url.Values) []byte {
+	fields := make(url.Values, len(params))
+	for name := range params {
+		if value := params.Get(name); name != "sign" && name != "sign_type" && value != "" {
+			fields.Set(name, value)
+		}
+	}
+	return []byte("\xffvanillapay:inline-qr:v1\n" + fields.Encode())
 }
 
 func inlineQRTestPNG(t *testing.T, payload string) []byte {

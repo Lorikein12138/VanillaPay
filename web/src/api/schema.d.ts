@@ -1656,7 +1656,11 @@ export interface paths {
         put?: never;
         /**
          * POST /api/pay/create
-         * @description 支付协议使用表单/查询参数签名，不使用网站 JSON 信封。V1 为 MD5，V2 为 RSA-SHA256，timestamp 在允许时间窗内。POST 不接受查询串与表单重复参数。
+         * @description 支付协议使用表单/查询参数签名，不使用网站 JSON 信封。POST 不接受查询串与表单重复参数。
+         *
+         *     仅此 API 创建请求的 `inline_qr` 值精确为 `1` 时使用扩展签名原文。原文依次拼接单个 `0xFF` 字节、ASCII `vanillapay:inline-qr:v1\n`（末尾为一个 LF 字节），以及剔除 `sign`、`sign_type` 和空值后按键排序的参数。参数部分采用 UTF-8 的 `application/x-www-form-urlencoded` 编码，等同于 Go 的 `url.Values.Encode()`，空格编码为 `+`。
+         *
+         *     V2 对待签名原文计算 SHA-256 摘要，使用 RSA PKCS#1 v1.5 签名，再将签名以 Base64 编码填入 `sign`。`timestamp` 仍须通过原有时间窗验证。其他创建请求沿用原签名原文，响应沿用原有签名规则。
          */
         post: operations["post_api_pay_create"];
         delete?: never;
@@ -1854,7 +1858,11 @@ export interface paths {
         put?: never;
         /**
          * POST /mapi.php
-         * @description 支付协议使用表单/查询参数签名，不使用网站 JSON 信封。V1 为 MD5，V2 为 RSA-SHA256，timestamp 在允许时间窗内。POST 不接受查询串与表单重复参数。
+         * @description 支付协议使用表单/查询参数签名，不使用网站 JSON 信封。POST 不接受查询串与表单重复参数。
+         *
+         *     仅此 API 创建请求的 `inline_qr` 值精确为 `1` 时使用扩展签名。原文依次拼接单个 `0xFF` 字节、ASCII `vanillapay:inline-qr:v1\n`（末尾为一个 LF 字节），以及剔除 `sign`、`sign_type` 和空值后按键排序的参数。参数部分采用 UTF-8 的 `application/x-www-form-urlencoded` 编码，等同于 Go 的 `url.Values.Encode()`，空格编码为 `+`。
+         *
+         *     V1 扩展签名使用现有商户密钥对上述原文计算 HMAC-SHA256，将结果以小写十六进制填入 `sign`，`sign_type` 填 `HMAC-SHA256` 或省略。其他创建请求沿用 MD5，响应沿用原有签名规则。
          */
         post: operations["post_mapi_php"];
         delete?: never;
@@ -3191,9 +3199,10 @@ export interface components {
             param?: string;
             product_id?: string;
             expire_seconds?: string;
-            /** @description 参与签名。仅 POST /mapi.php 的表单值精确为 `1` 时请求内联二维码。提交跳转路由 /submit.php 不启用此功能。 */
+            /** @description 参与签名。仅 POST /mapi.php 的表单值精确为 `1` 时请求内联二维码并使用扩展签名。提交跳转路由 /submit.php 不启用此功能。 */
             inline_qr?: string;
             sign: string;
+            /** @description V1 扩展签名填 `HMAC-SHA256` 或省略，原创建签名填 `MD5` 或省略。 */
             sign_type?: string;
         };
         V2CreateForm: {
@@ -3212,7 +3221,7 @@ export interface components {
             param?: string;
             product_id?: string;
             expire_seconds?: string;
-            /** @description 参与签名。仅 POST /api/pay/create 的表单值精确为 `1` 时请求内联二维码。提交跳转路由 /api/pay/submit 不启用此功能。 */
+            /** @description 参与签名。仅 POST /api/pay/create 的表单值精确为 `1` 时请求内联二维码并使用扩展签名原文。提交跳转路由 /api/pay/submit 不启用此功能。 */
             inline_qr?: string;
             sign: string;
             sign_type: string;
@@ -7391,6 +7400,7 @@ export interface operations {
         parameters: {
             query?: {
                 trade_no?: string;
+                /** @description 内联二维码使用带可选小数秒的 RFC 3339 时间，普通收银台使用 Unix 秒。接入方直接使用服务端返回的完整图片 URL。 */
                 expires?: string;
                 signature?: string;
                 /** @description 仅值精确为 `1` 时使用下单响应中的内联二维码签名模式。需要同时提供有效的 trade_no、expires 和 signature，仅适用于未过期、待支付的非测试外部订单所绑定的二维码。商户须已通过审核且未被封禁，收款设备须在线，收银台当前无需人机验证，请求 IP 与订单记录的买家 IP 均未被封禁。 */

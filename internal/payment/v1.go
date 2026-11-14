@@ -39,11 +39,22 @@ func (h *Handler) v1Create(w http.ResponseWriter, r *http.Request, api bool) {
 		fail("INVALID_SIGNATURE")
 		return
 	}
-	if p.Get("sign_type") != "" && strings.ToUpper(p.Get("sign_type")) != "MD5" {
+	signType := strings.ToUpper(p.Get("sign_type"))
+	inline := api && p.Get("inline_qr") == "1"
+	expectedType := "MD5"
+	if inline {
+		expectedType = "HMAC-SHA256"
+	}
+	if signType != "" && signType != expectedType {
 		fail("INVALID_SIGNATURE")
 		return
 	}
-	if err := VerifyV1(p, string(key)); err != nil {
+	if inline {
+		err = verifyInlineQRV1(p, key)
+	} else {
+		err = VerifyV1(p, string(key))
+	}
+	if err != nil {
 		fail("INVALID_SIGNATURE")
 		return
 	}

@@ -263,9 +263,9 @@ func (s *Service) OpenAsset(ctx context.Context, assetID string, merchantID int6
 
 func (s *Service) openInlineQR(r *http.Request, assetID, trade, expiry, signature string) (MediaFile, error) {
 	notFound := &platform.Error{Code: "NOT_FOUND", HTTPStatus: http.StatusNotFound}
-	unix, err := strconv.ParseInt(expiry, 10, 64)
+	validUntil, err := time.Parse(time.RFC3339Nano, expiry)
 	now := s.clock.Now()
-	if err != nil || !time.Unix(unix, 0).After(now) ||
+	if err != nil || !validUntil.After(now) ||
 		!hmac.Equal([]byte(signature), []byte(platform.SignInlineQR(s.key[:], trade, r.URL.Path, expiry))) {
 		return MediaFile{}, notFound
 	}
@@ -284,7 +284,7 @@ func (s *Service) openInlineQR(r *http.Request, assetID, trade, expiry, signatur
 		AND NOT (COALESCE((to_jsonb(s)->'risk'->>'checkout_turnstile_enabled')::boolean,false)
 			AND COALESCE(btrim(s.security->>'turnstile_site_key'),'') <> ''
 			AND EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND octet_length(encrypted_value)>0))`,
-		trade, assetID, time.Unix(unix, 0), now).Scan(&path, &mime, &clientIP, &blacklist)
+		trade, assetID, validUntil, now).Scan(&path, &mime, &clientIP, &blacklist)
 	metadata, ok := platform.RequestMetadataFromContext(r.Context())
 	if !ok {
 		if ip := platform.ResolveClientIP(r.RemoteAddr, "", nil); ip.IsValid() {

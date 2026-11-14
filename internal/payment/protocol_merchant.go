@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,7 +12,15 @@ import (
 )
 
 func (h *Handler) cashierURL(tradeNo string) string {
-	return strings.TrimRight(h.PublicBaseURL, "/") + "/pay/" + url.PathEscape(tradeNo)
+	return h.absolutePaymentURL(&url.URL{Path: "/pay/" + tradeNo, RawPath: "/pay/" + url.PathEscape(tradeNo)})
+}
+
+func (h *Handler) absolutePaymentURL(path *url.URL) string {
+	base, err := url.Parse(h.PublicBaseURL)
+	if err != nil {
+		return path.String()
+	}
+	return base.ResolveReference(path).String()
 }
 
 func formatProtocolTime(at time.Time) string {

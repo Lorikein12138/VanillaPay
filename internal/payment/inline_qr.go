@@ -3,7 +3,7 @@ package payment
 import (
 	"net/http"
 	"net/url"
-	"strings"
+	"time"
 
 	"vanillapay/internal/platform"
 )
@@ -15,13 +15,18 @@ func (h *Handler) appendInlineQR(r *http.Request, p url.Values, in CreateCommand
 		return
 	}
 	ctx := r.Context()
-	risk, err := readCheckoutRisk(ctx, h.Service.pool, h.realIP(r), in.ClientIP)
+	var storedIP string
+	if err := h.Service.pool.QueryRow(ctx, `SELECT COALESCE(host(clientip),'')
+		FROM orders WHERE trade_no=$1 AND merchant_id=$2`, order.TradeNo, in.MerchantID).Scan(&storedIP); err != nil {
+		return
+	}
+	risk, err := readCheckoutRisk(ctx, h.Service.pool, h.realIP(r), in.ClientIP, storedIP)
 	if err != nil || risk.SiteKey != "" {
 		return
 	}
 	checkout, err := h.checkoutData(ctx, order.TradeNo, risk.SiteKey, "")
 	if err != nil || !checkout.CanPay || checkout.QRImageURL == nil || checkout.Channel == nil ||
-		*checkout.Channel != in.Channel || checkout.ActualCents == nil || checkout.ExpiresAt.Unix() <= checkout.ServerTime.Unix() {
+		*checkout.Channel != in.Channel || checkout.ActualCents == nil || !checkout.ExpiresAt.After(checkout.ServerTime) {
 		return
 	}
 	media, err := url.Parse(*checkout.QRImageURL)
@@ -30,9 +35,11 @@ func (h *Handler) appendInlineQR(r *http.Request, p url.Values, in CreateCommand
 	}
 	query := media.Query()
 	query.Set("inline", "1")
-	query.Set("signature", platform.SignInlineQR(h.Service.key[:], checkout.TradeNo, media.Path, query.Get("expires")))
+	expiry := checkout.ExpiresAt.UTC().Format(time.RFC3339Nano)
+	query.Set("expires", expiry)
+	query.Set("signature", platform.SignInlineQR(h.Service.key[:], checkout.TradeNo, media.Path, expiry))
 	media.RawQuery = query.Encode()
-	data["qrcode"] = strings.TrimRight(h.PublicBaseURL, "/") + media.String()
+	data["qrcode"] = h.absolutePaymentURL(media)
 	data["actual_money"] = formatMoney(*checkout.ActualCents)
 	data["type"] = *checkout.Channel
 	data["expires_at"] = checkout.ExpiresAt

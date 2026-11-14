@@ -20,7 +20,11 @@ func (h *Handler) v2Create(w http.ResponseWriter, r *http.Request, api bool) {
 		h.v2JSON(w, http.StatusOK, map[string]any{"code": -1, "msg": "签名错误", "error_code": errorCode(err)})
 		return
 	}
-	if err := VerifyV2(p, publicKey, h.Service.clock.Now()); err != nil {
+	canonicalize := Canonical
+	if api && p.Get("inline_qr") == "1" {
+		canonicalize = inlineQRCanonical
+	}
+	if err := verifyV2(p, publicKey, h.Service.clock.Now(), canonicalize); err != nil {
 		code := "INVALID_SIGNATURE"
 		if errorCode(err) == "TIMESTAMP_EXPIRED" {
 			code = "TIMESTAMP_EXPIRED"
