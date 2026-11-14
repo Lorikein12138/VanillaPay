@@ -122,7 +122,8 @@ func apiAuthentication(a *app.App) func(http.Handler) http.Handler {
 				if secureCookies(r.Context()) {
 					cookieName = "__Host-" + cookieName
 				}
-				if _, err := r.Cookie(cookieName); err == nil {
+				// Inline media is authorized exclusively by its order-scoped signature.
+				if _, err := r.Cookie(cookieName); err == nil && r.URL.Query().Get("inline") != "1" {
 					var authService *auth.Service
 					if a != nil && a.Services != nil {
 						authService = a.Services.Auth

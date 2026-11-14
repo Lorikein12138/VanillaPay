@@ -14,6 +14,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -258,6 +259,46 @@ func (s *Service) SignCheckoutMedia(tradeNo, assetID string, expires time.Time) 
 
 func (s *Service) OpenAsset(ctx context.Context, assetID string, merchantID int64, tradeNo, expiry, signature string) (MediaFile, error) {
 	return s.openAsset(ctx, assetID, merchantID, tradeNo, expiry, signature, "")
+}
+
+func (s *Service) openInlineQR(r *http.Request, assetID, trade, expiry, signature string) (MediaFile, error) {
+	notFound := &platform.Error{Code: "NOT_FOUND", HTTPStatus: http.StatusNotFound}
+	validUntil, err := time.Parse(time.RFC3339Nano, expiry)
+	now := s.clock.Now()
+	if err != nil || !validUntil.After(now) ||
+		!hmac.Equal([]byte(signature), []byte(platform.SignInlineQR(s.key[:], trade, r.URL.Path, expiry))) {
+		return MediaFile{}, notFound
+	}
+
+	var path, mime, clientIP string
+	var blacklist []string
+	err = s.pool.QueryRow(r.Context(), `SELECT a.file_path,a.mime,COALESCE(host(o.clientip),''),
+		ARRAY(SELECT jsonb_array_elements_text(to_jsonb(s)->'risk'->'ip_blacklist'))
+		FROM orders o JOIN merchants m ON m.id=o.merchant_id
+		JOIN media_assets a ON a.id=o.qr_asset_id AND a.owner_merchant_id=m.id AND a.channel=o.channel
+		CROSS JOIN site_settings s WHERE s.singleton AND o.trade_no=$1 AND a.id=$2 AND a.kind='qr'
+		AND o.purpose='external' AND NOT o.is_test AND o.status='pending' AND o.expires_at>=$3
+		AND o.actual_cents IS NOT NULL AND m.banned_at IS NULL AND m.approval_state='approved'
+		AND EXISTS(SELECT 1 FROM devices d WHERE d.merchant_id=m.id AND d.revoked_at IS NULL
+			AND d.last_seen_at<=$4 AND d.last_seen_at>$4::timestamptz-interval '90 seconds')
+		AND NOT (COALESCE((to_jsonb(s)->'risk'->>'checkout_turnstile_enabled')::boolean,false)
+			AND COALESCE(btrim(s.security->>'turnstile_site_key'),'') <> ''
+			AND EXISTS(SELECT 1 FROM secret_settings WHERE name='turnstile_secret' AND octet_length(encrypted_value)>0))`,
+		trade, assetID, validUntil, now).Scan(&path, &mime, &clientIP, &blacklist)
+	metadata, ok := platform.RequestMetadataFromContext(r.Context())
+	if !ok {
+		if ip := platform.ResolveClientIP(r.RemoteAddr, "", nil); ip.IsValid() {
+			metadata.IP = ip.String()
+		}
+	}
+	if err != nil || platform.CheckoutIPBlocked(metadata.IP, blacklist) || platform.CheckoutIPBlocked(clientIP, blacklist) {
+		return MediaFile{}, notFound
+	}
+	file, err := s.openMediaPath(path)
+	if err != nil {
+		return MediaFile{}, err
+	}
+	return MediaFile{Reader: file, MIME: mime}, nil
 }
 
 func (s *Service) openAsset(ctx context.Context, assetID string, merchantID int64, tradeNo, expiry, signature, checkoutToken string) (MediaFile, error) {

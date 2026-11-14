@@ -153,7 +153,14 @@ func (h *Handler) OpenAsset(w http.ResponseWriter, r *http.Request) {
 	trade := r.URL.Query().Get("trade_no")
 	expiry := r.URL.Query().Get("expires")
 	signature := r.URL.Query().Get("signature")
-	asset, err := h.Service.openAsset(r.Context(), chi.URLParam(r, "asset_id"), actor.MerchantID, trade, expiry, signature, platform.CheckoutCookieToken(r, trade))
+	assetID := chi.URLParam(r, "asset_id")
+	var asset MediaFile
+	var err error
+	if r.URL.Query().Get("inline") == "1" {
+		asset, err = h.Service.openInlineQR(r, assetID, trade, expiry, signature)
+	} else {
+		asset, err = h.Service.openAsset(r.Context(), assetID, actor.MerchantID, trade, expiry, signature, platform.CheckoutCookieToken(r, trade))
+	}
 	if err != nil {
 		settingsResult(w, r, nil, err, http.StatusOK)
 		return

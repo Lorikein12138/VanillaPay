@@ -23,7 +23,7 @@ type checkoutRiskReader interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-func readCheckoutRisk(ctx context.Context, db checkoutRiskReader, ip string) (checkoutRisk, error) {
+func readCheckoutRisk(ctx context.Context, db checkoutRiskReader, ips ...string) (checkoutRisk, error) {
 	var risk checkoutRisk
 	var blacklist []string
 	var enabled bool
@@ -35,8 +35,10 @@ func readCheckoutRisk(ctx context.Context, db checkoutRiskReader, ip string) (ch
 	if err != nil {
 		return checkoutRisk{}, err
 	}
-	if err := enforceCheckoutIP(ip, blacklist); err != nil {
-		return checkoutRisk{}, err
+	for _, ip := range ips {
+		if err := enforceCheckoutIP(ip, blacklist); err != nil {
+			return checkoutRisk{}, err
+		}
 	}
 	if !enabled || strings.TrimSpace(risk.SiteKey) == "" || len(risk.Secret) == 0 {
 		return checkoutRisk{}, nil

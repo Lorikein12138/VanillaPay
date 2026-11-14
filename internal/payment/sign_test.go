@@ -50,3 +50,29 @@ func TestUnit_PlatformPublicKeyFingerprint(t *testing.T) {
 		t.Fatalf("platform public key did not round-trip: %v", err)
 	}
 }
+
+func TestUnit_InlineQRCanonicalEncoding(t *testing.T) {
+	params := url.Values{
+		"name":       {"Tea & Coffee = 1+1"},
+		"inline_qr":  {"1"},
+		"return_url": {""},
+		"sign":       {"excluded"},
+		"sign_type":  {"RSA"},
+	}
+	got, err := inlineQRCanonical(params)
+	want := "\xffvanillapay:inline-qr:v1\ninline_qr=1&name=Tea+%26+Coffee+%3D+1%2B1"
+	if err != nil || got != want {
+		t.Fatalf("inline QR canonical encoding = %q, %v; want %q", got, err, want)
+	}
+}
+
+func TestUnit_PaymentURLsWithEmptyBaseQuery(t *testing.T) {
+	handler := Handler{PublicBaseURL: "https://pay.example.test?"}
+	if got := handler.cashierURL("test"); got != "https://pay.example.test/pay/test" {
+		t.Errorf("cashier URL = %q", got)
+	}
+	media := &url.URL{Path: "/media/qr.png", RawQuery: "inline=1"}
+	if got := handler.absolutePaymentURL(media); got != "https://pay.example.test/media/qr.png?inline=1" {
+		t.Errorf("media URL = %q", got)
+	}
+}

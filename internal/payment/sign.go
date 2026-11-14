@@ -2,6 +2,7 @@ package payment
 
 import (
 	"crypto"
+	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/rsa"
@@ -98,6 +99,10 @@ func SignV1(params url.Values, key string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 func VerifyV2(params url.Values, publicKey *rsa.PublicKey, now time.Time) error {
+	return verifyV2(params, publicKey, now, Canonical)
+}
+
+func verifyV2(params url.Values, publicKey *rsa.PublicKey, now time.Time, canonicalize func(url.Values) (string, error)) error {
 	if publicKey == nil {
 		return ErrInvalidSignature
 	}
@@ -117,7 +122,7 @@ func VerifyV2(params url.Values, publicKey *rsa.PublicKey, now time.Time) error 
 	if err != nil {
 		return ErrInvalidSignature
 	}
-	canonical, err := Canonical(params)
+	canonical, err := canonicalize(params)
 	if err != nil {
 		return err
 	}
@@ -127,6 +132,37 @@ func VerifyV2(params url.Values, publicKey *rsa.PublicKey, now time.Time) error 
 	}
 	typ := params.Get("sign_type")
 	if typ != "" && typ != "RSA" {
+		return ErrInvalidSignature
+	}
+	return nil
+}
+
+func inlineQRCanonical(params url.Values) (string, error) {
+	if _, err := Canonical(params); err != nil {
+		return "", err
+	}
+	fields := make(url.Values, len(params))
+	for key, values := range params {
+		if key != "sign" && key != "sign_type" && len(values) == 1 && values[0] != "" {
+			fields[key] = values
+		}
+	}
+	// The first byte cannot occur in a validated legacy signature preimage.
+	return "\xffvanillapay:inline-qr:v1\n" + fields.Encode(), nil
+}
+
+func verifyInlineQRV1(params url.Values, key []byte) error {
+	canonical, err := inlineQRCanonical(params)
+	if err != nil {
+		return err
+	}
+	signature, err := hex.DecodeString(params.Get("sign"))
+	if err != nil {
+		return ErrInvalidSignature
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(canonical))
+	if !hmac.Equal(signature, mac.Sum(nil)) {
 		return ErrInvalidSignature
 	}
 	return nil
