@@ -156,7 +156,22 @@ class MonitorReviveTest {
         @Suppress("DEPRECATION")
         assertEquals(NotificationCompat.PRIORITY_MAX, notice.priority)
         assertEquals(Notification.VISIBILITY_PRIVATE, notice.visibility)
-        // This is a child notification, so it stays silent when only the summary may alert.
+        assertNull(notice.group)
+        assertEquals(Notification.GROUP_ALERT_ALL, notice.groupAlertBehavior)
+        assertTrue(notice.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+    }
+
+    @Test fun foregroundNotificationStaysSilentWhenAnExistingChannelCanAlert() {
+        val manager = app.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(
+            NotificationChannel("monitor-status", "收款监听", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                enableVibration(true)
+            },
+        )
+
+        val notice = MonitorNotifications.build(app, MonitorNotifications.offline(0))
+
+        assertTrue(manager.getNotificationChannel(notice.channelId).shouldVibrate())
         assertEquals(Notification.GROUP_ALERT_SUMMARY, notice.groupAlertBehavior)
     }
 
@@ -175,7 +190,7 @@ class MonitorReviveTest {
         val second = active.single()
         assertEquals(first.id, second.id)
         assertEquals(MonitorNotifications.paused.status, second.notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT))
-        assertEquals(Notification.GROUP_ALERT_SUMMARY, second.notification.groupAlertBehavior)
+        assertNull(second.notification.group)
         assertTrue(second.notification.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
     }
 

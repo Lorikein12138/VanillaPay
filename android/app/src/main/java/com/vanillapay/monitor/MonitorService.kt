@@ -198,6 +198,9 @@ object MonitorNotifications {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
         manager.deleteNotificationChannel("payment-monitor")
+        val activeChannel = manager.getNotificationChannel(CHANNEL)
+        // setSilent creates a "silent" group on AndroidX. Only force it if the channel can alert.
+        val suppressChannelAlert = activeChannel?.let { it.sound != null || it.shouldVibrate() } == true
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val open = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -214,7 +217,7 @@ object MonitorNotifications {
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setOngoing(true)
-            .setSilent(true)
+            .setSilent(suppressChannelAlert)
             .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .build()
