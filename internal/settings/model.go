@@ -106,6 +106,7 @@ type SecurityGroupRequest struct {
 	TurnstileToken       string       `json:"turnstile_token,omitempty"`
 	TurnstileEnabled     bool         `json:"turnstile_enabled"`
 	RestrictEmailDomains bool         `json:"restrict_email_domains"`
+	RegistrationReview   bool         `json:"registration_review"`
 	EmailDomains         *[]string    `json:"email_domains"`
 	BanContact           LanguageText `json:"ban_contact"`
 }

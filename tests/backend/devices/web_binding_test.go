@@ -24,7 +24,7 @@ func TestHTTP_WebBindingResponseDoesNotExposeDeviceToken(t *testing.T) {
 	if bootstrap.Code != http.StatusCreated {
 		t.Fatalf("bootstrap console admin status=%d body=%s", bootstrap.Code, bootstrap.Body.String())
 	}
-	security := json.RawMessage(`{"turnstile_site_key":"site-key","turnstile_secret":"local-secret","turnstile_enabled":true, "turnstile_token": "ok:settings_security","restrict_email_domains":false,"email_domains":[],"ban_contact":{"zh_CN":"support@example.test","en":"support@example.test"}}`)
+	security := json.RawMessage(`{"turnstile_site_key":"site-key","turnstile_secret":"local-secret","turnstile_enabled":true, "turnstile_token": "ok:settings_security","restrict_email_domains":false,"registration_review":false,"email_domains":[],"ban_contact":{"zh_CN":"support@example.test","en":"support@example.test"}}`)
 	if _, err := fixture.App.Services.Settings.UpdateGroup(t.Context(), platform.Actor{Role: "admin", SubjectID: 1}, "security", settingsservice.UpdateGroup{ExpectedVersion: 1, Value: security}); err != nil {
 		t.Fatalf("configure local Turnstile without changing auth semantics: %v", err)
 	}

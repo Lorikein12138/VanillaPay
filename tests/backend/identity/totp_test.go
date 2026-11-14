@@ -318,7 +318,7 @@ func configureTOTPTestSiteverify(t *testing.T, fixture *testsupport.HTTPFixture,
 	}
 	value, err := json.Marshal(map[string]any{
 		"turnstile_site_key": "totp-site-key", "turnstile_secret": "totp-site-secret", "turnstile_enabled": true, "turnstile_token": "ok:settings_security",
-		"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"},
+		"restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "support@example.test", "en": "support@example.test"},
 	})
 	if err != nil {
 		return err

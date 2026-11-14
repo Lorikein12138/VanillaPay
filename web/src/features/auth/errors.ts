@@ -11,6 +11,8 @@ export function authErrorKey(error: unknown) {
     case 'TURNSTILE_FAILED': return 'auth.errors.turnstile' as const
     case 'CSRF_FAILED': return 'auth.errors.csrf' as const
     case 'ACCOUNT_BANNED': return 'auth.errors.banned' as const
+    case 'ACCOUNT_PENDING_REVIEW': return 'auth.errors.pendingReview' as const
+    case 'REGISTRATION_REJECTED': return 'auth.errors.rejected' as const
     case 'USERNAME_TAKEN': return 'auth.errors.usernameTaken' as const
     case 'EMAIL_TAKEN': return 'auth.errors.emailTaken' as const
     case 'EMAIL_DOMAIN_DENIED': return 'auth.errors.domain' as const

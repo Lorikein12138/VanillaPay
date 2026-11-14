@@ -169,6 +169,21 @@ describe('order actions', () => {
     expect(channel.getByRole('option', { name: '微信支付' })).toHaveAttribute('aria-disabled', 'true')
   })
 
+  it('marks test orders in the list and detail only', async () => {
+    const test = { ...order('pending', null), name: '测试支付', is_test: true }, normal = { ...order('paid', 'alipay'), name: '会员' }
+    server.use(
+      http.get('*/api/v1/merchant/orders', () => success({ items: [test, normal], total: 2, next_cursor: null })),
+      http.get('*/api/v1/merchant/orders/:trade', () => success({ ...detail(), order: test, notify_url: null })),
+    )
+    const { router } = mount()
+    const tests = await screen.findAllByText('测试', { exact: true })
+    for (const badge of tests) expect(badge.closest('tr, li, article')?.textContent).toContain('测试支付')
+    expect(screen.getAllByText('会员').every((cell) => !within(cell.closest('tr, li, article') ?? cell).queryByText('测试', { exact: true }))).toBe(true)
+    await router.navigate({ to: '/orders/$tradeNo', params: { tradeNo: test.trade_no } })
+    await screen.findByRole('heading', { name: '订单详情' })
+    expect(screen.getByText('测试', { exact: true })).toBeVisible()
+  })
+
   it('keeps replay visible but disabled at the generation limit', async () => {
     const paid = detail('paid')
     paid.order.callback_status = 'failed'

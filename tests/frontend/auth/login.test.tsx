@@ -18,7 +18,7 @@ vi.mock('@/features/auth/Turnstile', () => ({
 type Schema = components['schemas']
 const user: Schema['AuthUserDTO'] = { id: '1', role: 'merchant', username: 'test_shop', pid: '9000000000000001', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }
 const session: Schema['AuthSessionResult'] = { user, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 3600000).toISOString(), next_path: '/dashboard' }
-const config: Schema['PublicConfig'] = { site_name: 'Test Shop', logo_url: '', favicon_url: '/favicon.ico?v=default', turnstile: { site_key: crypto.randomUUID(), enabled: true, login_action: 'login', register_action: 'register' }, registration_open: true, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
+const config: Schema['PublicConfig'] = { site_name: 'Test Shop', logo_url: '', favicon_url: '/favicon.ico?v=default', turnstile: { site_key: crypto.randomUUID(), enabled: true, login_action: 'login', register_action: 'register' }, registration_open: true, registration_review: false, email_domain_restriction: { enabled: false, domains: [] }, home: { mode: 'default', html: null, url: null }, footer: [], legal_revisions: { terms: 1, privacy: 1 } }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const failure = (status: number, code: Schema['ErrorCode'], fields = {}) => HttpResponse.json({ error: { code, fields, details: {}, message: code }, request_id: crypto.randomUUID() }, { status })
 const server = setupServer(emptyNotifications,
@@ -112,6 +112,8 @@ describe('merchant login', () => {
     [401, 'CHALLENGE_EXPIRED', '本次验证已过期，请重新登录。'],
     [400, 'TURNSTILE_FAILED', '人机验证未完成或已过期，请重新验证。'],
     [403, 'FORBIDDEN', '没有权限执行此操作，请联系平台管理员。'],
+    [403, 'ACCOUNT_PENDING_REVIEW', '账号正在等待管理员审核，通过后会发邮件通知你。'],
+    [403, 'REGISTRATION_REJECTED', '注册申请未通过审核，原因已发到注册邮箱。如有疑问请联系平台管理员。'],
     [429, 'FORBIDDEN', '操作过于频繁，请稍后重试。'],
     [503, 'SETUP_REQUIRED', '站点尚未完成配置，请联系平台管理员。'],
     [503, 'TURNSTILE_UNAVAILABLE', '服务暂时不可用，请稍后重试。'],

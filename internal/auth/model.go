@@ -27,18 +27,20 @@ var (
 )
 
 type UserDTO struct {
-	ID        string     `json:"id"`
-	Role      string     `json:"role"`
-	Username  string     `json:"username"`
-	Email     string     `json:"email,omitempty"`
-	PID       string     `json:"pid,omitempty"`
-	Banned    bool       `json:"banned"`
-	BannedAt  *time.Time `json:"banned_at"`
-	BanReason *string    `json:"ban_reason"`
-	TOTP      bool       `json:"totp_enabled"`
-	Locale    string     `json:"locale"`
-	Theme     string     `json:"theme"`
-	CreatedAt time.Time  `json:"created_at"`
+	ApprovalState  string     `json:"approval_state,omitempty"`
+	ApprovalReason *string    `json:"approval_reason,omitempty"`
+	ID             string     `json:"id"`
+	Role           string     `json:"role"`
+	Username       string     `json:"username"`
+	Email          string     `json:"email,omitempty"`
+	PID            string     `json:"pid,omitempty"`
+	Banned         bool       `json:"banned"`
+	BannedAt       *time.Time `json:"banned_at"`
+	BanReason      *string    `json:"ban_reason"`
+	TOTP           bool       `json:"totp_enabled"`
+	Locale         string     `json:"locale"`
+	Theme          string     `json:"theme"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 type SessionResult struct {

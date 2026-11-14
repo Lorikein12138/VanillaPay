@@ -3,11 +3,12 @@ import { createHmac } from 'node:crypto'
 import { expect, test as base, type Locator, type Page } from '@playwright/test'
 
 type Account = { username: string; password: string; pid: string; totpSeed: string; turnstileToken: string }
-export const test = base.extend<{ account: Account; twoFactor: boolean; banned: boolean }>({
+export const test = base.extend<{ account: Account; twoFactor: boolean; banned: boolean; pendingReview: boolean }>({
   twoFactor: [false, { option: true }],
   banned: [false, { option: true }],
-  account: async ({ request, page, twoFactor, banned }, runTest) => {
-    const response = await request.post('/__e2e/merchant', { data: { totp: twoFactor, banned } })
+  pendingReview: [false, { option: true }],
+  account: async ({ request, page, twoFactor, banned, pendingReview }, runTest) => {
+    const response = await request.post('/__e2e/merchant', { data: { totp: twoFactor, banned, pending_review: pendingReview } })
     expect(response.ok(), 'create isolated, runtime-random merchant fixture').toBe(true)
     const account = await response.json() as Account
     await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', (route) => route.fulfill({

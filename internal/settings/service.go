@@ -718,7 +718,7 @@ func (s *Service) GetPublic(ctx context.Context) (map[string]any, error) {
 		bi, _ := b["sort"].(float64)
 		return ai < bi
 	})
-	return map[string]any{"site_name": site.SiteName, "logo_url": logo, "favicon_url": faviconURL(site), "turnstile": map[string]any{"site_key": siteKey, "enabled": security["turnstile_enabled"] == true && strings.TrimSpace(siteKey) != "" && configured, "login_action": "login", "register_action": "register"}, "registration_open": true, "email_domain_restriction": map[string]any{"enabled": security["restrict_email_domains"], "domains": security["email_domains"]}, "home": home, "footer": visible, "legal_revisions": map[string]any{"terms": legal["terms"], "privacy": legal["privacy"]}}, nil
+	return map[string]any{"site_name": site.SiteName, "logo_url": logo, "favicon_url": faviconURL(site), "turnstile": map[string]any{"site_key": siteKey, "enabled": security["turnstile_enabled"] == true && strings.TrimSpace(siteKey) != "" && configured, "login_action": "login", "register_action": "register"}, "registration_open": true, "registration_review": security["registration_review"] == true, "email_domain_restriction": map[string]any{"enabled": security["restrict_email_domains"], "domains": security["email_domains"]}, "home": home, "footer": visible, "legal_revisions": map[string]any{"terms": legal["terms"], "privacy": legal["privacy"]}}, nil
 }
 
 func (s *Service) GetLegal(ctx context.Context, kind string) (map[string]any, error) {

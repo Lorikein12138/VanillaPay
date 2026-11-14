@@ -148,6 +148,8 @@
       "turnstile": "Human verification is incomplete or has expired. Please verify again.",
       "csrf": "Security verification failed. Refresh this page and try again.",
       "banned": "This merchant account is disabled. Contact the platform administrator.",
+      "pendingReview": "Your account is waiting for admin review. We will email you once it is approved.",
+      "rejected": "Your registration was not approved. The reason was sent to your registration email. Contact the platform administrator if you have questions.",
       "rateLimit": "Too many attempts. Please try again later.",
       "forbidden": "You do not have permission for this action. Contact the platform administrator.",
       "session": "Your session has expired. Please sign in again.",
@@ -163,10 +165,17 @@
     "notices": {
       "password_changed": "Password changed. All sessions have expired. Please sign in again.",
       "registered": "Registration complete. Please sign in.",
+      "pending_review": "Registration complete. Sign in to check your review status. We will also email you the decision.",
       "password_reset": "Password reset. Previous sessions have expired. Sign in with your new password."
     }
   },
   "merchant": {
+    "registrationReview": {
+      "pending": "Registration under review",
+      "rejected": "Registration declined",
+      "hint": "You can use the merchant dashboard and accept payments once approved. We will also email you the decision.",
+      "refresh": "Refresh review status"
+    },
     "integration": {
       "endpoints": { "submit": "Redirect to payment", "mapi": "Create order", "create": "Create order", "query": "Query order", "refund": "Request refund", "info": "Query merchant", "orders": "List orders", "close": "Close order", "refundquery": "Query refund" }
     },
@@ -266,6 +275,7 @@
       "information": "Order information",
       "operations": "Order actions",
       "replayLimitReached": "Replay limit reached ({{used}}/{{limit}})",
+      "testBadge": "Test",
       "outTradeNo": "Merchant order number",
       "originalAmount": "Original amount",
       "actualAmount": "Paid amount",
@@ -413,6 +423,7 @@
     "registrationIsClosed": "Registration is closed",
     "checkYourUsernameEmailVerificationCodeAnd": "Check your username, email, verification code and agreements. Enter the same 12–128 character password twice.",
     "registerAsAMerchant": "Register as a merchant",
+    "registrationReviewNotice": "Sign in after registering to check your review status. You can accept payments once approved. We will also email you the decision.",
     "setANewPassword": "Set a new password",
     "username": "Username",
     "332LettersNumbersUnderscoresOrHyphens": "3–32 letters, numbers, underscores or hyphens",
@@ -874,7 +885,11 @@
         },
         "admin_created": "Merchant created by administrator",
         "ban": "Merchant suspended",
-        "unban": "Merchant reinstated"
+        "unban": "Merchant reinstated",
+        "approve": "Registration approved",
+        "reject": "Registration rejected",
+        "update_notify_domains": "Callback domain allowlist changed",
+        "update_callback_settings": "Callback settings changed"
       },
       "device": {
         "binding_issue": "Binding code created",
@@ -892,7 +907,8 @@
       "order": {
         "create": "Order created",
         "paid": "Order paid",
-        "refunded": "Order refunded"
+        "refunded": "Order refunded",
+        "close": "Order closed"
       },
       "orders": {
         "export": "Orders exported"
@@ -917,6 +933,35 @@
       },
       "admin": {
         "bootstrap": "Administrator initialized"
+      }
+    }
+  },
+  "tools": {
+    "callback": {
+      "title": "Callback settings",
+      "description": "Controls the product name sent in asynchronous notifications and signed return redirects.",
+      "hideName": "Hide the product name in callbacks",
+      "hideNameHint": "When on, the name field in notifications and return redirects is always product, and the signature covers the replaced value. The order list and checkout still show the original name.",
+      "saved": "Callback settings saved.",
+      "save": "Save callback settings"
+    },
+    "testPayment": {
+      "title": "Test payment",
+      "description": "Pay a small order with your own collection codes to confirm codes and monitor devices receive payments.",
+      "hint": "Test orders send no notifications and are tagged Test in the order list. Creating a new test order closes the previous unpaid one.",
+      "amount": "Amount (CNY)",
+      "amountInvalid": "Enter an amount from 0.01 to 9999999.99 with at most two decimals.",
+      "channel": "Channel",
+      "channelAny": "Payer chooses at checkout",
+      "create": "Create test order",
+      "created": "Test order created. Open checkout and pay before {{time}}.",
+      "openCashier": "Open checkout",
+      "viewOrder": "View order",
+      "errors": {
+        "SUBSCRIPTION_INACTIVE": "No active plan. A test order cannot be created.",
+        "AMOUNT_OUT_OF_RANGE": "The amount is outside the per-order range of your plan.",
+        "AMOUNT_CAPACITY_EXHAUSTED": "No collection amount is available near this value. Try another amount.",
+        "DEVICE_OFFLINE": "The monitor device is offline. Bring it online first."
       }
     }
   },
@@ -1181,6 +1226,8 @@
     "emailDomainLineError": "The email domain rule on line {{line}} is invalid.",
     "banContactZh": "Suspension contact (Chinese)",
     "banContactEn": "Suspension contact (English)",
+    "registrationReview": "Require admin approval for new merchants",
+    "registrationReviewHint": "When on, new merchants can sign in to check their review status and accept payments once approved. Turning it off applies to new registrations. Accounts already waiting still require review.",
     "min": "Minimum amount (CNY)",
     "max": "Maximum amount (CNY)",
     "floatMin": "Minimum adjustment (CNY)",
@@ -1277,6 +1324,19 @@
     "grantHint": "Required, up to 500 bytes (about 160 Chinese characters).",
     "banResult": "Merchant disabled. Closed {{count}} pending orders.",
     "unbanned": "Merchant restored.",
+    "approval": "Review",
+    "approvalStates": { "pending": "Pending review", "approved": "Approved", "rejected": "Rejected" },
+    "approve": "Approve",
+    "reject": "Reject registration",
+    "approveDescription": "The merchant can sign in and use the service once approved. An email notifies the merchant.",
+    "rejectDescription": "The merchant cannot sign in. The reason is sent to the merchant by email. You can still approve later.",
+    "rejectHint": "Required, up to 500 characters. Included in the email to the merchant.",
+    "approved": "Registration approved. The merchant has been notified.",
+    "rejected": "Registration rejected. The merchant has been notified.",
+    "approvalConflict": "The review status was changed elsewhere. Details have been refreshed.",
+    "pendingNotice": "This merchant can sign in to check their review status. They can create orders once approved.",
+    "reviewedAt": "Reviewed at",
+    "rejectReason": "Rejection reason",
     "reset": "Reset password",
     "newPassword": "New password",
     "resetDone": "Password reset.",

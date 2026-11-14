@@ -31,6 +31,8 @@ type CreateCommand struct {
 	PurchaseID    *int64
 	BuyerID       *int64
 	Actor         platform.Actor
+	// test marks a merchant-console test payment. Only CreateTestPayment sets it.
+	test bool
 }
 
 type OrderDTO struct {
@@ -52,6 +54,7 @@ type OrderDTO struct {
 	ExpiresAt      time.Time  `json:"expires_at"`
 	RefundedAt     *time.Time `json:"refunded_at"`
 	CallbackStatus string     `json:"callback_status"`
+	IsTest         bool       `json:"-"`
 }
 
 type CheckoutDTO struct {

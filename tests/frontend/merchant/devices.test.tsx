@@ -31,6 +31,7 @@ const server = setupServer(
   http.get('*/api/v1/merchant/collection', () => success({ codes: [], settings, device })),
   http.get('*/api/v1/merchant/collection/codes', () => success({ codes: [] })),
   http.get('*/api/v1/merchant/integration/notify-domains', () => success({ enabled: false, entries: [] })),
+  http.get('*/api/v1/merchant/integration/callback-settings', () => success({ hide_name: false })),
 )
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
@@ -458,5 +459,68 @@ describe('receipt URL filters and pagination', () => {
     expect(requests.at(-1)!.searchParams.has('cursor')).toBe(false)
     await userEvent.click(screen.getByRole('button', { name: '重置' }))
     await waitFor(() => expect(router.state.location.search).toEqual({}))
+  })
+})
+
+describe('merchant tools', () => {
+  it('saves the callback hide-name switch and shows the saved state', async () => {
+    let body: unknown
+    server.use(http.put('*/api/v1/merchant/integration/callback-settings', async ({ request }) => { body = await request.json(); return success({ hide_name: true }) }))
+    vi.spyOn(api, 'integration').mockResolvedValue({ pid: user.pid!, key: crypto.randomUUID(), key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '', info: '', orders: '' }, v2: { submit: '', create: '', query: '', refund: '', info: '', orders: '', close: '', refundquery: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } })
+    const { client } = wrapper(<IntegrationPage user={user} />)
+    const toggle = await screen.findByRole('checkbox', { name: /回调中隐藏商品名称/ })
+    expect(toggle).not.toBeChecked()
+    await userEvent.click(toggle)
+    await userEvent.click(screen.getByRole('button', { name: '保存回调设置' }))
+    expect(await screen.findByText('已保存回调设置。')).toBeVisible()
+    expect(body).toEqual({ hide_name: true })
+    expect(client.getQueryData(['merchant', user.username, 'callback-settings'])).toEqual({ hide_name: true })
+  })
+
+  it('validates the test amount, sends cents with the chosen channel and links to checkout and the order', async () => {
+    const bodies: unknown[] = []
+    const trade = 'VP' + crypto.randomUUID()
+    server.use(http.post('*/api/v1/merchant/test-payment', async ({ request }) => {
+      bodies.push(await request.json())
+      return HttpResponse.json({ data: { trade_no: trade, cashier_url: 'https://pay.example.test/pay/' + trade, expires_at: '2030-01-01T00:05:00Z' }, error: null, request_id: crypto.randomUUID() }, { status: 201 })
+    }))
+    vi.spyOn(api, 'integration').mockResolvedValue({ pid: user.pid!, key: crypto.randomUUID(), key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '', info: '', orders: '' }, v2: { submit: '', create: '', query: '', refund: '', info: '', orders: '', close: '', refundquery: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } })
+    const { client } = mount('/integration')
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const amount = await screen.findByLabelText('金额（元）')
+    const create = screen.getByRole('button', { name: '创建测试订单' })
+    for (const value of ['0', '1.234', '10000000']) {
+      await userEvent.clear(amount)
+      await userEvent.type(amount, value)
+      await userEvent.click(create)
+      expect(await screen.findByText(/请输入 0.01 至 9999999.99/)).toBeVisible()
+    }
+    expect(bodies).toEqual([])
+    await userEvent.clear(amount)
+    await userEvent.type(amount, '12.3')
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('支付渠道'), 'wxpay')
+    await userEvent.click(create)
+    const open = await screen.findByRole('link', { name: '打开收银台' })
+    expect(bodies).toEqual([{ amount_cents: 1230, channel: 'wxpay' }])
+    expect(open).toHaveAttribute('href', 'https://pay.example.test/pay/' + trade)
+    expect(open).toHaveAttribute('target', '_blank')
+    expect(open).toHaveAttribute('rel', expect.stringContaining('noopener'))
+    expect(screen.getByRole('link', { name: '查看订单' })).toHaveAttribute('href', '/orders/' + trade)
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['merchant', user.username, 'orders'] })
+    await chooseSelect(userEvent.setup(), screen.getByLabelText('支付渠道'), '')
+    await userEvent.click(create)
+    await waitFor(() => expect(bodies.at(-1)).toEqual({ amount_cents: 1230, channel: null }))
+  })
+
+  it('explains plan and capacity failures of a test payment', async () => {
+    let code: Schema['ErrorCode'] = 'SUBSCRIPTION_INACTIVE'
+    server.use(http.post('*/api/v1/merchant/test-payment', () => HttpResponse.json({ data: null, error: { code, message: code, fields: {}, details: {} }, request_id: crypto.randomUUID() }, { status: code === 'SUBSCRIPTION_INACTIVE' ? 403 : 409 })))
+    vi.spyOn(api, 'integration').mockResolvedValue({ pid: user.pid!, key: crypto.randomUUID(), key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '', info: '', orders: '' }, v2: { submit: '', create: '', query: '', refund: '', info: '', orders: '', close: '', refundquery: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } })
+    wrapper(<IntegrationPage user={user} />)
+    await userEvent.click(await screen.findByRole('button', { name: '创建测试订单' }))
+    expect(await screen.findByText('当前没有生效的套餐，无法创建测试订单。')).toBeVisible()
+    code = 'AMOUNT_CAPACITY_EXHAUSTED'
+    await userEvent.click(screen.getByRole('button', { name: '创建测试订单' }))
+    expect(await screen.findByText('该金额附近暂无可用的收款金额，请换一个金额再试。')).toBeVisible()
   })
 })

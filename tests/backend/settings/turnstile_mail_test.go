@@ -15,7 +15,7 @@ func TestHTTP_TurnstileAndSMTPFailures(t *testing.T) {
 		admin := bootstrapRecoveryAdmin(t, fixture, "bootstrap-repair")
 		response := updateSettingsGroupHTTP(t, fixture, admin, "security", map[string]any{
 			"turnstile_site_key": "bootstrap-site-key", "turnstile_secret": "bootstrap-site-secret", "turnstile_enabled": true, "turnstile_token": "ok:settings_security",
-			"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
+			"restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
 		})
 		assertRecoveryAPIError(t, response, http.StatusOK, "")
 		fixture.Siteverify.SetMode("accept")

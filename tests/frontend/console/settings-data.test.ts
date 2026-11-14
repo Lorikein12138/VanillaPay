@@ -29,6 +29,7 @@ const settings: Settings = {
   security: {
     turnstile_site_key: '',
     turnstile_enabled: false,
+    registration_review: false,
     restrict_email_domains: false,
     email_domains: [],
     ban_contact: { zh_CN: '', en: '' },

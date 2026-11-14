@@ -110,7 +110,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = application.Close() }() // Cleanup must not replace a startup or serve error.
-	value, err := json.Marshal(map[string]any{"turnstile_site_key": token, "turnstile_secret": secret, "turnstile_enabled": true, "turnstile_token": token + ":settings_security:seed", "restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "请联系平台管理员", "en": "Contact the platform administrator"}})
+	value, err := json.Marshal(map[string]any{"turnstile_site_key": token, "turnstile_secret": secret, "turnstile_enabled": true, "turnstile_token": token + ":settings_security:seed", "restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "请联系平台管理员", "en": "Contact the platform administrator"}})
 	if err != nil {
 		return err
 	}
@@ -144,9 +144,10 @@ func run(ctx context.Context) error {
 	inbox.register(mux)
 	mux.HandleFunc("POST /__e2e/merchant", func(w http.ResponseWriter, r *http.Request) {
 		var flags struct {
-			TOTP      bool   `json:"totp,omitempty"`
-			Banned    bool   `json:"banned,omitempty"`
-			BanReason string `json:"ban_reason,omitempty"`
+			TOTP          bool   `json:"totp,omitempty"`
+			Banned        bool   `json:"banned,omitempty"`
+			BanReason     string `json:"ban_reason,omitempty"`
+			PendingReview bool   `json:"pending_review,omitempty"`
 		}
 		if platform.DecodeJSONBody(w, r, 1024, &flags) != nil {
 			http.Error(w, "invalid fixture options", http.StatusBadRequest)
@@ -156,6 +157,12 @@ func run(ctx context.Context) error {
 		if err != nil {
 			http.Error(w, "merchant fixture failed", http.StatusInternalServerError)
 			return
+		}
+		if flags.PendingReview {
+			if _, err := pool.Exec(r.Context(), `UPDATE merchants SET approval_state='pending' WHERE pid=$1`, fixture["pid"]); err != nil {
+				http.Error(w, "merchant review fixture failed", http.StatusInternalServerError)
+				return
+			}
 		}
 		fixture["turnstileToken"] = token
 		w.Header().Set("Content-Type", "application/json")

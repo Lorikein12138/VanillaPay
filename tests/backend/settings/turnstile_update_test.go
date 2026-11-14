@@ -11,7 +11,7 @@ func TestHTTP_TurnstileSettingsProofUsesProposedCredentials(t *testing.T) {
 	db := testsupport.NewDatabase(t)
 	fixture := testsupport.NewHTTPFixture(t, db)
 	admin := bootstrapRecoveryAdmin(t, fixture, "turnstile-proof")
-	value := map[string]any{"turnstile_enabled": true, "turnstile_site_key": "proposed-widget", "restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "", "en": ""}}
+	value := map[string]any{"turnstile_enabled": true, "turnstile_site_key": "proposed-widget", "restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "", "en": ""}}
 	save := func(status int, code string) {
 		t.Helper()
 		assertRecoveryAPIError(t, updateSettingsGroupHTTP(t, fixture, admin, "security", value), status, code)

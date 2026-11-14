@@ -275,7 +275,7 @@ func TestHTTP_RegistrationLoginAndEmailFlows(t *testing.T) {
 			t.Fatal(err)
 		}
 		rejectedCode := sendRegistrationCode(t, fixture, rejectedEmail, "domain_rejected")
-		if _, err := db.Pool.Exec(ctx, `UPDATE site_settings SET security=security || '{"restrict_email_domains":true,"email_domains":["qq.com","*.edu.cn"]}'::jsonb WHERE singleton=true`); err != nil {
+		if _, err := db.Pool.Exec(ctx, `UPDATE site_settings SET security=security || '{"restrict_email_domains":true,"registration_review":false,"email_domains":["qq.com","*.edu.cn"]}'::jsonb WHERE singleton=true`); err != nil {
 			t.Fatal(err)
 		}
 		const acceptedEmail = "multilevel@mail.pku.edu.cn"
@@ -323,7 +323,7 @@ func TestHTTP_RegistrationIDNAEmailDomainRules(t *testing.T) {
 		return fixture.Request(t, http.MethodPut, "/api/v1/console/settings/security", map[string]any{
 			"expected_version": version, "value": map[string]any{
 				"turnstile_enabled": false, "turnstile_site_key": "",
-				"restrict_email_domains": true, "email_domains": domains, "ban_contact": map[string]string{"zh_CN": "", "en": ""},
+				"restrict_email_domains": true, "registration_review": false, "email_domains": domains, "ban_contact": map[string]string{"zh_CN": "", "en": ""},
 			},
 		}, admin)
 	}

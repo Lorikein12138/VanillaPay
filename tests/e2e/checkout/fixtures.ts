@@ -15,7 +15,7 @@ export async function prepareCheckout(request: APIRequestContext) {
   })))
   const response = await request.post('/__e2e/checkout', { data: { codes } })
   expect(response.status()).toBe(200)
-  const fixture = await response.json() as { pid: string; v1_key: string; device_token: string; created_at: string }
+  const fixture = await response.json() as { pid: string; v1_key: string; username: string; password: string; device_token: string; created_at: string }
   const form: Record<string, string> = { pid: fixture.pid, name: '月度会员', money: '30.00', out_trade_no: crypto.randomUUID(), clientip: '127.0.0.1', notify_url: 'https://merchant.example.test/notify' }
   const canonical = Object.keys(form).sort().map((key) => `${key}=${form[key]}`).join('&')
   form.sign = createHash('md5').update(canonical + fixture.v1_key).digest('hex')
@@ -23,5 +23,5 @@ export async function prepareCheckout(request: APIRequestContext) {
   expect(created.status()).toBe(200)
   const result = await created.json() as { code: number; trade_no: string; error_code?: string }
   expect(result.code, result.error_code).toBe(1)
-  return { trade: result.trade_no, deviceToken: fixture.device_token }
+  return { trade: result.trade_no, deviceToken: fixture.device_token, username: fixture.username, password: fixture.password }
 }

@@ -4,15 +4,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { api, APIError } from '@/api/client'
 import { useEmailCode } from '@/features/auth/account-shared'
-import { Button } from '@/components/ui/button'
+import { Link } from '@tanstack/react-router'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { FormHint } from '@/components/ui/auth-screen'
+import { sortChannels } from '@/components/ui/payment'
+import { Select, SelectOption } from '@/components/ui/select'
 import { CopyButton, CopyField } from '@/components/ui/copy-button'
 import { formatCountdown } from '@/components/ui/countdown'
 import { Dialog } from '@/components/ui/dialog'
-import { Field, FormActions } from '@/components/ui/field'
+import { Field, FieldGrid, FormActions } from '@/components/ui/field'
 import { Checkbox, Input, InputGroup, Textarea } from '@/components/ui/input'
 import { Card, Mono, Page, PageHeader, SectionHeader, Skeleton, SubsectionTitle } from '@/components/ui/layout'
 import { Notice } from '@/components/ui/notice'
-import { invalidateCollection, validWhitelist, type Schema } from './collection-data'
+import { invalidateCollection, validWhitelist, yuanToCents, type Schema } from './collection-data'
+import { formatOrderTime } from './OrderParts'
 import { ModuleError, useLocalAction } from './CollectionParts'
 
 export function IntegrationPage({ user }: { user: Schema['AuthUserDTO'] }) {
@@ -76,6 +81,8 @@ export function IntegrationPage({ user }: { user: Schema['AuthUserDTO'] }) {
       </Card>
       <WhitelistForm key={JSON.stringify(data.ip_whitelist)} name={name} value={data.ip_whitelist} />
       <NotifyDomainsCard name={name} />
+      <CallbackSettingsCard name={name} />
+      <TestPaymentCard name={name} />
     </>}
     {dialog && <SecurityDialog mode={dialog} user={user} onClose={() => setDialog(null)} onChanged={() => invalidateCollection(client, name)} />}
   </Page>
@@ -172,4 +179,87 @@ function WhitelistForm({ name, value }: { name: string; value: Schema['MerchantI
     <Checkbox checked={enabled} onChange={(event) => setEnabled(event.target.checked)} description={t('polish.enterOneIpv4Ipv6OrCidrPer')}>{t('polish.enableIpAllowlist')}</Checkbox>
     <Field label={t('polish.allowedIpAddressesOrCidrs')} htmlFor={id}><Textarea id={id} className="font-mono" rows={5} value={text} onChange={(event) => setText(event.target.value)} /></Field>{invalid && <Notice tone="error">{t('polish.enterUpTo100ValidIpAddresses')}</Notice>}<FormActions className="border-t-[0.5px] border-border pt-5"><Button type="submit" variant="primary">{t('polish.saveAllowlist')}</Button></FormActions>
   </form>{pending && <Dialog title={t('polish.confirmIpAllowlistSave')} description={t('polish.confirmThatYourServerSOutboundIp')} busy={action.busy} onClose={() => setPending(null)} footer={<Button variant="primary" loading={action.busy} onClick={() => { void action.run(async () => { await api.saveWhitelist(pending); setPending(null); await invalidateCollection(client, name) }) }}>{action.busy ? t('polish.submitting') : t('polish.confirmAllowlistSave')}</Button>}>{action.error != null && <ModuleError error={action.error} />}</Dialog>}</Card>
+}
+
+function CallbackSettingsCard({ name }: { name: string }) {
+  const { t } = useTranslation()
+  const query = useQuery({ queryKey: ['merchant', name, 'callback-settings'], queryFn: ({ signal }) => api.callbackSettings(signal) })
+  return <Card aria-label={t('tools.callback.title')}>
+    <SectionHeader title={t('tools.callback.title')} description={t('tools.callback.description')} />
+    {query.isPending && <Skeleton className="h-20" />}
+    {query.isError && <ModuleError error={query.error} retry={() => { void query.refetch() }} />}
+    {query.data && <CallbackSettingsForm name={name} value={query.data} />}
+  </Card>
+}
+
+function CallbackSettingsForm({ name, value }: { name: string; value: Schema['MerchantCallbackSettings'] }) {
+  const { t } = useTranslation()
+  const client = useQueryClient(), action = useLocalAction()
+  const [hideName, setHideName] = useState(value.hide_name)
+  const [saved, setSaved] = useState(false)
+  return <form className="flex flex-col gap-5" onSubmit={(event) => {
+    event.preventDefault()
+    setSaved(false)
+    void action.run(async () => {
+      const result = await api.saveCallbackSettings({ hide_name: hideName })
+      client.setQueryData(['merchant', name, 'callback-settings'], result)
+      setHideName(result.hide_name)
+      setSaved(true)
+    })
+  }}>
+    <Checkbox checked={hideName} disabled={action.busy} description={t('tools.callback.hideNameHint')} onChange={(event) => { setHideName(event.target.checked); setSaved(false) }}>{t('tools.callback.hideName')}</Checkbox>
+    {saved && <Notice tone="success">{t('tools.callback.saved')}</Notice>}
+    {action.error != null && <ModuleError error={action.error} />}
+    <FormActions><Button type="submit" variant="primary" loading={action.busy}>{t('tools.callback.save')}</Button></FormActions>
+  </form>
+}
+
+const testPaymentErrors = ['SUBSCRIPTION_INACTIVE', 'AMOUNT_OUT_OF_RANGE', 'AMOUNT_CAPACITY_EXHAUSTED', 'DEVICE_OFFLINE'] as const
+
+function TestPaymentCard({ name }: { name: string }) {
+  const { t, i18n } = useTranslation()
+  const client = useQueryClient(), action = useLocalAction(), id = useId()
+  const [amount, setAmount] = useState('0.01'), [channel, setChannel] = useState('')
+  const [invalid, setInvalid] = useState(false)
+  const [created, setCreated] = useState<Schema['MerchantTestPayment'] | null>(null)
+  const problem = action.error instanceof APIError ? action.error.problem?.code : undefined
+  const code = testPaymentErrors.find((item) => item === problem)
+  async function create() {
+    const cents = yuanToCents(amount.trim())
+    const valid = cents !== null && cents >= 1 && cents <= 999999999
+    setInvalid(!valid)
+    if (!valid) return
+    setCreated(null)
+    await action.run(async () => {
+      const result = await api.testPayment({ amount_cents: cents, channel: channel === 'alipay' || channel === 'wxpay' ? channel : null })
+      if (action.active.current) setCreated(result)
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['merchant', name, 'orders'] }),
+        client.invalidateQueries({ queryKey: ['merchant', name, 'stats'] }),
+      ])
+    })
+  }
+  return <Card aria-label={t('tools.testPayment.title')}>
+    <SectionHeader title={t('tools.testPayment.title')} description={t('tools.testPayment.description')} />
+    <form className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); void create() }}>
+      <FieldGrid>
+        <Field label={t('tools.testPayment.amount')} htmlFor={id + '-amount'} error={invalid && t('tools.testPayment.amountInvalid')}>
+          <Input id={id + '-amount'} inputMode="decimal" autoComplete="off" value={amount} disabled={action.busy} aria-invalid={invalid || undefined} onChange={(event) => { setAmount(event.target.value); setInvalid(false) }} />
+        </Field>
+        <Field label={t('tools.testPayment.channel')} htmlFor={id + '-channel'}>
+          <Select id={id + '-channel'} value={channel} disabled={action.busy} onValueChange={setChannel}>
+            <SelectOption value="">{t('tools.testPayment.channelAny')}</SelectOption>
+            {sortChannels(['alipay', 'wxpay']).map((item) => <SelectOption key={item} value={item}>{t(`merchant.overview.channels.${item}`)}</SelectOption>)}
+          </Select>
+        </Field>
+      </FieldGrid>
+      <FormHint>{t('tools.testPayment.hint')}</FormHint>
+      {created && <Notice tone="success" action={<span className="flex flex-wrap gap-2">
+        <a href={created.cashier_url} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'primary', size: 'sm' })}>{t('tools.testPayment.openCashier')}</a>
+        <Link to="/orders/$tradeNo" params={{ tradeNo: created.trade_no }} className={buttonVariants({ size: 'sm' })}>{t('tools.testPayment.viewOrder')}</Link>
+      </span>}>{t('tools.testPayment.created', { time: formatOrderTime(created.expires_at, i18n.resolvedLanguage) })}</Notice>}
+      {action.error != null && (code ? <Notice tone="error">{t(`tools.testPayment.errors.${code}`)}</Notice> : <ModuleError error={action.error} />)}
+      <FormActions><Button type="submit" variant="primary" loading={action.busy}>{t('tools.testPayment.create')}</Button></FormActions>
+    </form>
+  </Card>
 }

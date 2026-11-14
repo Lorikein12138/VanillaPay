@@ -80,6 +80,13 @@ export function SecurityForm({
           </Field>
         ) : domainError && <FormError>{domainError}</FormError>}
       </div>
+      <Checkbox
+        checked={value.registration_review}
+        description={t('consoleSettings.registrationReviewHint')}
+        onChange={(e) => onChange({ ...value, registration_review: e.target.checked })}
+      >
+        {t('consoleSettings.registrationReview')}
+      </Checkbox>
       {(['zh_CN', 'en'] as const).map((lang) => (
         <AccountField
           key={lang}

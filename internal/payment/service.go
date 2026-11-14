@@ -73,12 +73,14 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{in.MerchantID}, false); err != nil {
 			return err
 		}
-		sourceIP := protocolSourceIP(ctx, in.SourceIP)
-		if err := s.eligibility.IPAllowed(ctx, tx, in.MerchantID, sourceIP); err != nil {
-			return err
+		if !in.test {
+			sourceIP := protocolSourceIP(ctx, in.SourceIP)
+			if err := s.eligibility.IPAllowed(ctx, tx, in.MerchantID, sourceIP); err != nil {
+				return err
+			}
 		}
 		var banned bool
-		if err := tx.QueryRow(ctx, `SELECT banned_at IS NOT NULL FROM merchants WHERE id=$1`, in.MerchantID).Scan(&banned); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT banned_at IS NOT NULL OR approval_state<>'approved' FROM merchants WHERE id=$1`, in.MerchantID).Scan(&banned); err != nil {
 			return err
 		}
 		if banned {
@@ -95,12 +97,19 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 		if err != nil {
 			return err
 		}
-		if err := enforceCreateRisk(ctx, tx, in, risk); err != nil {
-			return err
+		if !in.test {
+			if err := enforceCreateRisk(ctx, tx, in, risk); err != nil {
+				return err
+			}
 		}
 		if found {
 			result = existing
 			return nil
+		}
+		if in.test {
+			if err := s.closePendingTestOrdersTx(ctx, tx, in.Actor, in.MerchantID); err != nil {
+				return err
+			}
 		}
 		snapshot, err := s.eligibility.CheckCreateTx(ctx, tx, in.MerchantID, in.OriginalCents)
 		if err != nil {
@@ -157,7 +166,7 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 				return apiErr("AMOUNT_CAPACITY_EXHAUSTED", 409)
 			}
 		}
-		result = OrderDTO{TradeNo: tradeNo, OutTradeNo: in.OutTradeNo, MerchantID: strconv.FormatInt(in.MerchantID, 10), Purpose: in.Purpose, Protocol: in.Protocol, Name: truncateUTF8(in.Name, 127), ProductID: in.ProductID, Param: in.Param, OriginalCents: in.OriginalCents, Status: "pending", CreatedAt: created, ExpiresAt: expires, CallbackStatus: "none"}
+		result = OrderDTO{TradeNo: tradeNo, OutTradeNo: in.OutTradeNo, MerchantID: strconv.FormatInt(in.MerchantID, 10), Purpose: in.Purpose, Protocol: in.Protocol, Name: truncateUTF8(in.Name, 127), ProductID: in.ProductID, Param: in.Param, OriginalCents: in.OriginalCents, Status: "pending", CreatedAt: created, ExpiresAt: expires, CallbackStatus: "none", IsTest: in.test}
 		if channel != "" {
 			v := channel
 			result.Channel = &v
@@ -166,7 +175,7 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 			v := *actual
 			result.ActualCents = &v
 		}
-		return auditOrderTx(ctx, tx, in.Actor, in.MerchantID, "order.create", tradeNo, map[string]any{"protocol": in.Protocol, "channel": channel})
+		return auditOrderTx(ctx, tx, in.Actor, in.MerchantID, "order.create", tradeNo, map[string]any{"protocol": in.Protocol, "channel": channel, "test": in.test})
 	})
 	return result, err
 }
@@ -905,24 +914,7 @@ func (s *Service) createRefundMailTx(ctx context.Context, tx pgx.Tx, merchantID 
 	if err := tx.QueryRow(ctx, `SELECT email_normalized,COALESCE(preferences->>'locale','zh-CN') FROM merchants WHERE id=$1`, merchantID).Scan(&recipient, &locale); err != nil {
 		return err
 	}
-	payload, err := json.Marshal(mailtmpl.Payload{Locale: locale, TradeNo: trade})
-	if err != nil {
-		return err
-	}
-	recipientCipher, err := platform.Encrypt(s.key[:], []byte(recipient), s.random)
-	if err != nil {
-		return err
-	}
-	payloadCipher, err := platform.Encrypt(s.key[:], payload, s.random)
-	if err != nil {
-		return err
-	}
-	public, err := randomOpaque(s.random, 18)
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO mail_deliveries(public_id,dedupe_key,template,recipient_cipher,payload_cipher,state) VALUES($1,$2,$3,$4,$5,'queued') ON CONFLICT(dedupe_key) DO NOTHING`, public, "refund:"+refundID, mailtmpl.RefundRequest, recipientCipher, payloadCipher)
-	return err
+	return s.queueMerchantMailTx(ctx, tx, recipient, mailtmpl.RefundRequest, "refund:"+refundID, mailtmpl.Payload{Locale: locale, TradeNo: trade})
 }
 
 func (s *Service) scheduleCallbackTx(ctx context.Context, tx pgx.Tx, orderID int64, trade string, at time.Time) error {
@@ -995,7 +987,7 @@ func (s *Service) orderCreateTx(ctx context.Context, tx pgx.Tx, merchantID int64
 	if err != nil {
 		return 0, created, err
 	}
-	err = tx.QueryRow(ctx, `INSERT INTO orders(trade_no,merchant_id,out_trade_no,purpose,protocol,name,product_id,param,original_cents,actual_cents,amount_offset_cents,channel,allowed_channels_snapshot,qr_asset_id,notify_url,return_url,signing_key_version,signing_key_cipher,merchant_username_snapshot,merchant_pid_snapshot,buyer_hint,clientip,channel_locked_at,expires_at,status,created_at,create_request_digest) SELECT $1,m.id,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,m.username,m.pid,$18,$19,CASE WHEN $11::text IS NULL THEN NULL ELSE $22::timestamptz END,$20,'pending',$22::timestamptz,$23 FROM merchants m WHERE m.id=$21 RETURNING id,created_at`, trade, in.OutTradeNo, in.Purpose, in.Protocol, name, in.ProductID, in.Param, in.OriginalCents, actualValue, offsetValue, channelValue, snapshot.Channels, assetValue, notify, returnURL, keyVersion, keyCipher, in.BuyerHint, clientIP, expires, merchantID, createdAt, digest).Scan(&id, &created)
+	err = tx.QueryRow(ctx, `INSERT INTO orders(trade_no,merchant_id,out_trade_no,purpose,protocol,name,product_id,param,original_cents,actual_cents,amount_offset_cents,channel,allowed_channels_snapshot,qr_asset_id,notify_url,return_url,signing_key_version,signing_key_cipher,merchant_username_snapshot,merchant_pid_snapshot,buyer_hint,clientip,channel_locked_at,expires_at,status,created_at,create_request_digest,is_test) SELECT $1,m.id,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,m.username,m.pid,$18,$19,CASE WHEN $11::text IS NULL THEN NULL ELSE $22::timestamptz END,$20,'pending',$22::timestamptz,$23,$24 FROM merchants m WHERE m.id=$21 RETURNING id,created_at`, trade, in.OutTradeNo, in.Purpose, in.Protocol, name, in.ProductID, in.Param, in.OriginalCents, actualValue, offsetValue, channelValue, snapshot.Channels, assetValue, notify, returnURL, keyVersion, keyCipher, in.BuyerHint, clientIP, expires, merchantID, createdAt, digest, in.test).Scan(&id, &created)
 	return id, created, err
 }
 
@@ -1040,7 +1032,7 @@ func validateExternalCommand(in CreateCommand) error {
 	if !validOutTradeNo(in.OutTradeNo) || len([]byte(strings.TrimSpace(in.Name))) == 0 || len([]byte(in.Name)) > 4096 || len([]byte(in.Param)) > 1024 || len([]byte(in.ProductID)) > 64 || in.OriginalCents < 1 || in.OriginalCents > MaxAmountCents {
 		return apiErr("VALIDATION_ERROR", 400)
 	}
-	if in.NotifyURL == "" || !validCallbackURL(in.NotifyURL) {
+	if (in.NotifyURL == "" && !in.test) || (in.NotifyURL != "" && !validCallbackURL(in.NotifyURL)) {
 		return apiErr("INVALID_URL", 400)
 	}
 	if in.ReturnURL != "" && !validReturnURL(in.ReturnURL) {

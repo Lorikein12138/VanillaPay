@@ -15,7 +15,7 @@ import { OrderActionDialog } from './OrderActionDialog'
 import { FormHint } from '@/components/ui/auth-screen'
 import { availableOrderActions, orderErrorKey, type OrderAction, type OrderFilters } from './orders-data'
 import { money } from './overview-data'
-import { OrderChannel, OrderStatus, OrderTime } from './OrderParts'
+import { OrderChannel, OrderStatus, OrderTime, TestBadge } from './OrderParts'
 
 type Detail = components['schemas']['OrderDetail']
 
@@ -69,7 +69,10 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
         back={back}
         title={t('merchant.orders.detail')}
         meta={
-          <CopyIdentifier value={order.trade_no} label={t('merchant.orders.copyTradeNo')} />
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <CopyIdentifier value={order.trade_no} label={t('merchant.orders.copyTradeNo')} />
+            {order.is_test && <TestBadge />}
+          </span>
         }
         actions={actions.length > 0 && (
           <section aria-label={t('merchant.orders.operations')} className="flex flex-col items-start gap-1.5 sm:items-end">

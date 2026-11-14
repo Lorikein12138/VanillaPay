@@ -27,7 +27,7 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 			"expected_version": version,
 			"value": map[string]any{
 				"turnstile_site_key": "recovery-test-site-key", "turnstile_secret": "recovery-test-secret", "turnstile_enabled": true, "turnstile_token": "ok:settings_security",
-				"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
+				"restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
 			},
 		}, adminSession)
 		assertRecoveryAPIError(t, configured, http.StatusOK, "")
@@ -130,7 +130,7 @@ func TestHTTP_ConsoleRecoveryRestrictions(t *testing.T) {
 		admin := bootstrapRecoveryAdmin(t, fixture, "recovery-existing-secret")
 		initial := updateSettingsGroupHTTP(t, fixture, admin, "security", map[string]any{
 			"turnstile_site_key": "existing-site-key", "turnstile_secret": "existing-recovery-secret", "turnstile_enabled": true, "turnstile_token": "ok:settings_security",
-			"restrict_email_domains": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
+			"restrict_email_domains": false, "registration_review": false, "email_domains": []string{}, "ban_contact": map[string]string{"zh_CN": "help@example.test", "en": "help@example.test"},
 		})
 		assertRecoveryAPIError(t, initial, http.StatusOK, "")
 

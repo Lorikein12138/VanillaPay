@@ -148,6 +148,8 @@
       "turnstile": "人机验证未完成或已过期，请重新验证。",
       "csrf": "安全验证失败，请刷新页面后重试。",
       "banned": "商户账号已停用，请联系平台管理员。",
+      "pendingReview": "账号正在等待管理员审核，通过后会发邮件通知你。",
+      "rejected": "注册申请未通过审核，原因已发到注册邮箱。如有疑问请联系平台管理员。",
       "rateLimit": "操作过于频繁，请稍后重试。",
       "forbidden": "没有权限执行此操作，请联系平台管理员。",
       "session": "登录已失效，请重新登录。",
@@ -163,10 +165,17 @@
     "notices": {
       "password_changed": "密码已修改，所有会话已失效，请重新登录。",
       "registered": "注册成功，请登录。",
+      "pending_review": "注册成功。请登录查看审核状态，审核结果也会发到你的邮箱。",
       "password_reset": "密码已重置，旧会话已失效，请使用新密码登录。"
     }
   },
   "merchant": {
+    "registrationReview": {
+      "pending": "注册审核中",
+      "rejected": "注册审核未通过",
+      "hint": "审核通过后即可使用商户后台和收款功能。审核结果也会发到你的邮箱。",
+      "refresh": "刷新审核状态"
+    },
     "integration": {
       "endpoints": { "submit": "跳转支付", "mapi": "创建订单", "create": "创建订单", "query": "查询订单", "refund": "申请退款", "info": "查询商户信息", "orders": "批量查询订单", "close": "关闭订单", "refundquery": "查询退款" }
     },
@@ -266,6 +275,7 @@
       "information": "订单信息",
       "operations": "订单操作",
       "replayLimitReached": "已达重发上限（{{used}}/{{limit}}）",
+      "testBadge": "测试",
       "outTradeNo": "商户订单号",
       "originalAmount": "原始金额",
       "actualAmount": "实付金额",
@@ -413,6 +423,7 @@
     "registrationIsClosed": "注册未开放",
     "checkYourUsernameEmailVerificationCodeAnd": "请检查用户名、邮箱、验证码、协议，以及两次输入一致的 12–128 位密码。",
     "registerAsAMerchant": "注册商户",
+    "registrationReviewNotice": "注册后可登录查看审核状态。审核通过后即可收款，结果也会发到你的邮箱。",
     "setANewPassword": "设置新密码",
     "username": "用户名",
     "332LettersNumbersUnderscoresOrHyphens": "3–32 位字母、数字、下划线或连字符",
@@ -874,7 +885,11 @@
         },
         "admin_created": "管理员创建商户",
         "ban": "封禁商户",
-        "unban": "解除封禁"
+        "unban": "解除封禁",
+        "approve": "通过注册审核",
+        "reject": "拒绝注册",
+        "update_notify_domains": "修改回调域名白名单",
+        "update_callback_settings": "修改回调设置"
       },
       "device": {
         "binding_issue": "生成绑定码",
@@ -892,7 +907,8 @@
       "order": {
         "create": "创建订单",
         "paid": "订单支付",
-        "refunded": "订单退款"
+        "refunded": "订单退款",
+        "close": "关闭订单"
       },
       "orders": {
         "export": "导出订单"
@@ -917,6 +933,35 @@
       },
       "admin": {
         "bootstrap": "初始化管理员"
+      }
+    }
+  },
+  "tools": {
+    "callback": {
+      "title": "回调设置",
+      "description": "控制异步通知与支付完成跳转里携带的商品名称。",
+      "hideName": "回调中隐藏商品名称",
+      "hideNameHint": "开启后，异步通知和支付完成跳转里的 name 固定为 product，签名按替换后的值计算。订单列表与收银台仍显示原商品名称。",
+      "saved": "已保存回调设置。",
+      "save": "保存回调设置"
+    },
+    "testPayment": {
+      "title": "测试支付",
+      "description": "用你的收款码付一笔小额订单，确认收款码与监控设备能正常到账。",
+      "hint": "测试订单不发异步通知，在订单列表中带「测试」标签。新建测试订单时，上一笔未支付的测试订单会自动关闭。",
+      "amount": "金额（元）",
+      "amountInvalid": "请输入 0.01 至 9999999.99 之间的金额，最多两位小数。",
+      "channel": "支付渠道",
+      "channelAny": "由付款人在收银台选择",
+      "create": "创建测试订单",
+      "created": "测试订单已创建，请在 {{time}} 前打开收银台扫码付款。",
+      "openCashier": "打开收银台",
+      "viewOrder": "查看订单",
+      "errors": {
+        "SUBSCRIPTION_INACTIVE": "当前没有生效的套餐，无法创建测试订单。",
+        "AMOUNT_OUT_OF_RANGE": "金额超出套餐允许的单笔范围。",
+        "AMOUNT_CAPACITY_EXHAUSTED": "该金额附近暂无可用的收款金额，请换一个金额再试。",
+        "DEVICE_OFFLINE": "监控设备离线，请先让设备上线。"
       }
     }
   },
@@ -1181,6 +1226,8 @@
     "emailDomainLineError": "第 {{line}} 行的邮箱域名规则无效。",
     "banContactZh": "封禁联系信息（中文）",
     "banContactEn": "封禁联系信息（英文）",
+    "registrationReview": "新注册商户须经管理员审核",
+    "registrationReviewHint": "开启后，新注册商户可登录查看审核状态，通过审核后才能收款。关闭后，新注册商户无需审核，之前的待审核商户仍需审核。",
     "min": "最低金额（元）",
     "max": "最高金额（元）",
     "floatMin": "最低浮动额（元）",
@@ -1277,6 +1324,19 @@
     "grantHint": "必填，最多 500 字节（约 160 个汉字）。",
     "banResult": "已停用商户，已关闭 {{count}} 笔待支付订单。",
     "unbanned": "已恢复商户。",
+    "approval": "审核",
+    "approvalStates": { "pending": "待审核", "approved": "已通过", "rejected": "已拒绝" },
+    "approve": "通过审核",
+    "reject": "拒绝注册",
+    "approveDescription": "通过后商户即可登录并正常使用，系统会发邮件通知商户。",
+    "rejectDescription": "拒绝后商户无法登录，系统会把原因发邮件告知商户。之后仍可改为通过。",
+    "rejectHint": "必填，最多 500 个字，会写进给商户的邮件。",
+    "approved": "已通过审核，已通知商户。",
+    "rejected": "已拒绝注册，已通知商户。",
+    "approvalConflict": "审核状态已被其他操作修改，已刷新详情。",
+    "pendingNotice": "该商户可登录查看审核状态，通过审核后才能创建订单。",
+    "reviewedAt": "审核时间",
+    "rejectReason": "拒绝原因",
     "reset": "重置密码",
     "newPassword": "新密码",
     "resetDone": "密码已重置。",

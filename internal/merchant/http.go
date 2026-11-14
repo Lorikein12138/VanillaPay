@@ -30,6 +30,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/console/merchants", h.Create)
 	r.Post("/console/merchants/{id}/ban", h.Ban)
 	r.Post("/console/merchants/{id}/unban", h.Unban)
+	r.Post("/console/merchants/{id}/approve", h.Approve)
+	r.Post("/console/merchants/{id}/reject", h.Reject)
 	r.Post("/console/merchants/{id}/reset-password", h.ResetPassword)
 	r.Get("/merchant/integration", h.Integration)
 	r.Post("/merchant/integration/reset-key", h.ResetKey)
@@ -37,10 +39,12 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Put("/merchant/integration/ip-whitelist", h.IPWhitelist)
 	r.Get("/merchant/integration/notify-domains", h.GetNotifyDomains)
 	r.Put("/merchant/integration/notify-domains", h.PutNotifyDomains)
+	r.Get("/merchant/integration/callback-settings", h.GetCallbackSettings)
+	r.Put("/merchant/integration/callback-settings", h.PutCallbackSettings)
 }
 
 func (h *Handler) ListConsole(w http.ResponseWriter, r *http.Request) {
-	q := ConsoleMerchantQuery{Query: r.URL.Query().Get("query"), Cursor: r.URL.Query().Get("cursor")}
+	q := ConsoleMerchantQuery{Query: r.URL.Query().Get("query"), Cursor: r.URL.Query().Get("cursor"), ApprovalState: r.URL.Query().Get("approval_state")}
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		limit, err := strconv.Atoi(raw)
 		if err != nil {

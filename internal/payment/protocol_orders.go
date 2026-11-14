@@ -29,16 +29,16 @@ func createRequestDigest(in CreateCommand) []byte {
 func (s *Service) reusableOrder(ctx context.Context, tx pgx.Tx, in CreateCommand, digest []byte) (OrderDTO, bool, error) {
 	var d OrderDTO
 	var oldDigest []byte
-	err := tx.QueryRow(ctx, `SELECT trade_no,purpose,protocol,name,product_id,param,original_cents,channel,actual_cents,status,created_at,expires_at,create_request_digest
+	err := tx.QueryRow(ctx, `SELECT trade_no,purpose,protocol,name,product_id,param,original_cents,channel,actual_cents,status,created_at,expires_at,create_request_digest,is_test
 		FROM orders WHERE merchant_id=$1 AND out_trade_no=$2 FOR UPDATE`, in.MerchantID, in.OutTradeNo).
-		Scan(&d.TradeNo, &d.Purpose, &d.Protocol, &d.Name, &d.ProductID, &d.Param, &d.OriginalCents, &d.Channel, &d.ActualCents, &d.Status, &d.CreatedAt, &d.ExpiresAt, &oldDigest)
+		Scan(&d.TradeNo, &d.Purpose, &d.Protocol, &d.Name, &d.ProductID, &d.Param, &d.OriginalCents, &d.Channel, &d.ActualCents, &d.Status, &d.CreatedAt, &d.ExpiresAt, &oldDigest, &d.IsTest)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OrderDTO{}, false, nil
 	}
 	if err != nil {
 		return OrderDTO{}, false, err
 	}
-	if d.Purpose != "external" || d.Protocol != in.Protocol || d.Status != "pending" || !d.ExpiresAt.After(s.clock.Now()) ||
+	if d.IsTest != in.test || d.Purpose != "external" || d.Protocol != in.Protocol || d.Status != "pending" || !d.ExpiresAt.After(s.clock.Now()) ||
 		!equalDigest(digest, oldDigest) || in.Channel != "" && (d.Channel == nil || *d.Channel != in.Channel) {
 		return OrderDTO{}, false, apiErr("DUPLICATE_ORDER", 409)
 	}
