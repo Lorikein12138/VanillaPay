@@ -61,7 +61,9 @@ func (h *Handler) v2Create(w http.ResponseWriter, r *http.Request, api bool) {
 		return
 	}
 	data := map[string]any{"code": 0, "msg": "success", "trade_no": order.TradeNo, "pay_type": "jump", "pay_info": cashier, "payurl": cashier}
-	h.appendInlineQR(r, p, in, order, data)
+	if p.Get("inline_qr") == "1" {
+		h.appendPaymentQR(r, in, order, true, data)
+	}
 	h.v2JSON(w, http.StatusOK, data)
 }
 
