@@ -3028,12 +3028,24 @@ export interface components {
             msg: string;
             error_code: components["schemas"]["ErrorCode"];
         };
+        /** @description 内联二维码可用时，qrcode、actual_money、type 和 expires_at 一起返回。未返回这组字段时，使用 payurl 跳转到收银台。 */
         V1Created: {
             /** @enum {integer} */
             code: 1;
             msg: string;
             trade_no: string;
             payurl: string;
+            /**
+             * Format: uri
+             * @description 支付二维码图片的绝对 URL。
+             */
+            qrcode?: string;
+            /** @description 实际应付金额，单位为元，以十进制字符串表示。 */
+            actual_money?: string;
+            /** @enum {string} */
+            type?: "alipay" | "wxpay";
+            /** Format: date-time */
+            expires_at?: string;
         };
         V1Order: {
             /** @enum {integer} */
@@ -3085,6 +3097,7 @@ export interface components {
             key_id: string;
             sign: string;
         };
+        /** @description 内联二维码可用时，qrcode、actual_money、type 和 expires_at 一起返回。未返回这组字段时，使用 payurl 跳转到收银台。 */
         V2Created: {
             /** @enum {integer} */
             code: 0;
@@ -3094,6 +3107,17 @@ export interface components {
             pay_info: string;
             /** @description 与 pay_info 相同的收银台 URL。 */
             payurl: string;
+            /**
+             * Format: uri
+             * @description 支付二维码图片的绝对 URL。
+             */
+            qrcode?: string;
+            /** @description 实际应付金额，单位为元，以十进制字符串表示。 */
+            actual_money?: string;
+            /** @enum {string} */
+            type?: "alipay" | "wxpay";
+            /** Format: date-time */
+            expires_at?: string;
             timestamp: string;
             /** @enum {string} */
             sign_type: "RSA";
@@ -3167,6 +3191,8 @@ export interface components {
             param?: string;
             product_id?: string;
             expire_seconds?: string;
+            /** @description 参与签名。仅 POST /mapi.php 的表单值精确为 `1` 时请求内联二维码。提交跳转路由 /submit.php 不启用此功能。 */
+            inline_qr?: string;
             sign: string;
             sign_type?: string;
         };
@@ -3186,6 +3212,8 @@ export interface components {
             param?: string;
             product_id?: string;
             expire_seconds?: string;
+            /** @description 参与签名。仅 POST /api/pay/create 的表单值精确为 `1` 时请求内联二维码。提交跳转路由 /api/pay/submit 不启用此功能。 */
+            inline_qr?: string;
             sign: string;
             sign_type: string;
             timestamp: string;
@@ -7365,6 +7393,8 @@ export interface operations {
                 trade_no?: string;
                 expires?: string;
                 signature?: string;
+                /** @description 仅值精确为 `1` 时使用下单响应中的内联二维码签名模式。需要同时提供有效的 trade_no、expires 和 signature，仅适用于未过期、待支付的非测试外部订单所绑定的二维码。商户须已通过审核且未被封禁，收款设备须在线，收银台当前无需人机验证，请求 IP 与订单记录的买家 IP 均未被封禁。 */
+                inline?: string;
             };
             header?: never;
             path: {

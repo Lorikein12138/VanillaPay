@@ -5034,6 +5034,12 @@ paths:
           in: query
           schema:
             type: string
+        - name: inline
+          in: query
+          required: false
+          description: 仅值精确为 `1` 时使用下单响应中的内联二维码签名模式。需要同时提供有效的 trade_no、expires 和 signature，仅适用于未过期、待支付的非测试外部订单所绑定的二维码。商户须已通过审核且未被封禁，收款设备须在线，收银台当前无需人机验证，请求 IP 与订单记录的买家 IP 均未被封禁。
+          schema:
+            type: string
       description: 公开 logo 无需鉴权；商户私有二维码需要所属商户会话，或有效的 checkout trade_no/expires/signature。
   /submit.php:
     get:
@@ -5449,7 +5455,7 @@ components:
       type: apiKey
       in: query
       name: signature
-      description: 收银台二维码访问签名；同时需要 trade_no 与 expires。
+      description: 收银台或内联二维码访问签名，按对应访问模式校验，同时需要 trade_no 与 expires。
   responses:
     Error400:
       description: 请求失败；error.code 使用 ErrorCode 枚举
@@ -8522,6 +8528,7 @@ components:
       additionalProperties: false
     V1Created:
       type: object
+      description: 内联二维码可用时，qrcode、actual_money、type 和 expires_at 一起返回。未返回这组字段时，使用 payurl 跳转到收银台。
       properties:
         code:
           type: integer
@@ -8533,6 +8540,19 @@ components:
           type: string
         payurl:
           type: string
+        qrcode:
+          type: string
+          format: uri
+          description: 支付二维码图片的绝对 URL。
+        actual_money:
+          type: string
+          description: 实际应付金额，单位为元，以十进制字符串表示。
+        type:
+          type: string
+          enum: [alipay, wxpay]
+        expires_at:
+          type: string
+          format: date-time
       required:
         - code
         - msg
@@ -8678,6 +8698,7 @@ components:
       additionalProperties: false
     V2Created:
       type: object
+      description: 内联二维码可用时，qrcode、actual_money、type 和 expires_at 一起返回。未返回这组字段时，使用 payurl 跳转到收银台。
       properties:
         code:
           type: integer
@@ -8694,6 +8715,19 @@ components:
         payurl:
           type: string
           description: 与 pay_info 相同的收银台 URL。
+        qrcode:
+          type: string
+          format: uri
+          description: 支付二维码图片的绝对 URL。
+        actual_money:
+          type: string
+          description: 实际应付金额，单位为元，以十进制字符串表示。
+        type:
+          type: string
+          enum: [alipay, wxpay]
+        expires_at:
+          type: string
+          format: date-time
         timestamp:
           type: string
         sign_type:
@@ -8889,6 +8923,9 @@ components:
           type: string
         expire_seconds:
           type: string
+        inline_qr:
+          type: string
+          description: 参与签名。仅 POST /mapi.php 的表单值精确为 `1` 时请求内联二维码。提交跳转路由 /submit.php 不启用此功能。
         sign:
           type: string
         sign_type:
@@ -8933,6 +8970,9 @@ components:
           type: string
         expire_seconds:
           type: string
+        inline_qr:
+          type: string
+          description: 参与签名。仅 POST /api/pay/create 的表单值精确为 `1` 时请求内联二维码。提交跳转路由 /api/pay/submit 不启用此功能。
         sign:
           type: string
         sign_type:

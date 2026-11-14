@@ -24,6 +24,20 @@ type PaymentRisk struct {
 	CheckoutTurnstileEnabled bool     `json:"checkout_turnstile_enabled"`
 }
 
+func CheckoutIPBlocked(ip string, rules []string) bool {
+	address, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	for _, rule := range rules {
+		if prefix, err := netip.ParsePrefix(rule); err == nil &&
+			(prefix.Contains(address.Unmap()) || prefix.Contains(netip.AddrFrom16(address.As16()))) {
+			return true
+		}
+	}
+	return false
+}
+
 func NormalizePaymentName(value string) string {
 	return strings.ToLower(norm.NFKC.String(value))
 }

@@ -56,7 +56,9 @@ func (h *Handler) v2Create(w http.ResponseWriter, r *http.Request, api bool) {
 		http.Redirect(w, r, "/pay/"+url.PathEscape(order.TradeNo), status)
 		return
 	}
-	h.v2JSON(w, http.StatusOK, map[string]any{"code": 0, "msg": "success", "trade_no": order.TradeNo, "pay_type": "jump", "pay_info": cashier, "payurl": cashier})
+	data := map[string]any{"code": 0, "msg": "success", "trade_no": order.TradeNo, "pay_type": "jump", "pay_info": cashier, "payurl": cashier}
+	h.appendInlineQR(r, p, in, order, data)
+	h.v2JSON(w, http.StatusOK, data)
 }
 
 func (h *Handler) v2Action(requireRSA bool, action func(http.ResponseWriter, *http.Request, int64, url.Values)) http.HandlerFunc {

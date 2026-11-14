@@ -59,7 +59,9 @@ func (h *Handler) v1Create(w http.ResponseWriter, r *http.Request, api bool) {
 	}
 	payURL := h.cashierURL(order.TradeNo)
 	if api {
-		v1JSON(w, http.StatusOK, map[string]any{"code": 1, "msg": "success", "trade_no": order.TradeNo, "payurl": payURL})
+		data := map[string]any{"code": 1, "msg": "success", "trade_no": order.TradeNo, "payurl": payURL}
+		h.appendInlineQR(r, p, in, order, data)
+		v1JSON(w, http.StatusOK, data)
 		return
 	}
 	status := http.StatusSeeOther

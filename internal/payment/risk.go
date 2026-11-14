@@ -15,21 +15,10 @@ import (
 )
 
 func enforceCheckoutIP(ip string, rules []string) error {
-	address, parseErr := netip.ParseAddr(ip)
-	if parseErr == nil && blacklisted(address, rules) {
+	if platform.CheckoutIPBlocked(ip, rules) {
 		return apiErr("IP_BLOCKED", 403)
 	}
 	return nil
-}
-
-func blacklisted(address netip.Addr, rules []string) bool {
-	for _, rule := range rules {
-		if prefix, err := netip.ParsePrefix(rule); err == nil &&
-			(prefix.Contains(address.Unmap()) || prefix.Contains(netip.AddrFrom16(address.As16()))) {
-			return true
-		}
-	}
-	return false
 }
 
 func enforceCreateRisk(ctx context.Context, tx pgx.Tx, in CreateCommand, risk platform.PaymentRisk) error {
