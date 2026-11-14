@@ -339,6 +339,29 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		requireRiskError(t, saveRisk(t, fixture, platform.PaymentRisk{}), "")
 	})
 
+	t.Run("standard retries check current eligibility", func(t *testing.T) {
+		const out = "standard-retry-eligibility"
+		data := create(t, "v1", out, "wxpay", "14.00", ordinary, clientIP, "")
+		if data["qrcode"] != channels[1].payload {
+			t.Fatalf("expected standard QR: %v", data)
+		}
+		trade := data["trade_no"]
+		requireRiskError(t, saveRisk(t, fixture, platform.PaymentRisk{IPBlacklist: []string{clientIP}}), "")
+		if got := assertCashier(t, "v1", create(t, "v1", out, "wxpay", "14.00", ordinary, "198.51.100.81", ""), false); got != trade {
+			t.Fatalf("IP-blocked retry changed order: %s", got)
+		}
+		requireRiskError(t, saveRisk(t, fixture, platform.PaymentRisk{}), "")
+		if _, err := db.Pool.Exec(t.Context(), `UPDATE devices SET last_seen_at=$1 WHERE merchant_id=$2`, db.Clock.Now().Add(-90*time.Second), id); err != nil {
+			t.Fatal(err)
+		}
+		if got := assertCashier(t, "v1", create(t, "v1", out, "wxpay", "14.00", ordinary, clientIP, ""), false); got != trade {
+			t.Fatalf("offline retry changed order: %s", got)
+		}
+		if _, err := db.Pool.Exec(t.Context(), `UPDATE devices SET last_seen_at=$1 WHERE merchant_id=$2`, db.Clock.Now(), id); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Turnstile", func(t *testing.T) {
 		secret, err := platform.Encrypt(db.Key[:], []byte("local-siteverify"), rand.Reader)
 		if err != nil {
