@@ -14,6 +14,7 @@ import (
 	"vanillapay/internal/device"
 	"vanillapay/internal/merchant"
 	"vanillapay/internal/payment"
+	"vanillapay/internal/platform"
 	"vanillapay/internal/portal"
 	"vanillapay/internal/settings"
 	"vanillapay/internal/subscription"
@@ -52,6 +53,7 @@ func TestOpenAPI_JSONRequestTypes(t *testing.T) {
 		"POST /merchant/integration/reset-key":             merchant.ResetKeyRequest{},
 		"PUT /merchant/integration/rsa-public-key":         merchant.RSAKeyRequest{},
 		"PUT /merchant/integration/ip-whitelist":           merchant.IPWhitelistRequest{},
+		"PUT /merchant/integration/notify-domains":         merchant.NotifyDomains{},
 		"POST /device/bind":                                device.RedeemRequest{},
 		"POST /device/heartbeat":                           device.HeartbeatRequest{},
 		"POST /device/receipts":                            device.ReceiptRequest{},
@@ -76,6 +78,7 @@ func TestOpenAPI_JSONRequestTypes(t *testing.T) {
 		"POST /merchant/refunds/{id}/resolve":              payment.RefundResolution{},
 		"POST /merchant/orders/{trade_no}/callback-replay": struct{}{},
 		"POST /checkout/{tradeNo}/channel":                 payment.CheckoutChannelRequest{},
+		"POST /checkout/{tradeNo}/verify":                  payment.CheckoutVerifyRequest{},
 	}
 	seen := map[string]bool{}
 	for path, item := range testsupport.OpenAPI(t).Paths.Map() {
@@ -106,6 +109,7 @@ func TestOpenAPI_JSONRequestTypes(t *testing.T) {
 							"SecuritySettingsInput": settings.SecurityGroupRequest{},    // Includes the optional proof for enabling or changing Turnstile.
 							"RecoverySecurityInput": settings.RecoverySecurityRequest{}, // The one-time recovery session provides its own proof.
 							"SettingsGroupBounds":   settings.GroupBounds{},
+							"PaymentRisk":           platform.PaymentRisk{},
 							"BillingSettingsInput":  settings.BillingGroupRequest{},
 						}
 					}

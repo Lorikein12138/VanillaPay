@@ -56,6 +56,14 @@ func (s *Service) SavePlan(ctx context.Context, actor platform.Actor, in PlanCom
 	if err := validatePlan(in); err != nil {
 		return PlanDTO{}, subError("VALIDATION_ERROR", 400)
 	}
+	for field, amount := range map[string]*int64{"min_order_cents": in.MinOrderCents, "max_order_cents": in.MaxOrderCents, "daily_limit_cents": in.DailyLimitCents} {
+		if amount != nil && (*amount < 1 || *amount > platform.HardAmountLimit) {
+			return PlanDTO{}, platform.InvalidJSONField(field)
+		}
+	}
+	if in.MinOrderCents != nil && in.MaxOrderCents != nil && *in.MinOrderCents > *in.MaxOrderCents {
+		return PlanDTO{}, platform.InvalidJSONField("max_order_cents")
+	}
 	channels := canonicalChannels(in.Channels)
 	var id int64
 	var revision int64
@@ -63,7 +71,7 @@ func (s *Service) SavePlan(ctx context.Context, actor platform.Actor, in PlanCom
 	var created PlanDTO
 	err := sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if in.ID == "" {
-			if err := tx.QueryRow(ctx, `INSERT INTO plans(name_zh,name_en,price_cents,duration_days,channels,purchase_limit) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,revision,deleted_at`, strings.TrimSpace(in.Name.ZhCN), strings.TrimSpace(in.Name.En), in.PriceCents, in.DurationDays, channels, in.PurchaseLimit).Scan(&id, &revision, &deletedAt); err != nil {
+			if err := tx.QueryRow(ctx, `INSERT INTO plans(name_zh,name_en,price_cents,duration_days,channels,purchase_limit,min_order_cents,max_order_cents,daily_limit_cents) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,revision,deleted_at`, strings.TrimSpace(in.Name.ZhCN), strings.TrimSpace(in.Name.En), in.PriceCents, in.DurationDays, channels, in.PurchaseLimit, in.MinOrderCents, in.MaxOrderCents, in.DailyLimitCents).Scan(&id, &revision, &deletedAt); err != nil {
 				return err
 			}
 		} else {
@@ -75,7 +83,7 @@ func (s *Service) SavePlan(ctx context.Context, actor platform.Actor, in PlanCom
 			if in.Revision <= 0 {
 				return subError("VALIDATION_ERROR", 400)
 			}
-			err = tx.QueryRow(ctx, `UPDATE plans SET revision=revision+1,name_zh=$1,name_en=$2,price_cents=$3,duration_days=$4,channels=$5,purchase_limit=$6,updated_at=$7 WHERE id=$8 AND revision=$9 AND deleted_at IS NULL RETURNING revision,deleted_at`, strings.TrimSpace(in.Name.ZhCN), strings.TrimSpace(in.Name.En), in.PriceCents, in.DurationDays, channels, in.PurchaseLimit, s.clock.Now(), id, in.Revision).Scan(&revision, &deletedAt)
+			err = tx.QueryRow(ctx, `UPDATE plans SET revision=revision+1,name_zh=$1,name_en=$2,price_cents=$3,duration_days=$4,channels=$5,purchase_limit=$6,min_order_cents=$7,max_order_cents=$8,daily_limit_cents=$9,updated_at=$10 WHERE id=$11 AND revision=$12 AND deleted_at IS NULL RETURNING revision,deleted_at`, strings.TrimSpace(in.Name.ZhCN), strings.TrimSpace(in.Name.En), in.PriceCents, in.DurationDays, channels, in.PurchaseLimit, in.MinOrderCents, in.MaxOrderCents, in.DailyLimitCents, s.clock.Now(), id, in.Revision).Scan(&revision, &deletedAt)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return subError("VERSION_CONFLICT", 409)
 			}
@@ -87,6 +95,7 @@ func (s *Service) SavePlan(ctx context.Context, actor platform.Actor, in PlanCom
 			return err
 		}
 		created.ID = strconv.FormatInt(id, 10)
+		created.PlanLimits = in.PlanLimits
 		created.Revision = revision
 		created.Deleted = deletedAt != nil
 		return auditTx(ctx, tx, actor, "plan.save", created.ID, map[string]any{"revision": revision})
@@ -167,7 +176,7 @@ func (s *Service) ListPlans(ctx context.Context, includeDeleted bool, actor plat
 	if actor.Role != "admin" && actor.Role != "merchant" && actor.Role != "public" {
 		return nil, subError("UNAUTHENTICATED", 401)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT p.id,p.revision,p.name_zh,p.name_en,p.price_cents,p.duration_days,p.channels,p.purchase_limit,p.deleted_at FROM plans p WHERE ($1::boolean OR p.deleted_at IS NULL) ORDER BY p.id`, includeDeleted && actor.Role == "admin")
+	rows, err := s.pool.Query(ctx, `SELECT p.id,p.revision,p.name_zh,p.name_en,p.price_cents,p.duration_days,p.channels,p.purchase_limit,p.deleted_at,p.min_order_cents,p.max_order_cents,p.daily_limit_cents FROM plans p WHERE ($1::boolean OR p.deleted_at IS NULL) ORDER BY p.id`, includeDeleted && actor.Role == "admin")
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +186,7 @@ func (s *Service) ListPlans(ctx context.Context, includeDeleted bool, actor plat
 		var id int64
 		var p PlanDTO
 		var deleted *time.Time
-		if err := rows.Scan(&id, &p.Revision, &p.Name.ZhCN, &p.Name.En, &p.PriceCents, &p.DurationDays, &p.Channels, &p.PurchaseLimit, &deleted); err != nil {
+		if err := rows.Scan(&id, &p.Revision, &p.Name.ZhCN, &p.Name.En, &p.PriceCents, &p.DurationDays, &p.Channels, &p.PurchaseLimit, &deleted, &p.MinOrderCents, &p.MaxOrderCents, &p.DailyLimitCents); err != nil {
 			return nil, err
 		}
 		p.ID = strconv.FormatInt(id, 10)
@@ -331,7 +340,7 @@ func (s *Service) Purchase(ctx context.Context, actor platform.Actor, in Purchas
 		var plan PlanDTO
 		var channels []string
 		var deleted *time.Time
-		if err := tx.QueryRow(ctx, `SELECT id,revision,name_zh,name_en,price_cents,duration_days,channels,purchase_limit,deleted_at FROM plans WHERE id=$1 FOR UPDATE`, planID).Scan(&oldID, &plan.Revision, &plan.Name.ZhCN, &plan.Name.En, &plan.PriceCents, &plan.DurationDays, &channels, &plan.PurchaseLimit, &deleted); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT id,revision,name_zh,name_en,price_cents,duration_days,channels,purchase_limit,deleted_at,min_order_cents,max_order_cents,daily_limit_cents FROM plans WHERE id=$1 FOR UPDATE`, planID).Scan(&oldID, &plan.Revision, &plan.Name.ZhCN, &plan.Name.En, &plan.PriceCents, &plan.DurationDays, &channels, &plan.PurchaseLimit, &deleted, &plan.MinOrderCents, &plan.MaxOrderCents, &plan.DailyLimitCents); err != nil {
 			return subError("PLAN_UNAVAILABLE", 409)
 		}
 		if deleted != nil || plan.Revision != in.PlanRevision {
@@ -645,7 +654,7 @@ func (s *Service) Grant(ctx context.Context, actor platform.Actor, merchantID in
 			var plan PlanDTO
 			var deleted *time.Time
 			var channels []string
-			if err := tx.QueryRow(ctx, `SELECT id,revision,name_zh,name_en,price_cents,duration_days,channels,purchase_limit,deleted_at FROM plans WHERE id=$1`, planID).Scan(new(int64), &plan.Revision, &plan.Name.ZhCN, &plan.Name.En, &plan.PriceCents, &plan.DurationDays, &channels, &plan.PurchaseLimit, &deleted); err != nil || deleted != nil {
+			if err := tx.QueryRow(ctx, `SELECT id,revision,name_zh,name_en,price_cents,duration_days,channels,purchase_limit,deleted_at,min_order_cents,max_order_cents,daily_limit_cents FROM plans WHERE id=$1`, planID).Scan(new(int64), &plan.Revision, &plan.Name.ZhCN, &plan.Name.En, &plan.PriceCents, &plan.DurationDays, &channels, &plan.PurchaseLimit, &deleted, &plan.MinOrderCents, &plan.MaxOrderCents, &plan.DailyLimitCents); err != nil || deleted != nil {
 				return subError("PLAN_UNAVAILABLE", 409)
 			}
 			for _, ch := range in.Channels {

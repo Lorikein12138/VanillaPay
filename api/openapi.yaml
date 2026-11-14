@@ -1549,6 +1549,50 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MerchantIPWhitelist'
+  /api/v1/merchant/integration/notify-domains:
+    get:
+      operationId: get_api_v1_merchant_integration_notify_domains
+      summary: 读取商户回调域名白名单
+      security:
+        - MerchantSession: []
+      responses:
+        '200':
+          $ref: '#/components/responses/MerchantNotifyDomainsResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '500':
+          $ref: '#/components/responses/Error500'
+    put:
+      operationId: put_api_v1_merchant_integration_notify_domains
+      summary: 保存商户回调域名白名单
+      security:
+        - MerchantSession: []
+          CSRF: []
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantNotifyDomains'
+      responses:
+        '200':
+          $ref: '#/components/responses/MerchantNotifyDomainsResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '500':
+          $ref: '#/components/responses/Error500'
   /api/v1/device/bind:
     post:
       operationId: post_api_v1_device_bind
@@ -2000,6 +2044,7 @@ paths:
               - mail
               - security
               - payment
+              - risk
               - billing
         - name: Origin
           in: header
@@ -2013,7 +2058,7 @@ paths:
             schema:
               $ref: '#/components/schemas/SettingsUpdateGroup'
       description: >-
-        group 为 site/home/footer_legal/mail/security/payment/billing。正常会话为管理员；security 还接受修复专用恢复会话 +
+        group 为 site/home/footer_legal/mail/security/payment/risk/billing。正常会话为管理员；security 还接受修复专用恢复会话 +
         CSRF，仅允许修复 Turnstile。
   /api/v1/console/settings/mail/test:
     post:
@@ -4040,6 +4085,7 @@ paths:
     get:
       operationId: get_api_v1_checkout_tradeNo
       summary: GET /api/v1/checkout/{tradeNo}
+      description: 来源 IP 命中黑名单时返回 IP_BLOCKED。启用人机验证的待支付订单在验证前隐藏二维码、实际付款金额和可选渠道。
       security: []
       responses:
         '200':
@@ -4053,6 +4099,8 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/PaymentCheckoutDTO'
+        '403':
+          $ref: '#/components/responses/Error403'
         '404':
           $ref: '#/components/responses/Error404'
         '500':
@@ -4067,6 +4115,7 @@ paths:
     post:
       operationId: post_api_v1_checkout_tradeNo_channel
       summary: POST /api/v1/checkout/{tradeNo}/channel
+      description: 来源 IP 命中黑名单时返回 IP_BLOCKED。启用验证的待支付订单需要该订单的验证 Cookie，否则返回 CHECKOUT_VERIFICATION_REQUIRED。开启验证时，通过 GET 取得付款二维码。
       security: []
       responses:
         '200':
@@ -4115,6 +4164,52 @@ paths:
               required:
                 - channel
               additionalProperties: false
+  /api/v1/checkout/{tradeNo}/verify:
+    post:
+      operationId: post_api_v1_checkout_tradeNo_verify
+      summary: 验证收银台 Turnstile
+      description: 成功后设置绑定订单且不晚于订单到期的 HttpOnly、SameSite=Lax Cookie，HTTPS 时附加 Secure。关闭验证或订单已结束时直接返回 204。来源 IP 命中黑名单时返回 IP_BLOCKED。
+      security: []
+      parameters:
+        - name: tradeNo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                turnstile_token:
+                  type: string
+              required:
+                - turnstile_token
+      responses:
+        '204':
+          description: 验证完成或无需验证
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/Error400'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+        '503':
+          $ref: '#/components/responses/Error503'
   /api.php:
     get:
       operationId: get_api_php
@@ -4440,8 +4535,11 @@ paths:
         - PaymentV2Signature: []
       responses:
         '200':
-          description: 协议结果；业务失败亦使用 HTTP 200
+          description: 协议错误，或新的风控规则拒绝时的可读错误页
           content:
+            text/html:
+              schema:
+                type: string
             application/json:
               schema:
                 $ref: '#/components/schemas/V2Error'
@@ -4587,8 +4685,11 @@ paths:
         - PaymentV2Signature: []
       responses:
         '200':
-          description: 协议结果；业务失败亦使用 HTTP 200
+          description: 协议错误，或新的风控规则拒绝时的可读错误页
           content:
+            text/html:
+              schema:
+                type: string
             application/json:
               schema:
                 $ref: '#/components/schemas/V2Error'
@@ -5227,6 +5328,17 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    MerchantNotifyDomainsResponse:
+      description: 当前回调域名白名单，默认关闭
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MerchantNotifyDomains'
     Error503:
       description: 请求失败；error.code 使用 ErrorCode 枚举
       content:
@@ -5793,6 +5905,19 @@ components:
         - enabled
         - entries
       type: object
+    MerchantNotifyDomains:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+        entries:
+          type: array
+          maxItems: 20
+          description: 主机名转小写及 Punycode。*.example.com 匹配任意层级的子域名，example.com 需单独添加。禁止 IP 和单独的 *。启用时至少需要一条。
+          items:
+            type: string
+      required: [enabled, entries]
     MerchantKeyDTO:
       additionalProperties: false
       properties:
@@ -5878,6 +6003,16 @@ components:
           type: string
         trade_no:
           type: string
+        verification:
+          description: 仅验证启用且订单待支付、未过期时提供。required 表示当前请求尚未通过验证。
+          type: object
+          additionalProperties: false
+          properties:
+            required:
+              type: boolean
+            site_key:
+              type: string
+          required: [required, site_key]
       required:
         - trade_no
         - name
@@ -6673,6 +6808,7 @@ components:
             - $ref: '#/components/schemas/MailSettings'
             - $ref: '#/components/schemas/SecuritySettingsUpdate'
             - $ref: '#/components/schemas/SettingsGroupBounds'
+            - $ref: '#/components/schemas/PaymentRisk'
             - $ref: '#/components/schemas/BillingSettingsUpdate'
         version:
           format: int64
@@ -6757,6 +6893,7 @@ components:
             - $ref: '#/components/schemas/SecuritySettingsInput'
             - $ref: '#/components/schemas/RecoverySecurityInput'
             - $ref: '#/components/schemas/SettingsGroupBounds'
+            - $ref: '#/components/schemas/PaymentRisk'
             - $ref: '#/components/schemas/BillingSettingsInput'
       required:
         - expected_version
@@ -6881,6 +7018,12 @@ components:
         price_cents:
           format: int64
           type: integer
+        min_order_cents:
+          $ref: '#/components/schemas/PlanOrderLimitCents'
+        max_order_cents:
+          $ref: '#/components/schemas/PlanOrderLimitCents'
+        daily_limit_cents:
+          $ref: '#/components/schemas/PlanDailyLimitCents'
         purchase_limit:
           format: int32
           minimum: 1
@@ -6917,6 +7060,12 @@ components:
         price_cents:
           format: int64
           type: integer
+        min_order_cents:
+          $ref: '#/components/schemas/PlanOrderLimitCents'
+        max_order_cents:
+          $ref: '#/components/schemas/PlanOrderLimitCents'
+        daily_limit_cents:
+          $ref: '#/components/schemas/PlanDailyLimitCents'
         purchase_limit:
           format: int32
           minimum: 1
@@ -6944,6 +7093,20 @@ components:
         - purchase_limit
         - deleted
       type: object
+    PlanOrderLimitCents:
+      description: 单笔原始金额边界，单位为分。空值或省略表示不限。最小值不得大于最大值。
+      type: integer
+      format: int64
+      nullable: true
+      minimum: 1
+      maximum: 999999999
+    PlanDailyLimitCents:
+      description: 上海自然日原始金额上限，单位为分。包含当日已支付和所有未过期待支付的外部订单。空值或省略表示不限。
+      type: integer
+      format: int64
+      nullable: true
+      minimum: 1
+      maximum: 999999999
     SubscriptionPurchaseDTO:
       additionalProperties: false
       properties:
@@ -7070,6 +7233,12 @@ components:
         - REFUND_ALREADY_HANDLED
         - AMOUNT_CAPACITY_EXHAUSTED
         - AMOUNT_OUT_OF_RANGE
+        - DAILY_LIMIT_EXCEEDED
+        - IP_DAILY_LIMIT_EXCEEDED
+        - IP_BLOCKED
+        - NAME_BLOCKED
+        - URL_DOMAIN_NOT_ALLOWED
+        - CHECKOUT_VERIFICATION_REQUIRED
         - BILLING_CREDENTIAL_STALE
         - BILLING_NOT_READY
         - BINDING_EXPIRED
@@ -7458,6 +7627,34 @@ components:
         - merchant_id
         - credential_valid
       additionalProperties: false
+    PaymentRisk:
+      type: object
+      additionalProperties: false
+      properties:
+        ip_daily_order_limit:
+          description: 每个 clientip 在上海自然日内可创建的外部订单数，0 表示关闭。
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 2147483647
+        ip_blacklist:
+          description: IPv4、IPv6 或 CIDR。保存后返回规范化网段。
+          type: array
+          maxItems: 500
+          items:
+            type: string
+        name_block_words:
+          description: 对商品原名和屏蔽词应用 NFKC 和小写转换后按子串匹配。
+          type: array
+          maxItems: 200
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+        checkout_turnstile_enabled:
+          description: 启用时需要已配置 Turnstile site key 和 secret，否则返回 VALIDATION_ERROR。
+          type: boolean
+      required: [ip_daily_order_limit, ip_blacklist, name_block_words, checkout_turnstile_enabled]
     Settings:
       type: object
       properties:
@@ -7476,6 +7673,8 @@ components:
           $ref: '#/components/schemas/SecuritySettings'
         payment:
           $ref: '#/components/schemas/SettingsGroupBounds'
+        risk:
+          $ref: '#/components/schemas/PaymentRisk'
         billing:
           $ref: '#/components/schemas/BillingSettings'
       required:
@@ -7486,6 +7685,7 @@ components:
         - mail
         - security
         - payment
+        - risk
         - billing
       additionalProperties: false
     BillingSettingsUpdate:

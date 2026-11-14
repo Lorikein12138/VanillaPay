@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"vanillapay/internal/auth"
 	sqlc "vanillapay/internal/db/sqlc"
 	"vanillapay/internal/mailtmpl"
 	"vanillapay/internal/platform"
@@ -39,6 +40,7 @@ type Service struct {
 	fulfillment   Fulfillment
 	callbacks     CallbackQueue
 	httpClient    platform.SafeHTTPClient
+	turnstile     auth.TurnstileVerifier
 }
 
 func NewService(pool *pgxpool.Pool, key [32]byte, publicBaseURL string, clock platform.Clock, random io.Reader, fulfillment Fulfillment, callbacks CallbackQueue) *Service {
@@ -53,6 +55,7 @@ func NewService(pool *pgxpool.Pool, key [32]byte, publicBaseURL string, clock pl
 
 func (s *Service) SetFulfillment(value Fulfillment)            { s.fulfillment = value }
 func (s *Service) SetHTTPClient(value platform.SafeHTTPClient) { s.httpClient = value }
+func (s *Service) SetTurnstile(value auth.TurnstileVerifier)   { s.turnstile = value }
 
 func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error) {
 	if in.Actor.Role != "merchant" || in.Actor.MerchantID <= 0 || in.Actor.MerchantID != in.MerchantID {
@@ -88,6 +91,13 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 		if err != nil {
 			return err
 		}
+		risk, err := loadCreateRisk(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if err := enforceCreateRisk(ctx, tx, in, risk); err != nil {
+			return err
+		}
 		if found {
 			result = existing
 			return nil
@@ -114,7 +124,11 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 		if err != nil {
 			return err
 		}
-		expires := s.clock.Now().Add(time.Duration(seconds) * time.Second)
+		createdAt, err := checkCreateLimits(ctx, tx, in, snapshot.PlanLimits, risk.IPDailyOrderLimit, s.clock.Now)
+		if err != nil {
+			return err
+		}
+		expires := createdAt.Add(time.Duration(seconds) * time.Second)
 		channel := ""
 		actual := (*int64)(nil)
 		var asset *string
@@ -134,7 +148,7 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 			asset = &id
 		}
 		snapshot.Channels = channels
-		orderID, created, err := s.orderCreateTx(ctx, tx, in.MerchantID, tradeNo, in, digest, snapshot, expires, channel, actual, offset, asset)
+		orderID, created, err := s.orderCreateTx(ctx, tx, in.MerchantID, tradeNo, in, digest, snapshot, createdAt, expires, channel, actual, offset, asset)
 		if err != nil {
 			return err
 		}
@@ -205,6 +219,10 @@ func (s *Service) CancelSubscriptionOrderTx(ctx context.Context, tx pgx.Tx, orde
 }
 
 func (s *Service) SelectChannel(ctx context.Context, tradeNo, channel string) (CheckoutDTO, error) {
+	return s.selectChannel(ctx, tradeNo, channel, "", "")
+}
+
+func (s *Service) selectChannel(ctx context.Context, tradeNo, channel, ip, token string) (CheckoutDTO, error) {
 	if !platform.ValidPaymentChannel(channel) {
 		return CheckoutDTO{}, apiErr("VALIDATION_ERROR", 400)
 	}
@@ -215,6 +233,10 @@ func (s *Service) SelectChannel(ctx context.Context, tradeNo, channel string) (C
 	var dto CheckoutDTO
 	err := sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{merchantID}, false); err != nil {
+			return err
+		}
+		risk, err := readCheckoutRisk(ctx, tx, ip)
+		if err != nil {
 			return err
 		}
 		var status, purpose, protocol, name, product, param string
@@ -235,6 +257,9 @@ func (s *Service) SelectChannel(ctx context.Context, tradeNo, channel string) (C
 				return err
 			}
 			return apiErr("ORDER_NOT_PAYABLE", 409)
+		}
+		if risk.SiteKey != "" && !s.checkoutVerified(tradeNo, token, expires) {
+			return apiErr("CHECKOUT_VERIFICATION_REQUIRED", 403)
 		}
 		if currentChannel.Valid {
 			if currentChannel.String != channel {
@@ -932,7 +957,7 @@ func (s *Service) OrderID(ctx context.Context, trade string) (int64, error) {
 	return s.repository.OrderID(ctx, trade)
 }
 
-func (s *Service) orderCreateTx(ctx context.Context, tx pgx.Tx, merchantID int64, trade string, in CreateCommand, digest []byte, snapshot EligibilitySnapshot, expires time.Time, channel string, actual *int64, offset *int, asset *string) (int64, time.Time, error) {
+func (s *Service) orderCreateTx(ctx context.Context, tx pgx.Tx, merchantID int64, trade string, in CreateCommand, digest []byte, snapshot EligibilitySnapshot, createdAt, expires time.Time, channel string, actual *int64, offset *int, asset *string) (int64, time.Time, error) {
 	keyVersion := snapshot.KeyVersion
 	id := int64(0)
 	created := time.Time{}
@@ -970,7 +995,7 @@ func (s *Service) orderCreateTx(ctx context.Context, tx pgx.Tx, merchantID int64
 	if err != nil {
 		return 0, created, err
 	}
-	err = tx.QueryRow(ctx, `INSERT INTO orders(trade_no,merchant_id,out_trade_no,purpose,protocol,name,product_id,param,original_cents,actual_cents,amount_offset_cents,channel,allowed_channels_snapshot,qr_asset_id,notify_url,return_url,signing_key_version,signing_key_cipher,merchant_username_snapshot,merchant_pid_snapshot,buyer_hint,clientip,channel_locked_at,expires_at,status,created_at,create_request_digest) SELECT $1,m.id,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,m.username,m.pid,$18,$19,CASE WHEN $11::text IS NULL THEN NULL ELSE $22::timestamptz END,$20,'pending',$22::timestamptz,$23 FROM merchants m WHERE m.id=$21 RETURNING id,created_at`, trade, in.OutTradeNo, in.Purpose, in.Protocol, name, in.ProductID, in.Param, in.OriginalCents, actualValue, offsetValue, channelValue, snapshot.Channels, assetValue, notify, returnURL, keyVersion, keyCipher, in.BuyerHint, clientIP, expires, merchantID, s.clock.Now(), digest).Scan(&id, &created)
+	err = tx.QueryRow(ctx, `INSERT INTO orders(trade_no,merchant_id,out_trade_no,purpose,protocol,name,product_id,param,original_cents,actual_cents,amount_offset_cents,channel,allowed_channels_snapshot,qr_asset_id,notify_url,return_url,signing_key_version,signing_key_cipher,merchant_username_snapshot,merchant_pid_snapshot,buyer_hint,clientip,channel_locked_at,expires_at,status,created_at,create_request_digest) SELECT $1,m.id,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,m.username,m.pid,$18,$19,CASE WHEN $11::text IS NULL THEN NULL ELSE $22::timestamptz END,$20,'pending',$22::timestamptz,$23 FROM merchants m WHERE m.id=$21 RETURNING id,created_at`, trade, in.OutTradeNo, in.Purpose, in.Protocol, name, in.ProductID, in.Param, in.OriginalCents, actualValue, offsetValue, channelValue, snapshot.Channels, assetValue, notify, returnURL, keyVersion, keyCipher, in.BuyerHint, clientIP, expires, merchantID, createdAt, digest).Scan(&id, &created)
 	return id, created, err
 }
 
@@ -1022,7 +1047,7 @@ func validateExternalCommand(in CreateCommand) error {
 		return apiErr("INVALID_URL", 400)
 	}
 	if in.ClientIP != "" {
-		if _, err := netip.ParseAddr(in.ClientIP); err != nil {
+		if address, err := netip.ParseAddr(in.ClientIP); err != nil || address.Zone() != "" {
 			return apiErr("VALIDATION_ERROR", 400)
 		}
 	}

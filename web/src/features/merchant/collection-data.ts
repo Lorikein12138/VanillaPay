@@ -44,6 +44,9 @@ export function moduleError(error: unknown): string {
     INVALID_QR: 'polish.theChannelSCodeCouldNotBe', UPLOAD_TOO_LARGE: 'polish.theImageMustNotExceed5Mib', UNSUPPORTED_MEDIA_TYPE: 'polish.onlyPngAndJpegImagesAreSupported',
     TTL_OUT_OF_RANGE: 'polish.theOrderLifetimeExceedsPlatformLimitsReload', FLOAT_OUT_OF_RANGE: 'polish.theAdjustmentAmountExceedsPlatformLimitsReload', CHANNEL_NOT_ALLOWED: 'polish.thisChannelIsUnavailable', CHANNEL_LOCKED: 'polish.thisChannelIsLockedTryAgainLater',
     VALIDATION_ERROR: 'polish.checkTheInputFormatAndRangeThen',
+    DAILY_LIMIT_EXCEEDED: 'risk.errors.dailyLimit', IP_DAILY_LIMIT_EXCEEDED: 'risk.errors.ipDailyLimit',
+    IP_BLOCKED: 'checkout.ipBlocked', NAME_BLOCKED: 'risk.errors.nameBlocked', URL_DOMAIN_NOT_ALLOWED: 'risk.errors.domainBlocked',
+    CHECKOUT_VERIFICATION_REQUIRED: 'checkout.verificationHelp',
     QR_UNAVAILABLE: 'polish.uploadACollectionCodeForThisChannel', DEVICE_ALREADY_BOUND: 'polish.aDeviceIsAlreadyBoundRefreshThe',
     INVALID_PUBLIC_KEY: 'polish.invalidPublicKeyUseASupportedRsa', MAIL_UNAVAILABLE: 'polish.verificationEmailIsTemporarilyUnavailableTryAgain',
   }

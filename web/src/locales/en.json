@@ -920,7 +920,39 @@
       }
     }
   },
+  "risk": {
+    "plan": {
+      "min_order_cents": "Minimum order (CNY)",
+      "max_order_cents": "Maximum order (CNY)",
+      "daily_limit_cents": "Daily payment limit (CNY)",
+      "hint": "Leave blank for no limit.",
+      "invalid": "Enter an amount from 0.01 to 9,999,999.99 with up to two decimal places.",
+      "range": "The maximum must be at least the minimum."
+    },
+    "domains": {
+      "title": "Callback domain allowlist",
+      "description": "Restrict the domains used for payment callbacks and return URLs.",
+      "enable": "Enable callback domain allowlist",
+      "entries": "Allowed domains",
+      "hint": "One domain per line, up to 20. *.example.com covers subdomains. Add example.com separately.",
+      "invalid": "Enter up to 20 valid domains. Add at least one domain to enable the allowlist.",
+      "saved": "Callback domain allowlist saved.",
+      "save": "Save domain allowlist"
+    },
+    "errors": {
+      "dailyLimit": "The merchant has reached the daily payment limit.",
+      "ipDailyLimit": "This IP address has reached the daily order limit.",
+      "nameBlocked": "The product name is restricted.",
+      "domainBlocked": "The merchant has not allowed the callback or return domain."
+    }
+  },
   "checkout": {
+    "verificationTitle": "Checkout verification",
+    "verificationHelp": "Complete the security check to view payment options.",
+    "verificationFailed": "Verification could not be completed. Please try again.",
+    "verify": "Continue to payment",
+    "ipBlocked": "Payments unavailable from this IP",
+    "ipBlockedHelp": "Return to the merchant website or contact the merchant for help.",
     "footer": "Payments powered by VanillaPay",
     "loading": "Loading order…",
     "original": "Order amount",
@@ -1022,6 +1054,13 @@
     }
   },
   "consoleSettings": {
+    "riskIpLimit": "Daily orders per IP",
+    "riskIpLimitHint": "Counts external orders across all merchants by Shanghai calendar day. Enter 0 to disable.",
+    "riskIpBlacklist": "IP blocklist",
+    "riskIpBlacklistHint": "One IPv4, IPv6 or CIDR per line, up to 500.",
+    "riskNameWords": "Blocked product name words",
+    "riskNameWordsHint": "One entry per line, up to 200 entries of 1–50 characters.",
+    "riskTurnstile": "Require Turnstile at checkout",
     "description": "Configure the platform site, email, security policies and subscription billing.",
     "leaveTitle": "Leave platform settings?",
     "leaveDescription": "Leaving will discard your unsaved settings.",
@@ -1029,6 +1068,7 @@
     "leave": "Discard and leave",
     "groupsLabel": "Settings groups",
     "groups": {
+      "risk": "Risk controls",
       "site": "Site information",
       "home": "Homepage",
       "footer": "Footer and legal",
@@ -1042,6 +1082,7 @@
     "versionConflict": "Settings were updated by another administrator. Review the latest values below before saving.",
     "reviewLatest": "I reviewed the latest values",
     "saved": {
+      "risk": "Risk controls saved.",
       "site": "Site information saved.",
       "home": "Homepage settings saved.",
       "footer_legal": "Footer and legal settings saved.",
@@ -1052,6 +1093,7 @@
     },
     "paymentSavedAffected": "Payment limits saved. Collection settings were adjusted for {{count}} merchants.",
     "save": {
+      "risk": "Save risk controls",
       "site": "Save site information",
       "home": "Save homepage settings",
       "footer": "Save footer and legal",
@@ -1163,6 +1205,10 @@
     "disabled": "Disabled",
     "secretConfiguredShort": "Configured",
     "errors": {
+      "risk_ip_limit": "Enter a whole number from 0 to 2,147,483,647.",
+      "risk_ip_blacklist": "Enter up to 500 valid IPv4, IPv6 or CIDR entries.",
+      "risk_name_words": "Enter up to 200 words of 1–50 characters.",
+      "risk_turnstile": "Set the Turnstile site key and secret in Security and signup before enabling checkout verification.",
       "site_name": "Name is required and must be at most 80 characters.",
       "home_mode": "Choose a valid homepage mode.",
       "home_html": "HTML is required and must not exceed 256 KB.",

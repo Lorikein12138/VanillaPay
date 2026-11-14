@@ -69,7 +69,19 @@ func (h *Handler) v1Create(w http.ResponseWriter, r *http.Request, api bool) {
 	http.Redirect(w, r, "/pay/"+url.PathEscape(order.TradeNo), status)
 }
 
+var submitRiskMessages = map[string]string{
+	"DAILY_LIMIT_EXCEEDED":    "商户已达到当日收款限额。 / The merchant has reached the daily payment limit.",
+	"IP_DAILY_LIMIT_EXCEEDED": "此 IP 地址已达到当日下单上限。 / This IP address has reached the daily order limit.",
+	"IP_BLOCKED":              "此 IP 地址无法发起支付。 / Payments are unavailable from this IP address.",
+	"NAME_BLOCKED":            "商品名称不符合支付规则。 / The product name is restricted.",
+	"URL_DOMAIN_NOT_ALLOWED":  "商户未允许订单使用的回调或跳转域名。 / The merchant has not allowed the callback or return domain.",
+}
+
 func writeSubmitError(w http.ResponseWriter, code string) {
+	var detail string
+	if message := submitRiskMessages[code]; message != "" {
+		detail = "<p>" + html.EscapeString(message) + "</p>"
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
@@ -81,7 +93,7 @@ main{max-width:34rem;margin:auto;background:#fffdf8;border:1px solid #e7ded0;bor
 h1{font:2rem Georgia,serif;margin:0;color:#87452e}code{overflow-wrap:anywhere}</style>
 <main><h1>无法发起支付</h1><p>请返回商户网站重试，或联系商户并提供下方错误码。</p>
 <p lang="en">Payment could not start. Return to the merchant and try again, or share the error code with them.</p>
-<code>`+html.EscapeString(code)+`</code></main></html>`)
+`+detail+`<code>`+html.EscapeString(code)+`</code></main></html>`)
 }
 
 func (h *Handler) externalCommand(r *http.Request, p url.Values, merchantID int64, protocol string, api bool) (CreateCommand, error) {

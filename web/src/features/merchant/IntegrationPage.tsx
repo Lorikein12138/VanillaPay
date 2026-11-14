@@ -2,7 +2,7 @@ import { integrationQuery } from '@/app/portal-queries'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
-import { api } from '@/api/client'
+import { api, APIError } from '@/api/client'
 import { useEmailCode } from '@/features/auth/account-shared'
 import { Button } from '@/components/ui/button'
 import { CopyButton, CopyField } from '@/components/ui/copy-button'
@@ -75,9 +75,56 @@ export function IntegrationPage({ user }: { user: Schema['AuthUserDTO'] }) {
         </div>
       </Card>
       <WhitelistForm key={JSON.stringify(data.ip_whitelist)} name={name} value={data.ip_whitelist} />
+      <NotifyDomainsCard name={name} />
     </>}
     {dialog && <SecurityDialog mode={dialog} user={user} onClose={() => setDialog(null)} onChanged={() => invalidateCollection(client, name)} />}
   </Page>
+}
+
+function NotifyDomainsCard({ name }: { name: string }) {
+  const { t } = useTranslation()
+  const query = useQuery({ queryKey: ['merchant', name, 'notify-domains'], queryFn: ({ signal }) => api.notifyDomains(signal) })
+  return <Card aria-label={t('risk.domains.title')}>
+    <SectionHeader title={t('risk.domains.title')} description={t('risk.domains.description')} />
+    {query.isPending && <Skeleton className="h-32" />}
+    {query.isError && <ModuleError error={query.error} retry={() => { void query.refetch() }} />}
+    {query.data && <NotifyDomainsForm name={name} value={query.data} />}
+  </Card>
+}
+
+function NotifyDomainsForm({ name, value }: { name: string; value: Schema['MerchantNotifyDomains'] }) {
+  const { t } = useTranslation()
+  const client = useQueryClient(), action = useLocalAction(), id = useId()
+  const [enabled, setEnabled] = useState(value.enabled)
+  const [text, setText] = useState(value.entries.join('\n'))
+  const [invalid, setInvalid] = useState(false)
+  const [saved, setSaved] = useState(false)
+  async function save() {
+    const entries = text.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean)
+    setSaved(false)
+    setInvalid(entries.length > 20 || (enabled && entries.length === 0))
+    if (entries.length > 20 || (enabled && entries.length === 0)) return
+    await action.run(async () => {
+      try {
+        const result = await api.saveNotifyDomains({ enabled, entries })
+        setText(result.entries.join('\n'))
+        setSaved(true)
+        client.setQueryData(['merchant', name, 'notify-domains'], result)
+      } catch (error) {
+        if (error instanceof APIError && error.problem?.fields?.entries) setInvalid(true)
+        else throw error
+      }
+    })
+  }
+  return <form className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); void save() }}>
+    <Checkbox checked={enabled} disabled={action.busy} onChange={(event) => { setEnabled(event.target.checked); setSaved(false) }}>{t('risk.domains.enable')}</Checkbox>
+    <Field label={t('risk.domains.entries')} htmlFor={id} hint={t('risk.domains.hint')} error={invalid && t('risk.domains.invalid')}>
+      <Textarea id={id} aria-describedby={`${id}-hint`} rows={5} className="font-mono" value={text} disabled={action.busy} onChange={(event) => { setText(event.target.value); setSaved(false) }} />
+    </Field>
+    {saved && <Notice tone="success">{t('risk.domains.saved')}</Notice>}
+    {action.error != null && <ModuleError error={action.error} />}
+    <FormActions className="border-t-[0.5px] border-border pt-5"><Button type="submit" variant="primary" loading={action.busy}>{t('risk.domains.save')}</Button></FormActions>
+  </form>
 }
 
 export function SecurityDialog({ mode, user, onClose, onChanged }: { mode: 'reset' | 'rsa'; user: Schema['AuthUserDTO']; onClose: () => void; onChanged: () => Promise<void> }) {

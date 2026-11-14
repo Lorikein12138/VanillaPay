@@ -62,8 +62,8 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 	}
 	t.Run("V03.B.r01/v01", func(t *testing.T) {
 		var version int64
-		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 10 {
-			t.Fatalf("empty isolated schema goose version=%d err=%v, want 10", version, err)
+		if err := admin.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM "+pgx.Identifier{schema}.Sanitize()+".goose_db_version WHERE is_applied").Scan(&version); err != nil || version != 11 {
+			t.Fatalf("empty isolated schema goose version=%d err=%v, want 11", version, err)
 		}
 	})
 
@@ -122,6 +122,40 @@ func TestDB_FoundationMigrationsAreRepeatableInAnIsolatedSchema(t *testing.T) {
 		}
 		if _, err := migrationDB.ExecContext(ctx, `DELETE FROM plans WHERE name_zh='legacy'`); err != nil {
 			t.Fatal(err)
+		}
+	})
+	t.Run("risk controls upgrade and rollback", func(t *testing.T) {
+		var before, after int64
+		if err := migrationDB.QueryRowContext(ctx, `SELECT version FROM site_settings WHERE singleton`).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := migrationDB.ExecContext(ctx, `INSERT INTO plans(name_zh,price_cents,duration_days,channels) VALUES('pre-risk',100,1,ARRAY['alipay'])`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.UpTo(ctx, 11); err != nil {
+			t.Fatal(err)
+		}
+		var defaults, oldPlanUnrestricted bool
+		if err := migrationDB.QueryRowContext(ctx, `SELECT version, risk='{"ip_daily_order_limit":0,"ip_blacklist":[],"name_block_words":[],"checkout_turnstile_enabled":false}'::jsonb FROM site_settings WHERE singleton`).Scan(&after, &defaults); err != nil || after != before || !defaults {
+			t.Fatalf("version before=%d after=%d defaults=%t err=%v", before, after, defaults, err)
+		}
+		if err := migrationDB.QueryRowContext(ctx, `SELECT min_order_cents IS NULL AND max_order_cents IS NULL AND daily_limit_cents IS NULL FROM plans WHERE name_zh='pre-risk'`).Scan(&oldPlanUnrestricted); err != nil || !oldPlanUnrestricted {
+			t.Fatalf("old plan unrestricted=%t err=%v", oldPlanUnrestricted, err)
+		}
+		for _, statement := range []string{
+			`UPDATE plans SET min_order_cents=2,max_order_cents=1 WHERE name_zh='pre-risk'`,
+			`UPDATE plans SET daily_limit_cents=1000000000 WHERE name_zh='pre-risk'`,
+		} {
+			if _, err := migrationDB.ExecContext(ctx, statement); err == nil {
+				t.Fatalf("invalid plan limit accepted: %s", statement)
+			}
+		}
+		if _, err := provider.DownTo(ctx, 10); err != nil {
+			t.Fatal(err)
+		}
+		var rolledBack bool
+		if err := migrationDB.QueryRowContext(ctx, `SELECT to_regclass('merchant_notify_domains') IS NULL AND NOT to_jsonb(s) ? 'risk' AND NOT to_jsonb(p) ? 'min_order_cents' FROM site_settings s CROSS JOIN plans p WHERE s.singleton AND p.name_zh='pre-risk'`).Scan(&rolledBack); err != nil || !rolledBack {
+			t.Fatalf("risk controls rollback=%t err=%v", rolledBack, err)
 		}
 	})
 	t.Run("turnstile upgrade", func(t *testing.T) {

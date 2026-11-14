@@ -93,7 +93,7 @@ func run(ctx context.Context) error {
 		if len(parts) == 3 {
 			response, action = parts[0], parts[1]
 			_, used := usedTokens.LoadOrStore(r.PostForm.Get("response"), true)
-			fresh = !used && parts[2] != "" && (action == "login" || action == "register" || action == "reset_password" || action == "settings_security")
+			fresh = !used && parts[2] != "" && (action == "login" || action == "register" || action == "reset_password" || action == "settings_security" || action == "checkout")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"success": r.PostForm.Get("secret") == secret && response == token && fresh, "action": action, "hostname": publicURL.Hostname()})

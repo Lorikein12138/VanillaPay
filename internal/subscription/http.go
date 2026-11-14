@@ -165,7 +165,8 @@ func (h *Handler) SavePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := PlanCommand{ID: body.ID, Revision: body.Revision, Name: body.Name, PriceCents: body.PriceCents,
-		DurationDays: body.DurationDays, PurchaseLimit: body.PurchaseLimit}
+		DurationDays: body.DurationDays, PurchaseLimit: body.PurchaseLimit,
+		PlanLimits: platform.PlanLimits{MinOrderCents: body.MinOrderCents, MaxOrderCents: body.MaxOrderCents, DailyLimitCents: body.DailyLimitCents}}
 	if body.Channels != nil {
 		req.Channels = *body.Channels
 	}

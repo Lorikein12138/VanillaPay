@@ -38,6 +38,10 @@ export function SubscriptionPage({ name }: { name: string }) {
           { label: t('subscription.expires'), value: <OrderTime value={data.current.expires_at} /> },
           { label: t('subscription.source'), value: t(`subscription.sources.${data.current.source === 'manual' ? 'manual' : data.current.source === 'purchase' ? 'purchase' : 'none'}`) },
           { label: t('subscription.channels'), value: <Channels channels={data.current.channels} /> },
+          ...(['min_order_cents', 'max_order_cents', 'daily_limit_cents'] as const).map((field) => {
+            const cents = data.current.plan?.[field]
+            return { label: t(`risk.plan.${field}`), value: cents == null ? t('manage.unlimited') : money(cents, language) }
+          }),
         ]} />
       </Card>
       <section aria-label={t('subscription.available')}><SectionHeader title={t('subscription.available')} />

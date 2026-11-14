@@ -65,7 +65,10 @@ export function useCheckout(tradeNo: string) {
     } catch (failure) {
       if (!mounted.current) return
       setError(failure)
-      if (failure instanceof APIError && (['CHANNEL_LOCKED', 'ORDER_NOT_PAYABLE', 'CHANNEL_NOT_ALLOWED', 'QR_UNAVAILABLE'].includes(failure.problem?.code ?? '') || failure.status === 404)) await refetch()
+      if (failure instanceof APIError && (['CHANNEL_LOCKED', 'ORDER_NOT_PAYABLE', 'CHANNEL_NOT_ALLOWED', 'QR_UNAVAILABLE', 'CHECKOUT_VERIFICATION_REQUIRED', 'IP_BLOCKED'].includes(failure.problem?.code ?? '') || failure.status === 404)) {
+        const refreshed = await refetch()
+        if (refreshed.data?.checkout.verification?.required && mounted.current) setError(undefined)
+      }
     } finally {
       if (controller.current === active) controller.current = null
       if (mounted.current) setBusy(false)

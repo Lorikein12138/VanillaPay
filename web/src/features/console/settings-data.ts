@@ -4,11 +4,17 @@ import { normalizeEmailDomainRule } from '@/lib/email-domain'
 
 export type Schema = components['schemas']
 export type Settings = Schema['Settings']
-export type SettingsGroup = 'site' | 'home' | 'footer_legal' | 'mail' | 'security' | 'payment' | 'billing'
+export type SettingsGroup = 'site' | 'home' | 'footer_legal' | 'mail' | 'security' | 'payment' | 'risk' | 'billing'
 export type SettingsDrafts = Pick<Settings, 'site' | 'home' | 'footer_legal' | 'payment'> & {
   mail: Omit<Settings['mail'], 'password_configured' | 'masked_password'>
   security: Omit<Settings['security'], 'secret_configured'>
   billing: Pick<Settings['billing'], 'merchant_pid'>
+  risk: {
+    ip_daily_order_limit: string
+    ip_blacklist: string
+    name_block_words: string
+    checkout_turnstile_enabled: boolean
+  }
 }
 
 export const settingsGroups: SettingsGroup[] = [
@@ -18,6 +24,7 @@ export const settingsGroups: SettingsGroup[] = [
   'mail',
   'security',
   'payment',
+  'risk',
   'billing',
 ]
 
@@ -50,6 +57,13 @@ export function writableGroup(settings: Settings, group: SettingsGroup): Setting
     }
     case 'billing':
       return { merchant_pid: settings.billing.merchant_pid }
+    case 'risk':
+      return {
+        ip_daily_order_limit: String(settings.risk.ip_daily_order_limit),
+        ip_blacklist: settings.risk.ip_blacklist.join('\n'),
+        name_block_words: settings.risk.name_block_words.join('\n'),
+        checkout_turnstile_enabled: settings.risk.checkout_turnstile_enabled,
+      }
     default:
       return settings[group]
   }
@@ -65,6 +79,15 @@ export function byteLength(value: string) {
 
 export function settingsRequestFits(input: Schema['SettingsUpdateGroup']) {
   return byteLength(JSON.stringify(input)) <= 301 * 1024
+}
+
+export function riskSettingsValue(value: SettingsDrafts['risk']): Settings['risk'] {
+  return {
+    ip_daily_order_limit: Number(value.ip_daily_order_limit),
+    ip_blacklist: value.ip_blacklist.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+    name_block_words: value.name_block_words.split(/\r?\n/).filter((line) => line.trim()),
+    checkout_turnstile_enabled: value.checkout_turnstile_enabled,
+  }
 }
 
 function publicURL(value: string, protocols: string[]) {
@@ -192,6 +215,15 @@ export function validateSettingsGroup(
       errors.float_default_cents = 'payment_float'
     if (value.float_direction !== 'up' && value.float_direction !== 'down')
       errors.float_direction = 'payment_direction'
+  }
+  if (group === 'risk') {
+    const input = draft as SettingsDrafts['risk']
+    const value = riskSettingsValue(input)
+    if (!/^\d+$/.test(input.ip_daily_order_limit) || value.ip_daily_order_limit > 2147483647)
+      errors.ip_daily_order_limit = 'risk_ip_limit'
+    if (value.ip_blacklist.length > 500) errors.ip_blacklist = 'risk_ip_blacklist'
+    if (value.name_block_words.length > 200 || value.name_block_words.some((word) => Array.from(word).length > 50))
+      errors.name_block_words = 'risk_name_words'
   }
   if (group === 'billing') {
     const value = draft as Settings['billing']

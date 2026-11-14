@@ -4,11 +4,13 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+
+	"vanillapay/internal/platform"
 )
 
 var ErrInvalidAmount = errors.New("AMOUNT_OUT_OF_RANGE")
 
-const MaxAmountCents int64 = 999999999
+const MaxAmountCents = platform.HardAmountLimit
 
 func ParseCents(value string) (int64, error) {
 	if value == "" || strings.TrimSpace(value) != value || strings.ContainsAny(value, "eE+-") {

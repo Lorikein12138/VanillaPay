@@ -107,6 +107,15 @@ export function LatestSettings({ group, settings }: { group: SettingsGroup; sett
         />
       )
     }
+    case 'risk': {
+      const value = settings.risk
+      return <DetailList columns={2} items={[
+        row('riskIpLimit', value.ip_daily_order_limit),
+        row('riskIpBlacklist', value.ip_blacklist.join(' · ')),
+        row('riskNameWords', value.name_block_words.join(' · ')),
+        row('riskTurnstile', enabled(value.checkout_turnstile_enabled)),
+      ]} />
+    }
     case 'billing': {
       const value = settings.billing
       return (

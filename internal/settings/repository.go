@@ -23,11 +23,15 @@ type SettingsRow struct {
 
 func (r Repository) Get(ctx context.Context) (SettingsRow, error) {
 	var row SettingsRow
-	var site, home, footer, mail, security, payment, billing []byte
-	err := r.DB.QueryRow(ctx, `SELECT version,site,home,footer_legal,mail,security - 'allowed_hostname',payment,billing FROM site_settings WHERE singleton=true`).Scan(&row.Version, &site, &home, &footer, &mail, &security, &payment, &billing)
+	var site, home, footer, mail, security, payment, risk, billing []byte
+	err := r.DB.QueryRow(ctx, `SELECT version,site,home,footer_legal,mail,security - 'allowed_hostname',payment,to_jsonb(s)->'risk',billing
+		FROM site_settings s WHERE singleton=true`).Scan(&row.Version, &site, &home, &footer, &mail, &security, &payment, &risk, &billing)
 	if err != nil {
 		return row, err
 	}
-	row.Groups = map[string]json.RawMessage{"site": site, "home": home, "footer_legal": footer, "mail": mail, "security": security, "payment": payment, "billing": billing}
+	if len(risk) == 0 {
+		risk = []byte(`{"ip_daily_order_limit":0,"ip_blacklist":[],"name_block_words":[],"checkout_turnstile_enabled":false}`)
+	}
+	row.Groups = map[string]json.RawMessage{"site": site, "home": home, "footer_legal": footer, "mail": mail, "security": security, "payment": payment, "risk": risk, "billing": billing}
 	return row, nil
 }

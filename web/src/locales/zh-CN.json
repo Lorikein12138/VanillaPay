@@ -920,7 +920,39 @@
       }
     }
   },
+  "risk": {
+    "plan": {
+      "min_order_cents": "单笔最低金额（元）",
+      "max_order_cents": "单笔最高金额（元）",
+      "daily_limit_cents": "日收款限额（元）",
+      "hint": "留空表示不限。",
+      "invalid": "请输入 0.01 至 9,999,999.99 元，最多两位小数。",
+      "range": "单笔最高金额不能低于单笔最低金额。"
+    },
+    "domains": {
+      "title": "回调域名白名单",
+      "description": "限制支付回调和支付完成跳转所使用的域名。",
+      "enable": "启用回调域名白名单",
+      "entries": "允许的域名",
+      "hint": "每行一个域名，最多 20 条。*.example.com 匹配子域名，example.com 需单独添加。",
+      "invalid": "请输入最多 20 个有效域名。启用时至少需要一个域名。",
+      "saved": "已保存回调域名白名单。",
+      "save": "保存域名白名单"
+    },
+    "errors": {
+      "dailyLimit": "商户已达到当日收款限额。",
+      "ipDailyLimit": "此 IP 地址已达到当日下单上限。",
+      "nameBlocked": "商品名称不符合支付规则。",
+      "domainBlocked": "商户未允许订单使用的回调或跳转域名。"
+    }
+  },
   "checkout": {
+    "verificationTitle": "收银台人机验证",
+    "verificationHelp": "完成人机验证后即可查看付款选项。",
+    "verificationFailed": "验证未完成，请重试。",
+    "verify": "继续付款",
+    "ipBlocked": "此 IP 地址无法付款",
+    "ipBlockedHelp": "请返回商户网站，或联系商户获取帮助。",
     "footer": "由 VanillaPay 提供收款服务",
     "loading": "正在加载订单…",
     "original": "应付金额",
@@ -1022,6 +1054,13 @@
     }
   },
   "consoleSettings": {
+    "riskIpLimit": "单 IP 日下单上限",
+    "riskIpLimitHint": "按上海自然日统计全平台外部订单。填 0 关闭限制。",
+    "riskIpBlacklist": "IP 黑名单",
+    "riskIpBlacklistHint": "每行一个 IPv4、IPv6 或 CIDR，最多 500 条。",
+    "riskNameWords": "商品名屏蔽词",
+    "riskNameWordsHint": "每行一个词，最多 200 条，每条 1–50 字。",
+    "riskTurnstile": "收银台启用 Turnstile 人机验证",
     "description": "配置平台站点、邮件、安全策略与订阅收款。",
     "leaveTitle": "离开系统设置？",
     "leaveDescription": "还有未保存的设置，离开后这些修改将丢失。",
@@ -1029,6 +1068,7 @@
     "leave": "放弃修改并离开",
     "groupsLabel": "设置分组",
     "groups": {
+      "risk": "风控",
       "site": "站点信息",
       "home": "首页",
       "footer": "页脚与协议",
@@ -1042,6 +1082,7 @@
     "versionConflict": "设置已被其他管理员更新。以下是最新内容，请核对后再保存。",
     "reviewLatest": "我已查看最新内容",
     "saved": {
+      "risk": "已保存风控设置。",
       "site": "站点信息已保存。",
       "home": "首页设置已保存。",
       "footer_legal": "页脚与协议已保存。",
@@ -1052,6 +1093,7 @@
     },
     "paymentSavedAffected": "收款限制已保存，{{count}} 个商户的收款设置已按新范围调整。",
     "save": {
+      "risk": "保存风控设置",
       "site": "保存站点信息",
       "home": "保存首页设置",
       "footer": "保存页脚与协议",
@@ -1163,6 +1205,10 @@
     "disabled": "未启用",
     "secretConfiguredShort": "已配置",
     "errors": {
+      "risk_ip_limit": "请输入 0 至 2,147,483,647 之间的整数。",
+      "risk_ip_blacklist": "请输入最多 500 条有效的 IPv4、IPv6 或 CIDR。",
+      "risk_name_words": "请输入最多 200 个屏蔽词，每条 1–50 字。",
+      "risk_turnstile": "请先在安全设置中配置 Turnstile 站点密钥和密钥。",
       "site_name": "名称必填且不能超过 80 个字符。",
       "home_mode": "请选择有效的首页展示方式。",
       "home_html": "HTML 内容必填且不能超过 256 KB。",

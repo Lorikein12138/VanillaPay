@@ -148,6 +148,7 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 		if deps.Turnstile == nil {
 			deps.Turnstile = auth.Siteverify{}
 		}
+		billing.SetTurnstile(deps.Turnstile)
 		identity := auth.NewService(pool, cfg.EncryptionKey, deps.Clock, deps.RandomSource, mailer, deps.Turnstile, cfg.PublicBaseURL)
 		attemptPool, err := newAttemptPool(ctx, pool)
 		if err != nil {
@@ -173,7 +174,7 @@ func NewWithDependencies(ctx context.Context, cfg config.Config, deps Dependenci
 				if err := pool.QueryRow(ctx, `SELECT COALESCE(max(version_id),0) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
 					return err
 				}
-				if version < 7 {
+				if version < 11 {
 					return errors.New("application migrations are incomplete")
 				}
 				return nil

@@ -3,6 +3,7 @@ import { registerAnnouncementAuditTests } from './announcements-audit-cases'
 import { registerPublicSiteTests } from './public-site-cases'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import QRCode from 'qrcode'
+import { prepareCheckout } from '../checkout/fixtures'
 import type { ConsoleRecovery } from '../../../web/src/api/client'
 import { chooseSelect, clickControl, selectScreenshotTheme, login, noOverflow, openMenu, polishShot, totp, watchPortalFirstFrame } from '../merchant/fixtures'
 
@@ -657,5 +658,80 @@ test('saves wildcard domains and applies them on the public registration form', 
 })
 
 registerManagementTests({ seed, captcha, signIn })
+
+test('saves risk controls, gates checkout with Turnstile, and blocks the source IP', async ({ page, request, browser }) => {
+  test.setTimeout(120000)
+  const admin = await seed(request)
+  await captcha(page, admin.turnstileToken)
+  const path = '/console/settings?group=risk'
+  await signIn(page, admin, path)
+  const ipLimit = page.getByLabel('单 IP 日下单上限')
+  const blacklist = page.getByLabel('IP 黑名单')
+  const words = page.getByLabel('商品名屏蔽词')
+  const turnstile = page.getByRole('checkbox', { name: '收银台启用 Turnstile 人机验证' })
+  const save = page.getByRole('button', { name: '保存风控设置', exact: true })
+  const saveRisk = async () => {
+    const response = page.waitForResponse((result) => result.url().endsWith('/console/settings/risk') && result.request().method() === 'PUT')
+    await save.click()
+    expect((await response).status()).toBe(200)
+    await expect(page.getByText('已保存风控设置。')).toBeVisible()
+  }
+  const { trade } = await prepareCheckout(request)
+  const customer = await browser.newContext()
+  try {
+    await expect(ipLimit).toHaveValue('0')
+    await ipLimit.fill('20')
+    await blacklist.fill('198.51.100.42/24\n2001:db8::/32')
+    await words.fill('示例屏蔽词')
+    await turnstile.check()
+    await saveRisk()
+    await expect(blacklist).toHaveValue('198.51.100.0/24\n2001:db8::/32')
+    await shots(page, 'settings-risk', true, false, 'payment-risk-shots')
+
+    const buyer = await customer.newPage()
+    await captcha(buyer, admin.turnstileToken)
+    await buyer.goto('/pay/' + trade)
+    await expect(buyer.getByRole('heading', { name: '月度会员' })).toBeVisible()
+    await expect(buyer.getByRole('button', { name: '支付宝', exact: true })).toHaveCount(0)
+    await expect(buyer.getByRole('img', { name: '收款二维码' })).toHaveCount(0)
+    const challenge = buyer.getByRole('button', { name: '完成验证' })
+    await expect(challenge).toHaveAttribute('data-action', 'checkout')
+    async function checkoutShots(state: string) {
+      for (const width of [360, 1280]) {
+        await buyer.setViewportSize({ width, height: 780 })
+        for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
+          const menu = buyer.getByRole('button', { name: '主题', exact: true })
+          await menu.click()
+          await buyer.getByRole('menuitemradio', { name: label, exact: true }).click()
+          await expect(buyer.locator('html')).toHaveAttribute('data-theme', theme)
+          await polishShot(buyer, state, true, 'payment-risk-shots')
+        }
+      }
+    }
+    await checkoutShots('checkout-verification')
+    await challenge.click()
+    await buyer.getByRole('button', { name: '继续付款' }).click()
+    await buyer.getByRole('button', { name: '支付宝', exact: true }).click()
+    const qr = buyer.getByRole('img', { name: '收款二维码' })
+    await expect(qr).toBeVisible()
+    await expect.poll(() => qr.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBe(300)
+
+    await blacklist.fill('127.0.0.1\n::1')
+    await saveRisk()
+    await buyer.reload()
+    await expect(buyer.getByRole('heading', { name: '此 IP 地址无法付款' })).toBeVisible()
+    await expect(qr).toHaveCount(0)
+    await checkoutShots('checkout-ip-blocked')
+  } finally {
+    await page.goto(path)
+    await ipLimit.fill('0')
+    await blacklist.fill('')
+    await words.fill('')
+    await turnstile.uncheck()
+    if (await save.isEnabled()) await saveRisk()
+    await customer.close()
+  }
+})
+
 registerAnnouncementAuditTests({ seed, captcha, signIn })
 registerPublicSiteTests({ seed, captcha, signIn })
