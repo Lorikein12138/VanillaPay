@@ -313,7 +313,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		httpJSON(w, r, nil, err, 200)
 		return
 	}
-	dto, err := h.checkoutData(r.Context(), trade, risk.SiteKey, platform.CheckoutCookieToken(r, trade))
+	dto, err := h.checkoutData(r.Context(), trade, risk.SiteKey, platform.CheckoutCookieToken(r, trade), true)
 	httpJSON(w, r, dto, err, 200)
 }
 func (h *Handler) SelectCheckoutChannel(w http.ResponseWriter, r *http.Request) {
@@ -354,7 +354,7 @@ func (h *Handler) sameOrigin(r *http.Request) bool {
 	}
 	return strings.EqualFold(u.Scheme, scheme) && strings.EqualFold(u.Host, r.Host)
 }
-func (h *Handler) checkoutData(ctx context.Context, trade, siteKey, token string) (CheckoutDTO, error) {
+func (h *Handler) checkoutData(ctx context.Context, trade, siteKey, token string, persistExpiry bool) (CheckoutDTO, error) {
 	var dto CheckoutDTO
 	var merchantID int64
 	var merchantName string
@@ -389,7 +389,9 @@ func (h *Handler) checkoutData(ctx context.Context, trade, siteKey, token string
 		reason = "merchant_banned"
 	case dto.Status == "pending" && !dto.ExpiresAt.After(dto.ServerTime):
 		reason = "expired"
-		_ = h.Service.expireOne(ctx, trade)
+		if persistExpiry {
+			_ = h.Service.expireOne(ctx, trade)
+		}
 		dto.Status = "expired"
 	case dto.Status == "expired":
 		reason = "expired"
