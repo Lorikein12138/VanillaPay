@@ -4982,6 +4982,8 @@ paths:
         仅此 API 创建请求的 `inline_qr` 值精确为 `1` 时使用扩展签名。原文依次拼接单个 `0xFF` 字节、ASCII `vanillapay:inline-qr:v1\n`（末尾为一个 LF 字节），以及剔除 `sign`、`sign_type` 和空值后按键排序的参数。参数部分采用 UTF-8 的 `application/x-www-form-urlencoded` 编码，等同于 Go 的 `url.Values.Encode()`，空格编码为 `+`。
 
         V1 扩展签名使用现有商户密钥对上述原文计算 HMAC-SHA256，将结果以小写十六进制填入 `sign`，`sign_type` 填 `HMAC-SHA256` 或省略。其他创建请求沿用 MD5，响应沿用原有签名规则。
+
+        标准 MD5 请求成功且已锁定所选渠道、实际应付金额等于下单金额、订单允许直接扫码时，响应同时提供 `qrcode` 和 `payurl`。标准 `qrcode` 是接入方用来绘制二维码的支付渠道内容。其余成功请求使用 `payurl`。显式扩展继续返回签名图片 URL。
       requestBody:
         required: true
         content:
@@ -8539,7 +8541,7 @@ components:
       additionalProperties: false
     V1Created:
       type: object
-      description: 内联二维码可用时，qrcode、actual_money、type 和 expires_at 一起返回。未返回这组字段时，使用 payurl 跳转到收银台。
+      description: payurl 始终返回。标准请求有资格直接扫码时额外返回 qrcode。显式扩展可用时，qrcode、actual_money、type 和 expires_at 一起返回。
       properties:
         code:
           type: integer
@@ -8554,7 +8556,7 @@ components:
         qrcode:
           type: string
           format: uri
-          description: 支付二维码图片的绝对 URL。
+          description: 标准请求返回支付渠道的二维码内容（例如 wxp URI），直接用其绘制付款码。显式扩展返回二维码图片的绝对 URL。
         actual_money:
           type: string
           description: 实际应付金额，单位为元，以十进制字符串表示。
