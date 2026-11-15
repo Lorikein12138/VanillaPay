@@ -1864,7 +1864,9 @@ export interface paths {
          *
          *     V1 扩展签名使用现有商户密钥对上述原文计算 HMAC-SHA256，将结果以小写十六进制填入 `sign`，`sign_type` 填 `HMAC-SHA256` 或省略。其他创建请求沿用 MD5，响应沿用原有签名规则。
          *
-         *     标准 MD5 请求成功且已锁定所选渠道、实际应付金额等于下单金额、订单允许直接扫码时，响应同时提供 `qrcode` 和 `payurl`。标准 `qrcode` 是接入方用来绘制二维码的支付渠道内容。其余成功请求使用 `payurl`。显式扩展继续返回签名图片 URL。
+         *     标准 MD5 创建成功且已分配实际应付金额时追加可选响应扩展 `payment_info`，无需新增请求参数或签名。可直接支付时提供实际应付金额、签名付款图片绝对 HTTP(S) URL 和原订单绝对截止时间；无法直接支付时 `requires_cashier=true` 并省略付款码。实际应付金额未分配时省略整个扩展。保留同一订单的绝对 `payurl`。该扩展不改变原 `money`、查单、通知、回跳或退款语义。
+         *
+         *     标准 MD5 请求成功且已锁定所选渠道、实际应付金额等于下单金额、订单允许直接扫码时，响应同时提供传统 `qrcode`。标准 `qrcode` 是接入方用来绘制二维码的支付渠道内容，浮动时省略，绝不填图片 URL。显式 `inline_qr` 扩展继续返回原签名图片字段，不追加 `payment_info`；V2 和 submit.php 不受此响应扩展影响。
          */
         post: operations["post_mapi_php"];
         delete?: never;
@@ -3038,13 +3040,14 @@ export interface components {
             msg: string;
             error_code: components["schemas"]["ErrorCode"];
         };
-        /** @description payurl 始终返回。标准请求有资格直接扫码时额外返回 qrcode。显式扩展可用时，qrcode、actual_money、type 和 expires_at 一起返回。 */
+        /** @description 同订单绝对 payurl 始终返回。标准 MD5 请求已分配实际金额时追加 payment_info，有资格且未浮动时额外返回传统 raw qrcode。显式 inline_qr 扩展可用时，qrcode、actual_money、type 和 expires_at 一起返回，保持原行为。 */
         V1Created: {
             /** @enum {integer} */
             code: 1;
             msg: string;
             trade_no: string;
             payurl: string;
+            payment_info?: components["schemas"]["V1PaymentInfo"];
             /**
              * Format: uri
              * @description 标准请求返回支付渠道的二维码内容（例如 wxp URI），直接用其绘制付款码。显式扩展返回二维码图片的绝对 URL。
@@ -3056,6 +3059,25 @@ export interface components {
             type?: "alipay" | "wxpay";
             /** Format: date-time */
             expires_at?: string;
+        };
+        /** @description 通用可选响应扩展，仅用于普通 V1 mapi.php 创建成功。独立展示实际应付，不覆盖原 money 或通知金额。可选字段省略，不使用 null；安全降级时保留同订单 payurl。 */
+        V1PaymentInfo: {
+            /** @enum {integer} */
+            version: 1;
+            /** @description 已分配的实际应付金额，单位元，正数十进制字符串。实际金额未分配时省略整个 payment_info 对象。 */
+            actual_amount: string;
+            /**
+             * Format: uri
+             * @description 可直接展示的绝对 HTTP(S) 签名 PNG 付款图片，内容为所选渠道原始付款码；仅可直接付款且 requires_cashier=false 时提供。访问实时校验风控、设备、订单状态和期限。
+             */
+            qr_image_url?: string;
+            /**
+             * Format: date-time
+             * @description RFC3339 原订单绝对截止时间，重试不续期。
+             */
+            expires_at: string;
+            /** @description 为 true 时必须使用同订单 payurl，不含任何付款码。 */
+            requires_cashier: boolean;
         };
         V1Order: {
             /** @enum {integer} */

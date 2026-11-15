@@ -131,44 +131,26 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		if protocol == "v2" {
 			wantCode = 0
 			if data["pay_type"] != "jump" || data["pay_info"] != data["payurl"] {
-				t.Fatalf("invalid V2 cashier response: %v", data)
+				t.Fatal("invalid V2 cashier response")
 			}
 		}
 		if trade == "" || data["code"] != wantCode || data["payurl"] != origin+"/pay/"+url.PathEscape(trade) {
-			t.Fatalf("invalid %s cashier response: %v", protocol, data)
+			t.Fatalf("invalid %s cashier response, code=%v", protocol, data["code"])
 		}
 		for _, field := range []string{"qrcode", "actual_money", "type", "expires_at"} {
 			if _, present := data[field]; present != inline {
 				t.Errorf("%s response field %q present=%t, want %t", protocol, field, present, inline)
 			}
 		}
+		if (protocol == "v2" || inline) && data["payment_info"] != nil {
+			t.Fatal("payment_info changed the existing inline or V2 response")
+		}
 		return trade
 	}
 	assertImage := func(t *testing.T, data map[string]any, payload string) *url.URL {
 		t.Helper()
 		raw, _ := data["qrcode"].(string)
-		u, err := url.Parse(raw)
-		if err != nil || u.Scheme != "https" || u.Host != "pay.example.test" || !strings.HasPrefix(u.Path, "/media/") {
-			t.Fatalf("expected absolute QR media URL, got %q", raw)
-		}
-		res := fixture.Request(t, http.MethodGet, u.RequestURI(), nil, "guest")
-		if res.Code != http.StatusOK || res.Header().Get("Content-Type") != "image/png" ||
-			!strings.Contains(res.Header().Get("Cache-Control"), "no-store") {
-			t.Fatalf("QR media: HTTP %d, Content-Type=%q, Cache-Control=%q", res.Code, res.Header().Get("Content-Type"), res.Header().Get("Cache-Control"))
-		}
-		img, err := png.Decode(res.Body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		bitmap, err := gozxing.NewBinaryBitmapFromImage(img)
-		if err != nil {
-			t.Fatal(err)
-		}
-		qr, err := qrcode.NewQRCodeReader().DecodeWithoutHints(bitmap)
-		if err != nil || qr.GetText() != payload {
-			t.Fatalf("QR payload=%v, want %q, err=%v", qr, payload, err)
-		}
-		return u
+		return inlineQRTestImage(t, fixture, raw, payload)
 	}
 	assertMediaDenied := func(t *testing.T, u *url.URL, peer string) {
 		t.Helper()
@@ -190,7 +172,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 				legacy := create(t, protocol.name, out+"-legacy", channel.name, protocol.money, ordinary, clientIP, "")
 				if protocol.name == "v1" {
 					if legacy["qrcode"] != channel.payload {
-						t.Fatalf("standard QR must be the channel payload: %v", legacy)
+						t.Fatal("standard QR must be the channel payload")
 					}
 					delete(legacy, "qrcode")
 				}
@@ -198,7 +180,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 				if protocol.name == "v1" {
 					reserved := create(t, "v1", out+"-standard-reserved", channel.name, "12.00", ordinary, clientIP, "")
 					if reserved["qrcode"] != channel.payload {
-						t.Fatalf("expected standard QR at the full amount: %v", reserved)
+						t.Fatal("expected standard QR at the full amount")
 					}
 					adjusted := create(t, "v1", out+"-standard-adjusted", channel.name, "12.00", ordinary, clientIP, "")
 					adjustedTrade := assertCashier(t, "v1", adjusted, false)
@@ -210,7 +192,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 				bad := create(t, protocol.name, out+"-bad-sign", channel.name, protocol.money, inlineWithLegacySignature, clientIP, "")
 				if bad["code"] != float64(-1) || bad["error_code"] != "INVALID_SIGNATURE" ||
 					bad["payurl"] != nil || bad["qrcode"] != nil {
-					t.Fatalf("legacy signature on inline QR request: %v", bad)
+					t.Fatalf("legacy signature on inline QR request, code=%v", bad["code"])
 				}
 				data := create(t, protocol.name, out, channel.name, protocol.money, inline, clientIP, "")
 				trade := assertCashier(t, protocol.name, data, true)
@@ -224,14 +206,14 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 				if err != nil || parseErr != nil || !gotExpiry.Equal(expires) || !gotExpiry.After(db.Clock.Now()) ||
 					legacyCents != protocol.actualCents+1 || trade == legacyTrade ||
 					data["actual_money"] != protocol.actual || data["type"] != channel.name {
-					t.Fatalf("unexpected reservation or expiry: legacy=%d response=%v expiry=%s DB err=%v parse err=%v",
-						legacyCents, data, expires, err, parseErr)
+					t.Fatalf("unexpected reservation or expiry: legacy=%d expiry=%s DB err=%v parse err=%v",
+						legacyCents, expires, err, parseErr)
 				}
 				u := assertImage(t, data, channel.payload)
 				retry := create(t, protocol.name, out, channel.name, protocol.money, inline, clientIP, "")
 				for _, field := range []string{"trade_no", "payurl", "qrcode", "actual_money", "type", "expires_at"} {
 					if retry[field] != data[field] {
-						t.Errorf("retry changed %s: got %v, want %v", field, retry[field], data[field])
+						t.Errorf("retry changed %s", field)
 					}
 				}
 				rebound := *u
@@ -293,7 +275,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		var checkout struct{ Data payment.CheckoutDTO }
 		if res.Code != http.StatusOK || json.Unmarshal(res.Body.Bytes(), &checkout) != nil ||
 			!checkout.Data.CanPay || checkout.Data.QRImageURL == nil || checkout.Data.ActualCents == nil || *checkout.Data.ActualCents != 1000 {
-			t.Fatalf("standard cashier: HTTP %d %s", res.Code, res.Body.String())
+			t.Fatalf("standard cashier: HTTP %d, can_pay=%t, image_present=%t", res.Code, checkout.Data.CanPay, checkout.Data.QRImageURL != nil)
 		}
 		receipt := fixture.Request(t, http.MethodPost, "/api/v1/device/receipts", device.ReceiptRequest{
 			EventID: "e0000000-0000-4000-8000-000000000099", Channel: "wxpay", AmountCents: 1000, OccurredAt: db.Clock.Now(),
@@ -303,7 +285,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		}
 		retry := create(t, "v1", "standard-popup", "wxpay", "10.00", ordinary, clientIP, "")
 		if retry["error_code"] != "DUPLICATE_ORDER" || retry["qrcode"] != nil {
-			t.Fatalf("paid order retry: %v", retry)
+			t.Fatalf("paid order retry returned code=%v", retry["code"])
 		}
 	})
 
@@ -343,7 +325,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		const out = "standard-retry-eligibility"
 		data := create(t, "v1", out, "wxpay", "14.00", ordinary, clientIP, "")
 		if data["qrcode"] != channels[1].payload {
-			t.Fatalf("expected standard QR: %v", data)
+			t.Fatal("expected standard QR")
 		}
 		trade := data["trade_no"]
 		requireRiskError(t, saveRisk(t, fixture, platform.PaymentRisk{IPBlacklist: []string{clientIP}}), "")
@@ -391,7 +373,7 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 			if res.Code != http.StatusOK || json.Unmarshal(res.Body.Bytes(), &checkout) != nil ||
 				checkout.Data.Verification == nil || !checkout.Data.Verification.Required ||
 				checkout.Data.QRImageURL != nil || checkout.Data.CanPay {
-				t.Fatalf("Turnstile cashier: HTTP %d %s", res.Code, res.Body.String())
+				t.Fatalf("Turnstile cashier: HTTP %d, can_pay=%t, image_present=%t", res.Code, checkout.Data.CanPay, checkout.Data.QRImageURL != nil)
 			}
 		}
 		requireRiskError(t, saveRisk(t, fixture, platform.PaymentRisk{}), "")
@@ -435,6 +417,32 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		}
 		assertMediaDenied(t, u, "")
 	})
+}
+
+func inlineQRTestImage(t *testing.T, fixture *testsupport.HTTPFixture, raw, payload string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host != "pay.example.test" || !strings.HasPrefix(u.Path, "/media/") {
+		t.Fatal("expected absolute QR media URL (redacted)")
+	}
+	res := fixture.Request(t, http.MethodGet, u.RequestURI(), nil, "guest")
+	if res.Code != http.StatusOK || res.Header().Get("Content-Type") != "image/png" ||
+		!strings.Contains(res.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("QR media: HTTP %d, Content-Type=%q, Cache-Control=%q", res.Code, res.Header().Get("Content-Type"), res.Header().Get("Cache-Control"))
+	}
+	img, err := png.Decode(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bitmap, err := gozxing.NewBinaryBitmapFromImage(img)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qr, err := qrcode.NewQRCodeReader().DecodeWithoutHints(bitmap)
+	if err != nil || qr.GetText() != payload {
+		t.Fatalf("QR does not decode to the expected channel payload: %v", err)
+	}
+	return u
 }
 
 func inlineQRTestPreimage(params url.Values) []byte {

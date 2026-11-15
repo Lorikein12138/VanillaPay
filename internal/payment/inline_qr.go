@@ -18,24 +18,41 @@ func (h *Handler) appendPaymentQR(r *http.Request, in CreateCommand, order Order
 		h.appendStandardQR(r, in, order.TradeNo, data)
 		return
 	}
+	checkout, image := h.paymentQRImage(r, in, order, true)
+	if image == "" {
+		return
+	}
+	data["qrcode"] = image
+	data["actual_money"] = formatMoney(*checkout.ActualCents)
+	data["type"] = *checkout.Channel
+	data["expires_at"] = checkout.ExpiresAt
+}
+
+// paymentQRImage shares the existing inline eligibility and media capability.
+func (h *Handler) paymentQRImage(r *http.Request, in CreateCommand, order OrderDTO, persistExpiry bool) (CheckoutDTO, string) {
 	ctx := r.Context()
 	var storedIP string
-	if err := h.Service.pool.QueryRow(ctx, `SELECT COALESCE(host(clientip),'')
-		FROM orders WHERE trade_no=$1 AND merchant_id=$2`, order.TradeNo, in.MerchantID).Scan(&storedIP); err != nil {
-		return
+	var snapshot CheckoutDTO
+	if err := h.Service.pool.QueryRow(ctx, `SELECT COALESCE(host(clientip),''),actual_cents,expires_at
+		FROM orders WHERE trade_no=$1 AND merchant_id=$2`, order.TradeNo, in.MerchantID).
+		Scan(&storedIP, &snapshot.ActualCents, &snapshot.ExpiresAt); err != nil {
+		return CheckoutDTO{}, ""
+	}
+	if in.Channel == "" {
+		return snapshot, ""
 	}
 	risk, err := readCheckoutRisk(ctx, h.Service.pool, h.realIP(r), in.ClientIP, storedIP)
 	if err != nil || risk.SiteKey != "" {
-		return
+		return snapshot, ""
 	}
-	checkout, err := h.checkoutData(ctx, order.TradeNo, risk.SiteKey, "")
+	checkout, err := h.checkoutData(ctx, order.TradeNo, risk.SiteKey, "", persistExpiry)
 	if err != nil || !checkout.CanPay || checkout.QRImageURL == nil || checkout.Channel == nil ||
 		*checkout.Channel != in.Channel || checkout.ActualCents == nil || !checkout.ExpiresAt.After(checkout.ServerTime) {
-		return
+		return snapshot, ""
 	}
 	media, err := url.Parse(*checkout.QRImageURL)
 	if err != nil {
-		return
+		return snapshot, ""
 	}
 	query := media.Query()
 	query.Set("inline", "1")
@@ -43,10 +60,7 @@ func (h *Handler) appendPaymentQR(r *http.Request, in CreateCommand, order Order
 	query.Set("expires", expiry)
 	query.Set("signature", platform.SignInlineQR(h.Service.key[:], checkout.TradeNo, media.Path, expiry))
 	media.RawQuery = query.Encode()
-	data["qrcode"] = h.absolutePaymentURL(media)
-	data["actual_money"] = formatMoney(*checkout.ActualCents)
-	data["type"] = *checkout.Channel
-	data["expires_at"] = checkout.ExpiresAt
+	return checkout, h.absolutePaymentURL(media)
 }
 
 func (h *Handler) appendStandardQR(r *http.Request, in CreateCommand, trade string, data map[string]any) {

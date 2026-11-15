@@ -72,6 +72,9 @@ func (h *Handler) v1Create(w http.ResponseWriter, r *http.Request, api bool) {
 	if api {
 		data := map[string]any{"code": 1, "msg": "success", "trade_no": order.TradeNo, "payurl": payURL}
 		h.appendPaymentQR(r, in, order, inline, data)
+		if !inline {
+			h.appendPaymentInfo(r, in, order, data)
+		}
 		v1JSON(w, http.StatusOK, data)
 		return
 	}
