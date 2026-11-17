@@ -241,7 +241,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** PATCH /api/v1/merchant/preferences */
+        /**
+         * PATCH /api/v1/merchant/preferences
+         * @description 至少提供一个有效更新值。仅传入 device_offline_email_enabled 为 null 时返回 400。
+         */
         patch: operations["patch_api_v1_merchant_preferences"];
         trace?: never;
     };
@@ -2111,6 +2114,8 @@ export interface components {
         DeviceDeviceDTO: {
             app_version: string | null;
             bound: boolean;
+            /** @description 商户的有效离线邮件设置，缺省开启 */
+            device_offline_email_enabled?: boolean;
             /** Format: int64 */
             heartbeat_interval_seconds: number;
             id: string | null;
@@ -4054,6 +4059,8 @@ export interface operations {
                     locale?: "zh-CN" | "en";
                     /** @enum {string} */
                     theme?: "system" | "light" | "dark";
+                    /** @description 首次巡检确认并处理离线事件时，使用事务内读取的商户设置决定是否将邮件入队。 跨过离线阈值后、首次处理前修改也会生效。已处理的事件不补发，已入队的邮件不撤销。 null 表示保留原值。 */
+                    device_offline_email_enabled?: boolean | null;
                 };
             };
         };

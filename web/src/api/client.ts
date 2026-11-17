@@ -138,7 +138,7 @@ export const api = {
   setupTOTP: (value: operations['post_api_v1_merchant_2fa_setup']['requestBody']['content']['application/json']) => request<Schema['AuthTOTPSetup']>('/api/v1/merchant/2fa/setup', value),
   confirmTOTP: (value: Schema['AuthTOTPConfirm']) => request<Schema['TOTPConfirmed']>('/api/v1/merchant/2fa/confirm', value),
   disableTOTP: (value: Schema['AuthFactorProof']) => request<Schema['TOTPDisabled']>('/api/v1/merchant/2fa', value, true, undefined, 'DELETE'),
-  preferences: (value: Schema['Preferences']) => request<Schema['Preferences']>('/api/v1/merchant/preferences', value, true, undefined, 'PATCH'),
+  preferences: (value: operations['patch_api_v1_merchant_preferences']['requestBody']['content']['application/json']) => request<Schema['Preferences']>('/api/v1/merchant/preferences', value, true, undefined, 'PATCH'),
   async login(value: Schema['AuthLoginRequest']) {
     const result = await request<Schema['AuthSessionResult'] | Schema['AuthLoginResult']>('/api/v1/auth/login', value, false)
     return 'requires_2fa' in result ? result : startSession(result)
@@ -150,7 +150,7 @@ export const api = {
   me: (protectedRequest = true, signal?: AbortSignal) => readSession('merchant', protectedRequest, signal),
   banned: () => request<Schema['BannedInfo']>('/api/v1/merchant/banned'),
   stats: (range: { start: string; end: string; timezone: string }) => request<Schema['PortalStatsDTO']>(`/api/v1/merchant/stats?${new URLSearchParams(range)}`),
-  device: () => request<Schema['DeviceDeviceDTO']>('/api/v1/merchant/device'),
+  device: (signal?: AbortSignal) => request<Schema['DeviceDeviceDTO']>('/api/v1/merchant/device', undefined, true, undefined, undefined, signal),
   collection: () => request<Schema['Collection']>('/api/v1/merchant/collection'),
   qrSlots: () => request<Schema['QRSlots']>('/api/v1/merchant/collection/codes'),
   uploadQR: (channel: string, file: File) => {

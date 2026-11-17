@@ -325,6 +325,12 @@ type PreferencesRequest struct {
 	Theme  string `json:"theme,omitempty"`
 }
 
+type MerchantPreferencesRequest struct {
+	Locale                    string `json:"locale,omitempty"`
+	Theme                     string `json:"theme,omitempty"`
+	DeviceOfflineEmailEnabled *bool  `json:"device_offline_email_enabled,omitempty"`
+}
+
 type TOTPSetupRequest struct {
 	Password string `json:"password"`
 }

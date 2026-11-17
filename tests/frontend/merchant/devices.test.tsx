@@ -1,5 +1,6 @@
 import { chooseSelect } from '../portal-controls'
 import { emptyNotifications } from './notification-fixture'
+import { unboundDevice as device } from './fixtures'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -10,6 +11,7 @@ import { useState, type ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { APIError, api, onUnauthorized } from '@/api/client'
 import { AppProviders, createQueryClient } from '@/app/providers'
+import { deviceQuery } from '@/app/portal-queries'
 import { createAppRouter } from '@/app/router'
 import { BindingDialog } from '@/features/merchant/DevicesPage'
 import { IntegrationPage, SecurityDialog } from '@/features/merchant/IntegrationPage'
@@ -19,7 +21,6 @@ import { createI18n } from '@/lib/i18n'
 vi.mock('qrcode', () => ({ default: { toDataURL: () => Promise.resolve('data:image/png;base64,AA==') } }))
 const user: Schema['AuthUserDTO'] = { id: '1', role: 'merchant', username: 'device_shop', email: 'device_shop@example.test', pid: '9000000000000001', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }
 const identity: Schema['SessionIdentity'] = { user, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 3600000).toISOString() }
-const device: Schema['DeviceDeviceDTO'] = { id: null, name: null, app_version: null, bound: false, online: false, last_seen_at: null, offline_at: null, heartbeat_interval_seconds: 30, offline_threshold_seconds: 90 }
 const settings: Schema['SettingsCollectionSettings'] = { version: 1, order_ttl_seconds: null, float_limit_cents: null, float_direction: null, bounds: { ttl_max_seconds: 600, float_min_cents: 1, float_max_cents: 50 }, effective: { order_ttl_seconds: 300, float_limit_cents: 10, float_direction: 'up' } }
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const server = setupServer(
@@ -46,6 +47,122 @@ function mount(path: string) {
   return { router, ...wrapper(<RouterProvider router={router} context={{ queryClient: client }} />, client) }
 }
 function binding(expires = 300): Schema['DeviceBindingDTO'] { return { binding_id: crypto.randomUUID(), code: crypto.randomUUID(), qr_content: 'vanillapay://bind?code=fixture', expires_at: new Date(Date.now() + expires * 1000).toISOString() } }
+
+describe('device offline email preference', () => {
+  const toggleLabel = '设备离线时发送邮件'
+
+  it('saves only the toggle with CSRF and cancels stale polling before updating the checkbox', async () => {
+    const payloads: unknown[] = []
+    let csrf: string | null = null
+    let enabled: boolean | undefined
+    let finishSave!: () => void
+    const save = new Promise<void>((resolve) => { finishSave = resolve })
+    server.use(
+      http.get('*/api/v1/merchant/device', () => success({ ...device, device_offline_email_enabled: enabled })),
+      http.patch('*/api/v1/merchant/preferences', async ({ request }) => {
+        payloads.push(await request.json())
+        csrf = request.headers.get('X-CSRF-Token')
+        await save
+        enabled = false
+        return success({ locale: user.locale, theme: user.theme })
+      }),
+    )
+    const { client } = mount('/devices')
+    const toggle = await screen.findByRole('checkbox', { name: toggleLabel })
+    expect(toggle).toBeChecked()
+    await userEvent.click(toggle)
+    expect(toggle).toBeDisabled()
+    expect(toggle).toBeChecked()
+    await userEvent.click(toggle)
+    await waitFor(() => expect(payloads).toEqual([{ device_offline_email_enabled: false }]))
+    expect(csrf).toBe(identity.csrf_token)
+
+    let finishPoll!: (value: typeof device) => void
+    const stale = new Promise<typeof device>((resolve) => { finishPoll = resolve })
+    const poll = vi.spyOn(api, 'device').mockImplementationOnce(() => stale)
+    const refetch = client.refetchQueries({ queryKey: deviceQuery(user.username).queryKey })
+    expect(poll).toHaveBeenCalledOnce()
+    await act(async () => { finishSave(); await refetch })
+    await waitFor(() => {
+      expect(toggle).toBeEnabled()
+      expect(toggle).not.toBeChecked()
+    })
+    expect(poll.mock.calls[0]?.[0]?.aborted).toBe(true)
+    await act(async () => { finishPoll(device); await stale })
+    expect(toggle).not.toBeChecked()
+    expect(payloads).toHaveLength(1)
+  })
+
+  it('keeps the newer server value when saves across route remounts respond in reverse order', async () => {
+    let enabled = true
+    let finishFirstSave!: () => void
+    const firstSave = new Promise<void>((resolve) => { finishFirstSave = resolve })
+    const responded: boolean[] = []
+    const reads: boolean[] = []
+    server.use(
+      http.get('*/api/v1/merchant/device', () => {
+        reads.push(enabled)
+        return success({ ...device, device_offline_email_enabled: enabled })
+      }),
+      http.patch('*/api/v1/merchant/preferences', async ({ request }) => {
+        const body = await request.json() as { device_offline_email_enabled: boolean }
+        const value = body.device_offline_email_enabled
+        enabled = value
+        if (!value) await firstSave
+        responded.push(value)
+        return success({ locale: user.locale, theme: user.theme })
+      }),
+    )
+    const preferences = vi.spyOn(api, 'preferences')
+    const { client, router } = mount('/devices')
+    const query = deviceQuery(user.username)
+    const originalToggle = await screen.findByRole('checkbox', { name: toggleLabel })
+    await userEvent.click(originalToggle)
+    await waitFor(() => expect(enabled).toBe(false))
+    expect(responded).toEqual([])
+
+    await act(() => router.navigate({ to: '/codes' }))
+    expect(originalToggle).not.toBeInTheDocument()
+    await client.invalidateQueries({ queryKey: query.queryKey, exact: true, refetchType: 'none' })
+    await act(() => router.navigate({ to: '/devices' }))
+    const currentToggle = await screen.findByRole('checkbox', { name: toggleLabel })
+    expect(currentToggle).not.toBe(originalToggle)
+    await waitFor(() => expect(currentToggle).not.toBeChecked())
+    await userEvent.click(currentToggle)
+    await waitFor(() => {
+      expect(currentToggle).toBeChecked()
+      expect(currentToggle).toBeEnabled()
+    })
+    expect(responded).toEqual([true])
+    const readsAfterSecondSave = reads.length
+
+    await act(async () => {
+      finishFirstSave()
+      await (preferences.mock.results[0]?.value as ReturnType<typeof api.preferences>)
+    })
+    expect(responded).toEqual([true, false])
+    expect(enabled).toBe(true)
+    expect(client.getQueryData(query.queryKey)?.device_offline_email_enabled).toBe(true)
+    expect(currentToggle).toBeChecked()
+    await waitFor(() => expect(reads.slice(readsAfterSecondSave)).toEqual([true]))
+  })
+
+  it('keeps the server value on failure and shows the error', async () => {
+    server.use(
+      http.get('*/api/v1/merchant/device', () => success({ ...device, device_offline_email_enabled: false })),
+      http.patch('*/api/v1/merchant/preferences', () => HttpResponse.json({
+        data: null, error: { code: 'INTERNAL_ERROR', message: '', fields: {}, details: {} },
+      }, { status: 500 })),
+    )
+    mount('/devices')
+    const toggle = await screen.findByRole('checkbox', { name: toggleLabel })
+    expect(toggle).not.toBeChecked()
+    await userEvent.click(toggle)
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(toggle).toBeEnabled()
+    expect(toggle).not.toBeChecked()
+  })
+})
 
 describe('monitor installer', () => {
   const manifest = {

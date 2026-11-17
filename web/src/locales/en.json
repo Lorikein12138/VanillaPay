@@ -571,6 +571,7 @@
     "heartbeatInterval": "Heartbeat interval",
     "seconds": "seconds",
     "offlineThreshold": "Offline threshold",
+    "deviceOfflineEmail": "Send email when the device goes offline",
     "replaceDevice": "Replace device",
     "bindDevice": "Bind device",
     "unbindDevice": "Unbind device",
