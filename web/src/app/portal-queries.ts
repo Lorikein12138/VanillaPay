@@ -72,7 +72,7 @@ export const collectionQuery = (name: string) => queryOptions({
 })
 
 export const deviceQuery = (name: string) => queryOptions({
-  ...freshness, queryKey: ['merchant', name, 'device'], queryFn: api.device,
+  ...freshness, queryKey: ['merchant', name, 'device'], queryFn: ({ signal }) => api.device(signal),
 })
 
 export const integrationQuery = (name: string) => queryOptions({

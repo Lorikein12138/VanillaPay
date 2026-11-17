@@ -208,3 +208,81 @@ func TestDB_OfflineAlertMigrationPreservesArmingState(t *testing.T) {
 		})
 	}
 }
+
+func TestDB_OfflineEmailPreferenceAppliesAtFirstScan(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	merchantID, _ := db.SeedMerchant(t)
+	services := db.NewApplication(t).Services
+	ctx := t.Context()
+	actor := platform.Actor{Role: "merchant", SubjectID: merchantID, MerchantID: merchantID}
+	binding, err := services.Device.NewBinding(ctx, actor, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := services.Device.Redeem(ctx, device.RedeemRequest{Code: binding.Code, DeviceName: "offline email device"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := services.Device.Authenticate(ctx, credential.DeviceToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heartbeat := func() {
+		t.Helper()
+		if _, err := services.Device.Heartbeat(ctx, identity, device.HeartbeatRequest{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rearm := func() {
+		heartbeat()
+		for range 5 {
+			db.Clock.Set(db.Clock.Now().Add(time.Minute))
+			heartbeat()
+		}
+	}
+	setEmail := func(enabled bool) {
+		t.Helper()
+		if _, err := services.Auth.UpdatePreferences(ctx, actor, "", "", &enabled); err != nil {
+			t.Fatal(err)
+		}
+	}
+	crossOfflineThreshold := func() {
+		t.Helper()
+		db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
+		status, err := services.Device.Device(ctx, actor)
+		if err != nil || !status.Bound || status.Online {
+			t.Fatalf("expected bound device to be offline before first scan, bound=%t online=%t err=%v", status.Bound, status.Online, err)
+		}
+	}
+	checkScan := func(wantAlerts, wantNotices, wantMails int) {
+		t.Helper()
+		count, err := services.Device.DetectOffline(ctx, 10)
+		if err != nil || count != wantAlerts {
+			t.Fatalf("offline scan = %d, %v, want %d", count, err, wantAlerts)
+		}
+		var notices, mails int
+		if err := db.Pool.QueryRow(ctx, `SELECT
+			(SELECT count(*) FROM notifications WHERE merchant_id=$1 AND kind='device_offline'),
+			(SELECT count(*) FROM mail_deliveries WHERE template='device_offline')`, merchantID).Scan(&notices, &mails); err != nil {
+			t.Fatal(err)
+		}
+		if notices != wantNotices || mails != wantMails {
+			t.Fatalf("offline notices=%d mails=%d, want %d/%d", notices, mails, wantNotices, wantMails)
+		}
+	}
+
+	heartbeat()
+	crossOfflineThreshold()
+	checkScan(1, 1, 1)
+	rearm()
+	crossOfflineThreshold()
+	setEmail(false)
+	checkScan(1, 2, 1)
+	setEmail(true)
+	checkScan(0, 2, 1)
+	setEmail(false)
+	rearm()
+	crossOfflineThreshold()
+	setEmail(true)
+	checkScan(1, 3, 2)
+}

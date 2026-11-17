@@ -6,15 +6,16 @@ import (
 )
 
 type DeviceDTO struct {
-	ID                       *string    `json:"id"`
-	Name                     *string    `json:"name"`
-	AppVersion               *string    `json:"app_version"`
-	Bound                    bool       `json:"bound"`
-	Online                   bool       `json:"online"`
-	LastSeenAt               *time.Time `json:"last_seen_at"`
-	OfflineAt                *time.Time `json:"offline_at"`
-	HeartbeatIntervalSeconds int        `json:"heartbeat_interval_seconds"`
-	OfflineThresholdSeconds  int        `json:"offline_threshold_seconds"`
+	ID                        *string    `json:"id"`
+	Name                      *string    `json:"name"`
+	AppVersion                *string    `json:"app_version"`
+	Bound                     bool       `json:"bound"`
+	Online                    bool       `json:"online"`
+	LastSeenAt                *time.Time `json:"last_seen_at"`
+	OfflineAt                 *time.Time `json:"offline_at"`
+	HeartbeatIntervalSeconds  int        `json:"heartbeat_interval_seconds"`
+	OfflineThresholdSeconds   int        `json:"offline_threshold_seconds"`
+	DeviceOfflineEmailEnabled bool       `json:"device_offline_email_enabled"`
 }
 
 type BindingDTO struct {

@@ -34,7 +34,7 @@ func TestOpenAPI_JSONRequestTypes(t *testing.T) {
 		"POST /auth/register":                              auth.RegisterRequest{},
 		"POST /auth/reset-password":                        auth.ResetPasswordRequest{},
 		"POST /auth/email-codes":                           auth.EmailCodeRequest{},
-		"PATCH /merchant/preferences":                      auth.PreferencesRequest{},
+		"PATCH /merchant/preferences":                      auth.MerchantPreferencesRequest{},
 		"POST /merchant/2fa/setup":                         auth.TOTPSetupRequest{},
 		"POST /merchant/2fa/confirm":                       auth.TOTPConfirm{},
 		"DELETE /merchant/2fa":                             auth.FactorProof{},

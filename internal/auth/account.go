@@ -19,14 +19,14 @@ func (s *Service) Logout(ctx context.Context, role, token string) error {
 	return err
 }
 
-func (s *Service) UpdatePreferences(ctx context.Context, actor platform.Actor, locale, theme string) (map[string]string, error) {
+func (s *Service) UpdatePreferences(ctx context.Context, actor platform.Actor, locale, theme string, deviceOfflineEmailEnabled *bool) (map[string]string, error) {
 	if actor.SubjectID <= 0 || (actor.Role != "merchant" && actor.Role != "admin") {
 		return nil, appError("UNAUTHENTICATED", 401)
 	}
-	if (locale != "" && locale != "zh-CN" && locale != "en") || (theme != "" && theme != "system" && theme != "light" && theme != "dark") || (locale == "" && theme == "") {
+	if (locale != "" && locale != "zh-CN" && locale != "en") || (theme != "" && theme != "system" && theme != "light" && theme != "dark") || (locale == "" && theme == "" && deviceOfflineEmailEnabled == nil) {
 		return nil, appError("VALIDATION_ERROR", 400)
 	}
-	if actor.Role != "merchant" && actor.Role != "admin" || actor.SubjectID <= 0 {
+	if deviceOfflineEmailEnabled != nil && actor.Role != "merchant" {
 		return nil, appError("FORBIDDEN", 403)
 	}
 	var result struct {
@@ -35,7 +35,10 @@ func (s *Service) UpdatePreferences(ctx context.Context, actor platform.Actor, l
 	}
 	err := sqlc.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if actor.Role == "merchant" {
-			if _, err := tx.Exec(ctx, `UPDATE merchants SET preferences=preferences||jsonb_strip_nulls(jsonb_build_object('locale',NULLIF($1,''),'theme',NULLIF($2,''))),updated_at=$3 WHERE id=$4`, locale, theme, s.clock.Now(), actor.SubjectID); err != nil {
+			if _, err := tx.Exec(ctx, `UPDATE merchants
+				SET preferences=preferences||jsonb_strip_nulls(jsonb_build_object(
+					'locale',NULLIF($1,''),'theme',NULLIF($2,''),'device_offline_email_enabled',$3::boolean
+				)),updated_at=$4 WHERE id=$5`, locale, theme, deviceOfflineEmailEnabled, s.clock.Now(), actor.SubjectID); err != nil {
 				return err
 			}
 		} else {

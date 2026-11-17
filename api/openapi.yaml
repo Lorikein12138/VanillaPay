@@ -482,6 +482,7 @@ paths:
     patch:
       operationId: patch_api_v1_merchant_preferences
       summary: PATCH /api/v1/merchant/preferences
+      description: 至少提供一个有效更新值。仅传入 device_offline_email_enabled 为 null 时返回 400。
       security:
         - MerchantSession: []
           CSRF: []
@@ -529,6 +530,13 @@ paths:
                     - system
                     - light
                     - dark
+                device_offline_email_enabled:
+                  type: boolean
+                  nullable: true
+                  description: >-
+                    首次巡检确认并处理离线事件时，使用事务内读取的商户设置决定是否将邮件入队。
+                    跨过离线阈值后、首次处理前修改也会生效。已处理的事件不补发，已入队的邮件不撤销。
+                    null 表示保留原值。
               additionalProperties: false
   /api/v1/merchant/2fa/setup:
     post:
@@ -5969,6 +5977,9 @@ components:
           type: string
         bound:
           type: boolean
+        device_offline_email_enabled:
+          type: boolean
+          description: 商户的有效离线邮件设置，缺省开启
         heartbeat_interval_seconds:
           format: int64
           type: integer

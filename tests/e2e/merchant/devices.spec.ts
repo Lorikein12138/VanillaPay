@@ -109,6 +109,39 @@ test('uploads and replaces collection codes, toggles availability and saves boun
   await polishShot(page, 'collection-version-conflict', true, 'contract-backend-fixes-shots')
 })
 
+test('persists the device offline email preference across reloads', async ({ page, account }) => {
+  await signIn(page, account, '/devices')
+  const toggle = page.getByRole('checkbox', { name: '设备离线时发送邮件' })
+  await expect(toggle).toBeChecked()
+
+  async function toggleAndReload(enabled: boolean) {
+    const payload = { device_offline_email_enabled: enabled }
+    const saved = page.waitForResponse((response) =>
+      response.url().endsWith('/merchant/preferences') && response.request().method() === 'PATCH'
+      && response.request().postData() === JSON.stringify(payload),
+    )
+    await toggle.click()
+    const response = await saved
+    expect(response.status()).toBe(200)
+    await expect(toggle).toBeEnabled()
+    await expect(toggle).toBeChecked({ checked: enabled })
+    await page.reload()
+    await expect(toggle).toBeChecked({ checked: enabled })
+  }
+
+  await toggleAndReload(false)
+  if ([360, 1280].includes(page.viewportSize()!.width)) {
+    for (const [label, theme] of [['浅色', 'light'], ['深色', 'dark']] as const) {
+      await clickControl(page, label)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      await toggle.scrollIntoViewIfNeeded()
+      await noOverflow(page)
+      await polishShot(page, 'device-offline-email', false, 'offline-email-shots')
+    }
+  }
+  await toggleAndReload(true)
+})
+
 test('redeems a real binding code, reports receipts, opens a matched order and revokes the device', async ({ page, account, request }) => {
   await signIn(page, account, '/devices')
   await polishShot(page, 'devices')

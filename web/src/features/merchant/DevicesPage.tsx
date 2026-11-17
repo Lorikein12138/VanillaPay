@@ -24,8 +24,18 @@ export function DevicesPage({ name, filters, onFilters }: { name: string; filter
   const { t } = useTranslation()
   const client = useQueryClient()
   const changed = useCallback(() => invalidateCollection(client, name), [client, name])
-  const device = useQuery({ ...deviceQuery(name), refetchInterval: 15000 })
+  const query = deviceQuery(name)
+  const device = useQuery({ ...query, refetchInterval: 15000 })
+  const offlineEmail = useLocalAction()
   const [dialog, setDialog] = useState<'bind' | 'unbind' | null>(null)
+  async function saveOfflineEmail(enabled: boolean) {
+    await offlineEmail.run(async () => {
+      await api.preferences({ device_offline_email_enabled: enabled })
+      const deviceFilter = { queryKey: query.queryKey, exact: true }
+      await client.cancelQueries(deviceFilter)
+      await client.invalidateQueries(deviceFilter)
+    })
+  }
   return <Page>
     <PageHeader title={t('polish.monitoringDevice')} description={t('polish.bindAPaymentMonitorAndReviewDevice')} />
     {device.isError && <ModuleError error={device.error} retry={() => { void device.refetch() }} />}
@@ -36,7 +46,15 @@ export function DevicesPage({ name, filters, onFilters }: { name: string; filter
         { label: t('polish.appVersion'), value: device.data.app_version ?? '—' },
         { label: t('polish.heartbeatInterval'), value: t('polish.secondsValue', { v0: device.data.heartbeat_interval_seconds }) },
         { label: t('polish.offlineThreshold'), value: t('polish.secondsValue', { v0: device.data.offline_threshold_seconds }) },
-      ]} /><FormActions className="mt-5"><Button variant="primary" onClick={() => setDialog('bind')}>{device.data.bound ? t('polish.replaceDevice') : t('polish.bindDevice')}</Button>{device.data.bound && <Button onClick={() => setDialog('unbind')}>{t('polish.unbindDevice')}</Button>}</FormActions></>}
+      ]} />
+        <div className="mt-5 flex flex-col gap-3">
+          <Checkbox checked={device.data.device_offline_email_enabled ?? true} disabled={offlineEmail.busy} onChange={(event) => { void saveOfflineEmail(event.target.checked) }}>
+            {t('polish.deviceOfflineEmail')}
+          </Checkbox>
+          {offlineEmail.error != null && <ModuleError error={offlineEmail.error} />}
+        </div>
+        <FormActions className="mt-5"><Button variant="primary" onClick={() => setDialog('bind')}>{device.data.bound ? t('polish.replaceDevice') : t('polish.bindDevice')}</Button>{device.data.bound && <Button onClick={() => setDialog('unbind')}>{t('polish.unbindDevice')}</Button>}</FormActions>
+      </>}
     </Card>
     <MonitorDownload />
     <ReceiptsList name={name} filters={filters} onFilters={onFilters} />

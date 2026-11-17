@@ -102,23 +102,27 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) merchantPreferences(w http.ResponseWriter, r *http.Request) {
-	h.preferences(w, r, "merchant")
+	var req MerchantPreferencesRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	h.preferences(w, r, "merchant", req.Locale, req.Theme, req.DeviceOfflineEmailEnabled)
 }
 func (h *Handler) adminPreferences(w http.ResponseWriter, r *http.Request) {
-	h.preferences(w, r, "admin")
-}
-
-func (h *Handler) preferences(w http.ResponseWriter, r *http.Request, role string) {
 	var req PreferencesRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	h.preferences(w, r, "admin", req.Locale, req.Theme, nil)
+}
+
+func (h *Handler) preferences(w http.ResponseWriter, r *http.Request, role, locale, theme string, deviceOfflineEmailEnabled *bool) {
 	actor, ok := platform.ActorFromContext(r.Context())
 	if !ok || actor.Role != role {
 		writeResult(w, r, nil, appError("UNAUTHENTICATED", 401), http.StatusOK)
 		return
 	}
-	data, err := h.Service.UpdatePreferences(r.Context(), actor, req.Locale, req.Theme)
+	data, err := h.Service.UpdatePreferences(r.Context(), actor, locale, theme, deviceOfflineEmailEnabled)
 	writeResult(w, r, data, err, http.StatusOK)
 }
 

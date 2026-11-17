@@ -98,28 +98,24 @@ func (s *Service) Heartbeat(ctx context.Context, device DeviceIdentity, req Hear
 	return result, err
 }
 
+const offlineEmailEnabledSQL = "(m.preferences->'device_offline_email_enabled') IS DISTINCT FROM 'false'::jsonb"
+
 func (s *Service) Device(ctx context.Context, actor platform.Actor) (DeviceDTO, error) {
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
 		return DeviceDTO{}, deviceErr("UNAUTHENTICATED", 401)
 	}
-	var publicID, name, version string
-	var last *time.Time
-	err := s.pool.QueryRow(ctx, `SELECT public_id,name,app_version,last_seen_at FROM devices WHERE merchant_id=$1 AND revoked_at IS NULL`, actor.MerchantID).Scan(&publicID, &name, &version, &last)
 	dto := DeviceDTO{HeartbeatIntervalSeconds: 30, OfflineThresholdSeconds: 90}
-	if errors.Is(err, pgx.ErrNoRows) {
-		return dto, nil
-	}
-	if err != nil {
+	if err := s.pool.QueryRow(ctx, `
+		SELECT d.public_id,d.name,d.app_version,d.last_seen_at,`+offlineEmailEnabledSQL+`
+		FROM merchants m LEFT JOIN devices d ON d.merchant_id=m.id AND d.revoked_at IS NULL
+		WHERE m.id=$1`, actor.MerchantID).
+		Scan(&dto.ID, &dto.Name, &dto.AppVersion, &dto.LastSeenAt, &dto.DeviceOfflineEmailEnabled); err != nil {
 		return dto, err
 	}
-	dto.ID = &publicID
-	dto.Name = &name
-	dto.AppVersion = &version
-	dto.Bound = true
-	dto.LastSeenAt = last
-	dto.Online = last != nil && last.After(s.clock.Now().Add(-offlineThreshold))
-	if last != nil {
-		off := last.Add(offlineThreshold)
+	dto.Bound = dto.ID != nil
+	dto.Online = dto.LastSeenAt != nil && dto.LastSeenAt.After(s.clock.Now().Add(-offlineThreshold))
+	if dto.LastSeenAt != nil {
+		off := dto.LastSeenAt.Add(offlineThreshold)
 		dto.OfflineAt = &off
 	}
 	return dto, nil
@@ -197,14 +193,18 @@ func (s *Service) DetectOffline(ctx context.Context, limit int) (int, error) {
 			var name, email, locale string
 			var last time.Time
 			var next int64
+			var emailEnabled bool
+			// The first scan that claims an episode uses the preference under the
+			// merchant lock, including changes made after the heartbeat threshold.
+			// A handled episode is never backfilled and queued mail stays queued.
 			err := tx.QueryRow(ctx, `
 				UPDATE devices d SET offline_alert_armed=false,online_since=NULL,
 					offline_notified_episode=d.offline_notified_episode+1
 				FROM merchants m WHERE d.id=$1 AND d.merchant_id=m.id AND d.revoked_at IS NULL
 					AND d.ever_online AND d.last_seen_at<=$2
 					AND (d.offline_alert_armed OR d.last_seen_at > d.online_since + interval '210 seconds')
-				RETURNING d.offline_notified_episode,d.name,d.last_seen_at,m.email_normalized,COALESCE(m.preferences->>'locale','')
-			`, c.ID, s.clock.Now().Add(-offlineThreshold)).Scan(&next, &name, &last, &email, &locale)
+				RETURNING d.offline_notified_episode,d.name,d.last_seen_at,m.email_normalized,COALESCE(m.preferences->>'locale',''),`+offlineEmailEnabledSQL,
+				c.ID, s.clock.Now().Add(-offlineThreshold)).Scan(&next, &name, &last, &email, &locale, &emailEnabled)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil
 			}
@@ -220,8 +220,10 @@ func (s *Service) DetectOffline(ctx context.Context, limit int) (int, error) {
 			if _, err := tx.Exec(ctx, `INSERT INTO notifications(public_id,merchant_id,kind,source_id,dedupe_key,safe_payload) VALUES($1,$2,'device_offline',$3,$4,$5) ON CONFLICT(dedupe_key) DO NOTHING`, id, c.MerchantID, fmt.Sprint(c.ID), dedupe, payload); err != nil {
 				return err
 			}
-			if err := s.queueMailTx(ctx, tx, email, mailtmpl.DeviceOffline, dedupe, mailtmpl.Payload{Locale: locale, DeviceName: name, LastHeartbeat: &last}); err != nil {
-				return err
+			if emailEnabled {
+				if err := s.queueMailTx(ctx, tx, email, mailtmpl.DeviceOffline, dedupe, mailtmpl.Payload{Locale: locale, DeviceName: name, LastHeartbeat: &last}); err != nil {
+					return err
+				}
 			}
 			queued = true
 			return nil

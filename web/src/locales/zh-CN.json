@@ -571,6 +571,7 @@
     "heartbeatInterval": "心跳间隔",
     "seconds": "秒",
     "offlineThreshold": "离线阈值",
+    "deviceOfflineEmail": "设备离线时发送邮件",
     "replaceDevice": "更换设备",
     "bindDevice": "绑定设备",
     "unbindDevice": "解绑设备",
