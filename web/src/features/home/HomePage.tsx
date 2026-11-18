@@ -81,8 +81,8 @@ function HomeAccess({ registrationOpen }: { registrationOpen?: boolean }) {
     },
   })
   if (session.isPending) return null
-  const secondary = cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-9 px-2 sm:px-3')
-  const ghost = cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'h-9 px-2 sm:px-3')
+  const secondary = cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'px-2 sm:px-3')
+  const ghost = cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'px-2 sm:px-3')
   if (session.data) return (
     <Link to={session.data === 'banned' ? '/banned' : '/dashboard'} className={secondary}>
       {t('home.dashboard')}

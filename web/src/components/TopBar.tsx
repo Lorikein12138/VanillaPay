@@ -17,7 +17,7 @@ export function TopBar({ children, actions, compact = false }: { children?: Reac
         <Link to="/" aria-label={t('common.home', { name })} className="flex min-h-11 min-w-0 items-center gap-2.5 rounded-control text-text">
           <SiteBrand labelClassName="text-lg sm:text-xl" />
         </Link>
-        <div className={cn('flex shrink-0 items-center gap-1', actions && '[&>button]:size-9')}>
+        <div className="flex shrink-0 items-center gap-1">
           {children}
           <LanguageSwitch />
           <ThemeSwitch />
