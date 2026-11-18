@@ -710,7 +710,7 @@ export interface paths {
         put?: never;
         /**
          * 创建商户测试支付订单
-         * @description 走正常下单流程（套餐、渠道、收款码、单笔与日限额照常校验），不带异步通知地址，不校验接口 IP 白名单、商品名屏蔽词与回调域名；同一商户未支付的旧测试订单会先被关闭。
+         * @description 走正常下单流程，照常校验套餐、渠道、收款码、单笔与日限额。订单不带异步通知地址，免查接口 IP 白名单和回调域名。 非空自定义商品名在关闭旧测试订单前校验商品名屏蔽词，命中返回 403（NAME_BLOCKED）。 省略商品名或去除首尾空白后为空时，使用默认名「测试支付」并免查商品名屏蔽词。 新测试订单创建成功时，同一商户未支付的旧测试订单在同一事务中关闭。
          */
         post: operations["post_api_v1_merchant_test_payment"];
         delete?: never;
@@ -2197,6 +2197,8 @@ export interface components {
              * @enum {string|null}
              */
             channel: "alipay" | "wxpay" | null;
+            /** @description 商品名须为有效 UTF-8。去除首尾空白后最多 127 字节，不得包含 NUL。省略或去除首尾空白后为空时，使用默认名称「测试支付」。 */
+            name?: string;
         };
         MerchantTestPayment: {
             trade_no: string;

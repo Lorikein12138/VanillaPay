@@ -24,6 +24,8 @@ test('saves callback privacy and creates a replacement test payment', async ({ p
     return await card.getByRole('link', { name: '查看订单' }).getAttribute('href')
   }
   const first = await create()
+  const productName = '月度会员测试'
+  await card.getByLabel('商品名（选填）').fill(productName)
   const second = await create()
   expect(first).toBeTruthy()
   expect(second).not.toBe(first)
@@ -35,9 +37,17 @@ test('saves callback privacy and creates a replacement test payment', async ({ p
     await polishShot(page, 'test-payment', false, 'merchant-tools-shots')
   })
 
+  const cashierPopup = page.waitForEvent('popup')
+  await card.getByRole('link', { name: '打开收银台' }).click()
+  const cashier = await cashierPopup
+  await expect(cashier.getByRole('heading', { name: productName, exact: true })).toBeVisible()
+  await cashier.close()
+
   await card.getByRole('link', { name: '查看订单' }).click()
+  await expect(page.getByText(productName, { exact: true })).toBeVisible()
   await expect(page.getByText('测试', { exact: true })).toBeVisible()
   await page.goto(first!)
+  await expect(page.getByText('测试支付', { exact: true })).toBeVisible()
   await expect(page.getByText('测试', { exact: true })).toBeVisible()
   await expect(page.getByText('订单已关闭', { exact: true })).toBeVisible()
 })
