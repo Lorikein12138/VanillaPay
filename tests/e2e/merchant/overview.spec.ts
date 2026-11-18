@@ -28,6 +28,8 @@ test('shows real scoped stats, a fixed seven-day chart and the latest six orders
   await page.goto('/login')
   await login(page, account)
   await expect(page.getByRole('heading', { name: new RegExp(account.username) })).toBeVisible()
+  const metrics = page.getByRole('region', { name: '收款指标', exact: true })
+  await expect(metrics.getByRole('region', { name: '今日收款', exact: true })).toHaveCSS('border-top-width', '0px')
   const cases = [
     { label: '今日', receipts: '¥2,000.00', count: '3', paid: 1, rate: '50.0%', change: '+100.0%' },
     { label: '近 7 天', receipts: '¥4,000.00', count: '6', paid: 4, rate: '80.0%', change: '+700.0%' },
@@ -36,7 +38,7 @@ test('shows real scoped stats, a fixed seven-day chart and the latest six orders
   for (const value of cases) {
     await page.getByRole('button', { name: value.label, exact: true }).click()
     await expect(page.getByRole('button', { name: value.label, exact: true })).toHaveAttribute('aria-pressed', 'true')
-    const receipts = page.getByRole('region', { name: '收款指标', exact: true }).getByRole('region', { name: `${value.label}收款`, exact: true })
+    const receipts = metrics.getByRole('region', { name: `${value.label}收款`, exact: true })
     await expect(receipts).toContainText(value.receipts)
     await expect(receipts).toContainText(`较上一周期 ${value.change}`)
     const count = page.getByRole('region', { name: `${value.label}订单`, exact: true })

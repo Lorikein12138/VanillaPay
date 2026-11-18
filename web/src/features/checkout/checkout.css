@@ -1,0 +1,84 @@
+@reference '../../styles.css';
+
+.checkout-stage {
+  --checkout-desk: #eae0d3;
+  --checkout-paper: #fcf6eb;
+  --checkout-ink: #30251d;
+  --checkout-muted: #69584a;
+  --checkout-rule: #dacbb9;
+  --checkout-hover: #f1e7da;
+  --checkout-accent: #8d492f;
+  --checkout-shadow: #49321e24;
+  --checkout-alipay: #006da8;
+  --checkout-wxpay: #18754d;
+  background: var(--checkout-desk);
+
+  @variant dark {
+    --checkout-desk: #201915;
+    --checkout-paper: #322720;
+    --checkout-ink: #f8ecdf;
+    --checkout-muted: #d1baaa;
+    --checkout-rule: #645144;
+    --checkout-hover: #403229;
+    --checkout-accent: #f2ad90;
+    --checkout-shadow: #08040270;
+    --checkout-alipay: #83cbff;
+    --checkout-wxpay: #83dab1;
+  }
+}
+
+.checkout-paper {
+  --checkout-space: 16px;
+
+  position: relative;
+  padding: 15px 18px 20px;
+  border-radius: 3px 3px 0 0;
+  background: var(--checkout-paper);
+  color: var(--checkout-ink);
+  box-shadow: 0 14px 38px var(--checkout-shadow);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.checkout-paper::after {
+  position: absolute;
+  inset: 100% 0 auto;
+  height: 6px;
+  background: conic-gradient(from 315deg at 50% 100%, var(--checkout-paper) 0 90deg, transparent 90deg) 0 0 / 12px 6px repeat-x;
+  content: '';
+  pointer-events: none;
+}
+
+.checkout-small {
+  color: var(--checkout-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.checkout-section {
+  margin-top: var(--checkout-space);
+  border-top: 1px dashed var(--checkout-rule);
+  padding-top: var(--checkout-space);
+}
+
+.checkout-paper [data-channel='alipay'] {
+  --checkout-channel: var(--checkout-alipay);
+}
+
+.checkout-paper [data-channel='wxpay'] {
+  --checkout-channel: var(--checkout-wxpay);
+}
+
+@media (min-width: 560px) {
+  .checkout-paper {
+    --checkout-space: 20px;
+    padding: 20px 30px 24px;
+  }
+}
+
+@media (max-height: 680px) {
+  .checkout-paper {
+    --checkout-space: 12px;
+    padding-block: 12px 16px;
+  }
+}

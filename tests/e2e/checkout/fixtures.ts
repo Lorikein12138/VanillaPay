@@ -1,8 +1,18 @@
 import { createHash } from 'node:crypto'
 import QRCode from 'qrcode'
-import { expect, type APIRequestContext } from '@playwright/test'
+import { expect, type APIRequestContext, type Page } from '@playwright/test'
 
 type ChannelName = 'alipay' | 'wxpay'
+
+export async function selectCheckoutScreenshotTheme(page: Page, theme: 'light' | 'dark') {
+  const control = page.locator('button[data-theme-preference]')
+  await expect(control).toBeVisible()
+  for (let step = 0; step < 2 && await control.getAttribute('data-theme-preference') !== theme; step++) {
+    await control.click()
+  }
+  await expect(control).toHaveAttribute('data-theme-preference', theme)
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+}
 
 export async function prepareCheckout(request: APIRequestContext) {
   const qrURLs = {
