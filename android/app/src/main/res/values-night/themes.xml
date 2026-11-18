@@ -1,0 +1,6 @@
+<resources>
+    <color name="monitor_window_background">#242321</color>
+    <color name="notification_accent">#E69A7B</color>
+
+    <style name="Theme.VanillaPay.Window" parent="@android:style/Theme.Material.NoActionBar" />
+</resources>

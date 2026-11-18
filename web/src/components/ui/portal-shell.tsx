@@ -15,7 +15,7 @@ const Collapsed = createContext(false)
 const sidebarKey = 'vp-sidebar-collapsed'
 const textTransition = 'min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 motion-reduce:transition-none'
 const sidebarRow = 'flex min-h-11 items-center overflow-hidden rounded-control px-3 text-label transition-colors hover:bg-hover hover:text-text'
-const sidebarActive = 'bg-selected font-[500] text-text'
+const sidebarActive = 'bg-selected font-semibold text-text'
 
 function sidebarCollapsed() {
   try { return localStorage.getItem(sidebarKey) === 'true' }
@@ -76,7 +76,7 @@ export function PortalShell({ logo, navigation, userBlock, controls, problem, ch
           </Collapsed.Provider>
         </aside>
         <div className="min-w-0 flex-1">
-          <header className="flex min-h-20 items-center justify-between gap-2 border-b-[0.5px] border-border px-4 py-3 sm:px-8 lg:justify-end lg:border-0">
+          <header className="flex min-h-14 items-center justify-between gap-2 border-b-[0.5px] border-border px-4 py-3 sm:px-8 lg:justify-end lg:border-0">
             <div className="min-w-0 lg:hidden">{logo}</div>
             <Button ref={menu} className="lg:hidden" size="icon" variant="ghost" aria-label={t('ui.menu')}
               aria-expanded={open} onClick={() => onOpenChange(true)}>
@@ -117,7 +117,7 @@ export function PortalBrand({ to, tag, onClose }: { to: string; tag?: string; on
 export function PortalNavigation({ title, items, onClose }: { title: string; items: { path: string; label: string; icon: LucideIcon; exact?: boolean; badge?: ReactNode }[]; onClose: () => void }) {
   const collapsed = useContext(Collapsed)
   return (
-    <nav aria-label={title} className="flex shrink-0 flex-col gap-0.5">
+    <nav aria-label={title} className="flex shrink-0 flex-col gap-1 p-0.5">
       {items.map((item) => {
         const link = (
           <Link key={item.path} to={item.path} aria-label={collapsed ? item.label : undefined} onClick={onClose}

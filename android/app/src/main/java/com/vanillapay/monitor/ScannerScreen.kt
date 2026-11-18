@@ -18,9 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -70,7 +70,7 @@ internal fun ScannerScreen(
                     Headline("扫描绑定二维码")
                     Paragraph("将商户后台的绑定二维码放入取景框。")
                     Box(
-                        Modifier.size(frameSize).clip(RoundedCornerShape(14.dp)).background(LocalPalette.current.muted),
+                        Modifier.size(frameSize).clip(MaterialTheme.shapes.medium).background(LocalPalette.current.muted),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(painterResource(R.drawable.monitor_scan), null, Modifier.size(42.dp), LocalPalette.current.subtle)

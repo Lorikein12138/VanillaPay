@@ -27,7 +27,7 @@ describe('channel icons', () => {
   it.each(['future-channel', 'constructor'])('renders a neutral square without a shape for %s', (channel) => {
     const { container } = render(<ChannelIcon channel={channel} />)
 
-    expect(container.firstElementChild).toHaveClass('size-4', 'rounded-[4px]', '[--channel-color:var(--vp-text-3)]')
+    expect(container.firstElementChild).toHaveClass('size-4', 'rounded-[4px]', 'bg-muted', 'text-text-3')
     expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true')
     expect(container.querySelector('svg')).toBeNull()
   })

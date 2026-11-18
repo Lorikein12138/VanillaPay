@@ -12,6 +12,10 @@ async function checkout(request: APIRequestContext, trade: string) {
   return (await response.json() as { data: Checkout }).data
 }
 async function screenshots(page: Page, name: string) {
+  const viewport = page.viewportSize()!
+  if (viewport.width === 360 || viewport.width === 1280) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.width === 360 ? 640 : 720 })
+  }
   for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
     await chooseMenu(page, '主题', label)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
@@ -19,6 +23,14 @@ async function screenshots(page: Page, name: string) {
       await Promise.all(images.map((image) => (image as HTMLImageElement).decode()))
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
     })
+    await page.evaluate(() => document.fonts.ready)
+    const dimensions = await page.evaluate(() => ({
+      width: document.documentElement.scrollWidth,
+      height: document.documentElement.scrollHeight,
+    }))
+    const frame = page.viewportSize()!
+    expect(dimensions.width).toBeLessThanOrEqual(frame.width)
+    expect(dimensions.height).toBeLessThanOrEqual(frame.height)
     await polishShot(page, name, true, 'checkout-shots')
     const shop = await page.locator('header').getByText('示例小店').boundingBox()
     const controls = await page.getByRole('button', { name: '主题', exact: true }).boundingBox()
@@ -32,8 +44,8 @@ async function expectChannelLayout(page: Page) {
   const boxes = (await Promise.all(buttons.map((button) => button.boundingBox()))).map((box) => box!)
   const [first, second] = boxes
   expect(second!.width).toBeCloseTo(first!.width)
-  expect(second!.y).toBe(first!.y)
-  expect(second!.x).toBeGreaterThan(first!.x + first!.width)
+  expect(second!.x).toBeCloseTo(first!.x)
+  expect(second!.y).toBeGreaterThan(first!.y + first!.height)
 }
 
 test('public v1 checkout locks a channel, serves its signed QR and receives a real device payment', async ({ page, request }) => {
@@ -45,8 +57,12 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
   expect(initial.available_channels).toEqual(Object.keys(channelNames))
   await expectChannelLayout(page)
   await screenshots(page, 'unselected')
+  const copyOrder = page.getByRole('button', { name: '复制订单号' })
+  await copyOrder.focus()
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('button', { name: '支付宝', exact: true })).toBeFocused()
   const post = page.waitForResponse((response) => response.url().endsWith(`/checkout/${trade}/channel`) && response.request().method() === 'POST')
-  await page.getByRole('button', { name: '支付宝', exact: true }).click()
+  await page.keyboard.press('Enter')
   const selected = await post
   expect(selected.status()).toBe(200)
   expect((await selected.request().allHeaders()).origin).toBe(new URL(page.url()).origin)
@@ -55,6 +71,9 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
   const qr = page.getByRole('img', { name: '收款二维码' })
   await expect(qr).toHaveAttribute('src', data.qr_image_url!)
   await expect(qr).toBeVisible()
+  await expect(page.getByRole('heading', { name: '收款二维码' })).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(copyOrder).toBeFocused()
   await expect.poll(() => qr.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBe(300)
   await expect(page.getByRole('note')).toContainText('请务必支付 ¥29.99')
   await expect(page.getByRole('button', { name: '微信支付', exact: true })).toHaveCount(0)

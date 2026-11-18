@@ -25,7 +25,7 @@ export function Field({
 }) {
   return (
     <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
-      <label htmlFor={htmlFor} className="flex items-baseline justify-between gap-3 text-label text-text-2">
+      <label htmlFor={htmlFor} className="flex items-baseline justify-between gap-3 text-label font-medium text-text">
         <span>{label}</span>
         {optional && <span className="text-caption text-text-3">{optional}</span>}
       </label>

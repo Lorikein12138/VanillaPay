@@ -28,6 +28,9 @@
     "dark": "深色"
   },
   "home": {
+    "sampleReceipt": "示例凭条",
+    "sampleMerchant": "山野书店",
+    "sampleTransaction": "示例交易",
     "register": "注册",
     "dashboard": "进入后台",
     "redirecting": "正在跳转…",
@@ -993,6 +996,7 @@
     }
   },
   "checkout": {
+    "receipt": "收款凭条",
     "verificationTitle": "收银台人机验证",
     "verificationHelp": "完成人机验证后即可查看付款选项。",
     "verificationFailed": "验证未完成，请重试。",

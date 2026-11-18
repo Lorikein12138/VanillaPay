@@ -19,9 +19,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -266,25 +264,17 @@ class MainActivity : ComponentActivity() {
             )
             "unbind", "local-unbind" -> if (session != null) {
                 val local = dialog == "local-unbind"
-                AlertDialog(
-                    onDismissRequest = { if (!busy) dialog = null }, title = { Text("解绑这台手机") },
-                    text = { Text(if (local) "无法连接服务器。仍要解绑本机吗？还需要在商户后台删除这台设备，否则会被判为离线。"
-                        else "解绑后本机停止上报，需要在商户后台重新生成绑定码。") },
-                    confirmButton = {
-                        TextAction(if (busy) "正在解绑…" else "确认解绑", {
-                            execute({
-                                if (it is IOException && it !is ApiFailure) dialog = "local-unbind"
-                                else { error = "解绑失败，请重试。"; dialog = null }
-                            }) {
-                                if (!local) try { app.api.unbind(session) } catch (e: ApiFailure) { if (e.status != 401) throw e }
-                                app.forget(session.deviceId)
-                                dialog = null
-                                screen = "home"
-                            }
-                        }, !busy)
-                    },
-                    dismissButton = { TextAction("取消", { dialog = null }, !busy) },
-                )
+                UnbindDialog(local, busy, onDismiss = { dialog = null }) {
+                    execute({
+                        if (it is IOException && it !is ApiFailure) dialog = "local-unbind"
+                        else { error = "解绑失败，请重试。"; dialog = null }
+                    }) {
+                        if (!local) try { app.api.unbind(session) } catch (e: ApiFailure) { if (e.status != 401) throw e }
+                        app.forget(session.deviceId)
+                        dialog = null
+                        screen = "home"
+                    }
+                }
             }
         }
     }

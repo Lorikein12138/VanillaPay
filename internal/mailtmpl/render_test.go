@@ -26,6 +26,11 @@ func TestUnit_MailTemplates(t *testing.T) {
 		{RegistrationRejected, "registration-rejected", "注册审核未通过", "Registration not approved", "", "资料不完整 / Incomplete details", Payload{Reason: "资料不完整 / Incomplete details"}},
 		{CallbackFailed, "callback-failed", "异步通知连续失败", "Payment notifications failing", "/orders/VP20261110001234", "VP20261110001234", Payload{TradeNo: "VP20261110001234"}},
 		{MailTest, "smtp-test", "SMTP 测试邮件", "SMTP test email", "", "SMTP", Payload{}},
+		{Verification, "legacy-verification", "旧版邮件", "Legacy message", "", "482731", Payload{
+			Title:   map[string]string{"zh_cn": "旧版邮件", "en": "Legacy message"},
+			Summary: map[string]string{"zh_cn": "旧版正文", "en": "Legacy body"},
+			Code:    "482731",
+		}},
 	} {
 		for _, locale := range []string{"zh-CN", "en"} {
 			t.Run(fixture.file+"/"+locale, func(t *testing.T) {
@@ -47,7 +52,7 @@ func TestUnit_MailTemplates(t *testing.T) {
 				}
 				if fixture.path != "" {
 					link := previewBaseURL + fixture.path
-					if !strings.Contains(msg.HTML, `href="`+link+`"`) || !strings.Contains(msg.Text, link) {
+					if !strings.Contains(msg.HTML, `<a class="action-link" href="`+link+`"`) || !strings.Contains(msg.Text, link) {
 						t.Fatalf("missing absolute URL %s", link)
 					}
 				} else if strings.Contains(msg.HTML, "href=") {
@@ -63,6 +68,26 @@ func TestUnit_MailTemplates(t *testing.T) {
 					t.Logf("\n%s", msg.Text)
 				}
 			})
+		}
+	}
+}
+
+func TestUnit_MailVisualFallback(t *testing.T) {
+	msg, err := Render(DeviceOffline, Payload{DeviceName: "Front counter"}, "VanillaPay", previewBaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Legacy clients can drop the head styles, so the paper, card, panel and link
+	// retain usable colors in their HTML attributes or inline styles.
+	for _, marker := range []string{
+		`bgcolor="#f5f1e8" style="width:100%; background-color:#f5f1e8;"`,
+		`bgcolor="#fffcf5" style="background-color:#fffcf5; border:1px solid #d8d0c2; border-top:4px solid #a94e36;`,
+		`bgcolor="#f9eddb" style="background-color:#f9eddb;`,
+		`bgcolor="#a94e36" style="background-color:#a94e36;`,
+		`color:#fffaf4; text-decoration:none;`,
+	} {
+		if !strings.Contains(msg.HTML, marker) {
+			t.Errorf("missing email color fallback %q", marker)
 		}
 	}
 }

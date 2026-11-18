@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -25,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,10 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +50,8 @@ import com.vanillapay.monitor.parse.Channel
 private val sans = FontFamily(Font(R.font.instrument_sans))
 internal val serif = FontFamily(Font(R.font.source_serif))
 internal val mono = FontFamily(Font(R.font.jetbrains_mono))
+// The bundled Noto Serif SC subset covers the static screen and dialog headings.
+private val headingSerif = FontFamily(Font(R.font.noto_serif_sc_headings))
 
 internal data class Palette(
     val muted: Color, val secondary: Color, val subtle: Color, val accent: Color,
@@ -58,37 +60,91 @@ internal data class Palette(
 
 internal val LocalPalette = staticCompositionLocalOf<Palette> { error("MonitorTheme required") }
 
+private val monitorShapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(20.dp),
+)
+
+private val baseType = Typography()
+private val monitorType = baseType.copy(
+    displayLarge = baseType.displayLarge.copy(fontFamily = headingSerif),
+    displayMedium = baseType.displayMedium.copy(fontFamily = headingSerif),
+    displaySmall = baseType.displaySmall.copy(fontFamily = headingSerif),
+    headlineLarge = baseType.headlineLarge.copy(fontFamily = headingSerif),
+    headlineMedium = baseType.headlineMedium.copy(fontFamily = headingSerif, lineHeight = 36.sp),
+    headlineSmall = baseType.headlineSmall.copy(fontFamily = headingSerif),
+    titleLarge = baseType.titleLarge.copy(fontFamily = headingSerif, lineHeight = 30.sp),
+    titleMedium = baseType.titleMedium.copy(fontFamily = sans),
+    titleSmall = baseType.titleSmall.copy(fontFamily = sans),
+    bodyLarge = baseType.bodyLarge.copy(fontFamily = sans, fontSize = 15.sp, lineHeight = 23.sp),
+    bodyMedium = baseType.bodyMedium.copy(fontFamily = sans, lineHeight = 21.sp),
+    bodySmall = baseType.bodySmall.copy(fontFamily = sans, lineHeight = 18.sp),
+    labelLarge = baseType.labelLarge.copy(fontFamily = sans),
+    labelMedium = baseType.labelMedium.copy(fontFamily = sans),
+    labelSmall = baseType.labelSmall.copy(fontFamily = sans),
+)
+
 @Composable
 internal fun MonitorTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val palette = if (dark) Palette(Color(0xff30302e), Color(0xffc2c0b6), Color(0xff9c9a92),
-        Color(0xffe39a7e), Color(0xffa6cb97), Color(0xffd9bc52), Color(0xffe0857a), dark = true)
-    else Palette(Color(0xfff0eee6), Color(0xff5e5d59), Color(0xff73726c),
-        Color(0xffb5532f), Color(0xff3d6b2e), Color(0xff8a6d12), Color(0xffa8413a), dark = false)
-    val colors = if (dark) darkColorScheme(
-        primary = Color(0xfffaf9f5), onPrimary = Color(0xff141413), background = Color(0xff1a1918),
-        surface = Color(0xff262624), onSurface = Color(0xfffaf9f5), onBackground = Color(0xfffaf9f5),
-        outline = Color(0x3dfaf9f5), outlineVariant = Color(0x1ffaf9f5), error = palette.danger,
+    val palette = if (dark) Palette(Color(0xff4a3730), Color(0xffc9baaa), Color(0xffbdb3a3),
+        Color(0xffe69a7b), Color(0xffb4d0b5), Color(0xffedc18a), Color(0xffffb4a8), dark = true)
+    else Palette(Color(0xffead9ca), Color(0xff685b50), Color(0xff726b60),
+        Color(0xffa94e36), Color(0xff436751), Color(0xff8c5621), Color(0xffa53c35), dark = false)
+    val paper = if (dark) Color(0xff242321) else Color(0xfff5f1e8)
+    val surface = if (dark) Color(0xff302e2a) else Color(0xfffffcf5)
+    val ink = if (dark) Color(0xfff4eee3) else Color(0xff302821)
+    val colors = (if (dark) darkColorScheme() else lightColorScheme()).copy(
+        primary = palette.accent,
+        onPrimary = if (dark) Color(0xff2e211b) else Color(0xfffffaf4),
+        primaryContainer = palette.muted,
+        onPrimaryContainer = ink,
+        background = paper,
+        onBackground = ink,
+        surface = surface,
+        onSurface = ink,
+        surfaceTint = palette.accent,
+        surfaceVariant = palette.muted,
         onSurfaceVariant = palette.secondary,
-    ) else lightColorScheme(
-        primary = Color(0xff141413), onPrimary = Color(0xfffaf9f5), background = Color(0xfffaf9f5),
-        surface = Color.White, onSurface = Color(0xff141413), onBackground = Color(0xff141413),
-        outline = Color(0x4d1f1e1d), outlineVariant = Color(0x261f1e1d), error = palette.danger,
-        onSurfaceVariant = palette.secondary,
-    )
-    val type = Typography(
-        headlineMedium = TextStyle(fontFamily = serif, fontSize = 29.sp, lineHeight = 36.sp),
-        titleLarge = TextStyle(fontFamily = serif, fontSize = 23.sp, lineHeight = 30.sp),
-        titleMedium = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 24.sp),
-        bodyLarge = TextStyle(fontFamily = sans, fontSize = 15.sp, lineHeight = 23.sp),
-        bodyMedium = TextStyle(fontFamily = sans, fontSize = 14.sp, lineHeight = 21.sp),
-        bodySmall = TextStyle(fontFamily = sans, fontSize = 12.sp, lineHeight = 18.sp),
-        labelLarge = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 21.sp),
+        surfaceContainerHigh = surface,
+        surfaceContainerHighest = palette.muted,
+        outline = if (dark) Color(0xffaaa194) else Color(0xff80796e),
+        outlineVariant = if (dark) Color(0xff575149) else Color(0xffd8d0c2),
+        error = palette.danger,
     )
     CompositionLocalProvider(LocalPalette provides palette) {
-        MaterialTheme(colorScheme = colors, typography = type) {
+        MaterialTheme(colorScheme = colors, typography = monitorType, shapes = monitorShapes) {
             Surface(Modifier.fillMaxSize(), color = colors.background, content = content)
         }
     }
+}
+
+@Composable
+internal fun MonitorDialog(
+    title: String,
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        modifier = Modifier.padding(horizontal = 12.dp),
+        title = { Text(title) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                content()
+            }
+        },
+        confirmButton = confirmButton,
+        dismissButton = dismissButton,
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = LocalPalette.current.secondary,
+    )
 }
 
 internal enum class ChannelTone { Brand, Plain }
@@ -147,7 +203,7 @@ internal fun BackHeader(title: String, back: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 20.dp, top = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         HeaderIcon(R.drawable.monitor_back, "返回", back)
-        Text(title, fontFamily = serif, fontSize = 22.sp)
+        Text(title, style = MaterialTheme.typography.titleLarge)
     }
 }
 
@@ -169,15 +225,23 @@ internal fun ActionLabel(label: String, @DrawableRes icon: Int?) {
 @Composable
 internal fun Panel(
     padding: PaddingValues = PaddingValues(15.dp), gap: Int = 8,
+    receipt: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val colors = MaterialTheme.colorScheme
+    val palette = LocalPalette.current
+    val paper = if (palette.dark) Color(0xff41342b) else Color(0xfff9eddb)
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = if (receipt) paper else colors.surface,
+        contentColor = colors.onSurface,
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, colors.outlineVariant),
     ) {
-        Column(Modifier.padding(padding), verticalArrangement = Arrangement.spacedBy(gap.dp), content = content)
+        Column {
+            if (receipt) HorizontalDivider(thickness = 3.dp, color = palette.accent)
+            Column(Modifier.padding(padding), verticalArrangement = Arrangement.spacedBy(gap.dp), content = content)
+        }
     }
 }
 
@@ -196,23 +260,25 @@ internal fun Paragraph(text: String) = Text(text, color = LocalPalette.current.s
 @Composable
 internal fun Action(label: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null) {
-    Button(onClick, modifier, enabled = enabled, shape = RoundedCornerShape(10.dp)) { ActionLabel(label, icon) }
+    Button(onClick, modifier, enabled = enabled, shape = MaterialTheme.shapes.small) { ActionLabel(label, icon) }
 }
 
 @Composable
 internal fun Secondary(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, danger: Boolean = false,
     enabled: Boolean = true, compact: Boolean = false, @DrawableRes icon: Int? = null) {
-    val color = if (danger) LocalPalette.current.danger else MaterialTheme.colorScheme.onSurface
-    val border = if (danger) color else MaterialTheme.colorScheme.outline
-    OutlinedButton(onClick, modifier, enabled = enabled, shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, border),
+    val colors = MaterialTheme.colorScheme
+    val color = if (danger) LocalPalette.current.danger else colors.onSurface
+    val border = if (!enabled) colors.outlineVariant else if (danger) color else colors.outline
+    OutlinedButton(onClick, modifier, enabled = enabled, shape = MaterialTheme.shapes.small, border = BorderStroke(1.dp, border),
         contentPadding = if (compact) PaddingValues(horizontal = 10.dp) else ButtonDefaults.ContentPadding,
         colors = ButtonDefaults.outlinedButtonColors(contentColor = color)) { ActionLabel(label, icon) }
 }
 
 @Composable
-internal fun TextAction(label: String, action: () -> Unit, enabled: Boolean = true) {
+internal fun TextAction(label: String, action: () -> Unit, enabled: Boolean = true, danger: Boolean = false) {
     TextButton(onClick = action, enabled = enabled, contentPadding = PaddingValues(0.dp),
-        colors = ButtonDefaults.textButtonColors(contentColor = LocalPalette.current.accent)) {
+        shape = MaterialTheme.shapes.small,
+        colors = ButtonDefaults.textButtonColors(contentColor = if (danger) LocalPalette.current.danger else LocalPalette.current.accent)) {
         Text(label)
     }
 }
@@ -227,9 +293,9 @@ internal fun Pill(text: String, color: Color) {
 internal fun Callout(text: String, warning: Boolean = true) {
     val color = if (warning) LocalPalette.current.wait else LocalPalette.current.danger
     Surface(
-        Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), color = color.copy(alpha = 0.1f),
+        Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small, color = color.copy(alpha = 0.1f),
         border = BorderStroke(0.5.dp, color.copy(alpha = 0.4f)),
     ) {
-        Text(text, Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium)
+        Text(text, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
     }
 }

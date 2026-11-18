@@ -28,7 +28,7 @@ export function PageHeader({
   actions?: ReactNode
 }) {
   return (
-    <header className="flex flex-col gap-4">
+    <header className="flex flex-col gap-4 border-b border-border pb-5">
       {back}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 flex-col gap-2">
@@ -58,10 +58,10 @@ function BackAnchor({ children, className, ref, ...props }: AnchorHTMLAttributes
 /** "← Back to …" link above a page title; takes the same props as `<Link>`. */
 export const BackLink = createLink(BackAnchor)
 
-/** White panel with the template's hairline border and 16px radius. */
+/** Shared paper surface for settings, records and summaries. */
 export function Card({ className, children, ...props }: HTMLAttributes<HTMLElement> & { children: ReactNode }) {
   return (
-    <section className={cn('min-w-0 rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8', className)} {...props}>
+    <section className={cn('min-w-0 rounded-card border border-border bg-surface p-5 sm:p-8', className)} {...props}>
       {children}
     </section>
   )

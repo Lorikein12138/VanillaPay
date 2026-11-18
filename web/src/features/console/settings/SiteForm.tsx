@@ -129,6 +129,7 @@ function SiteImageField({ kind, asset, saved, update, markUpload }: {
       <Field label={t(favicon ? 'consoleSettings.favicon' : 'consoleSettings.logo')} htmlFor={fieldID} hint={t(favicon ? 'consoleSettings.faviconPending' : 'consoleSettings.logoPending')}>
         <FileInput
           id={fieldID}
+          aria-describedby={fieldID + '-hint'}
           accept="image/png,image/jpeg"
           onChange={(event) => void upload(event.target.files?.[0])}
         />
@@ -137,6 +138,8 @@ function SiteImageField({ kind, asset, saved, update, markUpload }: {
       {asset && (
         <div className="flex items-center gap-4">
           <img
+            width={64}
+            height={64}
             className="size-16 rounded-control border border-border object-contain"
             src={`/media/${encodeURIComponent(asset)}`}
             alt={t(favicon ? 'consoleSettings.favicon' : 'consoleSettings.logo')}

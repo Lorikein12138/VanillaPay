@@ -23,7 +23,7 @@ export function PublicAccountShell({ title, children }: { title: string; childre
   return (
     <div className="flex min-h-dvh flex-col">
       <TopBar />
-      <main id="main" className="mx-auto grid w-full max-w-[1160px] flex-1 items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[1fr_440px] lg:gap-20">
+      <main id="main" className="mx-auto grid w-full max-w-[1160px] flex-1 items-center gap-7 px-5 py-8 sm:px-8 lg:grid-cols-[1fr_440px] lg:gap-16">
         <section className="min-w-0">
           <p className="mb-5 break-words text-label font-[500] text-accent-text">
             {t('polish.siteAccountServices', { name })}
@@ -32,7 +32,7 @@ export function PublicAccountShell({ title, children }: { title: string; childre
           <p className="mt-6 max-w-md text-lg leading-relaxed text-text-2">{t('polish.manageEveryPaymentWithYourOwnQr')}</p>
           <a className="mt-8 inline-flex min-h-11 items-center text-label text-accent-text underline decoration-accent-text/30 underline-offset-4 hover:decoration-accent-text" href="/login">{t('polish.backToSignIn')}</a>
         </section>
-        <section className="min-w-0 rounded-[24px] border-[0.5px] border-border bg-surface p-6 shadow-[0_1px_2px_rgba(20,20,19,0.03)] sm:p-9">{children}</section>
+        <section className="min-w-0 rounded-dialog border border-border bg-surface p-5 shadow-dialog sm:p-8">{children}</section>
       </main>
       <PublicFooter />
     </div>

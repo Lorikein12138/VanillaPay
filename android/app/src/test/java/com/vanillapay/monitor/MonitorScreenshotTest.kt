@@ -57,11 +57,14 @@ class MonitorScreenshotTest {
                         "setup" -> SetupScreen(SetupChecks(true, false, false, false, false), {}, {}, {}, {}, {}, {})
                         "startup-vivo" -> {
                             SetupScreen(SetupChecks(true, false, false, false, false), {}, {}, {}, {}, {}, {})
-                            StartupGuideDialog(startupGuide("vivo"), {}, {}, {}, {})
+                            StartupGuideDialog(startupGuide(if (width == 360) "vivo" else "generic"), {}, {}, {}, {})
                         }
                         "main" -> HomeScreen(MonitorState(true, session, true, true, time - 12_000), true,
                             Channel.entries.toSet(), receipts, 18, 1, time, {}, {}, {})
-                        "settings" -> SettingsScreen(session, {}, {}, {}, {})
+                        "settings" -> {
+                            SettingsScreen(session, {}, {}, {}, {})
+                            if (width == 411) UnbindDialog(local = dark, busy = dark, {}, {})
+                        }
                         "diagnostics" -> DiagnosticsScreen(true, diagnostics, {}, {}, {})
                         "scan", "scan-denied", "scan-photo-error" -> ScannerScreen(
                             permissionDenied = screen == "scan-denied",

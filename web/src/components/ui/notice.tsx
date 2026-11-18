@@ -41,15 +41,15 @@ export function Notice({
       aria-live="polite"
       className={cn(
         'flex items-start gap-3 rounded-xl py-3 pl-4 pr-2 text-label',
-        tone === 'success' && 'bg-dot-ok/10',
-        tone === 'info' && 'bg-dot-info/10',
-        tone === 'error' && 'bg-danger/8',
-        tone === 'warning' && 'bg-dot-wait/12',
+        tone === 'success' && 'bg-notice-success',
+        tone === 'info' && 'bg-notice-info',
+        tone === 'error' && 'bg-notice-error',
+        tone === 'warning' && 'bg-notice-warning',
         className,
       )}
     >
       <Icon className={cn('mt-0.5 size-[18px] shrink-0', color)} strokeWidth={1.7} aria-hidden="true" />
-      <div className="min-w-0 flex-1 py-px leading-relaxed">
+      <div className="min-w-0 flex-1 py-px leading-relaxed [overflow-wrap:anywhere]">
         {title && <p className="m-0 font-medium text-text">{title}</p>}
         <div className={cn(title ? 'text-text-2' : 'text-text')}>{children}</div>
         {action && <div className="mt-2">{action}</div>}

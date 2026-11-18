@@ -8,20 +8,20 @@ import { cn } from '@/lib/utils'
  * `sm` uses compact horizontal padding while retaining the touch target.
  */
 const buttonStyles = cva(
-  'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-control text-label font-[460] transition-[background-color,color,border-color,box-shadow,opacity] duration-150 disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-control text-label font-semibold transition-[background-color,color,border-color,box-shadow,opacity] duration-150 disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
         primary: 'bg-primary text-primary-fg hover:bg-primary-hover',
-        secondary: 'bg-secondary text-text shadow-[inset_0_0_0_0.5px_var(--color-border)] hover:bg-secondary-hover',
+        secondary: 'border border-border-strong bg-secondary text-text hover:border-accent hover:bg-secondary-hover',
         ghost: 'text-text-2 hover:bg-hover hover:text-text',
         danger: 'text-danger hover:bg-danger/10',
         dangerOutline: 'bg-danger/8 text-danger shadow-[inset_0_0_0_0.5px_color-mix(in_srgb,var(--color-danger)_30%,transparent)] hover:bg-danger/14',
         link: 'h-auto min-h-11 px-0 font-normal text-accent-text underline-offset-4 hover:text-accent-text-hover hover:underline',
       },
       size: {
-        md: 'h-11 px-5',
-        sm: 'h-11 px-3',
+        md: 'min-h-11 px-5 py-2',
+        sm: 'min-h-11 px-3 py-2',
         icon: 'size-11',
       },
     },

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 
 /** Base look for every text-like control: 44px, 1px hairline border, accent focus ring. */
 export const controlClass =
-  'w-full min-w-0 rounded-control border border-border-strong bg-field px-3.5 text-[15px] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-3 hover:border-text-3/45 focus:border-accent focus:shadow-[0_0_0_3px_var(--color-focus-ring)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-text-2 aria-invalid:border-danger'
+  'w-full min-w-0 rounded-control border border-border-strong bg-field px-3.5 text-[15px] text-text transition-[border-color,box-shadow] duration-150 placeholder:text-text-3 hover:border-text-3/45 focus:border-accent focus:shadow-[0_0_0_3px_var(--color-focus-ring)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed disabled:bg-muted disabled:text-text-2 aria-invalid:border-danger'
 
 export function Input({ className, ...props }: ComponentPropsWithRef<'input'>) {
   return <input className={cn(controlClass, 'h-11 read-only:bg-muted/60', className)} {...props} />

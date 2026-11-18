@@ -47,7 +47,7 @@ export function Dialog({
             onPointerDownOutside={(event) => { if (busy) event.preventDefault() }}
             onInteractOutside={(event) => { if (busy) event.preventDefault() }}
             className={cn(
-              'vp-dialog pointer-events-auto flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden rounded-t-dialog bg-surface text-text shadow-dialog focus:outline-none sm:max-h-[calc(100dvh-48px)] sm:rounded-dialog',
+              'vp-dialog pointer-events-auto flex max-h-[calc(100dvh-12px)] w-full flex-col overflow-hidden rounded-t-dialog border border-border bg-surface text-text shadow-dialog focus:outline-none sm:max-h-[calc(100dvh-48px)] sm:rounded-dialog',
               widths[size],
             )}
           >
