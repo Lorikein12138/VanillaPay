@@ -1,4 +1,3 @@
-import { chooseMenu } from '../portal-controls'
 import userEvent from '@testing-library/user-event'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
@@ -12,7 +11,8 @@ import { CheckoutPage } from '@/features/checkout/CheckoutPage'
 import { ChannelOption } from '@/components/ui/payment'
 import { checkoutDeadline } from '@/features/checkout/useCheckout'
 import { returnToMerchant } from '@/features/checkout/return'
-import { createI18n } from '@/lib/i18n'
+import { createI18n, LANGUAGE_STORAGE_KEY } from '@/lib/i18n'
+import { initTheme, THEME_STORAGE_KEY } from '@/lib/theme'
 
 vi.mock('@/features/checkout/return', () => ({ returnToMerchant: vi.fn() }))
 type Checkout = components['schemas']['PaymentCheckoutDTO']
@@ -27,7 +27,7 @@ const locked = () => order({ channel: 'alipay', actual_cents: 2999, reason: null
 let value: Checkout, gets: number
 const server = setupServer(http.get(path, () => { gets++; return success(value) }))
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
-beforeEach(() => { value = order(); gets = 0; vi.mocked(returnToMerchant).mockClear(); Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }) })
+beforeEach(() => { value = order(); gets = 0; initTheme(); vi.mocked(returnToMerchant).mockClear(); Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }) })
 afterEach(() => { server.resetHandlers(); vi.useRealTimers() })
 afterAll(() => server.close())
 function mount(route = false) {
@@ -68,10 +68,23 @@ describe('public checkout', () => {
   it('moves keyboard focus to the scan heading after Enter locks the channel', async () => {
     server.use(http.post(path + '/channel', () => { value = locked(); return success(value) }))
     const keyboard = userEvent.setup()
-    mount()
+    mount(true)
     const choose = await screen.findByRole('button', { name: '支付宝' })
-    const copy = screen.getByRole('button', { name: '复制订单号' })
-    screen.getByRole('button', { name: '主题' }).focus()
+    const main = screen.getByRole('main')
+    const copy = within(main).getByRole('button', { name: '复制订单号' })
+    const skip = screen.getByRole('link', { name: '跳到主要内容' })
+    const language = screen.getByRole('button', { name: '当前为简体中文，切换到英语' })
+    const theme = screen.getByRole('button', { name: '当前外观：跟随系统，切换到浅色' })
+    expect(skip).toHaveAttribute('href', '#main')
+    expect(main).toHaveAttribute('id', 'main')
+    expect(main).toHaveAttribute('tabindex', '-1')
+    expect(main).toContainElement(choose)
+    expect(main).not.toContainElement(language)
+    expect(main).not.toContainElement(theme)
+    for (const control of [skip, language, theme]) {
+      await keyboard.tab()
+      expect(control).toHaveFocus()
+    }
     await keyboard.tab()
     expect(choose).toHaveFocus()
     await keyboard.keyboard('{Enter}')
@@ -84,7 +97,7 @@ describe('public checkout', () => {
     vi.useFakeTimers()
     mount()
     await tick(100)
-    const theme = screen.getByRole('button', { name: '主题' })
+    const theme = screen.getByRole('button', { name: '当前外观：跟随系统，切换到浅色' })
     theme.focus()
     value = locked()
     await tick(3100)
@@ -303,22 +316,73 @@ describe('public checkout', () => {
   })
   it('shows the paid amount and localized channel once, including English', async () => {
     value = { ...locked(), status: 'paid' }; mount()
-    const receipt = within(await screen.findByRole('article'))
+    const receipt = within(await screen.findByRole('main'))
     expect(await receipt.findByRole('heading', { name: '支付成功' })).toBeVisible()
     expect(receipt.getByText('已支付', { exact: true })).toBeVisible()
     expect(receipt.getByText('¥29.99', { exact: true })).toBeVisible()
     expect(receipt.getByText('支付宝', { exact: true })).toBeVisible()
-    await chooseMenu(userEvent.setup(), '语言', 'English')
+    await userEvent.setup().click(screen.getByRole('button', { name: '当前为简体中文，切换到英语' }))
     expect(await receipt.findByText('Amount paid')).toBeVisible()
     expect(receipt.getByText('Alipay', { exact: true })).toBeVisible()
     expect(receipt.getByText('You may close this page.')).toBeVisible()
+  })
+  it('shows both labeled rows when the merchant and product share a name', async () => {
+    const name = '示例小店'
+    value = order({ name })
+    mount()
+    const product = await screen.findByRole('heading', { name, level: 1 })
+    expect(screen.getByText('商品：').parentElement).toContainElement(product)
+    const merchantRow = screen.getByText('商户：').parentElement!
+    expect(within(merchantRow).getByText(name, { exact: true })).toBeVisible()
+    expect(merchantRow).not.toContainElement(product)
+  })
+  it('uses icon buttons to toggle language and cycle appearance with persisted preferences', async () => {
+    mount()
+    const user = userEvent.setup()
+    const language = screen.getByRole('button', { name: '当前为简体中文，切换到英语' })
+    const theme = screen.getByRole('button', { name: '当前外观：跟随系统，切换到浅色' })
+    for (const control of [language, theme]) {
+      expect(control.textContent).toBe('')
+      expect(control.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    }
+    await user.click(language)
+    expect(language).toHaveAccessibleName('Current language: English. Switch to Simplified Chinese')
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('en')
+    expect(document.documentElement).toHaveAttribute('lang', 'en')
+    expect(theme).toHaveAccessibleName('Current appearance: System. Switch to Light')
+    for (const [current, label] of [['light', 'Light. Switch to Dark'], ['dark', 'Dark. Switch to System'], ['system', 'System. Switch to Light']] as const) {
+      await user.click(theme)
+      expect(theme).toHaveAccessibleName(`Current appearance: ${label}`)
+      expect(theme).toHaveAttribute('data-theme-preference', current)
+      expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe(current)
+      if (current === 'system') expect(document.documentElement).not.toHaveAttribute('data-theme')
+      else expect(document.documentElement).toHaveAttribute('data-theme', current)
+    }
+    await user.click(language)
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('zh-CN')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+  it('shows the original 1.00 on expiry after a locked payment amount of 1.02', async () => {
+    value = { ...locked(), original_cents: 100, actual_cents: 102 }
+    const { client } = mount()
+    expect(await screen.findByText('¥1.02', { exact: true })).toBeVisible()
+    expect(screen.getByText(/订单剩余时间/)).toBeVisible()
+    value = { ...value, status: 'expired', can_pay: false }
+    await act(async () => { await client.invalidateQueries({ queryKey: ['checkout', 'order-1'] }) })
+    expect(screen.getByRole('heading', { name: '订单已过期', level: 2 })).toBeVisible()
+    expect(screen.getByText('订单金额', { exact: true })).toBeVisible()
+    expect(screen.getByText('¥1.00', { exact: true })).toBeVisible()
+    expect(screen.queryByText('¥1.02', { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByText(/订单剩余时间/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '复制订单号' })).toBeVisible()
   })
   it('keeps the amount, channel controls and order reference in the same receipt while waiting', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => { release = resolve })
     server.use(http.post(path + '/channel', async () => { await gate; value = locked(); return success(value) }))
     mount()
-    const receipt = within(screen.getByRole('article'))
+    const receipt = within(screen.getByRole('main'))
     try {
       fireEvent.click(await receipt.findByRole('button', { name: '支付宝' }))
       expect(receipt.getByRole('status')).toHaveTextContent('正在确认支付方式')
@@ -332,9 +396,9 @@ describe('public checkout', () => {
   it('withholds the order summary, order number and QR until verification clears', async () => {
     value = { ...locked(), verification: { required: true, site_key: 'fixture-key' } }
     const { client } = mount()
-    const receipt = within(screen.getByRole('article'))
+    const receipt = within(screen.getByRole('main'))
     expect(await receipt.findByRole('heading', { name: '收银台人机验证', level: 1 })).toBeVisible()
-    expect(receipt.getByText('收银台', { exact: true })).toBeVisible()
+    expect(screen.getByText('收银台', { exact: true })).toBeVisible()
     expect(receipt.getByRole('button', { name: '继续付款' })).toBeDisabled()
     expect(receipt.queryByRole('img')).not.toBeInTheDocument()
     expect(receipt.queryByText('¥29.99', { exact: true })).not.toBeInTheDocument()
@@ -356,6 +420,20 @@ describe('public checkout', () => {
     expect(await screen.findByRole('heading', { name: '订单已过期' })).toBeVisible()
     expect(screen.getByRole('button', { name: '复制订单号' })).toBeVisible()
     expect(screen.queryByRole('button', { name: '继续付款' })).not.toBeInTheDocument()
+  })
+  it('withholds previously loaded payment details when access becomes restricted', async () => {
+    value = locked()
+    const { client } = mount()
+    expect(await screen.findByRole('img', { name: '收款二维码' })).toBeVisible()
+    server.use(http.get(path, () => failure('IP_BLOCKED', 403)))
+    await act(async () => { await client.invalidateQueries({ queryKey: ['checkout', 'order-1'] }) })
+    expect(screen.getByRole('heading', { name: '此 IP 地址无法付款', level: 1 })).toBeVisible()
+    expect(screen.queryByText('示例小店')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '月度会员' })).not.toBeInTheDocument()
+    expect(screen.queryByText('¥29.99', { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByText('order-1', { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '复制订单号' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
   it.each([false, true])('renders a channel option selected=%s with disabled behavior', (selected) => {
     const clicked = vi.fn()

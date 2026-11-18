@@ -3,7 +3,7 @@ import { registerAnnouncementAuditTests } from './announcements-audit-cases'
 import { registerPublicSiteTests } from './public-site-cases'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import QRCode from 'qrcode'
-import { prepareCheckout } from '../checkout/fixtures'
+import { prepareCheckout, selectCheckoutScreenshotTheme } from '../checkout/fixtures'
 import type { ConsoleRecovery } from '../../../web/src/api/client'
 import { chooseSelect, clickControl, selectScreenshotTheme, login, noOverflow, openMenu, polishShot, totp, watchPortalFirstFrame } from '../merchant/fixtures'
 
@@ -125,6 +125,8 @@ test('initializes once, enters the shared overview and captures the responsive s
   expect((await created).status()).toBe(201)
   await expect(page).toHaveURL(/\/console$/)
   await expect(page.getByRole('heading', { name: /console_admin/ })).toBeVisible()
+  const metrics = page.getByRole('region', { name: '收款指标', exact: true })
+  await expect(metrics.getByRole('region', { name: '今日收款', exact: true })).toHaveCSS('border-top-width', '0px')
   await shots(page, 'overview', true)
   // Visually hidden chart data must not stretch the page below the shell (sidebar background would stop short).
   expect(await page.evaluate(() => document.documentElement.scrollHeight - Math.ceil(Math.max(window.innerHeight, document.getElementById('main')!.getBoundingClientRect().bottom + window.scrollY)))).toBeLessThanOrEqual(0)
@@ -691,7 +693,7 @@ test('saves risk controls, gates checkout with Turnstile, and blocks the source 
     const buyer = await customer.newPage()
     await captcha(buyer, admin.turnstileToken)
     await buyer.goto('/pay/' + trade)
-    const product = buyer.getByRole('heading', { name: '月度会员' })
+    const product = buyer.getByRole('heading', { name: '月度会员', level: 1, exact: true })
     await expect(buyer.getByRole('heading', { name: '收银台人机验证', level: 1 })).toBeVisible()
     await expect(product).toHaveCount(0)
     await expect(buyer.getByRole('button', { name: '支付宝', exact: true })).toHaveCount(0)
@@ -701,11 +703,8 @@ test('saves risk controls, gates checkout with Turnstile, and blocks the source 
     async function checkoutShots(state: string) {
       for (const width of [360, 1280]) {
         await buyer.setViewportSize({ width, height: 780 })
-        for (const [theme, label] of [['light', '浅色'], ['dark', '深色']] as const) {
-          const menu = buyer.getByRole('button', { name: '主题', exact: true })
-          await menu.click()
-          await buyer.getByRole('menuitemradio', { name: label, exact: true }).click()
-          await expect(buyer.locator('html')).toHaveAttribute('data-theme', theme)
+        for (const theme of ['light', 'dark'] as const) {
+          await selectCheckoutScreenshotTheme(buyer, theme)
           await polishShot(buyer, state, true, 'payment-risk-shots')
         }
       }
@@ -723,6 +722,8 @@ test('saves risk controls, gates checkout with Turnstile, and blocks the source 
     await saveRisk()
     await buyer.reload()
     await expect(buyer.getByRole('heading', { name: '此 IP 地址无法付款' })).toBeVisible()
+    await expect(product).toHaveCount(0)
+    await expect(buyer.getByText(trade, { exact: true })).toHaveCount(0)
     await expect(qr).toHaveCount(0)
     await checkoutShots('checkout-ip-blocked')
   } finally {

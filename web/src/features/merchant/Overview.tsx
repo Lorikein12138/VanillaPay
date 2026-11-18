@@ -48,7 +48,7 @@ export function Overview({ name, role = 'merchant' }: { name: string; role?: 'me
         }
       />
 
-      <section aria-label={t('merchant.overview.metrics')} aria-busy={current.isPending} className="grid min-h-36 grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-8">
+      <section aria-label={t('merchant.overview.metrics')} aria-busy={current.isPending} className="-mt-4 grid min-h-36 grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-8">
         {current.isError ? <div className="col-span-full"><QueryProblem retry={() => { void current.refetch() }} /></div> : <>
           <Metric label={t('merchant.overview.receipts', { period })} value={current.data ? money(current.data.total_amount_cents, language) : undefined}>
             {previous.isError ? <QueryProblem retry={() => { void previous.refetch() }} /> : previous.isPending ? <Skeleton className="h-4 w-36" /> : change === null ? t('merchant.overview.noPrevious') : t('merchant.overview.change', { value: new Intl.NumberFormat(language, { style: 'percent', signDisplay: 'always', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(change) })}
@@ -79,5 +79,5 @@ export function Overview({ name, role = 'merchant' }: { name: string; role?: 'me
 }
 
 function Metric({ label, value, children, accent = false }: { label: string; value?: string; children: ReactNode; accent?: boolean }) {
-  return <section aria-label={label} className="min-w-0 border-t-[0.5px] border-border-strong pt-5"><h2 className="text-label text-text-2">{label}</h2>{value === undefined ? <Skeleton className="my-1.5 h-[46px] w-3/4" /> : <p className={`my-2 break-words font-serif text-figure tracking-[-0.015em] tabular-nums ${accent ? 'text-accent-text' : ''}`}>{value}</p>}<div className="text-[13px] text-text-3">{value === undefined ? <Skeleton className="h-4 w-32" /> : children}</div></section>
+  return <section aria-label={label} className="min-w-0"><h2 className="text-label text-text-2">{label}</h2>{value === undefined ? <Skeleton className="my-1.5 h-[46px] w-3/4" /> : <p className={`my-2 break-words font-serif text-figure tracking-[-0.015em] tabular-nums ${accent ? 'text-accent-text' : ''}`}>{value}</p>}<div className="text-[13px] text-text-3">{value === undefined ? <Skeleton className="h-4 w-32" /> : children}</div></section>
 }
