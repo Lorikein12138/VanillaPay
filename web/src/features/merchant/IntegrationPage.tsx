@@ -220,6 +220,8 @@ function TestPaymentCard({ name }: { name: string }) {
   const { t, i18n } = useTranslation()
   const client = useQueryClient(), action = useLocalAction(), id = useId()
   const [amount, setAmount] = useState('0.01'), [channel, setChannel] = useState('')
+  const [productName, setProductName] = useState('')
+  const [nameError, setNameError] = useState<'risk.errors.nameBlocked' | 'tools.testPayment.nameInvalid'>()
   const [invalid, setInvalid] = useState(false)
   const [created, setCreated] = useState<Schema['MerchantTestPayment'] | null>(null)
   const problem = action.error instanceof APIError ? action.error.problem?.code : undefined
@@ -229,9 +231,23 @@ function TestPaymentCard({ name }: { name: string }) {
     const valid = cents !== null && cents >= 1 && cents <= 999999999
     setInvalid(!valid)
     if (!valid) return
-    setCreated(null)
+    setNameError(undefined)
+    const trimmedName = productName.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '')
     await action.run(async () => {
-      const result = await api.testPayment({ amount_cents: cents, channel: channel === 'alipay' || channel === 'wxpay' ? channel : null })
+      let result: Schema['MerchantTestPayment']
+      try {
+        result = await api.testPayment({
+          amount_cents: cents,
+          channel: channel === 'alipay' || channel === 'wxpay' ? channel : null,
+          ...(trimmedName ? { name: trimmedName } : {}),
+        })
+      } catch (error) {
+        if (!(error instanceof APIError)) throw error
+        if (error.problem?.code === 'NAME_BLOCKED') setNameError('risk.errors.nameBlocked')
+        else if (error.problem?.fields?.name) setNameError('tools.testPayment.nameInvalid')
+        else throw error
+        return
+      }
       if (action.active.current) setCreated(result)
       await Promise.all([
         client.invalidateQueries({ queryKey: ['merchant', name, 'orders'] }),
@@ -253,6 +269,9 @@ function TestPaymentCard({ name }: { name: string }) {
           </Select>
         </Field>
       </FieldGrid>
+      <Field label={t('tools.testPayment.name')} htmlFor={id + '-name'} hint={t('tools.testPayment.nameHint')} error={nameError && t(nameError)}>
+        <Input id={id + '-name'} aria-describedby={id + '-name-hint'} aria-invalid={Boolean(nameError) || undefined} autoComplete="off" value={productName} disabled={action.busy} onChange={(event) => { setProductName(event.target.value); setNameError(undefined) }} />
+      </Field>
       <FormHint>{t('tools.testPayment.hint')}</FormHint>
       {created && <Notice tone="success" action={<span className="flex flex-wrap gap-2">
         <a href={created.cashier_url} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'primary', size: 'sm' })}>{t('tools.testPayment.openCashier')}</a>

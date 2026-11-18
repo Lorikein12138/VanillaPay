@@ -21,17 +21,24 @@ func enforceCheckoutIP(ip string, rules []string) error {
 	return nil
 }
 
-func enforceCreateRisk(ctx context.Context, tx pgx.Tx, in CreateCommand, risk platform.PaymentRisk) error {
-	if err := enforceCheckoutIP(in.ClientIP, risk.IPBlacklist); err != nil {
-		return err
-	}
-	if len(risk.NameBlockWords) != 0 {
-		name := platform.NormalizePaymentName(in.Name)
-		for _, word := range risk.NameBlockWords {
+func enforcePaymentName(name string, words []string) error {
+	if len(words) != 0 {
+		name = platform.NormalizePaymentName(name)
+		for _, word := range words {
 			if strings.Contains(name, platform.NormalizePaymentName(word)) {
 				return apiErr("NAME_BLOCKED", 403)
 			}
 		}
+	}
+	return nil
+}
+
+func enforceCreateRisk(ctx context.Context, tx pgx.Tx, in CreateCommand, risk platform.PaymentRisk) error {
+	if err := enforceCheckoutIP(in.ClientIP, risk.IPBlacklist); err != nil {
+		return err
+	}
+	if err := enforcePaymentName(in.Name, risk.NameBlockWords); err != nil {
+		return err
 	}
 	var enabled bool
 	var entries []string

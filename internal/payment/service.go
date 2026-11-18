@@ -101,6 +101,10 @@ func (s *Service) Create(ctx context.Context, in CreateCommand) (OrderDTO, error
 			if err := enforceCreateRisk(ctx, tx, in, risk); err != nil {
 				return err
 			}
+		} else if in.testCustomName {
+			if err := enforcePaymentName(in.Name, risk.NameBlockWords); err != nil {
+				return err
+			}
 		}
 		if found {
 			result = existing

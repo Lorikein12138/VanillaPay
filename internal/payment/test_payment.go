@@ -2,9 +2,12 @@ package payment
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"vanillapay/internal/platform"
@@ -15,6 +18,22 @@ const testPaymentName = "测试支付"
 type TestPaymentRequest struct {
 	AmountCents int64   `json:"amount_cents"`
 	Channel     *string `json:"channel"`
+	Name        string  `json:"name,omitempty"`
+}
+
+func (req *TestPaymentRequest) UnmarshalJSON(data []byte) error {
+	// Inspect the raw name only when the body contains invalid UTF-8.
+	if !utf8.Valid(data) {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(data, &fields); err != nil {
+			return err
+		}
+		if !utf8.Valid(fields["name"]) {
+			return &json.UnmarshalTypeError{Value: "string with invalid UTF-8", Type: reflect.TypeFor[string](), Field: "name"}
+		}
+	}
+	type request TestPaymentRequest
+	return json.Unmarshal(data, (*request)(req))
 }
 
 type TestPaymentDTO struct {
@@ -25,15 +44,23 @@ type TestPaymentDTO struct {
 
 // CreateTestPayment creates a merchant-console test order. It goes through the
 // normal order path, so plan limits, channels and QR codes are checked, but it
-// has no notify URL and skips the protocol-only API IP allowlist, product name
-// block words and notify-domain checks. Older pending test orders of the
-// merchant are closed so at most one test order holds an amount reservation.
-func (s *Service) CreateTestPayment(ctx context.Context, actor platform.Actor, amountCents int64, channel string) (TestPaymentDTO, error) {
+// has no notify URL and skips the protocol API IP allowlist and notify-domain
+// checks. Only a supplied product name is checked against block words. Older
+// pending test orders are closed to release their amount reservations.
+func (s *Service) CreateTestPayment(ctx context.Context, actor platform.Actor, amountCents int64, channel, name string) (TestPaymentDTO, error) {
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
 		return TestPaymentDTO{}, apiErr("UNAUTHENTICATED", 401)
 	}
 	if amountCents < 1 || amountCents > MaxAmountCents {
 		return TestPaymentDTO{}, &platform.Error{Code: "VALIDATION_ERROR", HTTPStatus: 400, Fields: map[string]string{"amount_cents": "invalid"}}
+	}
+	name = strings.TrimSpace(name)
+	customName := name != ""
+	if len(name) > 127 || strings.ContainsRune(name, 0) {
+		return TestPaymentDTO{}, platform.InvalidJSONField("name")
+	}
+	if !customName {
+		name = testPaymentName
 	}
 	suffix, err := randomOpaque(s.random, 12)
 	if err != nil {
@@ -41,8 +68,9 @@ func (s *Service) CreateTestPayment(ctx context.Context, actor platform.Actor, a
 	}
 	order, err := s.Create(ctx, CreateCommand{
 		MerchantID: actor.MerchantID, Protocol: "v1", Purpose: "external",
-		OutTradeNo: "TEST" + strings.Map(testOutTradeRune, suffix), Name: testPaymentName,
+		OutTradeNo: "TEST" + strings.Map(testOutTradeRune, suffix), Name: name,
 		OriginalCents: amountCents, Channel: channel, SourceIP: actor.IP, Actor: actor, test: true,
+		testCustomName: customName,
 	})
 	if err != nil {
 		return TestPaymentDTO{}, err
@@ -109,7 +137,7 @@ func (h *Handler) TestPayment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	actor, _ := platform.ActorFromContext(r.Context())
-	dto, err := h.Service.CreateTestPayment(r.Context(), actor, req.AmountCents, channel)
+	dto, err := h.Service.CreateTestPayment(r.Context(), actor, req.AmountCents, channel, req.Name)
 	if err == nil {
 		dto.CashierURL = h.cashierURL(dto.TradeNo)
 	}

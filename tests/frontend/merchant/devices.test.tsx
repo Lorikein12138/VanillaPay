@@ -594,7 +594,7 @@ describe('merchant tools', () => {
     expect(client.getQueryData(['merchant', user.username, 'callback-settings'])).toEqual({ hide_name: true })
   })
 
-  it('validates the test amount, sends cents with the chosen channel and links to checkout and the order', async () => {
+  it('sends the test amount, chosen channel and optional product name and links to checkout and the order', async () => {
     const bodies: unknown[] = []
     const trade = 'VP' + crypto.randomUUID()
     server.use(http.post('*/api/v1/merchant/test-payment', async ({ request }) => {
@@ -605,6 +605,8 @@ describe('merchant tools', () => {
     const { client } = mount('/integration')
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     const amount = await screen.findByLabelText('金额（元）')
+    const productName = screen.getByRole('textbox', { name: '商品名（选填）' })
+    expect(productName).toHaveAccessibleDescription('留空时使用「测试支付」。')
     const create = screen.getByRole('button', { name: '创建测试订单' })
     for (const value of ['0', '1.234', '10000000']) {
       await userEvent.clear(amount)
@@ -615,18 +617,72 @@ describe('merchant tools', () => {
     expect(bodies).toEqual([])
     await userEvent.clear(amount)
     await userEvent.type(amount, '12.3')
+    await userEvent.type(productName, ' 月度会员 ')
     await chooseSelect(userEvent.setup(), screen.getByLabelText('支付渠道'), 'wxpay')
     await userEvent.click(create)
     const open = await screen.findByRole('link', { name: '打开收银台' })
-    expect(bodies).toEqual([{ amount_cents: 1230, channel: 'wxpay' }])
+    expect(bodies).toEqual([{ amount_cents: 1230, channel: 'wxpay', name: '月度会员' }])
     expect(open).toHaveAttribute('href', 'https://pay.example.test/pay/' + trade)
     expect(open).toHaveAttribute('target', '_blank')
     expect(open).toHaveAttribute('rel', expect.stringContaining('noopener'))
     expect(screen.getByRole('link', { name: '查看订单' })).toHaveAttribute('href', '/orders/' + trade)
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['merchant', user.username, 'orders'] })
     await chooseSelect(userEvent.setup(), screen.getByLabelText('支付渠道'), '')
+    fireEvent.change(productName, { target: { value: ' \u0085\u3000' } })
     await userEvent.click(create)
     await waitFor(() => expect(bodies.at(-1)).toEqual({ amount_cents: 1230, channel: null }))
+  })
+
+  it('shows name errors beside the field and keeps the last successful order links until replacement succeeds', async () => {
+    let code: Schema['ErrorCode'] | undefined
+    let trade = 'VP-first'
+    const cashierURL = () => 'https://pay.example.test/pay/' + trade
+    server.use(http.post('*/api/v1/merchant/test-payment', () => {
+      if (!code) return HttpResponse.json({
+        data: { trade_no: trade, cashier_url: cashierURL(), expires_at: '2030-01-01T00:05:00Z' }, error: null, request_id: crypto.randomUUID(),
+      }, { status: 201 })
+      return HttpResponse.json({
+        data: null, error: { code, message: code, fields: code === 'VALIDATION_ERROR' ? { name: 'invalid' } : {}, details: {} }, request_id: crypto.randomUUID(),
+      }, { status: code === 'VALIDATION_ERROR' ? 400 : 403 })
+    }))
+    vi.spyOn(api, 'integration').mockResolvedValue({ pid: user.pid!, key: crypto.randomUUID(), key_version: 1, base_url: 'https://example.test', v1: { submit: '', mapi: '', query: '', refund: '', info: '', orders: '' }, v2: { submit: '', create: '', query: '', refund: '', info: '', orders: '', close: '', refundquery: '' }, merchant_public_key: null, platform_public_keys: [], ip_whitelist: { enabled: false, entries: [] } })
+    mount('/integration')
+    const productName = await screen.findByRole('textbox', { name: '商品名（选填）' })
+    const submit = screen.getByRole('button', { name: '创建测试订单' })
+    function expectOrderLinks() {
+      const openCashier = screen.getByRole('link', { name: '打开收银台' })
+      const viewOrder = screen.getByRole('link', { name: '查看订单' })
+      expect(openCashier).toBeVisible()
+      expect(openCashier).toHaveAttribute('href', cashierURL())
+      expect(viewOrder).toBeVisible()
+      expect(viewOrder).toHaveAttribute('href', '/orders/' + trade)
+    }
+    await userEvent.click(submit)
+    await waitFor(expectOrderLinks)
+
+    code = 'VALIDATION_ERROR'
+    fireEvent.change(productName, { target: { value: '茶'.repeat(43) } })
+    await userEvent.click(submit)
+    await waitFor(() => expect(productName).toHaveAccessibleDescription('商品名最多 127 个 UTF-8 字节，且不能包含空字符（NUL）。'))
+    expect(productName).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expectOrderLinks()
+
+    code = 'NAME_BLOCKED'
+    fireEvent.change(productName, { target: { value: '测试支付' } })
+    expect(productName).not.toHaveAttribute('aria-invalid')
+    expect(productName).toHaveAccessibleDescription('留空时使用「测试支付」。')
+    await userEvent.click(submit)
+    await waitFor(() => expect(productName).toHaveAccessibleDescription('商品名称不符合支付规则。'))
+    expect(productName).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expectOrderLinks()
+
+    code = undefined
+    trade = 'VP-replacement'
+    fireEvent.change(productName, { target: { value: '月度会员' } })
+    await userEvent.click(submit)
+    await waitFor(expectOrderLinks)
   })
 
   it('explains plan and capacity failures of a test payment', async () => {

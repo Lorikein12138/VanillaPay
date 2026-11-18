@@ -32,7 +32,8 @@ type CreateCommand struct {
 	BuyerID       *int64
 	Actor         platform.Actor
 	// test marks a merchant-console test payment. Only CreateTestPayment sets it.
-	test bool
+	test           bool
+	testCustomName bool
 }
 
 type OrderDTO struct {
