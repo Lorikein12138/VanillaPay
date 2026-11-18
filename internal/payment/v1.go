@@ -95,21 +95,65 @@ var submitRiskMessages = map[string]string{
 
 func writeSubmitError(w http.ResponseWriter, code string) {
 	var detail string
-	if message := submitRiskMessages[code]; message != "" {
-		detail = "<p>" + html.EscapeString(message) + "</p>"
+	if zh, en, ok := strings.Cut(submitRiskMessages[code], " / "); ok {
+		detail = `<section class="detail"><p>` + html.EscapeString(zh) + `</p><p lang="en">` + html.EscapeString(en) + `</p></section>`
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, `<!doctype html>
-<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>无法发起支付 · Payment unavailable</title>
-<style>body{margin:0;background:#faf7f0;color:#28231e;font:1rem/1.6 system-ui,sans-serif;padding:clamp(1rem,8vw,5rem)}
-main{max-width:34rem;margin:auto;background:#fffdf8;border:1px solid #e7ded0;border-radius:1rem;padding:clamp(1rem,5vw,2.5rem)}
-h1{font:2rem Georgia,serif;margin:0;color:#87452e}code{overflow-wrap:anywhere}</style>
-<main><h1>无法发起支付</h1><p>请返回商户网站重试，或联系商户并提供下方错误码。</p>
-<p lang="en">Payment could not start. Return to the merchant and try again, or share the error code with them.</p>
-`+detail+`<code>`+html.EscapeString(code)+`</code></main></html>`)
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>无法发起支付 · Payment unavailable</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --stage: #e7ddd0; --receipt: #f9eddb; --ink: #302821; --muted: #685b50;
+      --accent: #a94e36; --rule: #ab8e75; --detail: #fffcf5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --stage: #1e1916; --receipt: #41342b; --ink: #f4eee3; --muted: #c9baaa;
+        --accent: #e69a7b; --rule: #aa8b73; --detail: #302c28;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; min-height: 100svh; display: grid; align-items: center;
+      padding: clamp(1rem, 4vw, 2.5rem); background: var(--stage); color: var(--ink);
+      font: 1rem/1.55 system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    }
+    main {
+      width: 100%; min-width: 0; max-width: 32rem; margin-inline: auto;
+      padding: clamp(1.125rem, 5vw, 2rem); background: var(--receipt);
+      border: 1px solid var(--rule); border-top: .25rem solid var(--accent); border-radius: .5rem .5rem 0 0;
+    }
+    h1 {
+      margin: 0 0 .75rem; font: 600 clamp(1.75rem, 5vw, 2.25rem)/1.2
+        'Source Serif 4', Georgia, 'Noto Serif CJK SC', 'Songti SC', SimSun, serif;
+    }
+    p { margin: 0; }
+    p + p { margin-top: .375rem; }
+    [lang="en"], dt { color: var(--muted); font-size: .875rem; }
+    .detail { margin-top: 1rem; padding: .75rem; background: var(--detail); border-radius: .375rem; }
+    dl { margin: 1rem 0 0; padding-top: .75rem; border-top: 1px dashed var(--rule); }
+    dd { margin: .25rem 0 0; }
+    code { font-family: 'JetBrains Mono', Consolas, monospace; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>无法发起支付</h1>
+    <p>请返回商户网站重试，或联系商户并提供下方错误码。</p>
+    <p lang="en">Payment could not start. Return to the merchant and try again, or share the error code with them.</p>
+    `+detail+`
+    <dl><dt>错误码 <span lang="en">/ Error code</span></dt><dd><code>`+html.EscapeString(code)+`</code></dd></dl>
+  </main>
+</body>
+</html>`)
 }
 
 func (h *Handler) externalCommand(r *http.Request, p url.Values, merchantID int64, protocol string, api bool) (CreateCommand, error) {

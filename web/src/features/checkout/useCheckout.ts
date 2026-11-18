@@ -61,7 +61,10 @@ export function useCheckout(tradeNo: string) {
     try {
       await api.selectCheckoutChannel(tradeNo, { channel }, active.signal)
       // The POST DTO is incomplete. Only a fresh GET can authorize the QR view.
-      if (mounted.current) await refetch()
+      if (mounted.current) {
+        const refreshed = await refetch()
+        if (refreshed.isSuccess) return refreshed.data
+      }
     } catch (failure) {
       if (!mounted.current) return
       setError(failure)

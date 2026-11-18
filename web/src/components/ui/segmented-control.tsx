@@ -18,7 +18,7 @@ export function SegmentedControl<T extends string>({ label, value, options, onVa
       aria-checked={value === option.value}
       tabIndex={focusValue === option.value ? 0 : -1}
       disabled={option.disabled}
-      className="min-h-11 rounded-[8px] px-4 text-label font-[460] text-text-2 transition-[background-color,color,box-shadow] hover:text-text aria-checked:bg-surface aria-checked:text-text aria-checked:shadow-[0_0_0_0.5px_var(--color-border),0_1px_2px_rgba(20,20,19,0.06)] dark:aria-checked:bg-oat disabled:opacity-45"
+      className="min-h-11 rounded-[8px] px-4 text-label font-[460] text-text-2 transition-[background-color,color,box-shadow] hover:text-text aria-checked:bg-selected aria-checked:text-text aria-checked:shadow-[0_0_0_0.5px_var(--color-border),0_1px_2px_rgba(20,20,19,0.06)] disabled:opacity-45"
       onClick={() => onValueChange(option.value)}
       onKeyDown={(event) => {
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return

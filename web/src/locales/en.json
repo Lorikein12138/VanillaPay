@@ -28,6 +28,9 @@
     "dark": "Dark"
   },
   "home": {
+    "sampleReceipt": "Demo receipt",
+    "sampleMerchant": "Mountain Bookshop",
+    "sampleTransaction": "Sample transaction",
     "register": "Register",
     "dashboard": "Go to dashboard",
     "redirecting": "Redirecting…",
@@ -993,6 +996,7 @@
     }
   },
   "checkout": {
+    "receipt": "Payment receipt",
     "verificationTitle": "Checkout verification",
     "verificationHelp": "Complete the security check to view payment options.",
     "verificationFailed": "Verification could not be completed. Please try again.",

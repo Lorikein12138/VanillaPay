@@ -72,9 +72,10 @@ export function ConsoleSettingsPage({
               key={key}
               type="button"
               disabled={busy}
+              aria-current={group === key ? 'true' : undefined}
               onClick={() => selectGroup(key)}
               className={`flex min-h-11 items-center justify-between rounded-control px-3 text-left text-label disabled:opacity-50 ${
-                group === key ? 'bg-selected font-[500] text-text' : 'text-text-2 hover:bg-hover hover:text-text'
+                group === key ? 'bg-selected font-semibold text-text' : 'text-text-2 hover:bg-hover hover:text-text'
               }`}
             >
               <span>{groupLabel(key)}</span>

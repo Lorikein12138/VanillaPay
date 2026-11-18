@@ -20,7 +20,8 @@ const path = '*/api/v1/checkout/order-1'
 const success = (data: Checkout) => HttpResponse.json({ data })
 const failure = (code: string, status: number) => HttpResponse.json({ error: { code, message: code } }, { status })
 function order(overrides: Partial<Checkout> = {}): Checkout {
-  return { trade_no: 'order-1', name: '月度会员', product_id: '', merchant: { username: '示例小店', id: '1' }, status: 'pending', reason: 'no_channel', original_cents: 3000, actual_cents: null, channel: null, available_channels: ['alipay', 'wxpay'], qr_image_url: null, expires_at: new Date(Date.now() + 300000).toISOString(), server_time: new Date().toISOString(), device_online: true, can_pay: false, return_url_signed: null, requires_exact_amount: true, ...overrides }
+  const now = Date.now()
+  return { trade_no: 'order-1', name: '月度会员', product_id: '', merchant: { username: '示例小店', id: '1' }, status: 'pending', reason: 'no_channel', original_cents: 3000, actual_cents: null, channel: null, available_channels: ['alipay', 'wxpay'], qr_image_url: null, expires_at: new Date(now + 300000).toISOString(), server_time: new Date(now).toISOString(), device_online: true, can_pay: false, return_url_signed: null, requires_exact_amount: true, ...overrides }
 }
 const locked = () => order({ channel: 'alipay', actual_cents: 2999, reason: null, can_pay: true, qr_image_url: '/media/original?signature=a%2Bb&expires=123' })
 let value: Checkout, gets: number
@@ -61,10 +62,37 @@ describe('public checkout', () => {
     mount(); (await screen.findByRole('button', { name: '支付宝' })).focus()
     expect(post).not.toHaveBeenCalled()
   })
+  it('moves keyboard focus to the scan heading after Enter locks the channel', async () => {
+    server.use(http.post(path + '/channel', () => { value = locked(); return success(value) }))
+    const keyboard = userEvent.setup()
+    mount()
+    const choose = await screen.findByRole('button', { name: '支付宝' })
+    const copy = screen.getByRole('button', { name: '复制订单号' })
+    copy.focus()
+    await keyboard.tab()
+    expect(choose).toHaveFocus()
+    await keyboard.keyboard('{Enter}')
+    const title = await screen.findByRole('heading', { name: '收款二维码' })
+    await waitFor(() => expect(title).toHaveFocus())
+    await keyboard.tab({ shift: true })
+    expect(copy).toHaveFocus()
+  })
+  it('keeps the current focus when a poll finds a locked channel', async () => {
+    vi.useFakeTimers()
+    mount()
+    await tick(100)
+    const theme = screen.getByRole('button', { name: '主题' })
+    theme.focus()
+    value = locked()
+    await tick(3100)
+    expect(screen.getByRole('heading', { name: '收款二维码' })).toBeVisible()
+    expect(theme).toHaveFocus()
+  })
   it('still warns about exact payment when actual equals original', async () => {
     value = { ...locked(), actual_cents: 3000 }; mount()
     expect(await screen.findByText('请按显示金额付款，金额不符将无法自动到账。')).toBeVisible()
     expect(document.querySelector('del')).toBeNull()
+    expect(screen.getByRole('heading', { name: '收款二维码' })).not.toHaveFocus()
   })
   it.each([
     ['CHANNEL_LOCKED', 409, true], ['ORDER_NOT_PAYABLE', 409, true],
@@ -77,7 +105,10 @@ describe('public checkout', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(code === 'AMOUNT_CAPACITY_EXHAUSTED' ? '该支付方式当前繁忙' : refresh ? '订单或支付方式已发生变化' : '暂时无法完成请求')
     await waitFor(() => expect(gets).toBe(refresh ? 2 : 1))
-    if (refresh) await screen.findByRole('img')
+    if (refresh) {
+      await screen.findByRole('img')
+      expect(screen.getByRole('heading', { name: '收款二维码' })).not.toHaveFocus()
+    }
     else await waitFor(() => expect(screen.getByRole('button', { name: '支付宝' })).toBeEnabled())
   })
   it.each([-300000, 300000])('corrects client clock skew of %i ms', async (skew) => {

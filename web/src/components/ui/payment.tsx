@@ -1,22 +1,36 @@
 import type { ReactNode } from 'react'
-import { Check, Clock, RotateCcw, ShieldX, Store } from 'lucide-react'
+import { Check, ChevronRight, CircleAlert, Clock, RotateCcw, ShieldX, Store } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button, type ButtonProps } from './button'
 import { channelPaths } from './channel-paths'
 import { CopyText } from './copy-button'
-import { Card } from './layout'
 
-/** Public payment header keeps controls visible while long shop names truncate. */
-export function PaymentShell({ merchant, controls, footer, children }: { merchant: ReactNode; controls: ReactNode; footer: ReactNode; children: ReactNode }) {
-  return <div className="flex min-h-dvh flex-col bg-bg">
-    <header className="border-b-[0.5px] border-border px-4 py-3">
-      <div className="mx-auto flex max-w-[960px] items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5"><Store className="size-5 shrink-0 text-accent-text" strokeWidth={1.7} aria-hidden="true" /><span className="min-w-0 truncate font-serif text-xl tracking-[-0.01em]">{merchant}</span></div>
+export function PaymentShell({ merchant, controls, footer, receipt, children }: {
+  merchant: ReactNode; controls: ReactNode; footer: ReactNode; receipt?: ReactNode; children: ReactNode
+}) {
+  const { t } = useTranslation()
+  return <div className="flex min-h-dvh flex-col bg-stage">
+    <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-10 focus:rounded-control focus:bg-surface focus:p-3">{t('common.skipToContent')}</a>
+    <header className="border-b border-border bg-bg px-3 py-1 sm:px-6">
+      <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Store className="size-5 shrink-0 text-accent-text" strokeWidth={1.7} aria-hidden="true" />
+          <span className="min-w-0 truncate font-serif text-lg" translate="no">{merchant}</span>
+        </div>
         <div className="flex shrink-0 items-center gap-0.5">{controls}</div>
       </div>
     </header>
-    <main className="mx-auto flex w-full max-w-[520px] flex-1 flex-col justify-center px-4 py-8 sm:py-14"><Card className="flex flex-col gap-6 rounded-[24px] shadow-[0_1px_2px_rgba(20,20,19,0.03),0_20px_48px_-28px_rgba(20,20,19,0.12)] sm:p-9">{children}</Card></main>
-    <footer className="px-4 pb-6 text-center text-caption text-text-3">{footer}</footer>
+    <main id="main" tabIndex={-1} className="grid flex-1 place-items-center px-3 py-2 sm:px-6 sm:py-6">
+      <div className={cn('grid w-full min-w-0 gap-x-4 gap-y-2.5 [overflow-wrap:anywhere]',
+        receipt ? 'max-w-[1120px] gap-y-3 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-x-[clamp(1.5rem,4vw,4rem)]' : 'max-w-lg')}>
+        {receipt}
+        <section className="flex min-w-0 flex-col justify-center gap-2 rounded-dialog border border-border bg-surface px-4 py-2.5 shadow-dialog md:gap-4 md:px-9 md:py-7">
+          {children}
+        </section>
+        <footer className="text-end text-caption text-text-3 md:col-span-full">{footer}</footer>
+      </div>
+    </main>
   </div>
 }
 
@@ -29,8 +43,8 @@ export function sortChannels<T extends string>(channels: readonly T[]): T[] {
 
 // Shared brand tokens, with brighter dark-theme variants for legibility.
 const channelColors: Record<keyof typeof channelPaths, string> = {
-  alipay: '[--channel-color:#1677ff] dark:[--channel-color:#6ba6ff]',
-  wxpay: '[--channel-color:#07a855] dark:[--channel-color:#47d68a]',
+  alipay: 'bg-[var(--vp-alipay-tile)] text-[var(--vp-alipay)]',
+  wxpay: 'bg-[var(--vp-wxpay-tile)] text-[var(--vp-wxpay)]',
 }
 /**
  * `brand` is a coloured tile for places where the channel is the thing being
@@ -48,9 +62,9 @@ export function ChannelIcon({ channel, size = 'sm', tone = 'brand', className }:
   }
   return (
     <span aria-hidden="true" className={cn(
-      'inline-grid shrink-0 place-items-center bg-[var(--channel-color)] text-white',
+      'inline-grid shrink-0 place-items-center',
       size === 'md' ? 'size-6 rounded-[6px]' : 'size-4 rounded-[4px]',
-      brand ? channelColors[brand] : '[--channel-color:var(--vp-text-3)]',
+      brand ? channelColors[brand] : 'bg-muted text-text-3',
       className,
     )}>
       {brand && (
@@ -82,27 +96,20 @@ export function ChannelList({ channels, name }: { channels: string[]; name: (cha
 export function ChannelOption({ channel, selected = false, children, className, ...props }: ButtonProps & { channel: string; selected?: boolean }) {
   return (
     <Button {...props} aria-pressed={selected} className={cn(
-      'h-14 min-w-0 justify-start gap-2.5 rounded-xl border-border bg-field px-2.5 hover:border-border-strong hover:bg-hover sm:px-4',
-      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed',
-      selected && 'border-accent bg-accent-soft ring-1 ring-accent/30 hover:bg-accent-soft', className,
+      'min-h-11 w-full min-w-0 justify-start gap-2.5 whitespace-normal border-border bg-field px-2 py-1.5 text-start md:min-h-14 md:gap-3',
+      selected && 'border-accent bg-accent-soft hover:bg-accent-soft', className,
     )}>
-      <ChannelIcon channel={channel} size="md" />
-      <span className="min-w-0 truncate">{children}</span>
+      <ChannelIcon channel={channel} size="md" className="size-8 rounded-control [&_svg]:size-5 md:size-10" />
+      <span className="min-w-0 flex-1">{children}</span>
+      <ChevronRight className="text-accent-text" aria-hidden="true" />
     </Button>
   )
 }
 
-export function ChannelGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
-  return <div role="group" aria-label={label} className="flex flex-col gap-2.5">
-    <p className="text-caption text-text-3">{label}</p>
-    <div className={cn('grid gap-2.5', count === 2 ? 'grid-cols-2' : 'grid-cols-1')}>{children}</div>
-  </div>
-}
-
 export function ChannelBadge({ channel, name, label }: { channel: string; name: string; label?: string }) {
-  return <div className="flex flex-wrap items-center justify-center gap-2 text-caption text-text-3">
-    <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-muted px-3 py-1.5 text-label text-text-2">
-      <ChannelIcon channel={channel} />
+  return <div className="flex flex-wrap items-center gap-1.5 text-caption text-text-3">
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-label font-semibold text-text" translate="no">
+      <ChannelIcon channel={channel} size="md" />
       {name}
     </span>
     {label && <span>{label}</span>}
@@ -110,28 +117,35 @@ export function ChannelBadge({ channel, name, label }: { channel: string; name: 
 }
 
 export function PaymentOrder({ label, value, copyLabel }: { label: string; value: string; copyLabel: string }) {
-  return <div className="flex min-w-0 items-center justify-between gap-3 border-t-[0.5px] border-border pt-4">
-    <span className="shrink-0 text-caption text-text-3">{label}</span>
-    <div className="min-w-0 text-right"><CopyText value={value} label={copyLabel} /></div>
+  return <div className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-x-3 border-t border-dashed border-receipt-rule pt-1 md:mt-5 md:pt-2.5">
+    <span className="text-caption text-text-2">{label}</span>
+    <div className="min-w-0 text-end" translate="no"><CopyText value={value} label={copyLabel} /></div>
   </div>
 }
 
-export function PaymentAmount({ name, label, amount, original }: { name: ReactNode; label: ReactNode; amount: ReactNode; original?: ReactNode }) {
-  return <div className="flex flex-col items-center gap-2 text-center">
-    <h1 className="m-0 break-words font-serif text-heading tracking-[-0.005em]">{name}</h1>
-    <p className="text-label text-text-2">{label}</p>
-    <div className="flex flex-wrap items-baseline justify-center gap-3"><span className="font-serif text-[3.25rem] leading-tight tracking-[-0.02em] tabular-nums">{amount}</span>{original && <del className="text-label text-text-3">{original}</del>}</div>
+export function PaymentAmount({ label, amount, original }: { label: ReactNode; amount: ReactNode; original?: ReactNode }) {
+  return <div>
+    <p className="text-caption text-text-2">{label}</p>
+    <p className="mt-0.5 font-serif text-[clamp(2.75rem,5.3vw,4.75rem)] leading-none font-semibold tracking-[-0.04em] lining-nums tabular-nums">{amount}</p>
+    {original && <p className="mt-1 text-caption text-text-2">{original}</p>}
   </div>
 }
 
 export function PaymentQR({ src, alt }: { src: string; alt: string }) {
-  return <div className="mx-auto w-full max-w-[248px] rounded-2xl bg-white p-4 shadow-[0_0_0_0.5px_rgba(20,20,19,0.1)]"><img className="aspect-square w-full object-contain" src={src} alt={alt} /></div>
+  return <div className="w-[min(7rem,34vw)] rounded-control border border-receipt-rule bg-white p-2 md:w-36 md:p-2.5">
+    <img width={128} height={128} className="aspect-square w-full object-contain" src={src} alt={alt} />
+  </div>
 }
 
 export function PaymentResult({ kind, title, children }: { kind: 'paid' | 'expired' | 'refunded' | 'unavailable' | 'blocked'; title: ReactNode; children: ReactNode }) {
-  const Icon = kind === 'paid' ? Check : kind === 'refunded' ? RotateCcw : kind === 'blocked' ? ShieldX : Clock
-  return <div className="flex flex-col items-center gap-4 pt-3 text-center">
-    <span className={kind === 'paid' ? 'rounded-full bg-dot-ok/10 p-4 text-dot-ok' : 'rounded-full bg-muted p-4 text-text-2'}><Icon className="size-7" aria-hidden="true" /></span>
-    <h1 className="font-serif text-[1.625rem] leading-[1.25] tracking-[-0.01em]">{title}</h1><div className="flex w-full flex-col items-center gap-4 text-label text-text-2">{children}</div>
+  const Icon = { paid: Check, expired: Clock, refunded: RotateCcw, unavailable: CircleAlert, blocked: ShieldX }[kind]
+  const tone = { paid: 'bg-notice-success text-dot-ok', expired: 'bg-notice-warning text-dot-wait', refunded: 'bg-notice-info text-dot-info',
+    unavailable: 'bg-notice-error text-danger', blocked: 'bg-notice-error text-danger' }[kind]
+  return <div aria-live="polite" className="grid gap-2.5 md:gap-4">
+    <h1 className="font-serif text-[clamp(1.5rem,2.6vw,2.25rem)] leading-tight">{title}</h1>
+    <div className="flex items-start gap-3 border-t border-border pt-2.5 md:pt-4">
+      <span className={cn('grid size-11 shrink-0 place-items-center rounded-full', tone)}><Icon className="size-5" aria-hidden="true" /></span>
+      <div className="flex min-w-0 flex-col items-start gap-1 text-label text-text-2">{children}</div>
+    </div>
   </div>
 }

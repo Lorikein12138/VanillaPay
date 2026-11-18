@@ -4,35 +4,38 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from './button'
 
-/**
- * Native file input (kept for keyboard, labels and tests) drawn as a
- * "选择文件" button plus the chosen file name. Give it `id` and point a
- * `<Field htmlFor>` at it; reset it by changing its `key`.
- */
+/** The native input is the keyboard target. The visible button opens the same picker on click. */
 export function FileInput({ className, onChange, disabled, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   const { t } = useTranslation()
   const input = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   function change(event: ChangeEvent<HTMLInputElement>) {
-    const files = event.target.files
-    setName(files && files.length ? Array.from(files, (file) => file.name).join(', ') : '')
+    const files = event.currentTarget.files
+    setName(files ? Array.from(files, (file) => file.name).join(', ') : '')
     onChange?.(event)
   }
   return (
-    <div className={cn('flex min-w-0 items-center gap-3', className)}>
+    <div className={cn('flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1', className)}>
       <input ref={input} type="file" className="peer sr-only" disabled={disabled} onChange={change} {...props} />
       <button
         type="button"
         tabIndex={-1}
         aria-hidden="true"
         disabled={disabled}
-        onClick={() => input.current?.click()}
-        className={cn(buttonVariants({ variant: 'secondary' }), 'peer-focus-visible:shadow-[0_0_0_1px_var(--color-accent),0_0_0_4px_var(--color-focus-ring)]')}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => {
+          input.current?.focus({ preventScroll: true })
+          input.current?.click()
+        }}
+        className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }),
+          'peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent')}
       >
         <Upload aria-hidden="true" strokeWidth={1.8} />
         {t('ui.chooseFile')}
       </button>
-      <span className={cn('min-w-0 truncate text-label', name ? 'text-text' : 'text-text-3')}>{name || t('ui.noFileChosen')}</span>
+      <span title={name || undefined} className={cn('min-w-0 flex-[1_1_8rem] truncate text-label', name ? 'text-text' : 'text-text-3')}>
+        {name || t('ui.noFileChosen')}
+      </span>
     </div>
   )
 }

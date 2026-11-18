@@ -10,16 +10,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -56,7 +51,7 @@ internal fun BindScreen(
         }
         Headline("绑定这台手机")
         Paragraph("在商户后台「监控设备」页生成二维码或绑定码，5 分钟内有效。每个商户只绑定一台手机。")
-        Action("扫码绑定", scan, !busy, Modifier.fillMaxWidth().height(48.dp), R.drawable.monitor_scan)
+        Action("扫码绑定", scan, !busy, Modifier.fillMaxWidth().heightIn(min = 48.dp), R.drawable.monitor_scan)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.weight(1f)) { Rule() }
             Caption("或输入绑定码")
@@ -67,7 +62,7 @@ internal fun BindScreen(
         Input(base, onBase, "站点地址", !busy, KeyboardOptions(keyboardType = KeyboardType.Uri),
             hint = "默认是构建时指定的站点；扫码绑定会自动填写")
         error?.let { Callout(it, warning = false) }
-        Secondary(if (busy) "正在绑定…" else "用绑定码绑定", bind, Modifier.fillMaxWidth().height(48.dp), enabled = !busy)
+        Secondary(if (busy) "正在绑定…" else "用绑定码绑定", bind, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !busy)
         TextAction("通知识别测试", diagnostics, !busy)
     }
 }
@@ -83,8 +78,12 @@ private fun Input(
         val surface = MaterialTheme.colorScheme.surface
         OutlinedTextField(value, change, Modifier.fillMaxWidth().semantics { contentDescription = label }, enabled = enabled,
             textStyle = if (monospace) style.copy(fontFamily = mono, letterSpacing = 1.5.sp) else style,
-            colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = surface, unfocusedContainerColor = surface),
-            singleLine = true, keyboardOptions = keyboard, shape = RoundedCornerShape(8.dp))
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = surface,
+                unfocusedContainerColor = surface,
+                disabledContainerColor = surface,
+            ),
+            singleLine = true, keyboardOptions = keyboard, shape = MaterialTheme.shapes.small)
         hint?.let { Caption(it) }
     }
 }
@@ -117,28 +116,9 @@ internal fun StartupGuideDialog(
     onConfirm: () -> Unit, onDismiss: () -> Unit,
 ) {
     val background = guide.background
-    AlertDialog(
+    MonitorDialog(
+        title = "自启动与后台运行",
         onDismissRequest = onDismiss,
-        containerColor = if (background == null) AlertDialogDefaults.containerColor else MaterialTheme.colorScheme.surface,
-        title = { Text("自启动与后台运行") },
-        text = {
-            if (background == null) {
-                Text(guide.startup)
-            } else {
-                Column(
-                    Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text("第一步：自启动", style = MaterialTheme.typography.titleMedium)
-                    Paragraph(guide.startup)
-                    TextAction("打开自启动设置", openStartup)
-                    Rule()
-                    Text("第二步：允许后台高耗电", style = MaterialTheme.typography.titleMedium)
-                    Paragraph(background)
-                    TextAction("打开后台耗电设置", openBackground)
-                }
-            }
-        },
         confirmButton = {
             if (background == null) TextAction("去设置", openStartup)
             else TextAction("我已确认", onConfirm)
@@ -146,7 +126,32 @@ internal fun StartupGuideDialog(
         dismissButton = {
             if (background == null) TextAction("我已确认", onConfirm)
         },
-    )
+    ) {
+        if (background == null) {
+            Paragraph(guide.startup)
+        } else {
+            Text("第一步：自启动", style = MaterialTheme.typography.titleMedium)
+            Paragraph(guide.startup)
+            TextAction("打开自启动设置", openStartup)
+            Rule()
+            Text("第二步：允许后台高耗电", style = MaterialTheme.typography.titleMedium)
+            Paragraph(background)
+            TextAction("打开后台耗电设置", openBackground)
+        }
+    }
+}
+
+@Composable
+internal fun UnbindDialog(local: Boolean, busy: Boolean, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    MonitorDialog(
+        title = "解绑这台手机",
+        onDismissRequest = { if (!busy) onDismiss() },
+        confirmButton = { TextAction(if (busy) "正在解绑…" else "确认解绑", onConfirm, !busy, danger = true) },
+        dismissButton = { TextAction("取消", onDismiss, !busy) },
+    ) {
+        Paragraph(if (local) "无法连接服务器。仍要解绑本机吗？还需要在商户后台删除这台设备，否则会被判为离线。"
+            else "解绑后本机停止上报，需要在商户后台重新生成绑定码。")
+    }
 }
 
 @Composable
@@ -208,7 +213,7 @@ internal fun HomeScreen(
             online -> "在线 · 心跳 ${((now - (state.lastHeartbeat ?: now)) / 1000).coerceAtLeast(0)} 秒前"
             else -> "离线"
         }
-        Panel(PaddingValues(20.dp), gap = 14) {
+        Panel(PaddingValues(20.dp), gap = 14, receipt = true) {
             StatusLabel(status, if (online) palette.good else palette.wait, halo = online)
             Headline(if (access) "正在监听到账" else "通知监听已暂停")
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -222,7 +227,7 @@ internal fun HomeScreen(
         Panel(PaddingValues(horizontal = 16.dp, vertical = 6.dp), gap = 0) {
             Channel.entries.forEachIndexed { index, channel ->
                 if (index > 0) Rule()
-                Row(Modifier.height(48.dp), verticalAlignment = Alignment.CenterVertically,
+                Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val enabled = channel in channels && access
                     ChannelIcon(channel, size = 28.dp, tone = ChannelTone.Brand, enabled = enabled)
@@ -261,7 +266,7 @@ private fun HomeHeader(hide: () -> Unit, settings: () -> Unit) {
             Text("VanillaPay", fontFamily = serif, fontSize = 20.sp, maxLines = 1)
             Text("Monitor", color = LocalPalette.current.accent, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
         }
-        Secondary("隐藏", hide, Modifier.height(36.dp), compact = true, icon = R.drawable.monitor_eye_off)
+        Secondary("隐藏", hide, Modifier.heightIn(min = 36.dp), compact = true, icon = R.drawable.monitor_eye_off)
         HeaderIcon(R.drawable.monitor_settings, "设置", settings)
     }
 }
@@ -334,7 +339,7 @@ internal fun SettingsScreen(
     Screen(topBar = { BackHeader("设置", back) }, footer = {
         Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Secondary("解绑这台手机", unbind, Modifier.fillMaxWidth().height(48.dp), danger = true)
+            Secondary("解绑这台手机", unbind, Modifier.fillMaxWidth().heightIn(min = 48.dp), danger = true)
             Text("解绑后本机停止上报，需要在商户后台重新生成绑定码。", color = LocalPalette.current.subtle,
                 style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
         }
@@ -374,7 +379,7 @@ private fun SettingsRow(label: String, value: String? = null, monospace: Boolean
     click: (() -> Unit)? = null, enabled: Boolean = true) {
     val action = if (click == null) Modifier else Modifier.clickable(enabled = enabled, role = Role.Button, onClick = click)
     val secondary = LocalPalette.current.secondary
-    Row(Modifier.fillMaxWidth().height(48.dp).then(action), verticalAlignment = Alignment.CenterVertically,
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).then(action), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(label, fontSize = 15.sp)
         if (value != null) {

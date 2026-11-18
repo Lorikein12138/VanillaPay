@@ -1,6 +1,6 @@
 import { deviceQuery, recentOrdersQuery, statsQuery } from '@/app/portal-queries'
 import { Button } from '@/components/ui/button'
-import { Page } from '@/components/ui/layout'
+import { Card, Page, PageHeader } from '@/components/ui/layout'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,15 +38,15 @@ export function Overview({ name, role = 'merchant' }: { name: string; role?: 'me
 
   return (
     <Page className="gap-12">
-      <div className="flex flex-wrap items-end justify-between gap-5">
-        <div className="min-w-0 space-y-1.5">
-          <h1 className="m-0 break-words font-serif text-[2rem] font-normal leading-[1.15] tracking-[-0.01em] sm:text-[2.5rem]">{t(`merchant.overview.greeting.${greeting}`, { name })}</h1>
-          <p className="m-0 text-[15px] text-text-2">{new Intl.DateTimeFormat(language, { dateStyle: 'full' }).format(now)}</p>
-        </div>
-        <div role="group" aria-label={t('merchant.overview.timeRange')} className="inline-flex gap-0.5 rounded-xl bg-muted p-1">
-          {([1, 7, 30] as const).map((value) => <Button variant="ghost" key={value} aria-pressed={days === value} onClick={() => setDays(value)} className={`min-h-11 rounded-[8px] px-4 text-label transition-[background-color,color,box-shadow] ${days === value ? 'bg-surface text-text shadow-[0_0_0_0.5px_var(--color-border),0_1px_2px_rgba(20,20,19,0.06)] hover:bg-surface dark:bg-oat dark:hover:bg-oat' : 'text-text-2 hover:bg-transparent hover:text-text'}`}>{t(`merchant.overview.range.${value}`)}</Button>)}
-        </div>
-      </div>
+      <PageHeader
+        title={t(`merchant.overview.greeting.${greeting}`, { name })}
+        description={new Intl.DateTimeFormat(language, { dateStyle: 'full' }).format(now)}
+        actions={
+          <div role="group" aria-label={t('merchant.overview.timeRange')} className="inline-flex gap-0.5 rounded-xl bg-muted p-1">
+            {([1, 7, 30] as const).map((value) => <Button variant="ghost" key={value} aria-pressed={days === value} onClick={() => setDays(value)} className={`min-h-11 rounded-[8px] px-4 text-label transition-[background-color,color,box-shadow] ${days === value ? 'bg-selected text-text hover:bg-selected' : 'text-text-2 hover:bg-transparent hover:text-text'}`}>{t(`merchant.overview.range.${value}`)}</Button>)}
+          </div>
+        }
+      />
 
       <section aria-label={t('merchant.overview.metrics')} aria-busy={current.isPending} className="grid min-h-36 grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-8">
         {current.isError ? <div className="col-span-full"><QueryProblem retry={() => { void current.refetch() }} /></div> : <>
@@ -60,14 +60,14 @@ export function Overview({ name, role = 'merchant' }: { name: string; role?: 'me
       </section>
 
       <div className="flex flex-wrap gap-6">
-        <section aria-labelledby="overview-trend" aria-busy={chart.isPending} className="min-h-[340px] min-w-0 flex-[2_1_440px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8">
+        <Card aria-labelledby="overview-trend" aria-busy={chart.isPending} className="min-h-[340px] flex-[2_1_440px]">
           <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2"><h2 id="overview-trend" className="font-serif text-heading tracking-[-0.005em]">{t('merchant.overview.trend')}</h2><span className="text-caption text-text-3">{t('merchant.overview.thousands')}</span></div>
           {chart.isError ? <QueryProblem retry={() => { void chart.refetch() }} /> : chart.isPending ? <Skeleton className="h-[218px] w-full" /> : <TrendChart points={chart.data.trend ?? []} format={(cents) => decimal.format(cents / 100000)} />}
-        </section>
-        {role === 'merchant' && <section aria-labelledby="overview-device" aria-busy={device.isPending} className="min-h-48 min-w-0 flex-[1_1_280px] rounded-card border-[0.5px] border-border bg-surface p-5 sm:p-8">
+        </Card>
+        {role === 'merchant' && <Card aria-labelledby="overview-device" aria-busy={device.isPending} className="min-h-48 flex-[1_1_280px]">
           <h2 id="overview-device" className="mb-4 font-serif text-heading tracking-[-0.005em]">{t('merchant.overview.device')}</h2>
           {device.isError ? <QueryProblem retry={() => { void device.refetch() }} /> : device.isPending ? <Skeleton className="h-20 w-full" /> : <DeviceCard device={device.data} now={now} />}
-        </section>}
+        </Card>}
       </div>
 
       {role === 'merchant' && <section aria-labelledby="overview-orders" aria-busy={orders.isPending} className="min-w-0">

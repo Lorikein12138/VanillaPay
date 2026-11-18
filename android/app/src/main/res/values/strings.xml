@@ -2,5 +2,4 @@
     <string name="app_name">VanillaPay Monitor</string>
     <string name="launcher_name">VanillaPay</string>
     <string name="other_channel">Other</string>
-    <color name="notification_accent">#006984</color>
 </resources>
