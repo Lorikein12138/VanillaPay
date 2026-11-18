@@ -42,7 +42,7 @@ import com.vanillapay.monitor.parse.Channel
 internal fun BindScreen(
     code: String, name: String, base: String, busy: Boolean, error: String?,
     onCode: (String) -> Unit, onName: (String) -> Unit, onBase: (String) -> Unit,
-    scan: () -> Unit, bind: () -> Unit, diagnostics: () -> Unit,
+    scan: () -> Unit, bind: () -> Unit, diagnostics: () -> Unit, connectionDiagnostics: () -> Unit,
 ) {
     Screen {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -64,6 +64,7 @@ internal fun BindScreen(
         error?.let { Callout(it, warning = false) }
         Secondary(if (busy) "正在绑定…" else "用绑定码绑定", bind, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !busy)
         TextAction("通知识别测试", diagnostics, !busy)
+        TextAction("连接诊断", connectionDiagnostics, !busy)
     }
 }
 
@@ -333,7 +334,8 @@ internal fun receiptFailureDescription(code: String?, cents: Long) = when {
 
 @Composable
 internal fun SettingsScreen(
-    session: Credential, back: () -> Unit, checkUpdate: () -> Unit, diagnostics: () -> Unit, unbind: () -> Unit,
+    session: Credential, back: () -> Unit, checkUpdate: () -> Unit, diagnostics: () -> Unit,
+    connectionDiagnostics: () -> Unit, unbind: () -> Unit,
     updateBusy: Boolean = false, message: String? = null,
 ) {
     Screen(topBar = { BackHeader("设置", back) }, footer = {
@@ -348,7 +350,10 @@ internal fun SettingsScreen(
             "设备名称" to session.deviceName, "设备 ID" to session.deviceId,
             "绑定时间" to localTime(session.boundAt, "yyyy-MM-dd HH:mm"),
         ))
-        SettingsGroup("连接", listOf("站点" to (siteUrl(session.base)?.host ?: session.base), "心跳间隔" to "${session.interval} 秒"))
+        SettingsGroup("连接", listOf("站点" to (siteUrl(session.base)?.host ?: session.base), "心跳间隔" to "${session.interval} 秒")) {
+            Rule()
+            SettingsRow("连接诊断", click = connectionDiagnostics)
+        }
         SettingsGroup("应用", listOf("名称" to "VanillaPay Monitor", "版本" to BuildConfig.VERSION_NAME)) {
             Rule()
             SettingsRow("检查更新", if (updateBusy) "检查中…" else "打开下载页", click = checkUpdate, enabled = !updateBusy)

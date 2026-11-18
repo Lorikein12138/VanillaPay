@@ -1,35 +1,35 @@
 import type { ReactNode } from 'react'
-import { Check, ChevronRight, CircleAlert, Clock, RotateCcw, ShieldX, Store } from 'lucide-react'
+import { Check, ChevronRight, CircleAlert, Clock, RotateCcw, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button, type ButtonProps } from './button'
 import { channelPaths } from './channel-paths'
-import { CopyText } from './copy-button'
+import { CopyButton } from './copy-button'
 
-export function PaymentShell({ merchant, controls, footer, receipt, children }: {
-  merchant: ReactNode; controls: ReactNode; footer: ReactNode; receipt?: ReactNode; children: ReactNode
+export function PaymentShell({ controls, receiptLabel, summary, footer, order, children }: {
+  controls: ReactNode; receiptLabel: ReactNode; summary?: ReactNode; footer: ReactNode; order?: ReactNode; children: ReactNode
 }) {
   const { t } = useTranslation()
   return <div className="flex min-h-dvh flex-col bg-stage">
     <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-10 focus:rounded-control focus:bg-surface focus:p-3">{t('common.skipToContent')}</a>
     <header className="border-b border-border bg-bg px-3 py-1 sm:px-6">
-      <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Store className="size-5 shrink-0 text-accent-text" strokeWidth={1.7} aria-hidden="true" />
-          <span className="min-w-0 truncate font-serif text-lg" translate="no">{merchant}</span>
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">{controls}</div>
-      </div>
+      <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-end gap-0.5">{controls}</div>
     </header>
-    <main id="main" tabIndex={-1} className="grid flex-1 place-items-center px-3 py-2 sm:px-6 sm:py-6">
-      <div className={cn('grid w-full min-w-0 gap-x-4 gap-y-2.5 [overflow-wrap:anywhere]',
-        receipt ? 'max-w-[1120px] gap-y-3 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-x-[clamp(1.5rem,4vw,4rem)]' : 'max-w-lg')}>
-        {receipt}
-        <section className="flex min-w-0 flex-col justify-center gap-2 rounded-dialog border border-border bg-surface px-4 py-2.5 shadow-dialog md:gap-4 md:px-9 md:py-7">
+    <main id="main" tabIndex={-1} className="grid flex-1 place-items-center px-3 py-3 max-[20rem]:px-1.5 sm:px-6 sm:py-6">
+      <article className="receipt-paper w-full min-w-0 max-w-[492px] px-4 pt-3 pb-3.5 [overflow-wrap:anywhere] max-[20rem]:px-2 sm:px-7 sm:pt-5 sm:pb-4">
+        <header className="flex flex-wrap items-baseline justify-between gap-x-2 border-b border-receipt-rule pb-1.5 sm:pb-2">
+          <span className="text-body font-bold tracking-tight sm:text-lg" translate="no">VanillaPay</span>
+          <span className="text-caption text-text-2">{receiptLabel}</span>
+        </header>
+        {summary}
+        <div className="my-3 flex min-w-0 flex-col gap-2.5 border-y border-dashed border-receipt-rule py-3 sm:my-4 sm:py-3.5">
           {children}
-        </section>
-        <footer className="text-end text-caption text-text-3 md:col-span-full">{footer}</footer>
-      </div>
+        </div>
+        <footer>
+          {order}
+          <p className="text-end text-caption text-text-3">{footer}</p>
+        </footer>
+      </article>
     </main>
   </div>
 }
@@ -117,33 +117,38 @@ export function ChannelBadge({ channel, name, label }: { channel: string; name: 
 }
 
 export function PaymentOrder({ label, value, copyLabel }: { label: string; value: string; copyLabel: string }) {
-  return <div className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-x-3 border-t border-dashed border-receipt-rule pt-1 md:mt-5 md:pt-2.5">
-    <span className="text-caption text-text-2">{label}</span>
-    <div className="min-w-0 text-end" translate="no"><CopyText value={value} label={copyLabel} /></div>
-  </div>
+  return <dl className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3">
+    <dt className="text-caption text-text-2">{label}</dt>
+    <dd className="flex min-w-0 items-center justify-end gap-1 text-end" translate="no">
+      <span className="min-w-0 font-mono text-caption">{value}</span>
+      <CopyButton value={value} label={copyLabel} />
+    </dd>
+  </dl>
 }
 
 export function PaymentAmount({ label, amount, original }: { label: ReactNode; amount: ReactNode; original?: ReactNode }) {
   return <div>
     <p className="text-caption text-text-2">{label}</p>
-    <p className="mt-0.5 font-serif text-[clamp(2.75rem,5.3vw,4.75rem)] leading-none font-semibold tracking-[-0.04em] lining-nums tabular-nums">{amount}</p>
+    <p className="mt-0.5 font-serif text-[clamp(2.75rem,5.3vw,4rem)] leading-none font-semibold tracking-[-0.045em] lining-nums tabular-nums">{amount}</p>
     {original && <p className="mt-1 text-caption text-text-2">{original}</p>}
   </div>
 }
 
 export function PaymentQR({ src, alt }: { src: string; alt: string }) {
-  return <div className="w-[min(7rem,34vw)] rounded-control border border-receipt-rule bg-white p-2 md:w-36 md:p-2.5">
+  return <div className="w-[min(8.25rem,35vw)] rounded-control border border-receipt-rule bg-white p-2 sm:p-2.5">
     <img width={128} height={128} className="aspect-square w-full object-contain" src={src} alt={alt} />
   </div>
 }
 
-export function PaymentResult({ kind, title, children }: { kind: 'paid' | 'expired' | 'refunded' | 'unavailable' | 'blocked'; title: ReactNode; children: ReactNode }) {
+export function PaymentResult({ kind, title, children, heading: Heading = 'h1' }: {
+  kind: 'paid' | 'expired' | 'refunded' | 'unavailable' | 'blocked'; title: ReactNode; children: ReactNode; heading?: 'h1' | 'h2'
+}) {
   const Icon = { paid: Check, expired: Clock, refunded: RotateCcw, unavailable: CircleAlert, blocked: ShieldX }[kind]
   const tone = { paid: 'bg-notice-success text-dot-ok', expired: 'bg-notice-warning text-dot-wait', refunded: 'bg-notice-info text-dot-info',
     unavailable: 'bg-notice-error text-danger', blocked: 'bg-notice-error text-danger' }[kind]
-  return <div aria-live="polite" className="grid gap-2.5 md:gap-4">
-    <h1 className="font-serif text-[clamp(1.5rem,2.6vw,2.25rem)] leading-tight">{title}</h1>
-    <div className="flex items-start gap-3 border-t border-border pt-2.5 md:pt-4">
+  return <div className="grid gap-2.5">
+    <Heading className="font-serif text-[clamp(1.375rem,2.6vw,1.75rem)] leading-tight text-balance">{title}</Heading>
+    <div className="flex items-start gap-3">
       <span className={cn('grid size-11 shrink-0 place-items-center rounded-full', tone)}><Icon className="size-5" aria-hidden="true" /></span>
       <div className="flex min-w-0 flex-col items-start gap-1 text-label text-text-2">{children}</div>
     </div>

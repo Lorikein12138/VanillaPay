@@ -102,8 +102,9 @@ type PaidCommand struct {
 	BuyerHint       string
 }
 type SupplementRequest struct {
-	Reason  string `json:"reason"`
-	Channel string `json:"channel,omitempty"`
+	Reason              string `json:"reason"`
+	Channel             string `json:"channel,omitempty"`
+	ExpectedAmountCents *int64 `json:"expected_amount_cents,omitempty"`
 }
 type RefundCommand struct {
 	MerchantID    int64

@@ -1,6 +1,6 @@
 import { chooseMenu } from '../portal-controls'
 import userEvent from '@testing-library/user-event'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { delay, http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -53,7 +53,10 @@ describe('public checkout', () => {
     expect(posts).toBe(1); expect(gets).toBe(2)
     expect(screen.queryByRole('button', { name: '微信支付' })).not.toBeInTheDocument()
     expect(screen.getByText('已锁定')).toBeVisible()
-    expect(screen.getByText('请务必支付 ¥29.99，金额不符将无法自动到账')).toBeVisible()
+    const reminder = screen.getByRole('note')
+    expect(reminder).toHaveTextContent('请按实付金额付款，金额不符将无法自动到账')
+    expect(reminder).not.toHaveTextContent('¥29.99')
+    expect(screen.getByText('¥29.99', { exact: true })).toBeVisible()
     expect(screen.getByText('¥30.00', { selector: 'del' })).toBeVisible()
   })
   it('requires a click even for one channel and does not select on keyboard focus', async () => {
@@ -68,13 +71,13 @@ describe('public checkout', () => {
     mount()
     const choose = await screen.findByRole('button', { name: '支付宝' })
     const copy = screen.getByRole('button', { name: '复制订单号' })
-    copy.focus()
+    screen.getByRole('button', { name: '主题' }).focus()
     await keyboard.tab()
     expect(choose).toHaveFocus()
     await keyboard.keyboard('{Enter}')
     const title = await screen.findByRole('heading', { name: '收款二维码' })
     await waitFor(() => expect(title).toHaveFocus())
-    await keyboard.tab({ shift: true })
+    await keyboard.tab()
     expect(copy).toHaveFocus()
   })
   it('keeps the current focus when a poll finds a locked channel', async () => {
@@ -300,10 +303,59 @@ describe('public checkout', () => {
   })
   it('shows the paid amount and localized channel once, including English', async () => {
     value = { ...locked(), status: 'paid' }; mount()
-    expect(await screen.findByText('已支付 ¥29.99 · 支付宝')).toBeVisible()
+    const receipt = within(await screen.findByRole('article'))
+    expect(await receipt.findByRole('heading', { name: '支付成功' })).toBeVisible()
+    expect(receipt.getByText('已支付', { exact: true })).toBeVisible()
+    expect(receipt.getByText('¥29.99', { exact: true })).toBeVisible()
+    expect(receipt.getByText('支付宝', { exact: true })).toBeVisible()
     await chooseMenu(userEvent.setup(), '语言', 'English')
-    expect(await screen.findByText('Paid ¥29.99 · Alipay')).toBeVisible()
-    expect(screen.getByText('You may close this page.')).toBeVisible()
+    expect(await receipt.findByText('Amount paid')).toBeVisible()
+    expect(receipt.getByText('Alipay', { exact: true })).toBeVisible()
+    expect(receipt.getByText('You may close this page.')).toBeVisible()
+  })
+  it('keeps the amount, channel controls and order reference in the same receipt while waiting', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    server.use(http.post(path + '/channel', async () => { await gate; value = locked(); return success(value) }))
+    mount()
+    const receipt = within(screen.getByRole('article'))
+    try {
+      fireEvent.click(await receipt.findByRole('button', { name: '支付宝' }))
+      expect(receipt.getByRole('status')).toHaveTextContent('正在确认支付方式')
+      expect(receipt.getByRole('button', { name: '微信支付' })).toBeDisabled()
+      expect(receipt.getByText('¥30.00', { exact: true })).toBeVisible()
+      expect(receipt.getByRole('button', { name: '复制订单号' })).toBeVisible()
+      expect(receipt.getByText('由 VanillaPay 提供收款服务')).toBeVisible()
+    } finally { release() }
+    expect(await receipt.findByRole('img', { name: '收款二维码' })).toBeVisible()
+  })
+  it('withholds the order summary, order number and QR until verification clears', async () => {
+    value = { ...locked(), verification: { required: true, site_key: 'fixture-key' } }
+    const { client } = mount()
+    const receipt = within(screen.getByRole('article'))
+    expect(await receipt.findByRole('heading', { name: '收银台人机验证', level: 1 })).toBeVisible()
+    expect(receipt.getByText('收银台', { exact: true })).toBeVisible()
+    expect(receipt.getByRole('button', { name: '继续付款' })).toBeDisabled()
+    expect(receipt.queryByRole('img')).not.toBeInTheDocument()
+    expect(receipt.queryByText('¥29.99', { exact: true })).not.toBeInTheDocument()
+    expect(receipt.queryByText('¥30.00', { exact: true })).not.toBeInTheDocument()
+    expect(receipt.queryByRole('heading', { name: '月度会员' })).not.toBeInTheDocument()
+    expect(receipt.queryByText('示例小店')).not.toBeInTheDocument()
+    expect(receipt.queryByText('order-1')).not.toBeInTheDocument()
+    expect(receipt.queryByRole('button', { name: '复制订单号' })).not.toBeInTheDocument()
+    value = locked()
+    await act(async () => { await client.invalidateQueries({ queryKey: ['checkout', 'order-1'] }) })
+    expect(receipt.getByRole('heading', { name: '月度会员', level: 1 })).toBeVisible()
+    expect(receipt.getByRole('img', { name: '收款二维码' })).toBeVisible()
+    expect(receipt.getByText('¥29.99', { exact: true })).toBeVisible()
+    expect(receipt.getByRole('button', { name: '复制订单号' })).toBeVisible()
+  })
+  it('keeps the receipt visible when a terminal response also requires verification', async () => {
+    value = { ...locked(), status: 'expired', verification: { required: true, site_key: 'fixture-key' } }
+    mount()
+    expect(await screen.findByRole('heading', { name: '订单已过期' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '复制订单号' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '继续付款' })).not.toBeInTheDocument()
   })
   it.each([false, true])('renders a channel option selected=%s with disabled behavior', (selected) => {
     const clicked = vi.fn()

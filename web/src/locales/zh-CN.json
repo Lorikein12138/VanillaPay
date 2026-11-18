@@ -373,6 +373,10 @@
         "csrf": "安全校验失败，请刷新页面后重试。",
         "channel": "该订单不允许使用此通道，请核对后重新操作。",
         "channelLocked": "订单通道已锁定，不能更换。",
+        "supplementChanged": "订单已更新，请核对最新金额和通道后重新确认补单。",
+        "supplementAmountChanged": "订单金额已变化，请核对最新金额后重新确认补单。",
+        "supplementUnavailable": "当前订单已不能补单，请查看最新订单状态。",
+        "supplementRefreshFailed": "订单已变化，暂时无法获取最新信息。请关闭弹窗后重试。",
         "callbackPending": "回调正在等待或执行中，请稍后查看结果。",
         "callbackUnavailable": "该订单当前无法重发回调。",
         "idempotency": "本次确认的信息与已提交内容不一致，请关闭后重新操作。",
@@ -996,6 +1000,7 @@
     }
   },
   "checkout": {
+    "title": "收银台",
     "receipt": "收款凭条",
     "verificationTitle": "收银台人机验证",
     "verificationHelp": "完成人机验证后即可查看付款选项。",
@@ -1009,8 +1014,9 @@
     "actual": "实付金额",
     "choose": "选择支付方式",
     "chooseHelp": "选择支付方式后确定实付金额",
+    "selecting": "正在确认支付方式…",
     "locked": "已锁定",
-    "exact": "请务必支付 {{amount}}，金额不符将无法自动到账",
+    "exact": "请按实付金额付款，金额不符将无法自动到账",
     "exactSame": "请按显示金额付款，金额不符将无法自动到账。",
     "qr": "收款二维码",
     "scan": "打开{{channel}}「扫一扫」付款",
@@ -1046,7 +1052,7 @@
       "expired": "正在确认订单状态，页面会自动刷新。",
       "unavailable": "暂时无法付款，请稍后或联系商户。页面会自动刷新。"
     },
-    "paidAmount": "已支付 {{amount}}",
+    "paidLabel": "已支付",
     "orderLabel": "订单号"
   },
   "console": {

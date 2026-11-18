@@ -7,6 +7,10 @@ export type OrderAction = 'supplement' | 'refund' | 'reject' | 'resolve' | 'repl
 export const orderStatuses = ['pending', 'paid', 'expired', 'refunded'] as const
 export const orderChannels = ['alipay', 'wxpay'] as const
 
+export function canSupplementOrder(order: components['schemas']['PortalOrderDTO']) {
+  return order.status === 'pending' || (order.status === 'expired' && (order.expire_reason !== 'cancelled' || order.purpose !== 'external'))
+}
+
 export function orderSearch(search: Record<string, unknown>): OrderFilters {
   const result: OrderFilters = {}
   for (const key of ['status', 'channel', 'start', 'end', 'query'] as const) {
@@ -21,7 +25,7 @@ export function orderSearch(search: Record<string, unknown>): OrderFilters {
 export function availableOrderActions(detail: components['schemas']['OrderDetail']): OrderAction[] {
   const { order, refund, notify_url } = detail
   const actions: OrderAction[] = []
-  if (order.status === 'pending' || (order.status === 'expired' && (order.expire_reason !== 'cancelled' || order.purpose !== 'external'))) actions.push('supplement')
+  if (canSupplementOrder(order)) actions.push('supplement')
   if (order.status === 'paid') {
     actions.push('refund')
     if (refund?.status === 'pending') actions.push('resolve', 'reject')
@@ -36,6 +40,7 @@ export function orderErrorKey(error: unknown) {
     case 'CSRF_FAILED': return 'merchant.orders.errors.csrf'
     case 'CHANNEL_NOT_ALLOWED': return 'merchant.orders.errors.channel'
     case 'CHANNEL_LOCKED': return 'merchant.orders.errors.channelLocked'
+    case 'ORDER_AMOUNT_CHANGED': return 'merchant.orders.errors.supplementAmountChanged'
     case 'CALLBACK_PENDING': return 'merchant.orders.errors.callbackPending'
     case 'CALLBACK_UNAVAILABLE': return 'merchant.orders.errors.callbackUnavailable'
     case 'IDEMPOTENCY_CONFLICT': return 'merchant.orders.errors.idempotency'

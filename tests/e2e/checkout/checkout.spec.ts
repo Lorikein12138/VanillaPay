@@ -32,9 +32,11 @@ async function screenshots(page: Page, name: string) {
     expect(dimensions.width).toBeLessThanOrEqual(frame.width)
     expect(dimensions.height).toBeLessThanOrEqual(frame.height)
     await polishShot(page, name, true, 'checkout-shots')
-    const shop = await page.locator('header').getByText('示例小店').boundingBox()
-    const controls = await page.getByRole('button', { name: '主题', exact: true }).boundingBox()
-    expect(Math.abs((shop!.y + shop!.height / 2) - (controls!.y + controls!.height / 2))).toBeLessThan(2)
+    const receipt = page.getByRole('article')
+    await expect(receipt).toHaveCount(1)
+    await expect(receipt.getByText('示例小店')).toBeVisible()
+    await expect(receipt.getByRole('button', { name: '复制订单号' })).toBeVisible()
+    await expect(receipt.getByText('由 VanillaPay 提供收款服务')).toBeVisible()
   }
 }
 
@@ -58,7 +60,7 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
   await expectChannelLayout(page)
   await screenshots(page, 'unselected')
   const copyOrder = page.getByRole('button', { name: '复制订单号' })
-  await copyOrder.focus()
+  await page.getByRole('button', { name: '主题', exact: true }).focus()
   await page.keyboard.press('Tab')
   await expect(page.getByRole('button', { name: '支付宝', exact: true })).toBeFocused()
   const post = page.waitForResponse((response) => response.url().endsWith(`/checkout/${trade}/channel`) && response.request().method() === 'POST')
@@ -72,10 +74,13 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
   await expect(qr).toHaveAttribute('src', data.qr_image_url!)
   await expect(qr).toBeVisible()
   await expect(page.getByRole('heading', { name: '收款二维码' })).toBeFocused()
-  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
   await expect(copyOrder).toBeFocused()
   await expect.poll(() => qr.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBe(300)
-  await expect(page.getByRole('note')).toContainText('请务必支付 ¥29.99')
+  const reminder = page.getByRole('note')
+  await expect(reminder).toContainText('请按实付金额付款，金额不符将无法自动到账')
+  await expect(reminder).not.toContainText('¥29.99')
+  await expect(page.getByRole('article').getByText('¥29.99', { exact: true })).toHaveCount(1)
   await expect(page.getByRole('button', { name: '微信支付', exact: true })).toHaveCount(0)
   await screenshots(page, 'locked')
   const receipt = await request.post('/api/v1/device/receipts', {
@@ -85,10 +90,65 @@ test('public v1 checkout locks a channel, serves its signed QR and receives a re
   expect(receipt.status()).toBe(201)
   expect((await receipt.json() as { data: { match_state: string } }).data.match_state).toBe('matched')
   await expect(page.getByRole('heading', { name: '支付成功', exact: true })).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText('已支付 ¥29.99 · 支付宝')).toBeVisible()
+  const paidReceipt = page.getByRole('article')
+  await expect(paidReceipt.getByText('已支付', { exact: true })).toBeVisible()
+  await expect(paidReceipt.getByText('¥29.99', { exact: true })).toBeVisible()
+  await expect(paidReceipt.getByText('支付宝', { exact: true })).toBeVisible()
   await expect(page.getByText('可以关闭本页')).toBeVisible()
   await screenshots(page, 'paid')
   expect((await checkout(request, trade)).status).toBe('paid')
+})
+
+test('public checkout reveals the receipt after keyboard verification', async ({ page, request }) => {
+  const { trade } = await prepareCheckout(request)
+  const initial = await checkout(request, trade)
+  let verified = false
+  const endpoint = `**/api/v1/checkout/${trade}`
+  await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: `window.turnstile = {
+      render(node, options) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = '完成本地验证';
+        button.onclick = () => options.callback('checkout-fixture-token');
+        node.append(button);
+        return 'checkout-fixture';
+      },
+      remove() {},
+    };`,
+  }))
+  await page.route(endpoint, (route) => route.fulfill({ json: {
+    data: verified ? initial : { ...initial, verification: { required: true, site_key: 'checkout-fixture-key' } },
+  } }))
+  await page.route(endpoint + '/verify', (route) => {
+    expect(route.request().postDataJSON()).toEqual({ turnstile_token: 'checkout-fixture-token' })
+    verified = true
+    return route.fulfill({ status: 204 })
+  })
+
+  await page.goto(`/pay/${trade}`)
+  const receipt = page.getByRole('article')
+  const widget = receipt.getByRole('button', { name: '完成本地验证' })
+  await expect(receipt.getByRole('heading', { name: '收银台人机验证', level: 1 })).toBeVisible()
+  await expect(receipt.getByText('示例小店')).toHaveCount(0)
+  await expect(receipt.getByText(trade, { exact: true })).toHaveCount(0)
+  await expect(receipt.getByText('¥30.00', { exact: true })).toHaveCount(0)
+  await expect(receipt.getByRole('button', { name: '复制订单号' })).toHaveCount(0)
+  await expect(receipt.getByRole('button', { name: '支付宝', exact: true })).toHaveCount(0)
+  await expect(receipt.getByRole('img', { name: '收款二维码' })).toHaveCount(0)
+  await widget.focus()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Tab')
+  await expect(receipt.getByRole('button', { name: '继续付款' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  const channel = receipt.getByRole('button', { name: '支付宝', exact: true })
+  await expect(channel).toBeVisible()
+  await expect(receipt.getByRole('heading', { name: '月度会员', level: 1 })).toBeVisible()
+  await expect(receipt.getByText(trade, { exact: true })).toBeVisible()
+  await expect(receipt.getByText('¥30.00', { exact: true })).toBeVisible()
+  await page.keyboard.press('Tab')
+  await expect(channel).toBeFocused()
 })
 
 // State coverage below uses the real GET expiry transition.
