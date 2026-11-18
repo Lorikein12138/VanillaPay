@@ -33,14 +33,20 @@ for (const action of ['supplement', 'refund', 'resolve'] as const) {
     const documentMarker = crypto.randomUUID()
     await page.evaluate((marker) => { document.documentElement.dataset.cacheRegression = marker }, documentMarker)
     await openMenu(page); await page.getByRole('link', { name: '订单', exact: true }).click()
-    await page.getByRole('link', { name: trade, exact: true }).filter({ visible: true }).click()
-    await page.getByRole('button', { name: action === 'supplement' ? '补单' : action === 'refund' ? '标记退款' : '处理退款', exact: true }).click()
+    const orderLink = page.getByRole('link', { name: trade, exact: true }).filter({ visible: true })
+    const orderRow = orderLink.locator('xpath=ancestor::*[self::tr or self::li][1]')
+    if (pending) {
+      await orderRow.getByRole('button', { name: '补单', exact: true }).click()
+    } else {
+      await orderLink.click()
+      await page.getByRole('button', { name: action === 'refund' ? '标记退款' : '处理退款', exact: true }).click()
+    }
     if (pending) await chooseSelect(page, page.getByLabel('补单通道'), 'alipay')
     await page.getByLabel('原因', { exact: true }).fill('已核实线下收付款')
     if (!pending) await page.getByRole('checkbox').check()
     await page.getByRole('button', { name: pending ? '确认补单' : action === 'refund' ? '确认退款' : '确认处理退款', exact: true }).click()
     await expect(page.getByRole('status')).toContainText(pending ? '补单成功' : action === 'refund' ? '已标记退款' : '退款申请已处理')
-    await expect(page.getByText(pending ? '已支付' : '已退款', { exact: true })).toBeVisible()
+    await expect((pending ? orderRow : page).getByText(pending ? '已支付' : '已退款', { exact: true }).filter({ visible: true })).toBeVisible()
     await openMenu(page); await page.getByRole('link', { name: '概览', exact: true }).click()
     await expect(receipts).toContainText(pending ? '¥123.45' : '¥0.00')
     await expect(count).toContainText(`已支付 ${pending ? 1 : 0} 笔`)

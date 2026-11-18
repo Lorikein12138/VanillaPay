@@ -14,7 +14,7 @@ require(defaultBase.all { it.code in 33..126 && it != '"' && it != '\\' }) {
     "vanillapayBaseUrl must be an ASCII URL without whitespace, quotes or backslashes"
 }
 
-val monitorVersion = "1.1.3"
+val monitorVersion = "1.1.4"
 val (major, minor, patch) = monitorVersion.split('.').map(String::toInt)
 require(minor in 0..99 && patch in 0..99) { "versionName requires minor and patch below 100" }
 val monitorVersionCode = major * 10_000 + minor * 100 + patch
@@ -72,7 +72,9 @@ val verifyReleaseSigning by tasks.registering {
 tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(verifyReleaseSigning) }
 
 val screenshotsEnabled = providers.gradleProperty("monitorScreenshots").isPresent
-val screenshotFolder = layout.projectDirectory.dir("../../.artifacts/android-screens")
+val screenshotFolder = layout.projectDirectory.dir(
+    providers.gradleProperty("monitorScreenshotDir").orElse("../../.artifacts/android-screens").get(),
+)
 tasks.withType<Test>().configureEach {
     if (screenshotsEnabled) {
         systemProperty("monitor.screenshots", screenshotFolder.asFile.absolutePath)

@@ -2,13 +2,14 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
 import { StatusDot } from '@/components/StatusDot'
+import { Button } from '@/components/ui/button'
 import { Identifier } from '@/components/ui/layout'
 import { ChannelLabel } from '@/components/ui/payment'
 import { RecordLink } from '@/components/ui/records'
 import { Table, Td, Th } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { money } from './overview-data'
-import { orderChannels, orderStatuses, type OrderFilters } from './orders-data'
+import { canSupplementOrder, orderChannels, orderStatuses, type OrderFilters } from './orders-data'
 
 const statusTones = { paid: 'ok', pending: 'wait', expired: 'off', refunded: 'info' } as const
 
@@ -44,10 +45,20 @@ export function formatOrderTime(value: string | null, language: string | undefin
 
 type Order = components['schemas']['PortalOrderDTO']
 
-export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Order[]; filters: OrderFilters; role?: 'merchant' | 'console' }) {
+export function OrderRows({ orders, filters, role = 'merchant', onSupplement, openingTrade }: {
+  orders: Order[]; filters: OrderFilters; role?: 'merchant' | 'console'
+  onSupplement?: (tradeNo: string) => Promise<void>; openingTrade?: string
+}) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'zh-CN'
   const amount = (order: Order) => money(order.actual_cents ?? order.original_cents, language)
+  const showActions = role === 'merchant' && onSupplement && orders.some(canSupplementOrder)
+  const supplement = (order: Order) => showActions && canSupplementOrder(order) && (
+    <Button size="sm" variant="secondary" disabled={!!openingTrade} loading={openingTrade === order.trade_no}
+      onClick={() => { void onSupplement(order.trade_no) }}>
+      {t('merchant.orders.actions.supplement')}
+    </Button>
+  )
   const link = (order: Order) => (
     <Link
       to={role === 'console' ? '/console/orders/$tradeNo' : '/orders/$tradeNo'}
@@ -71,6 +82,7 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
             <Th align="right">{t('merchant.overview.amount')}</Th>
             <Th>{t('merchant.overview.status')}</Th>
             <Th align="right">{t('merchant.overview.createdAt')}</Th>
+            {showActions && <Th align="right">{t('merchant.orders.operations')}</Th>}
           </tr>
         </thead>
         <tbody>
@@ -86,6 +98,7 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
               <Td align="right" className="whitespace-nowrap font-medium">{amount(order)}</Td>
               <Td><OrderStatus status={order.status} /></Td>
               <Td align="right" className="whitespace-nowrap text-[13px] text-text-2"><OrderTime value={order.created_at} /></Td>
+              {showActions && <Td align="right">{supplement(order)}</Td>}
             </tr>
           ))}
         </tbody>
@@ -111,6 +124,7 @@ export function OrderRows({ orders, filters, role = 'merchant' }: { orders: Orde
                 <span aria-hidden="true">·</span>
                 <OrderTime value={order.created_at} />
               </span>
+              {supplement(order)}
             </div>
           </li>
         ))}

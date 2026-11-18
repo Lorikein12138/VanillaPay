@@ -156,6 +156,272 @@ describe('order filters and cursor pagination', () => {
 })
 
 describe('order actions', () => {
+  it.each(['table', 'list'] as const)('opens supplement from the merchant %s with fresh detail and preserves the detail link', async (layout) => {
+    const initial = detail('pending', null)
+    const locked = { ...initial, order: { ...initial.order, channel: 'wxpay', actual_cents: 12992 } }
+    let latest = locked
+    const writes: unknown[] = []
+    let reads = 0
+    server.use(
+      http.get('*/api/v1/merchant/orders', () => success({ items: [writes.length ? latest.order : initial.order], total: 1, next_cursor: null })),
+      http.get('*/api/v1/merchant/orders/:trade', () => { reads++; return success(latest) }),
+      http.post('*/api/v1/merchant/orders/:trade/supplement', async ({ request }) => {
+        writes.push(await request.json())
+        latest = { ...locked, order: { ...locked.order, status: 'paid' } }
+        return success(latest.order)
+      }),
+    )
+    const { client } = mount('/orders?status=pending')
+    const detailKey = ['merchant', identity.user.username, 'order', initial.order.trade_no]
+    const statsKey = ['merchant', identity.user.username, 'stats', { days: 7 }]
+    client.setQueryData(detailKey, initial)
+    client.setQueryData(statsKey, {})
+    const rows = within(layout === 'table' ? await screen.findByRole('table') : await screen.findByRole('list', { name: '订单卡片' }))
+    expect(rows.getByRole('link', { name: initial.order.trade_no })).toHaveAttribute('href', `/orders/${initial.order.trade_no}?status=pending`)
+    await userEvent.click(rows.getByRole('button', { name: '补单' }))
+    const dialog = within(await screen.findByRole('dialog', { name: '补单' }))
+    expect(reads).toBe(1)
+    expect(dialog.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(dialog.getByText('微信支付')).toBeVisible()
+    expect(dialog.getByText(/129\.92/)).toBeVisible()
+    expect(client.getQueryData(detailKey)).toEqual(locked)
+    if (layout === 'list') return
+    await userEvent.type(dialog.getByLabelText('原因', { exact: true }), 'Matched payment')
+    await userEvent.click(dialog.getByRole('button', { name: '确认补单' }))
+    expect(await screen.findByText('补单成功，订单已更新。')).toBeVisible()
+    expect(reads).toBe(2)
+    expect(writes).toEqual([{ channel: 'wxpay', reason: 'Matched payment', expected_amount_cents: 12992 }])
+    expect(rows.queryByRole('button', { name: '补单' })).not.toBeInTheDocument()
+    expect(client.getQueryState(detailKey)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(statsKey)?.isInvalidated).toBe(true)
+  })
+
+  it('keeps eligible orders read-only in the management list and detail', async () => {
+    const value = detail()
+    server.use(
+      http.get('*/api/v1/console/me', () => success({ ...identity, user: { ...identity.user, role: 'admin' } })),
+      http.get('*/api/v1/console/orders', () => success({ items: [value.order], total: 1, next_cursor: null })),
+      http.get('*/api/v1/console/orders/:trade', () => success(value)),
+    )
+    mount('/console/orders')
+    const rows = within(await screen.findByRole('table'))
+    expect(screen.queryByRole('button', { name: '补单' })).not.toBeInTheDocument()
+    await userEvent.click(rows.getByRole('link', { name: value.order.trade_no }))
+    expect(await screen.findByRole('heading', { name: '订单详情' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: '补单' })).not.toBeInTheDocument()
+  })
+
+  it('checks the detail entry again and refreshes a now-ineligible order without opening the dialog', async () => {
+    const cached = detail()
+    let latest = cached
+    let reads = 0
+    server.use(http.get('*/api/v1/merchant/orders/:trade', () => { reads++; return success(latest) }))
+    mount(`/orders/${cached.order.trade_no}`)
+    const button = await screen.findByRole('button', { name: '补单' })
+    latest = { ...cached, order: { ...cached.order, status: 'refunded' } }
+    await userEvent.click(button)
+    expect(await screen.findByText(/当前订单已不能补单/)).toBeVisible()
+    expect(await screen.findByText('已退款', { exact: true })).toBeVisible()
+    expect(reads).toBe(2)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('reports a failed open and prevents duplicate detail reads while opening', async () => {
+    const value = detail()
+    let reads = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    server.use(
+      http.get('*/api/v1/merchant/orders', () => success({ items: [value.order], total: 1, next_cursor: null })),
+      http.get('*/api/v1/merchant/orders/:trade', async () => { reads++; await gate; return HttpResponse.error() }),
+    )
+    mount()
+    const btn = within(await screen.findByRole('table')).getByRole('button', { name: '补单' })
+    try {
+      fireEvent.click(btn)
+      fireEvent.click(btn)
+      expect(btn).toBeDisabled()
+      await waitFor(() => expect(reads).toBe(1))
+    } finally { release() }
+    expect(await screen.findByRole('alert')).toHaveTextContent(/网络/)
+    expect(btn).toBeEnabled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('requires confirmation of the latest amount and channel when they change before the first POST', async () => {
+    const initial = detail('pending', null)
+    let latest = initial
+    const writes: unknown[] = []
+    server.use(
+      http.get('*/api/v1/merchant/orders/:trade', () => success(latest)),
+      http.post('*/api/v1/merchant/orders/:trade/supplement', async ({ request }) => {
+        writes.push(await request.json())
+        return success(latest.order)
+      }),
+    )
+    const { client } = mount(`/orders/${initial.order.trade_no}`)
+    const keys = [
+      ['merchant', identity.user.username, 'order', initial.order.trade_no],
+      ['merchant', identity.user.username, 'orders', 'list', {}],
+      ['merchant', identity.user.username, 'stats', { days: 7 }],
+    ]
+    for (const key of keys.slice(1)) client.setQueryData(key, {})
+    const actor = userEvent.setup()
+    await actor.click(await screen.findByRole('button', { name: '补单' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    await chooseSelect(actor, dialog.getByLabelText('补单通道'), 'alipay')
+    await actor.type(dialog.getByLabelText('原因', { exact: true }), 'Matched payment')
+    latest = { ...initial, order: { ...initial.order, channel: 'wxpay', actual_cents: 12992 } }
+    await actor.click(dialog.getByRole('button', { name: '确认补单' }))
+    expect(await dialog.findByRole('alert')).toHaveTextContent(/核对最新金额和通道/)
+    expect(writes).toEqual([])
+    expect(dialog.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(dialog.getByText('微信支付')).toBeVisible()
+    expect(dialog.getByText(/129\.92/)).toBeVisible()
+    expect(keys.every((key) => client.getQueryState(key)?.isInvalidated)).toBe(true)
+    await actor.click(dialog.getByRole('button', { name: '确认补单' }))
+    await screen.findByText('补单成功，订单已更新。')
+    expect(writes).toEqual([{ channel: 'wxpay', reason: 'Matched payment', expected_amount_cents: 12992 }])
+  })
+
+  it.each(['CHANNEL_LOCKED', 'ORDER_NOT_PAYABLE'] as const)('refreshes the order after a POST %s race', async (code) => {
+    const initial = detail('pending', null)
+    let latest = initial
+    let writes = 0
+    server.use(
+      http.get('*/api/v1/merchant/orders/:trade', () => success(latest)),
+      http.post('*/api/v1/merchant/orders/:trade/supplement', () => {
+        writes++
+        latest = { ...initial, order: { ...initial.order, channel: 'wxpay', status: code === 'CHANNEL_LOCKED' ? 'pending' : 'paid' } }
+        return failure(409, code)
+      }),
+    )
+    mount(`/orders/${initial.order.trade_no}`)
+    const actor = userEvent.setup()
+    await actor.click(await screen.findByRole('button', { name: '补单' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    await chooseSelect(actor, dialog.getByLabelText('补单通道'), 'alipay')
+    await actor.type(dialog.getByLabelText('原因', { exact: true }), 'Matched payment')
+    await actor.click(dialog.getByRole('button', { name: '确认补单' }))
+    expect(await dialog.findByRole('alert')).toHaveTextContent(code === 'CHANNEL_LOCKED' ? /核对最新金额和通道/ : /当前订单已不能补单/)
+    expect(dialog.getByText('微信支付')).toBeVisible()
+    expect(writes).toBe(1)
+    if (code === 'ORDER_NOT_PAYABLE') expect(dialog.getByRole('button', { name: '确认补单' })).toBeDisabled()
+  })
+
+  it('refreshes the displayed amount and requires a second confirmation after an amount conflict', async () => {
+    const initial = detail('pending', null)
+    const locked = { ...initial, order: { ...initial.order, channel: 'alipay', actual_cents: 12346 } }
+    let latest = initial
+    const writes: unknown[] = []
+    server.use(
+      http.get('*/api/v1/merchant/orders/:trade', () => success(latest)),
+      http.post('*/api/v1/merchant/orders/:trade/supplement', async ({ request }) => {
+        writes.push(await request.json())
+        latest = locked
+        return writes.length === 1 ? failure(409, 'ORDER_AMOUNT_CHANGED') : success(locked.order)
+      }),
+    )
+    const { client } = mount(`/orders/${initial.order.trade_no}`)
+    const detailKey = ['merchant', identity.user.username, 'order', initial.order.trade_no]
+    const otherDetailKey = ['merchant', identity.user.username, 'order', 'another-order']
+    client.setQueryData(otherDetailKey, initial)
+    const actor = userEvent.setup()
+    await actor.click(await screen.findByRole('button', { name: '补单' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    await chooseSelect(actor, dialog.getByLabelText('补单通道'), 'alipay')
+    await actor.type(dialog.getByLabelText('原因', { exact: true }), 'Matched payment')
+    await actor.click(dialog.getByRole('button', { name: '确认补单' }))
+    expect(await dialog.findByRole('alert')).toHaveTextContent(/订单金额已变化/)
+    expect(dialog.getByText(/123\.46/)).toBeVisible()
+    expect(writes).toEqual([{ channel: 'alipay', reason: 'Matched payment', expected_amount_cents: 12345 }])
+    expect(client.getQueryState(detailKey)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(otherDetailKey)?.isInvalidated).toBe(false)
+    await actor.click(dialog.getByRole('button', { name: '确认补单' }))
+    await screen.findByText('补单成功，订单已更新。')
+    expect(writes[1]).toEqual({ channel: 'alipay', reason: 'Matched payment', expected_amount_cents: 12346 })
+  })
+
+  it.each([false, true])('invalidates detail even when the conflict GET fails (active refetch fails: %s)', async (refetchFails) => {
+    const initial = detail()
+    const paid = { ...initial, order: { ...initial.order, status: 'paid' } }
+    let conflicted = false
+    let conflictReads = 0
+    server.use(
+      http.get('*/api/v1/merchant/orders/:trade', () => {
+        if (!conflicted) return success(initial)
+        conflictReads++
+        return conflictReads === 1 || refetchFails ? HttpResponse.error() : success(paid)
+      }),
+      http.post('*/api/v1/merchant/orders/:trade/supplement', () => {
+        conflicted = true
+        return failure(409, 'ORDER_NOT_PAYABLE')
+      }),
+    )
+    const { client } = mount(`/orders/${initial.order.trade_no}`)
+    const detailKey = ['merchant', identity.user.username, 'order', initial.order.trade_no]
+    const listKey = ['merchant', identity.user.username, 'orders', 'list', {}]
+    const statsKey = ['merchant', identity.user.username, 'stats', { days: 7 }]
+    client.setQueryData(listKey, {})
+    client.setQueryData(statsKey, {})
+    const actor = userEvent.setup()
+    await actor.click(await screen.findByRole('button', { name: '补单' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    await actor.type(dialog.getByLabelText('原因', { exact: true }), 'Matched payment')
+    await actor.click(dialog.getByRole('button', { name: '确认补单' }))
+    expect(await dialog.findByRole('alert')).toHaveTextContent(/暂时无法获取最新信息/)
+    await waitFor(() => expect(dialog.getByRole('button', { name: '取消' })).toBeEnabled())
+    expect(dialog.getByRole('button', { name: '确认补单' })).toBeDisabled()
+    await actor.click(dialog.getByRole('button', { name: '取消' }))
+    expect(conflictReads).toBe(2)
+    expect(screen.queryByRole('button', { name: '补单' })).not.toBeInTheDocument()
+    expect(client.getQueryState(listKey)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(statsKey)?.isInvalidated).toBe(true)
+    if (refetchFails) {
+      expect(client.getQueryState(detailKey)?.isInvalidated).toBe(true)
+      expect(screen.getByRole('alert')).toHaveTextContent(/网络/)
+    } else {
+      expect(screen.getByText('已支付', { exact: true })).toBeVisible()
+    }
+  })
+
+  it('retries an unknown POST outcome with the same payload and key even after the order is paid', async () => {
+    const initial = detail('pending', null)
+    const paid = { ...initial, order: { ...initial.order, status: 'paid', channel: 'alipay' } }
+    const writes: { key: string | null; body: unknown }[] = []
+    let reads = 0
+    let readsAtRetry = -1
+    server.use(
+      http.get('*/api/v1/merchant/orders/:trade', () => { reads++; return success(writes.length ? paid : initial) }),
+      http.post('*/api/v1/merchant/orders/:trade/supplement', async ({ request }) => {
+        writes.push({ key: request.headers.get('Idempotency-Key'), body: await request.json() })
+        if (writes.length === 1) return HttpResponse.error()
+        readsAtRetry = reads
+        return success(paid.order)
+      }),
+    )
+    mount(`/orders/${initial.order.trade_no}`)
+    const actor = userEvent.setup()
+    await actor.click(await screen.findByRole('button', { name: '补单' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    const reason = dialog.getByLabelText('原因', { exact: true })
+    const channel = dialog.getByLabelText('补单通道')
+    await chooseSelect(actor, channel, 'alipay')
+    await actor.type(reason, 'Matched payment')
+    await actor.click(dialog.getByRole('button', { name: '确认补单' }))
+    expect(await dialog.findByRole('alert')).toHaveTextContent(/网络/)
+    expect(reason).toHaveAttribute('readonly')
+    expect(channel).toBeDisabled()
+    expect(reads).toBe(3)
+    await actor.click(dialog.getByRole('button', { name: '确认补单' }))
+    await screen.findByText('补单成功，订单已更新。')
+    expect(readsAtRetry).toBe(3)
+    expect(writes).toHaveLength(2)
+    expect(writes[0]?.key).toMatch(/^[0-9a-f-]{36}$/)
+    expect(writes[0]?.body).toEqual({ reason: 'Matched payment', channel: 'alipay', expected_amount_cents: 12345 })
+    expect(writes[1]).toEqual(writes[0])
+  })
+
   it('only allows supplement channels present in the order snapshot', async () => {
     const value = { ...detail('pending', null), allowed_channels_snapshot: ['alipay'] }
     server.use(http.get('*/api/v1/merchant/orders/:trade', () => success(value)))
@@ -284,7 +550,7 @@ describe('order actions', () => {
     await actor.click(screen.getByRole('button', { name: '确认补单' }))
     await screen.findByText('补单成功，订单已更新。')
     expect(seen[2]!.key).not.toBe(seen[0]!.key)
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['merchant', identity.user.username, 'order', value.order.trade_no] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['merchant', identity.user.username, 'order', value.order.trade_no], exact: true, refetchType: 'active' })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['merchant', identity.user.username, 'orders'] })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })

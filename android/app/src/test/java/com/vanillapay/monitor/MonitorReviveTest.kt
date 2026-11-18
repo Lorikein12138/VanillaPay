@@ -75,6 +75,9 @@ class MonitorReviveTest {
             service.get().onListenerDisconnected()
             assertFalse(app.listenerConnected)
             assertEquals("disconnect", monitor, shadowOf(app).nextStartedService?.component)
+            val history = runBlocking { app.connectionDiagnostics.snapshot() }!!.text
+            assertTrue(history.contains("event=LISTENER_CONNECTED"))
+            assertTrue(history.contains("event=LISTENER_DISCONNECTED"))
         } finally {
             service.destroy()
         }
@@ -204,6 +207,7 @@ class MonitorReviveTest {
             server.enqueue(MockResponse().setResponseCode(503))
             val service = Robolectric.buildService(MonitorService::class.java).create()
             try {
+                service.get().onStartCommand(null, 0, 1)
                 assertEquals("/api/v1/device/heartbeat", nextRequestPath(server))
                 waitFor { !app.state.value.online }
 
@@ -217,6 +221,40 @@ class MonitorReviveTest {
                 assertEquals("/api/v1/device/heartbeat", nextRequestPath(server))
                 assertFalse(app.state.value.online)
                 assertEquals(MATCHED, runBlocking { app.database.dao().recent(session.deviceId).first().single().status })
+                waitFor {
+                    runBlocking { app.connectionDiagnostics.snapshot() }!!.text.lineSequence()
+                        .count { it.contains("event=HEARTBEAT_HTTP") && it.endsWith("http_status=503") } == 2
+                }
+                val history = runBlocking { app.connectionDiagnostics.snapshot() }!!.text
+                assertTrue(history.contains("event=STICKY_RESTART"))
+                assertTrue(history.contains("event=HEARTBEAT_STARTED schedule_delay_ms="))
+                assertFalse(history.contains("order-1"))
+                assertFalse(history.contains("微信支付"))
+            } finally {
+                service.destroy()
+                app.database.close()
+            }
+        }
+    }
+
+    @Test fun heartbeatSkipsWithoutPermissionAndLogsOnlyOneSkipAndRecovery() {
+        MockWebServer().use { server ->
+            server.start()
+            setState(MonitorState(loaded = true, session = session.copy(base = server.url("/").toString())))
+            setNotificationAccess(false)
+            val service = Robolectric.buildService(MonitorService::class.java).create()
+            try {
+                val looper = shadowOf(Looper.getMainLooper())
+                looper.idleFor(6, TimeUnit.SECONDS)
+                assertEquals(0, server.requestCount)
+                setNotificationAccess(true)
+                server.enqueue(MockResponse().setResponseCode(503))
+                looper.idleFor(3, TimeUnit.SECONDS)
+                assertEquals("/api/v1/device/heartbeat", nextRequestPath(server))
+                val history = runBlocking { app.connectionDiagnostics.snapshot() }!!.text
+                assertEquals(1, history.lineSequence().count { it.endsWith("event=PERMISSION_SKIPPED") })
+                assertEquals(1, history.lineSequence().count { it.endsWith("event=PERMISSION_RESTORED") })
+                assertTrue(history.indexOf("event=PERMISSION_RESTORED") < history.indexOf("event=HEARTBEAT_STARTED"))
             } finally {
                 service.destroy()
                 app.database.close()

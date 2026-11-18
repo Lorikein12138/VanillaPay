@@ -40,6 +40,7 @@ data class MonitorState(
 class MonitorApp : Application() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val api = DeviceApi()
+    internal val connectionDiagnostics by lazy { MonitorDiagnostics(scope, { noBackupFilesDir }) }
     val database by lazy { Room.databaseBuilder(this, MonitorDatabase::class.java, "monitor.db").build() }
     private val vault by lazy { CredentialVault(this) }
     private val sessionLock = Mutex()
@@ -51,6 +52,7 @@ class MonitorApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        connectionDiagnostics.prune()
         scope.launch {
             val session = withContext(Dispatchers.IO) { vault.load() }
             mutableState.value = MonitorState(loaded = true, session = session)

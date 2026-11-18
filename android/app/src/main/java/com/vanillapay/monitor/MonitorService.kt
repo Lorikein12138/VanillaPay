@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
@@ -52,11 +53,14 @@ class MonitorService : Service() {
     private val tasks = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val app get() = application as MonitorApp
     private val dao get() = app.database.dao()
+    private val diagnostics get() = app.connectionDiagnostics
+    private var permissionSkipped = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        diagnostics.record(DiagnosticEvent.SERVICE_CREATED)
         val initial = MonitorNotifications.offline(0)
         val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
         ServiceCompat.startForeground(this, MonitorNotifications.ID, MonitorNotifications.build(this, initial), type)
@@ -71,7 +75,7 @@ class MonitorService : Service() {
                         return@collectLatest
                     }
                     kotlinx.coroutines.coroutineScope {
-                        val heartbeatWake = Channel<Unit>(Channel.CONFLATED)
+                        val heartbeatWake = Channel<Long>(Channel.CONFLATED)
                         launch { heartbeat(id, heartbeatWake) }
                         launch { upload(id, heartbeatWake) }
                         launch { notifications(id, initial) }
@@ -80,25 +84,41 @@ class MonitorService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int) = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        diagnostics.record(if (intent == null) DiagnosticEvent.STICKY_RESTART else DiagnosticEvent.SERVICE_STARTED)
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         tasks.cancel()
+        diagnostics.record(DiagnosticEvent.SERVICE_DESTROYED)
         super.onDestroy()
     }
 
     private fun session(id: String) = app.state.value.session?.takeIf { it.deviceId == id }
 
-    private suspend fun heartbeat(id: String, wake: Channel<Unit>) {
+    private suspend fun heartbeat(id: String, wake: Channel<Long>) {
+        var scheduledAt = SystemClock.elapsedRealtime()
         while (coroutineContext.isActive) {
             val session = session(id) ?: return
             if (!notificationAccess(this)) {
+                if (!permissionSkipped) {
+                    permissionSkipped = true
+                    diagnostics.record(DiagnosticEvent.PERMISSION_SKIPPED)
+                }
                 app.offline(id)
+                scheduledAt = SystemClock.elapsedRealtime() + 3_000
                 delay(3_000)
                 continue
             }
+            if (permissionSkipped) {
+                permissionSkipped = false
+                diagnostics.record(DiagnosticEvent.PERMISSION_RESTORED)
+            }
             try {
-                app.heartbeat(id, app.api.heartbeat(session))
+                app.heartbeat(id, diagnostics.observeHeartbeat(SystemClock.elapsedRealtime() - scheduledAt) {
+                    app.api.heartbeat(session)
+                })
             } catch (e: ApiFailure) {
                 if (e.unauthorized) { app.forget(id); return }
                 app.offline(id)
@@ -108,11 +128,14 @@ class MonitorService : Service() {
                 app.offline(id)
             }
             val interval = session(id)?.interval ?: return
-            withTimeoutOrNull(interval * 1_000L) { wake.receive() }
+            val deadline = SystemClock.elapsedRealtime() + interval * 1_000L
+            val wakeAt = withTimeoutOrNull(interval * 1_000L) { wake.receive() }
+            // A wake queued during the previous request asks for another heartbeat as soon as it finishes.
+            scheduledAt = wakeAt?.coerceIn(deadline - interval * 1_000L, deadline) ?: deadline
         }
     }
 
-    private suspend fun upload(id: String, wake: Channel<Unit>) {
+    private suspend fun upload(id: String, wake: Channel<Long>) {
         while (coroutineContext.isActive) {
             val session = session(id) ?: return
             val now = System.currentTimeMillis()
@@ -127,7 +150,7 @@ class MonitorService : Service() {
                 val result = app.api.report(session, receipt.payload)
                 dao.complete(receipt.eventId, if (result.matched) MATCHED else UNMATCHED,
                     result.tradeNo ?: result.reason, System.currentTimeMillis())
-                if (!app.state.value.online) wake.trySend(Unit)
+                if (!app.state.value.online) wake.trySend(SystemClock.elapsedRealtime())
             } catch (e: ApiFailure) {
                 if (e.unauthorized) { app.forget(id); return }
                 if (e.retryable) retry(receipt) else dao.complete(receipt.eventId, FAILED, e.code.ifBlank { "HTTP ${e.status}" }, System.currentTimeMillis())

@@ -111,8 +111,8 @@ class MainActivity : ComponentActivity() {
 
     private fun openBackgroundUsage() = openStartupTargets(backgroundTargets(Build.MANUFACTURER))
 
-    private fun copy(text: String) {
-        val clip = ClipData.newPlainText("通知原文", text)
+    private fun copy(label: String, text: String) {
+        val clip = ClipData.newPlainText(label, text)
         clip.description.extras = PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
         getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
     }
@@ -158,6 +158,13 @@ class MainActivity : ComponentActivity() {
             screen = "diagnostics"
         }
 
+        fun connectionDiagnostics() {
+            diagnosticBack = screen
+            screen = "connection-diagnostics"
+        }
+
+        fun diagnosticDestination() = if (session == null) "home" else diagnosticBack
+
         LaunchedEffect(Unit) {
             while (true) {
                 delay(1_000)
@@ -186,15 +193,27 @@ class MainActivity : ComponentActivity() {
             }
         }
         BackHandler(screen != "home") {
-            screen = if (screen == "diagnostics") diagnosticBack else "home"
+            screen = when (screen) {
+                "diagnostics", "connection-diagnostics" -> diagnosticDestination()
+                else -> "home"
+            }
         }
 
         when {
             !state.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            screen == "connection-diagnostics" -> ConnectionDiagnosticsRoute(
+                app.connectionDiagnostics, access, session?.started == true, state.online,
+                back = { screen = diagnosticDestination() },
+                copy = { copy("连接诊断", it) },
+                share = {
+                    open(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(Intent.EXTRA_TEXT, it), "分享连接诊断"))
+                },
+            )
             screen == "diagnostics" -> {
                 val entries by remember { dao.diagnostics() }.collectAsState(emptyList())
                 LaunchedEffect(Unit) { app.prune() }
-                DiagnosticsScreen(access, entries, { screen = diagnosticBack }, ::openAccess, ::copy)
+                DiagnosticsScreen(access, entries, { screen = diagnosticDestination() }, ::openAccess) { copy("通知原文", it) }
             }
             session == null -> BindScreen(
                 code, name, base, busy, error, { code = it }, { name = it }, { base = it }, ::scan,
@@ -214,6 +233,7 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 diagnostics = ::diagnostics,
+                connectionDiagnostics = ::connectionDiagnostics,
             )
             !session.started -> SetupScreen(
                 SetupChecks(access, posting, battery, startup, sources), ::openAccess, ::openPosting,
@@ -244,7 +264,8 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 },
-                diagnostics = ::diagnostics, unbind = { if (!busy) dialog = "unbind" }, updateBusy = updateBusy,
+                diagnostics = ::diagnostics, connectionDiagnostics = ::connectionDiagnostics,
+                unbind = { if (!busy) dialog = "unbind" }, updateBusy = updateBusy,
                 message = error ?: message,
             )
             else -> {

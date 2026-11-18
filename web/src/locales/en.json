@@ -373,6 +373,10 @@
         "csrf": "Security check failed. Refresh and retry.",
         "channel": "This channel is not allowed for the order. Check and try again.",
         "channelLocked": "The order channel is locked and cannot be changed.",
+        "supplementChanged": "The order has changed. Review the latest amount and channel before confirming again.",
+        "supplementAmountChanged": "The payment amount has changed. Review the latest amount before confirming again.",
+        "supplementUnavailable": "This order is no longer eligible for manual completion. Check its latest status.",
+        "supplementRefreshFailed": "The order has changed and its latest details are unavailable. Close the dialog and try again.",
         "callbackPending": "A callback is pending or running. Check again later.",
         "callbackUnavailable": "A callback cannot be replayed for this order.",
         "idempotency": "The confirmation differs from the submitted information. Cancel and reopen.",
@@ -996,6 +1000,7 @@
     }
   },
   "checkout": {
+    "title": "Checkout",
     "receipt": "Payment receipt",
     "verificationTitle": "Checkout verification",
     "verificationHelp": "Complete the security check to view payment options.",
@@ -1009,8 +1014,9 @@
     "actual": "Exact payment amount",
     "choose": "Choose a payment method",
     "chooseHelp": "Choose a payment method to determine the exact amount",
+    "selecting": "Confirming payment method…",
     "locked": "Locked",
-    "exact": "Pay exactly {{amount}}. A different amount cannot be credited automatically.",
+    "exact": "Pay the exact payment amount shown. A different amount cannot be credited automatically.",
     "exactSame": "Pay the displayed amount exactly. A different amount cannot be credited automatically.",
     "qr": "Payment QR code",
     "scan": "Open {{channel}} and scan to pay",
@@ -1046,7 +1052,7 @@
       "expired": "Confirming order status. This page refreshes automatically.",
       "unavailable": "Payment is currently unavailable. Try later or contact the merchant. This page refreshes automatically."
     },
-    "paidAmount": "Paid {{amount}}",
+    "paidLabel": "Amount paid",
     "orderLabel": "Order number"
   },
   "console": {

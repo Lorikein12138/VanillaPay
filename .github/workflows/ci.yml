@@ -202,9 +202,14 @@ jobs:
           test -x "$sdk/build-tools/36.0.0/aapt2" || { echo 'Android SDK build-tools 36.0.0 are required'; exit 1; }
           echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
       - run: ./gradlew lint testDebugUnitTest assembleDebug
-      - run: ./gradlew testDebugUnitTest -PmonitorScreenshots --tests '*MonitorScreenshotTest'
+      - run: ./gradlew testDebugUnitTest -PmonitorScreenshots --tests '*MonitorScreenshotTest' --tests '*ConnectionDiagnosticsScreenshotTest'
       - name: Check screenshot outputs
-        run: test "$(find ../.artifacts/android-screens -name '*.png' -size +0c | wc -l)" -eq 32
+        shell: bash
+        run: |
+          screens=../.artifacts/android-screens
+          test "$(find "$screens" -type f -name '*.png' ! -name 'connection-diagnostics-*.png' -size +0c | wc -l)" -eq 32
+          test -s "$screens/connection-diagnostics-light-360.png"
+          test -s "$screens/connection-diagnostics-dark-360.png"
 
   # Rehearses the release workflow without its secrets: a release APK signed with a
   # throwaway key, the image built from it exactly as release.yml does (not pushed),

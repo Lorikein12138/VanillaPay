@@ -46,7 +46,11 @@ function CheckoutVerification({ tradeNo, siteKey, onVerified, onBlocked }: {
     {failed
       ? <Notice tone="error" className="gap-2 px-2.5 py-2 [&>div]:leading-snug">{t('checkout.verificationFailed')}</Notice>
       : <p className="text-label text-text-2">{t('checkout.verificationHelp')}</p>}
-    <Turnstile key={attempt} siteKey={siteKey} action="checkout" onToken={setToken} onError={widgetFailed} />
+    <div className="min-w-0 overflow-x-auto">
+      <div className="min-w-[150px]">
+        <Turnstile key={attempt} siteKey={siteKey} action="checkout" onToken={setToken} onError={widgetFailed} />
+      </div>
+    </div>
     <div className="flex flex-wrap items-center gap-2">
       <Button variant="primary" loading={busy} disabled={!token} onClick={() => void verify()}>{t('checkout.verify')}</Button>
       {failed && <Button variant="ghost" onClick={() => {
@@ -112,32 +116,29 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
     if (code && ['CHANNEL_LOCKED', 'ORDER_NOT_PAYABLE', 'CHANNEL_NOT_ALLOWED', 'QR_UNAVAILABLE'].includes(code)) return t('checkout.changed')
     return t('checkout.retryError')
   }
-  const merchant = data?.merchant?.username || 'VanillaPay'
   const status = data?.status
   const terminal = status === 'paid' || status === 'expired' || status === 'refunded'
   const gated = data?.verification?.required === true
+  const verifying = !terminal && gated && !blocked && !state.missing
   const locked = Boolean(data?.channel && !gated)
   const qrSource = data?.can_pay ? data.qr_image_url : null
-  const amount = locked ? data?.actual_cents : data?.original_cents
+  const paidAmount = status === 'paid' && data?.actual_cents != null
+  const amount = locked || paidAmount ? data?.actual_cents : data?.original_cents
   const original = locked && data?.actual_cents != null && data.actual_cents !== data.original_cents
     ? <>{t('merchant.orders.originalAmount')} <del>{money(data.original_cents, i18n.language)}</del></>
     : undefined
-  const receipt = !blocked && !state.missing && data && (
-    <section className="receipt-paper min-w-0 px-4 pt-2.5 pb-2 md:px-8 md:pt-6 md:pb-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-2 border-b border-receipt-rule pb-1.5 md:pb-4">
-        <span className="text-body font-bold tracking-tight md:text-lg" translate="no">VanillaPay</span>
-        <span className="text-caption text-text-2">{t('checkout.receipt')}</span>
-      </div>
-      {terminal
-        ? <p className="mt-2 mb-1 text-label font-semibold md:mt-4 md:mb-2 md:text-lg">{data.name}</p>
-        : <h1 className="mt-2 mb-1 font-serif text-body font-semibold md:mt-4 md:mb-2 md:text-heading">{data.name}</h1>}
-      <PaymentAmount label={t(locked ? 'checkout.actual' : 'checkout.original')}
+  const visibleOrder = !blocked && !state.missing && !verifying ? data : undefined
+  const merchant = visibleOrder?.merchant?.username
+  const summary = visibleOrder && (
+    <div className="mt-2 sm:mt-3">
+      {merchant && merchant !== visibleOrder.name && <p className="text-label font-semibold sm:text-body" translate="no">{merchant}</p>}
+      <h1 className="mb-1 text-label font-medium text-text-2">{visibleOrder.name}</h1>
+      <PaymentAmount label={t(paidAmount ? 'checkout.paidLabel' : locked ? 'checkout.actual' : 'checkout.original')}
         amount={amount == null ? '—' : money(amount, i18n.language)} original={original} />
-      <PaymentOrder value={data.trade_no} label={t('checkout.orderLabel')} copyLabel={t('checkout.order')} />
-    </section>
+    </div>
   )
 
-  const actionHeading = 'font-serif text-[clamp(1.375rem,2.6vw,2.25rem)] leading-tight'
+  const actionHeading = 'font-serif text-[clamp(1.375rem,2.6vw,1.75rem)] leading-tight text-balance'
   const error = state.actionError || state.error
   const reasonNotice = data?.reason !== 'no_channel' && (
     <Notice tone="warning" className="gap-2 px-2.5 py-2">
@@ -147,35 +148,32 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
   const timeRemaining = <p className="text-caption text-text-2">{t('checkout.remaining')} <span className="font-mono tabular-nums">{formatCountdown(state.seconds)}</span></p>
 
   return (
-    <PaymentShell merchant={merchant} controls={<><LanguageSwitch /><ThemeSwitch /></>} footer={t('checkout.footer')} receipt={receipt}>
+    <PaymentShell controls={<><LanguageSwitch /><ThemeSwitch /></>} receiptLabel={t(verifying ? 'checkout.title' : 'checkout.receipt')} summary={summary}
+      footer={t('checkout.footer')} order={visibleOrder && <PaymentOrder value={visibleOrder.trade_no} label={t('checkout.orderLabel')} copyLabel={t('checkout.order')} />}>
+      <span aria-live="polite" className="sr-only">{visibleOrder && terminal ? t(`checkout.status.${status}`) : ''}</span>
       {blocked ? (
         <PaymentResult kind="blocked" title={t('checkout.ipBlocked')}><p>{t('checkout.ipBlockedHelp')}</p></PaymentResult>
       ) : state.missing ? (
         <PaymentResult kind="unavailable" title={t('checkout.notFound')}><p>{t('checkout.notFoundHelp')}</p></PaymentResult>
       ) : !data ? (
         state.isPending
-          ? <h1 role="status" className={actionHeading}>{t('checkout.loading')}</h1>
+          ? <div role="status"><h1 className={actionHeading}>{t('checkout.loading')}</h1></div>
           : <PaymentResult kind="unavailable" title={t('error.title')}>
               <p>{t('checkout.retryError')}</p>
               <Button variant="primary" onClick={() => void state.refetch()}>{t('checkout.retry')}</Button>
             </PaymentResult>
       ) : terminal ? (
-        <PaymentResult kind={status} title={t(`checkout.status.${status}`)}>
+        <PaymentResult kind={status} title={t(`checkout.status.${status}`)} heading="h2">
           {status === 'paid' ? (
             <>
-              {data.actual_cents !== null && (
-                <p>
-                  {t('checkout.paidAmount', { amount: money(data.actual_cents, i18n.language) })}
-                  {data.channel && <> · {channelName(data.channel)}</>}
-                </p>
-              )}
+              {data.channel && <ChannelBadge channel={data.channel} name={channelName(data.channel)} />}
               <PaidReturn key={tradeNo} url={data.return_url_signed} hasReturned={hasReturned} onReturn={returnOnce} />
             </>
           ) : <p>{t(`checkout.statusHelp.${status}`)}</p>}
         </PaymentResult>
-      ) : gated && data.verification ? (
+      ) : verifying && data.verification ? (
         <>
-          <h2 className={actionHeading}>{t('checkout.verificationTitle')}</h2>
+          <h1 className={actionHeading}>{t('checkout.verificationTitle')}</h1>
           <CheckoutVerification key={tradeNo} tradeNo={tradeNo} siteKey={data.verification.site_key}
             onVerified={() => void state.refetch()} onBlocked={() => void state.refetch()} />
           {timeRemaining}
@@ -187,7 +185,7 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
           </h2>
           {data.channel ? (
             <>
-              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center justify-start gap-2.5 border-t border-border pt-2.5 md:gap-4 md:pt-4">
+              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:gap-4">
                 {qrSource && <PaymentQR src={qrSource} alt={t('checkout.qr')} />}
                 <div className={qrSource ? 'min-w-0 space-y-1' : 'col-span-2 min-w-0 space-y-1'}>
                   <ChannelBadge channel={data.channel} name={channelName(data.channel)} label={t('checkout.locked')} />
@@ -197,7 +195,7 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
               </div>
               <Notice tone="warning" className="gap-2 px-2.5 py-2">
                 {data.actual_cents !== null && data.actual_cents !== data.original_cents
-                  ? t('checkout.exact', { amount: money(data.actual_cents, i18n.language) })
+                  ? t('checkout.exact')
                   : t('checkout.exactSame')}
               </Notice>
             </>
@@ -210,6 +208,7 @@ export function CheckoutPage({ tradeNo }: { tradeNo: string }) {
                     onClick={(event) => void chooseChannel(channel, event.currentTarget)}><span translate="no">{channelName(channel)}</span></ChannelOption>
                 ))}
               </div>
+              {state.busy && <p role="status" className="text-label text-text-2">{t('checkout.selecting')}</p>}
               {timeRemaining}
             </>
           )}

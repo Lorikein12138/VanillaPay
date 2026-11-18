@@ -519,6 +519,9 @@ func (s *Service) SupplementIdempotent(ctx context.Context, actor platform.Actor
 	if len([]rune(strings.TrimSpace(in.Reason))) < 1 || len([]rune(in.Reason)) > 500 {
 		return apiErr("VALIDATION_ERROR", 400)
 	}
+	if in.ExpectedAmountCents != nil && (*in.ExpectedAmountCents < 1 || *in.ExpectedAmountCents > MaxAmountCents) {
+		return platform.InvalidJSONField("expected_amount_cents")
+	}
 	ctx = platform.WithActor(ctx, actor)
 	var orderID int64
 	var merchantID int64
@@ -531,7 +534,11 @@ func (s *Service) SupplementIdempotent(ctx context.Context, actor platform.Actor
 		}
 		var digest []byte
 		if idempotencyKey != "" {
-			digest = idempotencyDigest(trade, strings.TrimSpace(in.Reason), in.Channel)
+			parts := []string{trade, strings.TrimSpace(in.Reason), in.Channel}
+			if in.ExpectedAmountCents != nil {
+				parts = append(parts, strconv.FormatInt(*in.ExpectedAmountCents, 10))
+			}
+			digest = idempotencyDigest(parts...)
 			if _, replayed, err := beginIdempotencyTx(ctx, tx, actor, "merchant.orders.supplement", idempotencyKey, digest, s.clock.Now()); err != nil || replayed {
 				return err
 			}
@@ -545,9 +552,12 @@ func (s *Service) SupplementIdempotent(ctx context.Context, actor platform.Actor
 		}
 		var status, purpose, expireReason string
 		var channel pgtype.Text
-		var original int64
+		var effectiveAmount int64
 		var allowed []string
-		if err := tx.QueryRow(ctx, `SELECT status,purpose,channel,original_cents,allowed_channels_snapshot,COALESCE(expire_reason,'') FROM orders WHERE id=$1 FOR UPDATE`, orderID).Scan(&status, &purpose, &channel, &original, &allowed, &expireReason); err != nil {
+		if err := tx.QueryRow(ctx, `
+			SELECT status,purpose,channel,COALESCE(actual_cents,original_cents),allowed_channels_snapshot,COALESCE(expire_reason,'')
+			FROM orders WHERE id=$1 FOR UPDATE
+		`, orderID).Scan(&status, &purpose, &channel, &effectiveAmount, &allowed, &expireReason); err != nil {
 			return err
 		}
 		if status != "pending" && (status != "expired" || expireReason == "cancelled" && purpose == "external") {
@@ -560,12 +570,16 @@ func (s *Service) SupplementIdempotent(ctx context.Context, actor platform.Actor
 		if !platform.ValidPaymentChannel(selected) || !containsChannel(allowed, selected) {
 			return apiErr("CHANNEL_NOT_ALLOWED", 403)
 		}
+		if channel.Valid && channel.String != selected {
+			return apiErr("CHANNEL_LOCKED", 409)
+		}
+		if in.ExpectedAmountCents != nil && *in.ExpectedAmountCents != effectiveAmount {
+			return apiErr("ORDER_AMOUNT_CHANGED", 409)
+		}
 		if !channel.Valid {
 			if _, err := tx.Exec(ctx, `UPDATE orders SET channel=$1,actual_cents=original_cents,amount_offset_cents=0 WHERE id=$2`, selected, orderID); err != nil {
 				return err
 			}
-		} else if channel.String != selected {
-			return apiErr("CHANNEL_LOCKED", 409)
 		}
 		if err := s.MarkPaidTx(ctx, tx, orderID, PaidCommand{Channel: selected, Manual: true, ManualReason: strings.TrimSpace(in.Reason), ActorID: &actor.SubjectID}); err != nil {
 			return err

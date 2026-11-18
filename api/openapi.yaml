@@ -4050,6 +4050,7 @@ paths:
     post:
       operationId: post_api_v1_merchant_orders_trade_no_supplement
       summary: POST /api/v1/merchant/orders/{trade_no}/supplement
+      description: 提供确认金额时，订单当前金额与确认金额不符会返回 409 ORDER_AMOUNT_CHANGED，请重新获取订单并确认。
       security:
         - MerchantSession: []
           CSRF: []
@@ -6436,6 +6437,13 @@ components:
       properties:
         channel:
           type: string
+        expected_amount_cents:
+          description: 商户确认的订单金额（分），有实付金额时使用实付金额，否则使用原始金额。省略或传 null 时沿用旧版补单行为。
+          type: integer
+          format: int64
+          nullable: true
+          minimum: 1
+          maximum: 999999999
         reason:
           type: string
       required:
@@ -7573,6 +7581,7 @@ components:
         - MAIL_UNAVAILABLE
         - NOT_FOUND
         - ORDER_NOT_PAID
+        - ORDER_AMOUNT_CHANGED
         - ORDER_NOT_PAYABLE
         - PARTIAL_REFUND_UNSUPPORTED
         - PLAN_UNAVAILABLE

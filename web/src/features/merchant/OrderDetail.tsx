@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useId, useState, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { APIError } from '@/api/client'
 import type { components } from '@/api/schema'
@@ -13,18 +13,18 @@ import { RecordLink } from '@/components/ui/records'
 import { cn } from '@/lib/utils'
 import { OrderActionDialog } from './OrderActionDialog'
 import { FormHint } from '@/components/ui/auth-screen'
-import { availableOrderActions, orderErrorKey, type OrderAction, type OrderFilters } from './orders-data'
+import { availableOrderActions, orderErrorKey, type OrderFilters } from './orders-data'
 import { money } from './overview-data'
 import { OrderChannel, OrderStatus, OrderTime, TestBadge } from './OrderParts'
+import { useOrderActions } from './useOrderActions'
 
 type Detail = components['schemas']['OrderDetail']
 
 export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { role?: 'merchant' | 'console'; name: string; tradeNo: string; filters: OrderFilters }) {
   const { t } = useTranslation()
-  const client = useQueryClient()
   const query = useQuery(orderDetailQuery(role, name, tradeNo))
-  const [confirmation, setConfirmation] = useState<{ action: OrderAction; key: string; detail: Detail }>()
-  const [notice, setNotice] = useState<OrderAction>()
+  const orderActions = useOrderActions(name)
+  const { confirmation, notice, openingTrade } = orderActions
   const replayLimitHintId = useId()
   const detail = query.data
   const back = <BackLink to={role === 'console' ? '/console/orders' : '/orders'} search={filters}>{t('merchant.orders.back')}</BackLink>
@@ -52,17 +52,8 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
     )
   }
   const order = detail.order
-  const actions = role === 'console' ? [] : availableOrderActions(detail)
+  const actions = role === 'console' ? [] : availableOrderActions(detail).filter((action) => action !== 'supplement' || !query.isError)
   const replayLimitReached = detail.callback_replays_used >= detail.callback_replay_limit
-  async function completed() {
-    await Promise.all([
-      client.invalidateQueries({ queryKey: ['merchant', name, 'order', tradeNo] }),
-      client.invalidateQueries({ queryKey: ['merchant', name, 'orders'] }),
-      client.invalidateQueries({ queryKey: ['merchant', name, 'stats'] }),
-    ])
-    setNotice(confirmation?.action)
-    setConfirmation(undefined)
-  }
   return (
     <Page className="gap-8">
       <PageHeader
@@ -83,9 +74,13 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
                   <Button
                     key={action}
                     variant={action === 'reject' ? 'danger' : 'secondary'}
-                    disabled={limited}
+                    disabled={limited || !!openingTrade}
+                    loading={action === 'supplement' && !!openingTrade}
                     aria-describedby={limited ? replayLimitHintId : undefined}
-                    onClick={() => { setNotice(undefined); setConfirmation({ action, key: crypto.randomUUID(), detail }) }}
+                    onClick={() => {
+                      if (action === 'supplement') void orderActions.openSupplement(tradeNo)
+                      else orderActions.open(action, detail)
+                    }}
                   >
                     {t(`merchant.orders.actions.${action}`)}
                   </Button>
@@ -101,7 +96,7 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
         )}
       />
       {notice && (
-        <Notice tone="success" onDismiss={() => setNotice(undefined)}>{t(`merchant.orders.success.${notice}`)}</Notice>
+        <Notice tone={notice.tone} onDismiss={orderActions.dismissNotice}>{t(notice.message)}</Notice>
       )}
       {query.isError && (
         <Notice tone="error" action={<Button size="sm" onClick={() => { void query.refetch() }}>{t('error.retry')}</Button>}>
@@ -124,11 +119,12 @@ export function OrderDetail({ name, tradeNo, filters, role = 'merchant' }: { rol
       {confirmation && (
         <OrderActionDialog
           key={confirmation.key}
+          name={name}
           action={confirmation.action}
           idempotencyKey={confirmation.key}
           detail={confirmation.detail}
-          onClose={() => setConfirmation(undefined)}
-          onSuccess={completed}
+          onClose={orderActions.close}
+          onSuccess={orderActions.completed}
           onRefundConflict={async () => { await query.refetch() }}
         />
       )}

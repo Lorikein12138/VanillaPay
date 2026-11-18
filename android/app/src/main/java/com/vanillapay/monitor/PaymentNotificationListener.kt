@@ -22,12 +22,14 @@ class PaymentNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         val app = application as MonitorApp
         app.listenerConnected = true
+        app.connectionDiagnostics.record(DiagnosticEvent.LISTENER_CONNECTED)
         app.scope.launch { app.revive() }
     }
 
     override fun onListenerDisconnected() {
         val app = application as MonitorApp
         app.listenerConnected = false
+        app.connectionDiagnostics.record(DiagnosticEvent.LISTENER_DISCONNECTED)
         app.scope.launch { app.revive() }
     }
 
