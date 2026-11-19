@@ -58,7 +58,7 @@ func TestDB_RefundOfflineAndAnnouncementMailJobs(t *testing.T) {
 		t.Fatalf("repeat identical refund request: %v", err)
 	}
 
-	if _, err := db.Pool.Exec(t.Context(), `UPDATE devices SET last_seen_at=$1 WHERE merchant_id=$2 AND revoked_at IS NULL`, db.Clock.Now().Add(-91*time.Second), merchantID); err != nil {
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE devices SET last_seen_at=$1 WHERE merchant_id=$2 AND revoked_at IS NULL`, db.Clock.Now().Add(-300*time.Second), merchantID); err != nil {
 		t.Fatalf("make billing device offline: %v", err)
 	}
 	if count, err := app.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 1 {
@@ -202,7 +202,7 @@ func TestDB_OfflineMailDataAcceptanceSurvivesOverlappingScans(t *testing.T) {
 	if _, err := application.Services.Device.Heartbeat(t.Context(), identity, device.HeartbeatRequest{}); err != nil {
 		t.Fatal(err)
 	}
-	db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
+	db.Clock.Set(db.Clock.Now().Add(300 * time.Second))
 	if count, err := application.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 1 {
 		t.Fatalf("queue one offline mail: count=%d err=%v", count, err)
 	}
@@ -392,7 +392,7 @@ func TestDB_MailWorkerRetriesFailuresWithoutRollingBackFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("persist refund before SMTP failure: %v", err)
 	}
-	if _, err := db.Pool.Exec(t.Context(), `UPDATE devices SET last_seen_at=$1 WHERE merchant_id=$2 AND revoked_at IS NULL`, db.Clock.Now().Add(-91*time.Second), merchantID); err != nil {
+	if _, err := db.Pool.Exec(t.Context(), `UPDATE devices SET last_seen_at=$1 WHERE merchant_id=$2 AND revoked_at IS NULL`, db.Clock.Now().Add(-300*time.Second), merchantID); err != nil {
 		t.Fatalf("prepare durable offline event: %v", err)
 	}
 	if count, err := app.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 1 {

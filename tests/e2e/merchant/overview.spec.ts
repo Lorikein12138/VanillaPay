@@ -94,7 +94,7 @@ test('renders unbound, online and offline devices from the real backend', async 
     await page.reload()
     await expect(card).toContainText(`Fixture ${state}`)
     await expect(card.getByText(state === 'online' ? '在线' : '离线', { exact: true })).toBeVisible()
-    await expect(card).toContainText(state === 'online' ? '心跳' : '最后在线')
+    await expect(card).toContainText(state === 'online' ? '心跳' : '离线于')
     await noOverflow(page)
   }
 })

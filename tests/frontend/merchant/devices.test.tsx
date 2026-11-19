@@ -1,8 +1,8 @@
 import { chooseSelect } from '../portal-controls'
 import { emptyNotifications } from './notification-fixture'
-import { unboundDevice as device } from './fixtures'
+import { boundDevice, unboundDevice as device } from './fixtures'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -47,6 +47,24 @@ function mount(path: string) {
   return { router, ...wrapper(<RouterProvider router={router} context={{ queryClient: client }} />, client) }
 }
 function binding(expires = 300): Schema['DeviceBindingDTO'] { return { binding_id: crypto.randomUUID(), code: crypto.randomUUID(), qr_content: 'vanillapay://bind?code=fixture', expires_at: new Date(Date.now() + expires * 1000).toISOString() } }
+
+it.each([
+  ['unbound', '未绑定', 'off', 0],
+  ['online', '在线 · 已绑定', 'ok', 10],
+  ['abnormal', '异常', 'wait', 100],
+  ['abnormal', '异常', 'wait', 10],
+  ['offline', '离线 · 已绑定', 'off', 360],
+] as const)('shows %s with a %s status and heartbeat policy (%s, %ss ago)', async (status, label, tone, age) => {
+  const state = status === 'unbound' ? device : boundDevice(status, new Date(Date.now() - age * 1000))
+  server.use(http.get('*/api/v1/merchant/device', () => success(state)))
+  mount('/devices')
+  const card = within(await screen.findByRole('region', { name: '设备状态' }))
+  const policy = await card.findByText(/连续 90 秒未收到心跳.*达到 300 秒.*站内通知.*邮件提醒.*连续 3 次/)
+  expect(policy).toBeVisible()
+  expect(card.getByText('30 秒', { exact: true })).toBeVisible()
+  expect(card.getByText(label, { exact: true }).querySelector('[aria-hidden]')).toHaveClass('bg-dot-' + tone)
+  if (state.last_seen_at) expect(card.getByText('最后心跳').nextElementSibling?.querySelector('time')).toHaveAttribute('datetime', state.last_seen_at)
+})
 
 describe('device offline email preference', () => {
   const toggleLabel = '设备离线时发送邮件'

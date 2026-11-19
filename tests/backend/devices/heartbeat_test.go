@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"vanillapay/internal/device"
+	"vanillapay/internal/merchant"
 	"vanillapay/internal/payment"
 	"vanillapay/internal/platform"
 	"vanillapay/tests/backend/testsupport"
@@ -25,6 +26,9 @@ func TestDB_HeartbeatRestoresOnlineStateAndOfflineScanStartsANewEpisode(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
+	if credential.HeartbeatIntervalSeconds != 30 || credential.OfflineThresholdSeconds != 300 {
+		t.Fatalf("credential thresholds = %d/%d", credential.HeartbeatIntervalSeconds, credential.OfflineThresholdSeconds)
+	}
 	t.Run("V41.B.r01/v01", func(t *testing.T) {
 		var last *time.Time
 		var everOnline bool
@@ -37,7 +41,7 @@ func TestDB_HeartbeatRestoresOnlineStateAndOfflineScanStartsANewEpisode(t *testi
 		t.Fatal(err)
 	}
 	status, err := application.Services.Device.Heartbeat(context.Background(), identity, device.HeartbeatRequest{AppVersion: "1.0"})
-	if err != nil || !status.Online {
+	if err != nil || !status.Online || status.HealthStatus != device.HealthOnline {
 		t.Fatalf("first heartbeat = %#v, %v", status, err)
 	}
 	t.Run("V41.B.r01/v02", func(t *testing.T) {
@@ -47,7 +51,45 @@ func TestDB_HeartbeatRestoresOnlineStateAndOfflineScanStartsANewEpisode(t *testi
 			t.Fatalf("first heartbeat persistence last_seen=%s ever_online=%t err=%v", last, everOnline, err)
 		}
 	})
-	db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
+	checkHealth := func(want device.HealthStatus) {
+		t.Helper()
+		dto, err := application.Services.Device.Device(t.Context(), actor)
+		if err != nil || dto.HealthStatus != want || dto.Online != (want == device.HealthOnline) ||
+			dto.AbnormalThresholdSeconds != 90 || dto.OfflineThresholdSeconds != 300 ||
+			dto.LastSeenAt == nil || dto.OfflineAt == nil || !dto.OfflineAt.Equal(dto.LastSeenAt.Add(300*time.Second)) {
+			t.Fatalf("merchant device = %#v, %v, want %s", dto, err, want)
+		}
+		admin := platform.Actor{Role: "admin", SubjectID: 1}
+		page, err := application.Services.Merchant.ListConsole(t.Context(), admin, merchant.ConsoleMerchantQuery{MerchantID: &merchantID})
+		if err != nil || len(page.Items) != 1 {
+			t.Fatalf("console list = %d, %v", len(page.Items), err)
+		}
+		detail, err := application.Services.Merchant.ConsoleDetail(t.Context(), admin, merchantID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, _ := json.Marshal(dto)
+		for _, dto := range []any{page.Items[0]["device"], detail["device"]} {
+			got, err := json.Marshal(dto)
+			if err != nil || string(got) != string(expected) {
+				t.Fatalf("console device = %s, %v, want %s", got, err, expected)
+			}
+		}
+	}
+	first := status.ServerTime
+	db.Clock.Set(first.Add(-time.Second))
+	checkHealth(device.HealthAbnormal)
+	db.Clock.Set(first.Add(90*time.Second - time.Microsecond))
+	checkHealth(device.HealthOnline)
+	db.Clock.Set(first.Add(90 * time.Second))
+	checkHealth(device.HealthAbnormal)
+	db.Clock.Set(first.Add(300*time.Second - time.Microsecond))
+	checkHealth(device.HealthAbnormal)
+	if count, err := application.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 0 {
+		t.Fatalf("scan before offline threshold = %d, %v", count, err)
+	}
+	db.Clock.Set(first.Add(300 * time.Second))
+	checkHealth(device.HealthOffline)
 	if count, err := application.Services.Device.DetectOffline(context.Background(), 10); err != nil || count != 1 {
 		t.Fatalf("offline detection = %d, %v", count, err)
 	}
@@ -62,34 +104,64 @@ func TestDB_HeartbeatRestoresOnlineStateAndOfflineScanStartsANewEpisode(t *testi
 			t.Fatalf("repeated offline scan count=%d err=%v, want no duplicate episode", count, err)
 		}
 	})
-	heartbeat := func() {
+	var lastQualified *time.Time
+	heartbeat := func(want device.HealthStatus, wantCount int16, counted bool) {
 		t.Helper()
+		now := db.Clock.Now()
+		if counted {
+			lastQualified = &now
+		}
+		if wantCount == 3 {
+			lastQualified = nil
+		}
 		status, err := application.Services.Device.Heartbeat(t.Context(), identity, device.HeartbeatRequest{AppVersion: "1.1"})
-		if err != nil || !status.Online {
+		if err != nil || !status.Online || status.HealthStatus != want {
 			t.Fatalf("recovery heartbeat = %#v, %v", status, err)
 		}
-	}
-	for range 2 {
-		heartbeat()
-		for range 3 {
-			db.Clock.Set(db.Clock.Now().Add(time.Minute))
-			heartbeat()
+		var count int16
+		var lastSeen time.Time
+		var lastCounted *time.Time
+		var armed bool
+		err = db.Pool.QueryRow(t.Context(), `SELECT recovery_count,last_counted_heartbeat_at,last_seen_at,offline_alert_armed FROM devices WHERE id=$1`, identity.DeviceID).
+			Scan(&count, &lastCounted, &lastSeen, &armed)
+		if err != nil || count != wantCount || (lastCounted == nil) != (lastQualified == nil) ||
+			(lastCounted != nil && !lastCounted.Equal(*lastQualified)) || armed != (wantCount == 3) || !lastSeen.Equal(now) {
+			t.Fatalf("persisted recovery count=%d lastCounted=%v lastSeen=%v armed=%t err=%v", count, lastCounted, lastSeen, armed, err)
 		}
-		db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
-		if count, err := application.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 0 {
-			t.Fatalf("short recovery started another alert = %d, %v", count, err)
-		}
 	}
-	heartbeat()
-	for range 4 {
-		db.Clock.Set(db.Clock.Now().Add(time.Minute))
-		heartbeat()
+	recovery := db.Clock.Now()
+	heartbeat(device.HealthAbnormal, 1, true)
+	heartbeat(device.HealthAbnormal, 1, false) // Duplicate server timestamp.
+	db.Clock.Set(recovery.Add(19 * time.Second))
+	heartbeat(device.HealthAbnormal, 1, false)
+	db.Clock.Set(recovery.Add(20 * time.Second))
+	heartbeat(device.HealthAbnormal, 2, true)
+	db.Clock.Set(recovery.Add(66 * time.Second))
+	heartbeat(device.HealthAbnormal, 1, true) // 46 seconds since the second counted sample.
+	db.Clock.Set(recovery.Add(70 * time.Second))
+	heartbeat(device.HealthAbnormal, 1, false)
+	db.Clock.Set(recovery.Add(366 * time.Second))
+	checkHealth(device.HealthAbnormal) // The uncounted retry moved the offline deadline.
+	db.Clock.Set(recovery.Add(370 * time.Second))
+	if count, err := application.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 0 {
+		t.Fatalf("short recovery started another alert = %d, %v", count, err)
 	}
-	// At five minutes the fourth heartbeat is still fresh. The alert can
-	// rearm even without another heartbeat at exactly five minutes.
-	db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
-	if count, err := application.Services.Device.DetectOffline(context.Background(), 10); err != nil || count != 1 {
-		t.Fatalf("second offline episode = %d, %v", count, err)
+	heartbeat(device.HealthAbnormal, 1, true)
+	db.Clock.Set(db.Clock.Now().Add(45 * time.Second))
+	heartbeat(device.HealthAbnormal, 2, true)
+	db.Clock.Set(db.Clock.Now().Add(-10 * time.Second))
+	heartbeat(device.HealthAbnormal, 1, true) // A rollback discards the previous two samples.
+	heartbeat(device.HealthAbnormal, 1, false)
+	db.Clock.Set(db.Clock.Now().Add(45 * time.Second))
+	heartbeat(device.HealthAbnormal, 2, true)
+	db.Clock.Set(db.Clock.Now().Add(30 * time.Second))
+	heartbeat(device.HealthOnline, 3, true)
+	db.Clock.Set(db.Clock.Now().Add(30 * time.Second))
+	heartbeat(device.HealthOnline, 3, false)
+	db.Clock.Set(db.Clock.Now().Add(300 * time.Second))
+	heartbeat(device.HealthAbnormal, 1, true) // Claims the second episode before a scan.
+	if count, err := application.Services.Device.DetectOffline(t.Context(), 10); err != nil || count != 0 {
+		t.Fatalf("late scan after reconnect = %d, %v", count, err)
 	}
 	t.Run("V41.B.r04/v01", func(t *testing.T) {
 		var episodes, jobs int
@@ -115,6 +187,7 @@ func TestDB_HeartbeatRestoresOnlineStateAndOfflineScanStartsANewEpisode(t *testi
 		WHERE n.merchant_id=$1 AND n.kind='device_offline' AND m.template='device_offline'
 		AND n.safe_payload->'summary'->>'zh_CN' LIKE '%heartbeat device%'
 		AND n.safe_payload->'summary'->>'en' LIKE '%heartbeat device%'
+		AND n.safe_payload->'summary'->>'en' LIKE '%300 seconds%'
 		AND n.safe_payload->'action' = '{"page":"/dashboard/collection","entity_id":"device"}'::jsonb`, merchantID).Scan(&matchingDeliveries); err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +208,10 @@ func TestDB_DeviceWithoutFirstHeartbeatDoesNotTriggerOfflineNotice(t *testing.T)
 	credential, err := app.Services.Device.Redeem(t.Context(), device.RedeemRequest{Code: binding.Code, DeviceName: "never online", AppVersion: "1"})
 	if err != nil {
 		t.Fatalf("redeem device before first heartbeat: %v", err)
+	}
+	status, err := app.Services.Device.Device(t.Context(), merchant)
+	if err != nil || status.HealthStatus != device.HealthOffline || !status.Bound || status.Online || status.OfflineAt != nil {
+		t.Fatalf("device before first heartbeat = %#v, %v", status, err)
 	}
 	t.Run("V41.B.r05/v01", func(t *testing.T) {
 		db.Clock.Set(db.Clock.Now().Add(10 * time.Minute))
@@ -175,7 +252,11 @@ func TestDB_DeviceOnlineThresholdControlsOrderEligibility(t *testing.T) {
 	})
 	t.Run("V41.B.r02/v02", func(t *testing.T) {
 		db.Clock.Set(lastSeen.Add(90 * time.Second))
-		_, err := app.Services.Payment.Create(t.Context(), payment.CreateCommand{
+		status, err := app.Services.Device.Device(t.Context(), actor)
+		if err != nil || status.HealthStatus != device.HealthAbnormal || status.Online {
+			t.Fatalf("monitor health at payment cutoff = %#v, %v", status, err)
+		}
+		_, err = app.Services.Payment.Create(t.Context(), payment.CreateCommand{
 			MerchantID: merchantID, Protocol: "v1", Purpose: "external", OutTradeNo: "heartbeat-90-000",
 			Name: "at offline threshold", OriginalCents: 100, NotifyURL: "https://merchant.example.test/notify", SourceIP: "192.0.2.92", Actor: actor,
 		})
@@ -206,6 +287,14 @@ func TestHTTP_ClientClockCannotExtendDeviceOnlineWindow(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatalf("server-time heartbeat status=%d body=%s", response.Code, response.Body.String())
 	}
+	var heartbeatEnvelope struct {
+		Data device.DeviceStatus `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &heartbeatEnvelope); err != nil ||
+		!heartbeatEnvelope.Data.Online || heartbeatEnvelope.Data.HealthStatus != device.HealthOnline ||
+		heartbeatEnvelope.Data.HeartbeatIntervalSeconds != 30 {
+		t.Fatalf("heartbeat response = %#v, %v", heartbeatEnvelope.Data, err)
+	}
 	var lastSeen time.Time
 	if err := db.Pool.QueryRow(t.Context(), `SELECT last_seen_at FROM devices WHERE public_id=$1`, credential.DeviceID).Scan(&lastSeen); err != nil {
 		t.Fatal("read server-authored heartbeat time")
@@ -227,7 +316,7 @@ func TestHTTP_ClientClockCannotExtendDeviceOnlineWindow(t *testing.T) {
 		}
 		db.Clock.Set(lastSeen.Add(90 * time.Second))
 		deviceDTO, err = fixture.App.Services.Device.Device(t.Context(), merchant)
-		if err != nil || deviceDTO.Online {
+		if err != nil || deviceDTO.Online || deviceDTO.HealthStatus != device.HealthAbnormal {
 			t.Fatalf("client timestamp rollback extended online status to the 90s boundary: device=%#v err=%v", deviceDTO, err)
 		}
 	})

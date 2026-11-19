@@ -150,7 +150,7 @@ func newView(name string, payload Payload, baseURL url.URL) view {
 				payload.LastHeartbeat.In(utc8).Format("2006-01-02 15:04:05 MST"),
 			})
 		}
-		v.Note = localize("设备恢复在线并连续在线满 5 分钟后，如再次离线，我们会再次通知你。", "If the device goes offline again after staying online for at least 5 consecutive minutes, we’ll send another alert.")
+		v.Note = localize("设备连续 3 次按时发送心跳后将恢复在线。如再次离线，我们会再次通知你。", "The device returns online after 3 consecutive on-time heartbeats. We’ll send another alert if it goes offline again.")
 		v.Action = localize("查看设备", "View device")
 		v.URL = actionURL(baseURL, "/devices", "")
 	case RefundRequest:

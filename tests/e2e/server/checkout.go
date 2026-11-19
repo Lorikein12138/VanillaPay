@@ -107,7 +107,7 @@ func seedCheckout(ctx context.Context, pool *pgxpool.Pool, key [32]byte, dataDir
 		return nil, err
 	}
 	hash := sha256.Sum256([]byte(deviceToken))
-	if _, err := tx.Exec(ctx, `INSERT INTO devices(public_id,merchant_id,token_hash,name,last_seen_at,ever_online) VALUES($1,$2,$3,'示例收款设备',now(),true)`, id, merchantID, hash[:]); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO devices(public_id,merchant_id,token_hash,name,last_seen_at,ever_online,recovery_count) VALUES($1,$2,$3,'示例收款设备',now(),true,3)`, id, merchantID, hash[:]); err != nil {
 		return nil, err
 	}
 	for _, channel := range []string{"alipay", "wxpay"} {

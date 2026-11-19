@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { APIError } from '@/api/client'
 import { merchantDetailQuery } from '@/app/portal-queries'
+import { DeviceStatus } from '@/components/DeviceStatus'
 import { StatusDot } from '@/components/StatusDot'
 import { Button } from '@/components/ui/button'
 import { DetailList } from '@/components/ui/detail-list'
@@ -11,7 +12,7 @@ import { Notice } from '@/components/ui/notice'
 import { RecordLink, RecordResults } from '@/components/ui/records'
 import { OrderTime } from '@/features/merchant/OrderParts'
 import { money } from '@/features/merchant/overview-data'
-import { Channels, DeviceStatus, MerchantStatus } from './ManageParts'
+import { Channels, MerchantStatus } from './ManageParts'
 import { MerchantDialog, type MerchantAction } from './MerchantDialog'
 import { planName } from './manage-data'
 
@@ -56,7 +57,7 @@ export function MerchantDetail({ id }: { id: string }) {
           { label: t('manage.status'), value: <StatusDot tone={detail.subscription.active ? 'ok' : 'off'}>{t(detail.subscription.active ? 'manage.active' : 'manage.inactive')}</StatusDot> },
         ]} /><RecordLink to={'/console/purchases?merchant_id=' + id}>{t('manage.purchasesLink')}</RecordLink></Card>
         <Card><SectionHeader title={t('manage.device')} /><DetailList columns={2} items={[
-          { label: t('manage.status'), value: <DeviceStatus device={detail.device} /> },
+          { label: t('manage.status'), value: <DeviceStatus status={detail.device.health_status} /> },
           { label: t('manage.deviceName'), value: detail.device.name ?? '—' },
           { label: t('manage.version'), value: detail.device.app_version ?? '—' },
           { label: t('manage.heartbeat'), value: <OrderTime value={detail.device.last_seen_at} /> },

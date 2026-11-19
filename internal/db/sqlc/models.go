@@ -132,6 +132,8 @@ type Device struct {
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
 	OnlineSince            pgtype.Timestamptz `json:"online_since"`
 	OfflineAlertArmed      bool               `json:"offline_alert_armed"`
+	RecoveryCount          int16              `json:"recovery_count"`
+	LastCountedHeartbeatAt pgtype.Timestamptz `json:"last_counted_heartbeat_at"`
 }
 
 type DeviceBinding struct {

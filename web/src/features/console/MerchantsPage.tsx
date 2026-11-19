@@ -6,6 +6,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { hashKey, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { APIError, consoleApi } from '@/api/client'
+import { DeviceStatus } from '@/components/DeviceStatus'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { FieldGrid, FormActions } from '@/components/ui/field'
@@ -15,7 +16,7 @@ import { RecordLink, RecordResults, Records, RecordText } from '@/components/ui/
 import { AccountError, AccountField, validPassword, validUsername } from '@/features/auth/account-shared'
 import { useLocalAction } from '@/features/merchant/CollectionParts'
 import { OrderTime } from '@/features/merchant/OrderParts'
-import { Choice, DeviceStatus, MerchantStatus } from './ManageParts'
+import { Choice, MerchantStatus } from './ManageParts'
 import { approvalStates, invalidateConsole, planName, type MerchantFilters } from './manage-data'
 
 export function MerchantsPage({ filters, onFilters }: { filters: MerchantFilters; onFilters: (filters: MerchantFilters) => void }) {
@@ -42,7 +43,7 @@ export function MerchantsPage({ filters, onFilters }: { filters: MerchantFilters
         { label: t('manage.merchant'), value: (item) => <><RecordText>{item.username}</RecordText><RecordText secondary>{item.email} · {item.pid}</RecordText></> },
         { label: t('manage.plan'), value: (item) => planName(item.subscription.plan, i18n.language) || t('manage.none') },
         { label: t('manage.expiry'), value: (item) => <OrderTime value={item.subscription.expires_at} /> },
-        { label: t('manage.device'), value: (item) => <DeviceStatus device={item.device} /> },
+        { label: t('manage.device'), value: (item) => <DeviceStatus status={item.device.health_status} /> },
         { label: t('manage.status'), value: (item) => <MerchantStatus banned={item.banned} approval={item.approval_state} /> },
         { label: t('manage.manage'), value: (item) => <RecordLink to={'/console/merchants/' + item.id}>{t('manage.manage')}</RecordLink> },
       ]} />

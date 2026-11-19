@@ -138,6 +138,14 @@ func TestUnit_MailTemplateSupportsLegacyPayloads(t *testing.T) {
 			if err != nil || msg.Subject != "【Example】"+fixture.title || !strings.Contains(msg.Text, fixture.content) || !strings.Contains(msg.HTML, fixture.content) {
 				t.Fatalf("legacy message did not render: %v", err)
 			}
+			if fixture.name == DeviceOffline {
+				for _, body := range []string{msg.Text, msg.HTML} {
+					if !strings.Contains(body, "停止发送心跳") || !strings.Contains(body, "连续 3 次") ||
+						strings.Contains(body, "300 秒") || strings.Contains(body, "5 分钟") {
+						t.Fatal("legacy offline mail must use a generic intro and the current recovery rule")
+					}
+				}
+			}
 		})
 	}
 }

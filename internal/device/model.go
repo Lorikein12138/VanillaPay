@@ -6,16 +6,18 @@ import (
 )
 
 type DeviceDTO struct {
-	ID                        *string    `json:"id"`
-	Name                      *string    `json:"name"`
-	AppVersion                *string    `json:"app_version"`
-	Bound                     bool       `json:"bound"`
-	Online                    bool       `json:"online"`
-	LastSeenAt                *time.Time `json:"last_seen_at"`
-	OfflineAt                 *time.Time `json:"offline_at"`
-	HeartbeatIntervalSeconds  int        `json:"heartbeat_interval_seconds"`
-	OfflineThresholdSeconds   int        `json:"offline_threshold_seconds"`
-	DeviceOfflineEmailEnabled bool       `json:"device_offline_email_enabled"`
+	ID                        *string      `json:"id"`
+	Name                      *string      `json:"name"`
+	AppVersion                *string      `json:"app_version"`
+	Bound                     bool         `json:"bound"`
+	Online                    bool         `json:"online"`
+	HealthStatus              HealthStatus `json:"health_status"`
+	LastSeenAt                *time.Time   `json:"last_seen_at"`
+	OfflineAt                 *time.Time   `json:"offline_at"`
+	HeartbeatIntervalSeconds  int          `json:"heartbeat_interval_seconds"`
+	AbnormalThresholdSeconds  int          `json:"abnormal_threshold_seconds"`
+	OfflineThresholdSeconds   int          `json:"offline_threshold_seconds"`
+	DeviceOfflineEmailEnabled bool         `json:"device_offline_email_enabled"`
 }
 
 type BindingDTO struct {
@@ -48,10 +50,11 @@ type HeartbeatRequest struct {
 	DeviceTime *time.Time `json:"device_time,omitempty"`
 }
 type DeviceStatus struct {
-	ServerTime               time.Time `json:"server_time"`
-	Online                   bool      `json:"online"`
-	MerchantBanned           bool      `json:"merchant_banned"`
-	HeartbeatIntervalSeconds int       `json:"heartbeat_interval_seconds"`
+	ServerTime               time.Time    `json:"server_time"`
+	Online                   bool         `json:"online"`
+	HealthStatus             HealthStatus `json:"health_status"`
+	MerchantBanned           bool         `json:"merchant_banned"`
+	HeartbeatIntervalSeconds int          `json:"heartbeat_interval_seconds"`
 }
 type ReceiptRequest struct {
 	EventID         string    `json:"event_id"`

@@ -176,7 +176,7 @@ func (q *Queries) InsertReceipt(ctx context.Context, arg InsertReceiptParams) (I
 const listOfflineDevices = `-- name: ListOfflineDevices :many
 SELECT id,merchant_id FROM devices
 WHERE revoked_at IS NULL AND ever_online
-    AND (offline_alert_armed OR last_seen_at > online_since + interval '210 seconds')
+    AND offline_alert_armed
     AND last_seen_at <= $1::timestamptz
 ORDER BY last_seen_at,id LIMIT $2
 `

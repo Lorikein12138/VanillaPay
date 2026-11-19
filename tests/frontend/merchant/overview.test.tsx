@@ -8,7 +8,7 @@ import { createI18n } from '@/lib/i18n'
 import { Overview } from '@/features/merchant/Overview'
 import { DeviceCard, RecentOrders, TrendChart } from '@/features/merchant/OverviewCards'
 import { statsRange } from '@/features/merchant/overview-data'
-import { emptyStats, order, unboundDevice } from './fixtures'
+import { boundDevice, emptyStats, order, unboundDevice } from './fixtures'
 
 const success = <T,>(data: T) => HttpResponse.json({ data, error: null, request_id: crypto.randomUUID() })
 const server = setupServer(
@@ -55,19 +55,28 @@ describe('overview sections', () => {
     expect(await screen.findByText('¥0.00')).toBeVisible()
     await waitFor(() => expect(container.querySelector('[aria-busy="true"]')).not.toBeInTheDocument())
   })
-  it.each(['unbound', 'online', 'offline'] as const)('renders the %s device with a textual status', (state) => {
-    mount(<DeviceCard device={{ ...unboundDevice, bound: state !== 'unbound', online: state === 'online', last_seen_at: '2026-11-05T01:00:00Z', offline_at: state === 'offline' ? '2026-11-05T00:50:00Z' : null }} now={new Date('2026-11-05T01:00:12Z')} />)
-    if (state === 'unbound') expect(screen.getByText('尚未绑定监控设备')).toBeVisible()
-    else {
-      expect(screen.getByText('未命名设备')).toBeVisible()
-      expect(screen.getByText(state === 'online' ? '在线' : '离线', { exact: true })).toBeVisible()
-      expect(screen.getByText(state === 'online' ? '心跳 12秒钟前' : '最后在线 10分钟前')).toBeVisible()
-    }
+  it.each([
+    ['online', '在线', '心跳 12秒钟前', 'ok', '01:00:00'],
+    ['abnormal', '异常', '心跳 2分钟前', 'wait', '00:58:00'],
+    ['abnormal', '异常', '心跳 12秒钟前', 'wait', '01:00:00'],
+    ['offline', '离线', '离线于 10分钟前', 'off', '00:45:00'],
+  ] as const)('renders %s using the correct timestamp (%s, %s)', (status, label, time, tone, lastSeen) => {
+    const device = boundDevice(status, new Date(`2026-11-05T${lastSeen}Z`))
+    mount(<DeviceCard device={{ ...device, name: null }} now={new Date('2026-11-05T01:00:12Z')} />)
+    expect(screen.getByText('未命名设备')).toBeVisible()
+    expect(screen.getByText(label, { exact: true }).querySelector('[aria-hidden]')).toHaveClass('bg-dot-' + tone)
+    expect(screen.getByText(time)).toBeVisible()
+    expect(screen.queryByText(/秒未收到心跳/)).not.toBeInTheDocument()
   })
   it('uses the last heartbeat when an offline device has no offline_at', () => {
-    mount(<DeviceCard device={{ ...unboundDevice, bound: true, name: 'Fixture device', last_seen_at: '2026-11-05T01:00:00Z' }} now={new Date('2026-11-05T01:00:12Z')} />)
-    expect(screen.getByText('Fixture device')).toBeVisible()
-    expect(screen.getByText('最后在线 12秒钟前')).toBeVisible()
+    const device = boundDevice('offline', new Date('2026-11-05T00:50:00Z'))
+    mount(<DeviceCard device={{ ...device, offline_at: null }} now={new Date('2026-11-05T01:00:12Z')} />)
+    expect(screen.getByText('心跳 10分钟前')).toBeVisible()
+  })
+  it('describes the offline threshold time in English', () => {
+    const device = boundDevice('offline', new Date('2026-11-05T00:45:00Z'))
+    mount(<DeviceCard device={device} now={new Date('2026-11-05T01:00:12Z')} />, 'en')
+    expect(screen.getByText('Went offline 10 minutes ago')).toBeVisible()
   })
   it('renders all order states, null channel and the actual amount with original fallback', () => {
     const orders = [order('paid', 'alipay'), order('pending', null), order('expired', 'wxpay'), order('refunded', 'alipay')]

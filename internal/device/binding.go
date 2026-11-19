@@ -156,7 +156,7 @@ func (s *Service) Redeem(ctx context.Context, req RedeemRequest) (CredentialDTO,
 		if err := platform.RecordAudit(ctx, tx, platform.AuditEvent{Actor: actor, MerchantID: &merchantID, Action: action, TargetType: "device", TargetID: devicePublicID, Result: "success", SafeMetadata: metadata}); err != nil {
 			return err
 		}
-		result = CredentialDTO{DeviceID: devicePublicID, DeviceToken: deviceToken, MerchantID: fmt.Sprint(merchantID), ServerTime: s.clock.Now(), HeartbeatIntervalSeconds: 30, OfflineThresholdSeconds: 90}
+		result = CredentialDTO{DeviceID: devicePublicID, DeviceToken: deviceToken, MerchantID: fmt.Sprint(merchantID), ServerTime: s.clock.Now(), HeartbeatIntervalSeconds: heartbeatIntervalSeconds, OfflineThresholdSeconds: int(offlineThreshold.Seconds())}
 		return nil
 	})
 	return result, err
