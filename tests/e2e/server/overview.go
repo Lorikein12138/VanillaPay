@@ -147,10 +147,12 @@ func seedOverviewDevice(ctx context.Context, pool *pgxpool.Pool, pid, state, nam
 		}
 		hash := sha256.Sum256([]byte(token))
 		lastSeen := time.Now().UTC()
+		recoveryCount := 3
 		if state == "offline" {
 			lastSeen = lastSeen.Add(-10 * time.Minute)
+			recoveryCount = 0
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO devices(public_id,merchant_id,token_hash,name,last_seen_at,ever_online) VALUES($1,$2,$3,$4,$5,true)`, id, merchantID, hash[:], name, lastSeen); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO devices(public_id,merchant_id,token_hash,name,last_seen_at,ever_online,recovery_count) VALUES($1,$2,$3,$4,$5,true,$6)`, id, merchantID, hash[:], name, lastSeen, recoveryCount); err != nil {
 			return err
 		}
 	}

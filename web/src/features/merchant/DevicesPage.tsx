@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import { invalidateCollection, type ReceiptFilters, type Schema } from './collection-data'
 import { ModuleError, useLocalAction } from './CollectionParts'
+import { DeviceStatus } from '@/components/DeviceStatus'
 import { StatusDot } from '@/components/StatusDot'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-button'
@@ -40,13 +41,17 @@ export function DevicesPage({ name, filters, onFilters }: { name: string; filter
     <PageHeader title={t('polish.monitoringDevice')} description={t('polish.bindAPaymentMonitorAndReviewDevice')} />
     {device.isError && <ModuleError error={device.error} retry={() => { void device.refetch() }} />}
     <Card aria-label={t('polish.deviceStatus')} aria-busy={device.isPending}>
-      <SectionHeader title={device.data?.name ?? t('polish.paymentMonitor')} actions={<StatusDot tone={device.data?.online ? 'ok' : 'off'}>{device.data?.bound ? device.data.online ? t('polish.onlineBound') : t('polish.offlineBound') : t('polish.notBound')}</StatusDot>} />
+      <SectionHeader title={device.data?.name ?? t('polish.paymentMonitor')} actions={<DeviceStatus status={device.data?.health_status ?? 'unbound'} showBinding />} />
       {device.data && <><DetailList columns={4} items={[
         { label: t('polish.lastHeartbeat'), value: <OrderTime value={device.data.last_seen_at} /> },
         { label: t('polish.appVersion'), value: device.data.app_version ?? '—' },
         { label: t('polish.heartbeatInterval'), value: t('polish.secondsValue', { v0: device.data.heartbeat_interval_seconds }) },
         { label: t('polish.offlineThreshold'), value: t('polish.secondsValue', { v0: device.data.offline_threshold_seconds }) },
       ]} />
+        <p className="mt-3 text-caption text-text-2">{t('polish.deviceHeartbeatPolicy', {
+          abnormal: device.data.abnormal_threshold_seconds,
+          offline: device.data.offline_threshold_seconds,
+        })}</p>
         <div className="mt-5 flex flex-col gap-3">
           <Checkbox checked={device.data.device_offline_email_enabled ?? true} disabled={offlineEmail.busy} onChange={(event) => { void saveOfflineEmail(event.target.checked) }}>
             {t('polish.deviceOfflineEmail')}

@@ -188,7 +188,7 @@ func (d *Database) PrepareBillingMerchant(t *testing.T, application *app.App, me
 	token := fmt.Sprintf("device-fixture-token-%d", seedSequence.Add(1))
 	tokenHash := sha256.Sum256([]byte(token))
 	deviceID := fmt.Sprintf("fixture-device-%d", seedSequence.Add(1))
-	if _, err := d.Pool.Exec(ctx, `INSERT INTO devices(public_id,merchant_id,token_hash,name,app_version,last_seen_at,ever_online) VALUES($1,$2,$3,'billing fixture','1.0',$4,true)`, deviceID, merchantID, tokenHash[:], d.Clock.Now()); err != nil {
+	if _, err := d.Pool.Exec(ctx, `INSERT INTO devices(public_id,merchant_id,token_hash,name,app_version,last_seen_at,ever_online,recovery_count) VALUES($1,$2,$3,'billing fixture','1.0',$4,true,3)`, deviceID, merchantID, tokenHash[:], d.Clock.Now()); err != nil {
 		t.Fatal("seed online billing device")
 	}
 	return token

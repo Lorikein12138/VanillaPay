@@ -22,6 +22,7 @@ import { formatOrderTime } from '@/features/merchant/OrderParts'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { createI18n } from '@/lib/i18n'
 import { emptyNotifications } from './notification-fixture'
+import { unboundDevice } from './fixtures'
 
 type Schema = components['schemas']
 const plan: Schema['SubscriptionPlanDTO'] = { id: '2', revision: 3, name: { zh_CN: '基础套餐', en: 'Basic' }, price_cents: 1200, duration_days: 30, channels: ['alipay'], purchase_limit: 2, purchased_count: 0, remaining_count: 2, deleted: false }
@@ -246,7 +247,7 @@ describe('notifications and announcements', () => {
   })
   it('marks a notification before navigating and refreshes the layout badge', async () => {
     let unread = 1, marked = false
-    server.use(http.get('*/api/v1/merchant/notifications', () => success({ items: [{ id: 'n1', kind: 'device_offline', source_id: 'd1', title: { zh_CN: '设备消息', en: 'Device alert' }, summary: { zh_CN: '<b>纯文本</b>', en: 'Text' }, created_at: new Date().toISOString(), read_at: unread ? null : new Date().toISOString(), action: { page: '/dashboard/collection', entity_id: '' } }], unread_count: unread, total: 1, next_cursor: null, popup_announcements: [] })), http.post('*/api/v1/merchant/notifications/read', async ({ request }) => { expect(await request.json()).toEqual({ ids: ['n1'] }); marked = true; unread = 0; return success({ unread_count: 0 }) }), http.get('*/api/v1/merchant/device', () => { expect(marked).toBe(true); return success({ bound: false, heartbeat_interval_seconds: 30, offline_threshold_seconds: 90 }) }), http.get('*/api/v1/merchant/receipts', () => success({ items: [], next_cursor: null, total: 0 })))
+    server.use(http.get('*/api/v1/merchant/notifications', () => success({ items: [{ id: 'n1', kind: 'device_offline', source_id: 'd1', title: { zh_CN: '设备消息', en: 'Device alert' }, summary: { zh_CN: '<b>纯文本</b>', en: 'Text' }, created_at: new Date().toISOString(), read_at: unread ? null : new Date().toISOString(), action: { page: '/dashboard/collection', entity_id: '' } }], unread_count: unread, total: 1, next_cursor: null, popup_announcements: [] })), http.post('*/api/v1/merchant/notifications/read', async ({ request }) => { expect(await request.json()).toEqual({ ids: ['n1'] }); marked = true; unread = 0; return success({ unread_count: 0 }) }), http.get('*/api/v1/merchant/device', () => { expect(marked).toBe(true); return success(unboundDevice) }), http.get('*/api/v1/merchant/receipts', () => success({ items: [], next_cursor: null, total: 0 })))
     const { router } = mount('/notifications')
     await screen.findByText('<b>纯文本</b>')
     expect(await screen.findByLabelText('1 条未读通知')).toBeVisible()

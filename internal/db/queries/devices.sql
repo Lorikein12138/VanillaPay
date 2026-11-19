@@ -16,6 +16,6 @@ INSERT INTO receipts(public_id,merchant_id,device_id,event_id,channel,amount_cen
 -- name: ListOfflineDevices :many
 SELECT id,merchant_id FROM devices
 WHERE revoked_at IS NULL AND ever_online
-    AND (offline_alert_armed OR last_seen_at > online_since + interval '210 seconds')
+    AND offline_alert_armed
     AND last_seen_at <= sqlc.arg(cutoff)::timestamptz
 ORDER BY last_seen_at,id LIMIT sqlc.arg(batch_size);

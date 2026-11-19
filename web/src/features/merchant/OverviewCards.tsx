@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Notice } from '@/components/ui/notice'
 import { Skeleton } from '@/components/ui/layout'
 import { StatusDot } from '@/components/StatusDot'
+import { DeviceStatus } from '@/components/DeviceStatus'
 export { Skeleton }
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/schema'
@@ -33,11 +34,13 @@ export function TrendChart({ points, format }: { points: Schema['PortalTrendPoin
 export function DeviceCard({ device, now }: { device: Schema['DeviceDeviceDTO']; now: Date }) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? 'zh-CN'
-  if (!device.bound) return <p className="border-t-[0.5px] border-border py-4 text-label text-text-2">{t('merchant.overview.unbound')}</p>
-  const last = device.online ? device.last_seen_at : device.offline_at ?? device.last_seen_at
+  const status = device.health_status
+  if (status === 'unbound') return <p className="border-t-[0.5px] border-border py-4 text-label text-text-2">{t('merchant.overview.unbound')}</p>
+  const offlineAt = status === 'offline' ? device.offline_at : null
+  const last = offlineAt ?? device.last_seen_at
   return <div className="flex flex-wrap items-center justify-between gap-3 border-t-[0.5px] border-border py-3.5">
-    <div className="min-w-0"><p className="break-words text-[15px]">{device.name ?? t('merchant.overview.unnamed')}</p><p className="mt-1 text-caption text-text-3">{last ? t(device.online ? 'merchant.overview.heartbeat' : 'merchant.overview.lastOnline', { time: relativeTime(last, now, language) }) : t('merchant.overview.neverSeen')}</p></div>
-    <StatusDot tone={device.online ? 'ok' : 'off'}>{t(device.online ? 'merchant.overview.online' : 'merchant.overview.offline')}</StatusDot>
+    <div className="min-w-0"><p className="break-words text-[15px]">{device.name ?? t('merchant.overview.unnamed')}</p><p className="mt-1 text-caption text-text-3">{last ? t(offlineAt ? 'merchant.overview.wentOffline' : 'merchant.overview.heartbeat', { time: relativeTime(last, now, language) }) : t('merchant.overview.neverSeen')}</p></div>
+    <DeviceStatus status={status} />
   </div>
 }
 

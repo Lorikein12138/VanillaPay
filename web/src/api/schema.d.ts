@@ -2109,32 +2109,52 @@ export interface components {
             /** Format: int64 */
             heartbeat_interval_seconds: number;
             merchant_id: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description 设备监控离线阈值（300 秒）
+             */
             offline_threshold_seconds: number;
             /** Format: date-time */
             server_time: string;
         };
+        /** @enum {string} */
+        DeviceHealthStatus: "unbound" | "offline" | "abnormal" | "online";
         DeviceDeviceDTO: {
+            /**
+             * Format: int64
+             * @description 设备监控异常阈值（90 秒）
+             */
+            abnormal_threshold_seconds: number;
             app_version: string | null;
             bound: boolean;
             /** @description 商户的有效离线邮件设置，缺省开启 */
             device_offline_email_enabled?: boolean;
+            health_status: components["schemas"]["DeviceHealthStatus"];
             /** Format: int64 */
             heartbeat_interval_seconds: number;
             id: string | null;
             /** Format: date-time */
             last_seen_at: string | null;
             name: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description 最后一次成功心跳后 300 秒
+             */
             offline_at: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description 设备监控离线阈值（300 秒）
+             */
             offline_threshold_seconds: number;
+            /** @description 设备处于健康在线状态 */
             online: boolean;
         };
         DeviceDeviceStatus: {
+            health_status: components["schemas"]["DeviceHealthStatus"];
             /** Format: int64 */
             heartbeat_interval_seconds: number;
             merchant_banned: boolean;
+            /** @description 心跳请求已成功接收，兼容旧客户端 */
             online: boolean;
             /** Format: date-time */
             server_time: string;

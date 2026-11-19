@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"vanillapay/internal/auth"
+	"vanillapay/internal/device"
 	"vanillapay/internal/platform"
 )
 
@@ -72,7 +73,9 @@ func (s *Service) ListConsole(ctx context.Context, actor platform.Actor, q Conso
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM merchants m LEFT JOIN subscriptions s ON s.merchant_id=m.id WHERE `+baseWhere, q.Query, banned, active, q.MerchantID, q.ApprovalState).Scan(&page.Total); err != nil {
 		return page, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT m.id,m.username,m.email_normalized,m.pid,m.banned_at,m.ban_reason,m.totp_cipher,m.preferences,m.created_at,m.approval_state,m.approval_reason,m.approval_reviewed_at,s.snapshot,s.expires_at,s.revision,s.source,d.public_id,d.name,d.app_version,d.last_seen_at FROM merchants m LEFT JOIN subscriptions s ON s.merchant_id=m.id LEFT JOIN devices d ON d.merchant_id=m.id AND d.revoked_at IS NULL WHERE `+baseWhere+` AND ($6::timestamptz IS NULL OR (m.created_at,m.id)<($6,$7)) ORDER BY m.created_at DESC,m.id DESC LIMIT $8`, q.Query, banned, active, q.MerchantID, q.ApprovalState, cursorTime, cursorID, q.Limit+1)
+	rows, err := s.pool.Query(ctx, `SELECT m.id,m.username,m.email_normalized,m.pid,m.banned_at,m.ban_reason,m.totp_cipher,m.preferences,m.created_at,m.approval_state,m.approval_reason,m.approval_reviewed_at,s.snapshot,s.expires_at,s.revision,s.source,
+		d.public_id,d.name,d.app_version,d.last_seen_at,COALESCE(d.recovery_count,0::smallint),(m.preferences->'device_offline_email_enabled') IS DISTINCT FROM 'false'::jsonb
+		FROM merchants m LEFT JOIN subscriptions s ON s.merchant_id=m.id LEFT JOIN devices d ON d.merchant_id=m.id AND d.revoked_at IS NULL WHERE `+baseWhere+` AND ($6::timestamptz IS NULL OR (m.created_at,m.id)<($6,$7)) ORDER BY m.created_at DESC,m.id DESC LIMIT $8`, q.Query, banned, active, q.MerchantID, q.ApprovalState, cursorTime, cursorID, q.Limit+1)
 	if err != nil {
 		return page, err
 	}
@@ -83,7 +86,8 @@ func (s *Service) ListConsole(ctx context.Context, actor platform.Actor, q Conso
 	more := false
 	for rows.Next() {
 		var row consoleMerchantRow
-		if err := rows.Scan(&row.ID, &row.Username, &row.Email, &row.PID, &row.BannedAt, &row.BanReason, &row.TOTPCipher, &row.Preferences, &row.CreatedAt, &row.ApprovalState, &row.ApprovalReason, &row.ApprovalReviewedAt, &row.SubscriptionSnapshot, &row.SubscriptionExpires, &row.SubscriptionRevision, &row.SubscriptionSource, &row.DeviceID, &row.DeviceName, &row.DeviceVersion, &row.DeviceLastSeen); err != nil {
+		if err := rows.Scan(&row.ID, &row.Username, &row.Email, &row.PID, &row.BannedAt, &row.BanReason, &row.TOTPCipher, &row.Preferences, &row.CreatedAt, &row.ApprovalState, &row.ApprovalReason, &row.ApprovalReviewedAt, &row.SubscriptionSnapshot, &row.SubscriptionExpires, &row.SubscriptionRevision, &row.SubscriptionSource,
+			&row.Device.ID, &row.Device.Name, &row.Device.AppVersion, &row.Device.LastSeenAt, &row.DeviceRecoveryCount, &row.Device.DeviceOfflineEmailEnabled); err != nil {
 			return page, err
 		}
 		if len(page.Items) == q.Limit {
@@ -147,10 +151,8 @@ type consoleMerchantRow struct {
 	SubscriptionExpires  pgtype.Timestamptz
 	SubscriptionRevision pgtype.Int8
 	SubscriptionSource   pgtype.Text
-	DeviceID             pgtype.Text
-	DeviceName           pgtype.Text
-	DeviceVersion        pgtype.Text
-	DeviceLastSeen       pgtype.Timestamptz
+	Device               device.DeviceDTO
+	DeviceRecoveryCount  int16
 }
 
 func (r consoleMerchantRow) dto(now time.Time) map[string]any {
@@ -185,24 +187,12 @@ func (r consoleMerchantRow) dto(now time.Time) map[string]any {
 		revision = r.SubscriptionRevision.Int64
 	}
 	subscription := map[string]any{"plan": plan, "channels": channels, "expires_at": expires, "active": active, "source": source, "revision": revision}
-	var device any
-	if r.DeviceID.Valid {
-		var lastSeen, offlineAt any
-		online := false
-		if r.DeviceLastSeen.Valid {
-			lastSeen = r.DeviceLastSeen.Time
-			offlineAt = r.DeviceLastSeen.Time.Add(90 * time.Second)
-			online = r.DeviceLastSeen.Time.After(now.Add(-90*time.Second)) && !r.DeviceLastSeen.Time.After(now)
-		}
-		device = map[string]any{"id": r.DeviceID.String, "name": r.DeviceName.String, "app_version": r.DeviceVersion.String, "bound": true, "online": online, "last_seen_at": lastSeen, "offline_at": offlineAt, "heartbeat_interval_seconds": 30, "offline_threshold_seconds": 90}
-	} else {
-		device = map[string]any{"id": nil, "name": nil, "app_version": nil, "bound": false, "online": false, "last_seen_at": nil, "offline_at": nil, "heartbeat_interval_seconds": 30, "offline_threshold_seconds": 90}
-	}
+	r.Device.SetHealth(now, r.DeviceRecoveryCount)
 	data, _ := json.Marshal(user)
 	var item map[string]any
 	_ = json.Unmarshal(data, &item)
 	item["subscription"] = subscription
-	item["device"] = device
+	item["device"] = r.Device
 	item["approval_state"] = r.ApprovalState
 	item["approval_reason"] = r.ApprovalReason
 	item["approval_reviewed_at"] = r.ApprovalReviewedAt

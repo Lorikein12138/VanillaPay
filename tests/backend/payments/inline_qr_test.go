@@ -417,6 +417,73 @@ func TestHTTP_ProtocolInlineQR(t *testing.T) {
 		}
 		assertMediaDenied(t, u, "")
 	})
+
+	t.Run("heartbeat clock rollback", func(t *testing.T) {
+		heartbeat := func() device.DeviceStatus {
+			t.Helper()
+			res := fixture.Request(t, http.MethodPost, "/api/v1/device/heartbeat", map[string]string{"app_version": "1"}, "device:"+token)
+			var envelope struct{ Data device.DeviceStatus }
+			if res.Code != http.StatusOK || json.Unmarshal(res.Body.Bytes(), &envelope) != nil || !envelope.Data.Online {
+				t.Fatalf("heartbeat response HTTP %d, online=%t", res.Code, envelope.Data.Online)
+			}
+			return envelope.Data
+		}
+		db.Clock.Set(db.Clock.Now().Add(10 * time.Minute))
+		for range 2 {
+			heartbeat()
+			db.Clock.Set(db.Clock.Now().Add(30 * time.Second))
+		}
+		stable := heartbeat()
+		if stable.HealthStatus != device.HealthOnline {
+			t.Fatalf("health before rollback = %s", stable.HealthStatus)
+		}
+		var updatedBefore time.Time
+		var episodeBefore int
+		if err := db.Pool.QueryRow(t.Context(), `SELECT updated_at,offline_notified_episode FROM devices WHERE merchant_id=$1 AND revoked_at IS NULL`, id).
+			Scan(&updatedBefore, &episodeBefore); err != nil {
+			t.Fatal(err)
+		}
+		db.Clock.Set(stable.ServerTime.Add(-5 * time.Minute))
+		rolledBack := heartbeat()
+
+		checkCheckout := func(trade string, wantPayable bool) {
+			t.Helper()
+			res := fixture.Request(t, http.MethodGet, "/api/v1/checkout/"+trade, nil, "guest")
+			var envelope struct{ Data payment.CheckoutDTO }
+			if res.Code != http.StatusOK || json.Unmarshal(res.Body.Bytes(), &envelope) != nil ||
+				envelope.Data.Status != "pending" || envelope.Data.CanPay != wantPayable || envelope.Data.DeviceOnline != wantPayable {
+				t.Fatalf("checkout HTTP %d, status=%s can_pay=%t device_online=%t, want payable=%t", res.Code,
+					envelope.Data.Status, envelope.Data.CanPay, envelope.Data.DeviceOnline, wantPayable)
+			}
+		}
+
+		db.Clock.Set(rolledBack.ServerTime.Add(90*time.Second - time.Millisecond))
+		data := create(t, "v1", "clock-rollback-before-cutoff", "alipay", "21.00", inline, clientIP, "")
+		trade := assertCashier(t, "v1", data, true)
+		imageURL := assertImage(t, data, channels[0].payload)
+		checkCheckout(trade, true)
+
+		db.Clock.Set(rolledBack.ServerTime.Add(90 * time.Second))
+		denied := create(t, "v1", "clock-rollback-at-cutoff", "alipay", "22.00", inline, clientIP, "")
+		if denied["error_code"] != "DEVICE_OFFLINE" || denied["trade_no"] != nil {
+			t.Errorf("new order at +90s error_code=%v, want DEVICE_OFFLINE", denied["error_code"])
+		}
+		checkCheckout(trade, false)
+		assertMediaDenied(t, imageURL, "")
+
+		var lastSeen, lastCounted, updatedAfter time.Time
+		var count int16
+		var episodeAfter int
+		var armed bool
+		err := db.Pool.QueryRow(t.Context(), `SELECT last_seen_at,last_counted_heartbeat_at,updated_at,recovery_count,
+			offline_notified_episode,offline_alert_armed FROM devices WHERE merchant_id=$1 AND revoked_at IS NULL`, id).
+			Scan(&lastSeen, &lastCounted, &updatedAfter, &count, &episodeAfter, &armed)
+		if err != nil || rolledBack.HealthStatus != device.HealthAbnormal || !lastSeen.Equal(rolledBack.ServerTime) ||
+			!lastCounted.Equal(lastSeen) || !updatedAfter.Equal(updatedBefore) || count != 1 || episodeAfter != episodeBefore || !armed {
+			t.Fatalf("rollback state health=%s count=%d episode=%d armed=%t last_seen=%v last_counted=%v updated_at=%v err=%v",
+				rolledBack.HealthStatus, count, episodeAfter, armed, lastSeen, lastCounted, updatedAfter, err)
+		}
+	})
 }
 
 func inlineQRTestImage(t *testing.T, fixture *testsupport.HTTPFixture, raw, payload string) *url.URL {

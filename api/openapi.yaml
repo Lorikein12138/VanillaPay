@@ -5961,6 +5961,7 @@ components:
         merchant_id:
           type: string
         offline_threshold_seconds:
+          description: 设备监控离线阈值（300 秒）
           format: int64
           type: integer
         server_time:
@@ -5974,9 +5975,16 @@ components:
         - heartbeat_interval_seconds
         - offline_threshold_seconds
       type: object
+    DeviceHealthStatus:
+      type: string
+      enum: [unbound, offline, abnormal, online]
     DeviceDeviceDTO:
       additionalProperties: false
       properties:
+        abnormal_threshold_seconds:
+          description: 设备监控异常阈值（90 秒）
+          format: int64
+          type: integer
         app_version:
           nullable: true
           type: string
@@ -5985,6 +5993,8 @@ components:
         device_offline_email_enabled:
           type: boolean
           description: 商户的有效离线邮件设置，缺省开启
+        health_status:
+          $ref: '#/components/schemas/DeviceHealthStatus'
         heartbeat_interval_seconds:
           format: int64
           type: integer
@@ -5999,13 +6009,16 @@ components:
           nullable: true
           type: string
         offline_at:
+          description: 最后一次成功心跳后 300 秒
           format: date-time
           nullable: true
           type: string
         offline_threshold_seconds:
+          description: 设备监控离线阈值（300 秒）
           format: int64
           type: integer
         online:
+          description: 设备处于健康在线状态
           type: boolean
       required:
         - id
@@ -6013,20 +6026,25 @@ components:
         - app_version
         - bound
         - online
+        - health_status
         - last_seen_at
         - offline_at
         - heartbeat_interval_seconds
+        - abnormal_threshold_seconds
         - offline_threshold_seconds
       type: object
     DeviceDeviceStatus:
       additionalProperties: false
       properties:
+        health_status:
+          $ref: '#/components/schemas/DeviceHealthStatus'
         heartbeat_interval_seconds:
           format: int64
           type: integer
         merchant_banned:
           type: boolean
         online:
+          description: 心跳请求已成功接收，兼容旧客户端
           type: boolean
         server_time:
           format: date-time
@@ -6034,6 +6052,7 @@ components:
       required:
         - server_time
         - online
+        - health_status
         - merchant_banned
         - heartbeat_interval_seconds
       type: object

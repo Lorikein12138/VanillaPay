@@ -44,9 +44,3 @@ export function MerchantStatus({ banned, approval = 'approved' }: { banned: bool
   if (approval === 'rejected') return <StatusDot tone="off">{t('manage.approvalStates.rejected')}</StatusDot>
   return <StatusDot tone={banned ? 'off' : 'ok'}>{t(banned ? 'manage.banned' : 'manage.normal')}</StatusDot>
 }
-export function DeviceStatus({ device }: { device: Schema['DeviceDeviceDTO'] }) {
-  const { t } = useTranslation()
-  return <StatusDot tone={!device.bound ? 'off' : device.online ? 'ok' : 'wait'}>
-    {t(!device.bound ? 'manage.unbound' : device.online ? 'manage.online' : 'manage.offline')}
-  </StatusDot>
-}

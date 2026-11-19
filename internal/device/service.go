@@ -19,11 +19,6 @@ import (
 	"vanillapay/internal/platform"
 )
 
-const (
-	offlineThreshold = 90 * time.Second
-	onlineRearmDelay = 5 * time.Minute
-)
-
 type PaymentPort interface {
 	ApplyPaidReceiptTx(context.Context, pgx.Tx, int64, int64, string, string, string) error
 }
@@ -70,29 +65,38 @@ func (s *Service) Heartbeat(ctx context.Context, device DeviceIdentity, req Hear
 		if err := sqlc.LockBusinessRows(ctx, tx, []int64{device.MerchantID}, false); err != nil {
 			return err
 		}
-		var last, onlineSince *time.Time
-		var armed bool
-		if err := tx.QueryRow(ctx, `SELECT last_seen_at,online_since,offline_alert_armed FROM devices WHERE id=$1 AND merchant_id=$2 AND revoked_at IS NULL FOR UPDATE`, device.DeviceID, device.MerchantID).Scan(&last, &onlineSince, &armed); err != nil {
+		state, err := lockHeartbeatState(ctx, tx, device.DeviceID, device.MerchantID)
+		if errors.Is(err, pgx.ErrNoRows) {
 			return deviceErr("DEVICE_UNAUTHORIZED", 401)
 		}
-		now := s.clock.Now()
-		if onlineSince == nil || last == nil {
-			onlineSince = &now
-		} else if !last.After(now.Add(-offlineThreshold)) {
-			// A run can qualify while its last heartbeat is still fresh, even
-			// when no heartbeat arrived exactly at the five-minute mark.
-			armed = armed || last.Add(offlineThreshold).After(onlineSince.Add(onlineRearmDelay))
-			onlineSince = &now
-		}
-		armed = armed || now.Sub(*onlineSince) >= onlineRearmDelay
-		if _, err := tx.Exec(ctx, `UPDATE devices SET last_seen_at=$1,ever_online=true,app_version=$2,updated_at=$1,online_since=$3,offline_alert_armed=$4 WHERE id=$5`, now, strings.TrimSpace(req.AppVersion), onlineSince, armed, device.DeviceID); err != nil {
+		if err != nil {
 			return err
+		}
+		now := s.clock.Now().Truncate(time.Microsecond)
+		if state.lastSeen == nil || !now.Equal(*state.lastSeen) {
+			if state.armed && state.everOnline && state.isOffline(now) {
+				claimed, err := s.claimOfflineTx(ctx, tx, device.DeviceID, device.MerchantID, now)
+				if err != nil {
+					return err
+				}
+				if claimed {
+					state.armed = false
+				}
+			}
+			state.record(now)
+			if _, err := tx.Exec(ctx, `UPDATE devices SET last_seen_at=$1,ever_online=true,app_version=$2,
+				updated_at=GREATEST(updated_at,$1),online_since=$3,offline_alert_armed=$4,
+				recovery_count=$5,last_counted_heartbeat_at=$6 WHERE id=$7`,
+				now, strings.TrimSpace(req.AppVersion), state.onlineSince, state.armed,
+				state.count, state.lastCounted, device.DeviceID); err != nil {
+				return err
+			}
 		}
 		var banned bool
 		if err := tx.QueryRow(ctx, `SELECT banned_at IS NOT NULL FROM merchants WHERE id=$1`, device.MerchantID).Scan(&banned); err != nil {
 			return err
 		}
-		result = DeviceStatus{ServerTime: now, Online: true, MerchantBanned: banned, HeartbeatIntervalSeconds: 30}
+		result = DeviceStatus{ServerTime: now, Online: true, HealthStatus: healthStatus(now, true, state.lastSeen, state.count), MerchantBanned: banned, HeartbeatIntervalSeconds: heartbeatIntervalSeconds}
 		return nil
 	})
 	return result, err
@@ -100,24 +104,29 @@ func (s *Service) Heartbeat(ctx context.Context, device DeviceIdentity, req Hear
 
 const offlineEmailEnabledSQL = "(m.preferences->'device_offline_email_enabled') IS DISTINCT FROM 'false'::jsonb"
 
+func lockHeartbeatState(ctx context.Context, tx pgx.Tx, deviceID, merchantID int64) (heartbeatState, error) {
+	var state heartbeatState
+	err := tx.QueryRow(ctx, `
+		SELECT last_seen_at,last_counted_heartbeat_at,online_since,ever_online,offline_alert_armed,recovery_count
+		FROM devices WHERE id=$1 AND merchant_id=$2 AND revoked_at IS NULL FOR UPDATE`, deviceID, merchantID).
+		Scan(&state.lastSeen, &state.lastCounted, &state.onlineSince, &state.everOnline, &state.armed, &state.count)
+	return state, err
+}
+
 func (s *Service) Device(ctx context.Context, actor platform.Actor) (DeviceDTO, error) {
 	if actor.Role != "merchant" || actor.MerchantID <= 0 {
 		return DeviceDTO{}, deviceErr("UNAUTHENTICATED", 401)
 	}
-	dto := DeviceDTO{HeartbeatIntervalSeconds: 30, OfflineThresholdSeconds: 90}
+	var dto DeviceDTO
+	var recoveryCount int16
 	if err := s.pool.QueryRow(ctx, `
-		SELECT d.public_id,d.name,d.app_version,d.last_seen_at,`+offlineEmailEnabledSQL+`
+		SELECT d.public_id,d.name,d.app_version,d.last_seen_at,COALESCE(d.recovery_count,0::smallint),`+offlineEmailEnabledSQL+`
 		FROM merchants m LEFT JOIN devices d ON d.merchant_id=m.id AND d.revoked_at IS NULL
 		WHERE m.id=$1`, actor.MerchantID).
-		Scan(&dto.ID, &dto.Name, &dto.AppVersion, &dto.LastSeenAt, &dto.DeviceOfflineEmailEnabled); err != nil {
+		Scan(&dto.ID, &dto.Name, &dto.AppVersion, &dto.LastSeenAt, &recoveryCount, &dto.DeviceOfflineEmailEnabled); err != nil {
 		return dto, err
 	}
-	dto.Bound = dto.ID != nil
-	dto.Online = dto.LastSeenAt != nil && dto.LastSeenAt.After(s.clock.Now().Add(-offlineThreshold))
-	if dto.LastSeenAt != nil {
-		off := dto.LastSeenAt.Add(offlineThreshold)
-		dto.OfflineAt = &off
-	}
+	dto.SetHealth(s.clock.Now(), recoveryCount)
 	return dto, nil
 }
 
@@ -190,43 +199,18 @@ func (s *Service) DetectOffline(ctx context.Context, limit int) (int, error) {
 			if err := sqlc.LockBusinessRows(ctx, tx, []int64{c.MerchantID}, false); err != nil {
 				return err
 			}
-			var name, email, locale string
-			var last time.Time
-			var next int64
-			var emailEnabled bool
-			// The first scan that claims an episode uses the preference under the
-			// merchant lock, including changes made after the heartbeat threshold.
-			// A handled episode is never backfilled and queued mail stays queued.
-			err := tx.QueryRow(ctx, `
-				UPDATE devices d SET offline_alert_armed=false,online_since=NULL,
-					offline_notified_episode=d.offline_notified_episode+1
-				FROM merchants m WHERE d.id=$1 AND d.merchant_id=m.id AND d.revoked_at IS NULL
-					AND d.ever_online AND d.last_seen_at<=$2
-					AND (d.offline_alert_armed OR d.last_seen_at > d.online_since + interval '210 seconds')
-				RETURNING d.offline_notified_episode,d.name,d.last_seen_at,m.email_normalized,COALESCE(m.preferences->>'locale',''),`+offlineEmailEnabledSQL,
-				c.ID, s.clock.Now().Add(-offlineThreshold)).Scan(&next, &name, &last, &email, &locale, &emailEnabled)
+			state, err := lockHeartbeatState(ctx, tx, c.ID, c.MerchantID)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil
 			}
 			if err != nil {
 				return err
 			}
-			dedupe := fmt.Sprintf("device_offline:%d:%d", c.ID, next)
-			id, err := platform.RandomToken(s.random, 18)
-			if err != nil {
-				return err
+			now := s.clock.Now().Truncate(time.Microsecond)
+			if state.armed && state.everOnline && state.isOffline(now) {
+				queued, err = s.claimOfflineTx(ctx, tx, c.ID, c.MerchantID, now)
 			}
-			payload, _ := json.Marshal(map[string]any{"title": map[string]string{"zh_CN": "设备离线", "en": "Device offline"}, "summary": map[string]string{"zh_CN": "设备「" + name + "」已超过 90 秒未心跳", "en": "Device “" + name + "” has missed heartbeats for over 90 seconds"}, "action": map[string]string{"page": "/dashboard/collection", "entity_id": "device"}})
-			if _, err := tx.Exec(ctx, `INSERT INTO notifications(public_id,merchant_id,kind,source_id,dedupe_key,safe_payload) VALUES($1,$2,'device_offline',$3,$4,$5) ON CONFLICT(dedupe_key) DO NOTHING`, id, c.MerchantID, fmt.Sprint(c.ID), dedupe, payload); err != nil {
-				return err
-			}
-			if emailEnabled {
-				if err := s.queueMailTx(ctx, tx, email, mailtmpl.DeviceOffline, dedupe, mailtmpl.Payload{Locale: locale, DeviceName: name, LastHeartbeat: &last}); err != nil {
-					return err
-				}
-			}
-			queued = true
-			return nil
+			return err
 		})
 		if err != nil {
 			return count, err
@@ -236,6 +220,48 @@ func (s *Service) DetectOffline(ctx context.Context, limit int) (int, error) {
 		}
 	}
 	return count, nil
+}
+
+// claimOfflineTx uses the preference and heartbeat under the business and device
+// locks, so a late heartbeat and the scanner can handle the same outage once.
+func (s *Service) claimOfflineTx(ctx context.Context, tx pgx.Tx, deviceID, merchantID int64, now time.Time) (bool, error) {
+	var name, email, locale string
+	var last time.Time
+	var next int64
+	var emailEnabled bool
+	err := tx.QueryRow(ctx, `
+		UPDATE devices d SET offline_alert_armed=false,online_since=NULL,
+			recovery_count=0,last_counted_heartbeat_at=NULL,
+			offline_notified_episode=d.offline_notified_episode+1
+		FROM merchants m WHERE d.id=$1 AND d.merchant_id=m.id AND m.id=$2 AND d.revoked_at IS NULL
+			AND d.ever_online AND d.offline_alert_armed AND d.last_seen_at<=$3
+		RETURNING d.offline_notified_episode,d.name,d.last_seen_at,m.email_normalized,COALESCE(m.preferences->>'locale',''),`+offlineEmailEnabledSQL,
+		deviceID, merchantID, now.Add(-offlineThreshold)).Scan(&next, &name, &last, &email, &locale, &emailEnabled)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	dedupe := fmt.Sprintf("device_offline:%d:%d", deviceID, next)
+	id, err := platform.RandomToken(s.random, 18)
+	if err != nil {
+		return false, err
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"title":   map[string]string{"zh_CN": "设备离线", "en": "Device offline"},
+		"summary": map[string]string{"zh_CN": "设备「" + name + "」已至少 5 分钟（300 秒）未收到心跳", "en": "Device “" + name + "” has missed heartbeats for at least 5 minutes (300 seconds)"},
+		"action":  map[string]string{"page": "/dashboard/collection", "entity_id": "device"},
+	})
+	if _, err := tx.Exec(ctx, `INSERT INTO notifications(public_id,merchant_id,kind,source_id,dedupe_key,safe_payload) VALUES($1,$2,'device_offline',$3,$4,$5) ON CONFLICT(dedupe_key) DO NOTHING`, id, merchantID, fmt.Sprint(deviceID), dedupe, payload); err != nil {
+		return false, err
+	}
+	if emailEnabled {
+		if err := s.queueMailTx(ctx, tx, email, mailtmpl.DeviceOffline, dedupe, mailtmpl.Payload{Locale: locale, DeviceName: name, LastHeartbeat: &last}); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func (s *Service) queueMailTx(ctx context.Context, tx pgx.Tx, recipient, template, dedupe string, payload mailtmpl.Payload) error {

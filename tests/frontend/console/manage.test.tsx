@@ -11,7 +11,7 @@ import { createAppRouter } from '@/app/router'
 import { api, consoleApi, onUnauthorized } from '@/api/client'
 import { createI18n } from '@/lib/i18n'
 import { bytes, planInput, validBanReason, validGrantReason, type Schema } from '@/features/console/manage-data'
-import { order, unboundDevice } from '../merchant/fixtures'
+import { boundDevice, order, unboundDevice } from '../merchant/fixtures'
 
 const admin: Schema['SessionIdentity'] = { user: { id: '1', role: 'admin', username: 'admin', banned: false, banned_at: null, ban_reason: null, totp_enabled: false, locale: 'zh-CN', theme: 'system', created_at: new Date().toISOString() }, csrf_token: crypto.randomUUID(), expires_at: new Date(Date.now() + 3600000).toISOString() }
 const plan: Schema['SubscriptionPlanDTO'] = { id: '3', revision: 2, name: { zh_CN: '专业套餐', en: 'Pro' }, channels: ['alipay', 'wxpay'], price_cents: 2999, duration_days: 30, purchase_limit: null, deleted: false }
@@ -81,6 +81,17 @@ describe('management validation', () => {
     expect(planInput('中'.repeat(101), '', '1', '30', ['alipay'], '')).toBeNull()
     expect(planInput('套餐', 'x'.repeat(301), '1', '30', ['alipay'], '')).toBeNull()
   })
+})
+
+it.each(['/console/merchants', '/console/merchants/42'])('shows a recovering device as abnormal on %s', async (path) => {
+  const device = boundDevice('abnormal', new Date(Date.now() - 5000))
+  current.device = device
+  server.use(http.get('*/api/v1/console/merchants', () => success({ items: [{ ...merchant, device }], total: 1, next_cursor: null })))
+  mount(path)
+  const statuses = await screen.findAllByText('异常', { exact: true })
+  for (const status of statuses) expect(status.querySelector('[aria-hidden]')).toHaveClass('bg-dot-wait')
+  if (path.endsWith('/42')) expect(screen.getByText('最近心跳').nextElementSibling?.querySelector('time')).toHaveAttribute('datetime', device.last_seen_at)
+  expect(screen.queryByText(/秒未收到心跳/)).not.toBeInTheDocument()
 })
 
 it('renders text safely, sends filters and restarts cursor pagination', async () => {

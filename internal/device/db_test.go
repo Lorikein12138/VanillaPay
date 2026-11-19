@@ -79,7 +79,18 @@ func TestDB_OfflineEpisodeQueuesOneNotificationAndMail(t *testing.T) {
 	if _, err := application.Services.Device.Heartbeat(ctx, identity, device.HeartbeatRequest{AppVersion: "1.0"}); err != nil {
 		t.Fatal(err)
 	}
-	db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
+	for index, gap := range []time.Duration{90 * time.Second, 30 * time.Second, 30 * time.Second} {
+		db.Clock.Set(db.Clock.Now().Add(gap))
+		status, err := application.Services.Device.Heartbeat(ctx, identity, device.HeartbeatRequest{})
+		want := device.HealthAbnormal
+		if index == 2 {
+			want = device.HealthOnline
+		}
+		if err != nil || !status.Online || status.HealthStatus != want {
+			t.Fatalf("heartbeat after abnormal gap %d = %#v, %v, want %s", index, status, err, want)
+		}
+	}
+	db.Clock.Set(db.Clock.Now().Add(300 * time.Second))
 	type scanResult struct {
 		count int
 		err   error
@@ -93,6 +104,15 @@ func TestDB_OfflineEpisodeQueuesOneNotificationAndMail(t *testing.T) {
 			results <- scanResult{count, err}
 		}()
 	}
+	heartbeatResult := make(chan error, 1)
+	go func() {
+		<-start
+		status, err := application.Services.Device.Heartbeat(ctx, identity, device.HeartbeatRequest{})
+		if err == nil && (!status.Online || status.HealthStatus != device.HealthAbnormal) {
+			t.Errorf("heartbeat racing offline scan = %#v", status)
+		}
+		heartbeatResult <- err
+	}()
 	close(start)
 	total := 0
 	for range 2 {
@@ -102,8 +122,11 @@ func TestDB_OfflineEpisodeQueuesOneNotificationAndMail(t *testing.T) {
 		}
 		total += result.count
 	}
-	if total != 1 {
-		t.Fatalf("concurrent offline scans queued %d alerts, want 1", total)
+	if err := <-heartbeatResult; err != nil {
+		t.Fatalf("heartbeat racing offline scan: %v", err)
+	}
+	if total > 1 {
+		t.Fatalf("concurrent offline scans queued %d alerts, want at most 1", total)
 	}
 	if count, err := application.Services.Device.DetectOffline(ctx, 50); err != nil || count != 0 {
 		t.Fatalf("repeated offline scan = %d, %v", count, err)
@@ -117,6 +140,78 @@ func TestDB_OfflineEpisodeQueuesOneNotificationAndMail(t *testing.T) {
 	}
 	if notifications != 1 || mails != 1 {
 		t.Fatalf("offline side effects notifications=%d mails=%d", notifications, mails)
+	}
+}
+
+func TestDB_HeartbeatRecoveryMigrationPreservesLegacyEpisodes(t *testing.T) {
+	db := testsupport.NewDatabase(t)
+	ctx := t.Context()
+	legacyDB, err := sql.Open("pgx", db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = legacyDB.Close() }()
+	provider, err := goose.NewProvider(database.DialectPostgres, legacyDB, migrations.FS())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provider.DownTo(ctx, 12); err != nil {
+		t.Fatal(err)
+	}
+	fixtures := []struct {
+		name             string
+		age, oldRun      time.Duration
+		armed, wantArmed bool
+		wantCount        int16
+		wantEpisode      int
+	}{
+		{"recent-armed", 20 * time.Second, time.Minute, true, true, 3, 8},
+		{"recent-effective", 20 * time.Second, 211 * time.Second, false, true, 3, 8},
+		{"recent-unstable", 20 * time.Second, 2 * time.Minute, false, false, 0, 7},
+		{"older-effective", 6 * time.Minute, 211 * time.Second, false, true, 0, 8},
+		{"older-formula-boundary", 6 * time.Minute, 210 * time.Second, false, false, 0, 7},
+	}
+	var now time.Time
+	if err := db.Pool.QueryRow(ctx, `SELECT now()`).Scan(&now); err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures {
+		merchantID, _ := db.SeedMerchant(t)
+		last := now.Add(-fixture.age)
+		if _, err := db.Pool.Exec(ctx, `INSERT INTO devices
+			(public_id,merchant_id,token_hash,name,last_seen_at,ever_online,online_since,offline_alert_armed,offline_notified_episode)
+			VALUES($1,$2,$3,$1,$4,true,$5,$6,7)`, fixture.name, merchantID, []byte(fixture.name), last, last.Add(-fixture.oldRun), fixture.armed); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := migrate.Up(ctx, db.URL); err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures {
+		var count int16
+		var armed bool
+		var episode int
+		err := db.Pool.QueryRow(ctx, `SELECT recovery_count,offline_alert_armed,offline_notified_episode
+			FROM devices WHERE public_id=$1`, fixture.name).Scan(&count, &armed, &episode)
+		if err != nil || count != fixture.wantCount || armed != fixture.wantArmed || episode != 7 {
+			t.Fatalf("%s migrated count=%d armed=%t episode=%d err=%v", fixture.name, count, armed, episode, err)
+		}
+	}
+	service := db.NewApplication(t).Services.Device
+	db.Clock.Set(now)
+	if count, err := service.DetectOffline(ctx, 10); err != nil || count != 1 {
+		t.Fatalf("initial migrated scan = %d, %v", count, err)
+	}
+	db.Clock.Set(now.Add(300 * time.Second))
+	if count, err := service.DetectOffline(ctx, 10); err != nil || count != 2 {
+		t.Fatalf("later migrated scan = %d, %v", count, err)
+	}
+	for _, fixture := range fixtures {
+		var episode int
+		err := db.Pool.QueryRow(ctx, `SELECT offline_notified_episode FROM devices WHERE public_id=$1`, fixture.name).Scan(&episode)
+		if err != nil || episode != fixture.wantEpisode {
+			t.Fatalf("%s scanned episode=%d err=%v, want %d", fixture.name, episode, err, fixture.wantEpisode)
+		}
 	}
 }
 
@@ -189,7 +284,7 @@ func TestDB_OfflineAlertMigrationPreservesArmingState(t *testing.T) {
 				t.Errorf("online_since = %v, want NULL", onlineSince)
 			}
 
-			db.Clock.Set(after.Add(91 * time.Second))
+			db.Clock.Set(after.Add(300 * time.Second))
 			if count, err := application.Services.Device.DetectOffline(ctx, 50); err != nil || count != fixture.wantAlerts {
 				t.Errorf("first offline scan = %d, %v, want %d", count, err, fixture.wantAlerts)
 			}
@@ -235,8 +330,8 @@ func TestDB_OfflineEmailPreferenceAppliesAtFirstScan(t *testing.T) {
 	}
 	rearm := func() {
 		heartbeat()
-		for range 5 {
-			db.Clock.Set(db.Clock.Now().Add(time.Minute))
+		for range 2 {
+			db.Clock.Set(db.Clock.Now().Add(30 * time.Second))
 			heartbeat()
 		}
 	}
@@ -248,9 +343,9 @@ func TestDB_OfflineEmailPreferenceAppliesAtFirstScan(t *testing.T) {
 	}
 	crossOfflineThreshold := func() {
 		t.Helper()
-		db.Clock.Set(db.Clock.Now().Add(91 * time.Second))
+		db.Clock.Set(db.Clock.Now().Add(300 * time.Second))
 		status, err := services.Device.Device(ctx, actor)
-		if err != nil || !status.Bound || status.Online {
+		if err != nil || !status.Bound || status.Online || status.HealthStatus != device.HealthOffline {
 			t.Fatalf("expected bound device to be offline before first scan, bound=%t online=%t err=%v", status.Bound, status.Online, err)
 		}
 	}
