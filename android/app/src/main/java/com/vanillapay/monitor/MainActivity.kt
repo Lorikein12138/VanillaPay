@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.vanillapay.monitor.parse.Channel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -46,15 +47,39 @@ class MainActivity : ComponentActivity() {
     private var refresh by mutableIntStateOf(0)
     private var reopen by mutableIntStateOf(0)
     private var scanResult by mutableStateOf<String?>(null)
+    private var diagnosticDocumentPending by mutableStateOf(false)
     private val scanner = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) scanResult = result.data?.getStringExtra(ScannerActivity.RESULT_QR)
     }
     private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
+    private val diagnosticDocument = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (diagnosticDocumentPending) {
+            diagnosticDocumentPending = false
+            if (uri == null) app.diagnosticLogActions.pickerCancelled() else app.diagnosticLogActions.export(uri)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        diagnosticDocumentPending = savedInstanceState?.getBoolean(DIAGNOSTIC_DOCUMENT_PENDING) == true
         enableEdgeToEdge()
         setContent { MonitorTheme { Content() } }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(DIAGNOSTIC_DOCUMENT_PENDING, diagnosticDocumentPending)
+    }
+
+    internal fun exportDiagnosticLogs() {
+        val actions = app.diagnosticLogActions
+        if (diagnosticDocumentPending || actions.busy) return
+        diagnosticDocumentPending = true
+        actions.pickerOpened()
+        if (runCatching { diagnosticDocument.launch("connection-diagnostics.txt") }.isFailure) {
+            diagnosticDocumentPending = false
+            actions.pickerFailed()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -203,11 +228,15 @@ class MainActivity : ComponentActivity() {
             !state.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             screen == "connection-diagnostics" -> ConnectionDiagnosticsRoute(
                 app.connectionDiagnostics, access, session?.started == true, state.online,
+                busy = diagnosticDocumentPending || app.diagnosticLogActions.busy,
+                message = app.diagnosticLogActions.message,
                 back = { screen = diagnosticDestination() },
-                copy = { copy("连接诊断", it) },
+                export = ::exportDiagnosticLogs,
                 share = {
-                    open(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_TEXT, it), "分享连接诊断"))
+                    if (!diagnosticDocumentPending) app.diagnosticLogActions.share(lifecycleScope, ::startActivity)
+                },
+                clear = {
+                    if (!diagnosticDocumentPending) app.diagnosticLogActions.clear()
                 },
             )
             screen == "diagnostics" -> {
@@ -317,5 +346,9 @@ class MainActivity : ComponentActivity() {
         else -> if (error is IOException && error !is ApiFailure) "无法连接服务器，请检查网络和站点地址。"
             else if (error is JSONException) "站点返回了无效的绑定结果。"
             else "绑定失败，请重试。"
+    }
+
+    private companion object {
+        const val DIAGNOSTIC_DOCUMENT_PENDING = "diagnostic_document_pending"
     }
 }

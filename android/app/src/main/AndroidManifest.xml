@@ -40,6 +40,15 @@
             android:exported="false"
             android:screenOrientation="portrait"
             tools:ignore="LockedOrientationActivity" />
+        <provider
+            android:name=".DiagnosticLogFileProvider"
+            android:authorities="${applicationId}.diagnostic-log-files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/diagnostic_log_file_paths" />
+        </provider>
         <service
             android:name=".PaymentNotificationListener"
             android:exported="true"

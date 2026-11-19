@@ -31,8 +31,9 @@ class ConnectionDiagnosticsScreenshotTest {
         val file = File(directory, "connection-diagnostics-$theme-360.png")
         captureRoboImage(file = file) {
             MonitorTheme(dark) {
-                ConnectionDiagnosticsScreen(true, true, !dark, DiagnosticSnapshot(12, time, ""),
-                    loading = false, busy = false, message = null, back = {}, copy = {}, share = {}, clear = {})
+                val sampleLog = "$time elapsed_ms=3000 event=LISTENER_CONNECTED\n"
+                ConnectionDiagnosticsScreen(true, true, !dark, DiagnosticSnapshot(12, time, sampleLog),
+                    loading = false, busy = false, message = null, back = {}, export = {}, share = {}, clear = {})
             }
         }
         assertTrue(file.length() > 0)

@@ -7,12 +7,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 internal fun ConnectionDiagnosticsRoute(
@@ -20,15 +18,15 @@ internal fun ConnectionDiagnosticsRoute(
     access: Boolean,
     monitoring: Boolean,
     online: Boolean,
+    busy: Boolean,
+    message: String?,
     back: () -> Unit,
-    copy: (String) -> Unit,
-    share: (String) -> Boolean,
+    export: () -> Unit,
+    share: () -> Unit,
+    clear: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     var snapshot by remember { mutableStateOf<DiagnosticSnapshot?>(null) }
     var loading by remember { mutableStateOf(true) }
-    var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
 
     LaunchedEffect(diagnostics, busy) {
@@ -40,35 +38,9 @@ internal fun ConnectionDiagnosticsRoute(
         }
     }
 
-    fun act(operation: suspend () -> String) {
-        if (busy) return
-        busy = true
-        scope.launch {
-            try {
-                message = operation()
-            } finally {
-                busy = false
-            }
-        }
-    }
-
-    fun export(send: (String) -> String) = act {
-        snapshot = diagnostics.snapshot()
-        val text = snapshot?.text
-        when {
-            text == null -> "无法读取诊断日志，请重试。"
-            text.isEmpty() -> "暂无可导出的诊断日志。"
-            else -> send(text)
-        }
-    }
-
     ConnectionDiagnosticsScreen(access, monitoring, online, snapshot, loading, busy, message, back,
-        copy = {
-            export { text ->
-                if (runCatching { copy(text) }.isSuccess) "已复制脱敏日志。" else "无法复制日志，请重试。"
-            }
-        },
-        share = { export { if (share(it)) "" else "无法打开系统分享，请重试。" } },
+        export = export,
+        share = share,
         clear = { confirmClear = true },
     )
 
@@ -77,17 +49,12 @@ internal fun ConnectionDiagnosticsRoute(
             confirmButton = {
                 TextAction("清除日志", {
                     confirmClear = false
-                    act {
-                        if (diagnostics.clear()) {
-                            snapshot = diagnostics.snapshot()
-                            "已清除连接诊断日志。"
-                        } else "无法清除诊断日志，请重试。"
-                    }
-                }, danger = true)
+                    clear()
+                }, enabled = !busy, danger = true)
             },
             dismissButton = { TextAction("取消", { confirmClear = false }) },
         ) {
-            Paragraph("清除本机已保存的连接诊断日志。之后发生的连接事件仍会记录。")
+            Paragraph("清除本机已保存的连接诊断日志。之后发生的连接事件仍会记录。已导出的文件和接收方已保存的副本不会被收回。")
         }
     }
 }
@@ -102,7 +69,7 @@ internal fun ConnectionDiagnosticsScreen(
     busy: Boolean,
     message: String?,
     back: () -> Unit,
-    copy: () -> Unit,
+    export: () -> Unit,
     share: () -> Unit,
     clear: () -> Unit,
 ) {
@@ -113,10 +80,10 @@ internal fun ConnectionDiagnosticsScreen(
         else -> "心跳离线"
     }
     val hasLogs = (snapshot?.count ?: 0) > 0
-    val enabled = hasLogs && !busy
+    val enabled = !snapshot?.text.isNullOrEmpty() && !busy
     val button = Modifier.fillMaxWidth().heightIn(min = 48.dp)
     Screen(topBar = { BackHeader("连接诊断", back) }) {
-        Paragraph("记录心跳和监听状态，最多保留 24 小时。日志仅存本机，需手动复制或分享。")
+        Paragraph("记录心跳和监听状态，最多保留 24 小时。可手动导出或分享脱敏日志文件。")
         Panel {
             Headline(status)
             when {
@@ -131,8 +98,8 @@ internal fun ConnectionDiagnosticsScreen(
         }
         if (snapshot?.writeFailed == true) Callout("部分诊断日志未能保存。")
         message?.takeIf { it.isNotBlank() }?.let { Callout(it, warning = false) }
-        Action("复制脱敏日志", copy, enabled, button)
-        Secondary("系统分享", share, button, enabled = enabled)
+        Action("导出日志文件", export, enabled, button)
+        Secondary("分享日志文件", share, button, enabled = enabled)
         Secondary("清除日志", clear, button, enabled = !busy && !loading && (hasLogs || snapshot == null), danger = true)
     }
 }
