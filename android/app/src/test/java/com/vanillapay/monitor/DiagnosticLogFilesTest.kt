@@ -32,6 +32,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
@@ -247,31 +248,40 @@ class DiagnosticLogFilesTest {
     }
 
     @Test fun cancellationAfterIoDiscardsThePendingShareWithoutOpeningChooser() {
-        history.record(DiagnosticEvent.SERVICE_STARTED)
         val previous = shareFixture("previous", System.currentTimeMillis())
+        val allowSnapshot = CountDownLatch(1)
+        val diagnostics = MonitorDiagnostics(app.scope, directory = {
+            check(allowSnapshot.await(5, TimeUnit.SECONDS)) { "Snapshot gate timed out" }
+            app.noBackupFilesDir
+        })
+        val shareActions = DiagnosticLogActions(diagnostics, files, app.scope)
         val queue = LinkedBlockingQueue<Runnable>()
         val scope = CoroutineScope(SupervisorJob() + object : CoroutineDispatcher() {
             override fun dispatch(context: CoroutineContext, block: Runnable) { queue.add(block) }
         })
-        fun continuation() = requireNotNull(queue.poll(5, TimeUnit.SECONDS))
+        fun continuation(stage: String) = requireNotNull(queue.poll(5, TimeUnit.SECONDS)) { "Timed out waiting for $stage" }
         try {
+            diagnostics.record(DiagnosticEvent.SERVICE_STARTED)
             var presented = false
-            actions.share(scope) { presented = true }
-            var resumeIo = continuation()
-            if (cache.listFiles()!!.size == 1) {
-                // The snapshot suspended before the file operation began.
-                resumeIo.run()
-                resumeIo = continuation()
-            }
-            assertEquals(2, cache.listFiles()!!.size)
-            assertTrue(actions.busy)
-            scope.cancel()
-            resumeIo.run()
-            continuation().run()
+            shareActions.share(scope) { presented = true }
+            // The store was gated until share suspended on its snapshot. Resume each phase in order.
+            allowSnapshot.countDown()
+            continuation("snapshot").run()
+            val resumeAfterIo = continuation("share IO")
+            val cached = cache.listFiles()!!.toSet()
+            assertTrue(previous in cached)
+            val pending = (cached - previous).single()
+            assertTrue(pending.length() > 0)
             assertFalse(presented)
-            assertFalse(actions.busy)
+            assertTrue(shareActions.busy)
+            scope.cancel()
+            resumeAfterIo.run()
+            continuation("share cleanup").run()
+            assertFalse(presented)
+            assertFalse(shareActions.busy)
             assertEquals(listOf(previous), cache.listFiles()!!.toList())
         } finally {
+            allowSnapshot.countDown()
             scope.cancel()
         }
     }
