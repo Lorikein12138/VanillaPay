@@ -36,12 +36,16 @@ fun parseReceipt(notice: PaymentNotice): ParsedReceipt? {
     val body = group.replaceFirst(notice.body, "").trim()
     if (blocked.containsMatchIn(title) || blocked.containsMatchIn(body)) return null
     val count = (group.find(notice.title) ?: group.find(notice.body))?.groupValues?.get(1)?.toIntOrNull()
-    val match = when (channel) {
+    val titleMatch = if (channel == Channel.Alipay) alipayTitleAmount(title, body) else null
+    val match = titleMatch ?: when (channel) {
         Channel.Alipay -> alipay(title, body)
         Channel.WeChat -> weChat(title, body, count != null)
     } ?: return null
     val cents = runCatching { BigDecimal(match.groupValues[1]).movePointRight(2).longValueExact() }.getOrNull()
         ?.takeIf { it > 0 } ?: return null
+    if (titleMatch != null) {
+        return ParsedReceipt(channel, cents, null, "alipay\nreceipt-title\n$cents", count)
+    }
     val canonical = if (channel == Channel.WeChat) body.replaceFirst(Regex("""^微信支付[:：]?\s*"""), "") else body
     return ParsedReceipt(
         channel, cents, tradeNo.find(body)?.groupValues?.get(1),

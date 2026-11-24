@@ -237,6 +237,31 @@ class MonitorReviveTest {
         }
     }
 
+    @Test fun alipayReceiptTitleOnlyEnqueuesAndWakesUploadsForMatchingSession() = runBlocking {
+        setState(MonitorState(loaded = true, session = session))
+        val now = System.currentTimeMillis()
+        val notice = alipayTitleNotice.copy(postTime = now, notificationTime = now)
+        val dao = app.database.dao()
+        try {
+            for (scope in listOf(null, "another-device")) {
+                app.capture(notice, scope)
+                assertEquals(5000L, dao.diagnostics().first().single().cents)
+                assertEquals(0, dao.pending(session.deviceId).first())
+                assertTrue(app.uploads.tryReceive().isFailure)
+            }
+            app.capture(notice, session.deviceId)
+            val queued = dao.recent(session.deviceId).first().single()
+            assertEquals(QUEUED, queued.status)
+            assertEquals(5000L, queued.cents)
+            assertTrue(app.uploads.tryReceive().isSuccess)
+            app.capture(notice, session.deviceId)
+            assertEquals(1, dao.pending(session.deviceId).first())
+            assertTrue(app.uploads.tryReceive().isFailure)
+        } finally {
+            app.database.close()
+        }
+    }
+
     @Test fun heartbeatSkipsWithoutPermissionAndLogsOnlyOneSkipAndRecovery() {
         MockWebServer().use { server ->
             server.start()
